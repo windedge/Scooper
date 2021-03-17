@@ -22,12 +22,7 @@ dependencies {
 }
 
 tasks.withType<KotlinCompile>() {
-    kotlinOptions.jvmTarget = "1.8"
-
-    extensions.findByType(JavaPluginExtension::class.java)?.run {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
+    kotlinOptions.jvmTarget = "11"
 }
 
 compose.desktop {
@@ -36,6 +31,8 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "scoop-ui"
+            packageVersion = "1.0.0"
+            vendor = "xujl"
         }
     }
 }
