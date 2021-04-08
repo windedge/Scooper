@@ -1,0 +1,39 @@
+
+
+CREATE TABLE IF NOT EXISTS app (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT   NOT NULL,
+    version     TEXT   NOT NULL,
+    global      INTEGER AS Boolean NOT NULL DEFAULT 0,
+    installed   INTEGER AS Boolean NOT NULL DEFAULT 0,
+    description TEXT,
+    url         TEXT,
+    homepage    TEXT,
+    license     TEXT,
+    licenseUrl TEXT
+--     createdAt Text as Datetime,
+--     updatedAt Text as Datetime
+);
+
+selectAll:
+SELECT * FROM app;
+
+select:
+SELECT *
+FROM app
+WHERE id = :id;
+
+count:
+SELECT count(1) FROM app;
+
+add:
+INSERT INTO app(name, version, global, description, url, homepage, license, licenseUrl)
+VALUES (:name, :version, :global, :description, :url, :homepage, :license, :licenseUrl);
+
+delete:
+DELETE FROM app
+WHERE id = :id;
+
+setInstalled:
+UPDATE app SET installed = 1 WHERE id = :id;
+

@@ -4,7 +4,5 @@ pluginManagement {
         mavenCentral()
         maven { url = uri("https://maven.pkg.jetbrains.space/public/p/compose/dev") }
     }
-    
 }
-rootProject.name = "scoop-ui"
-
+rootProject.name = "scooper"
