@@ -25,71 +25,67 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import moe.tlaster.precompose.PreComposeWindow
-import moe.tlaster.precompose.navigation.NavHost
-import moe.tlaster.precompose.navigation.Navigator
-import moe.tlaster.precompose.navigation.rememberNavigator
-import moe.tlaster.precompose.navigation.transition.NavTransition
 import moe.tlaster.precompose.ui.observeAsState
 import moe.tlaster.precompose.ui.viewModel
 import moe.tlaster.precompose.viewmodel.ViewModel
+import scooper.navigation.Router
+import scooper.navigation.core.BackStack
 import scooper.repository.App
 import scooper.repository.AppsRepository
-import scooper.scooper.util.replaceCurrent
 import scooper.ui.MenuItem
 import scooper.ui.SearchBox
 import scooper.ui.theme.ScooperTheme
 
+
+sealed class AppRoute {
+    data class Apps(val filter: String) : AppRoute()
+    object Splash : AppRoute()
+    object Buckets : AppRoute()
+    object Settings : AppRoute()
+}
+
 fun main() = PreComposeWindow(size = IntSize(960, 650), title = "Scooper") {
-    val navigator = rememberNavigator()
     ScooperTheme {
-        Layout(navigator) {
-            val navTransition = NavTransition()
-            NavHost(navigator = navigator, navTransition = navTransition, initialRoute = "/apps") {
-                scene("/apps") {
-                    AppView()
-                }
-                scene("/installed") {
-                    AppView()
-                }
-                scene("/updates") {
-                    AppView()
-                }
-                scene("/buckets") {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+        Router<AppRoute>(start = AppRoute.Apps(filter = "")) { currentRoute ->
+            Layout(this) {
+                when (val route = currentRoute.value) {
+                    is AppRoute.Apps -> AppView(route.filter)
+                    AppRoute.Buckets -> Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                         Text("Buckets")
                     }
-                }
-                scene("/settings") {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    AppRoute.Settings -> Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                         Text("Settings")
                     }
+                    AppRoute.Splash -> TODO()
                 }
             }
         }
     }
 }
 
-
 @Composable
-fun Layout(
-    navigator: Navigator,
-    menuBar: @Composable () -> Unit? = { MenuBar(navigator) },
-    mainContent: @Composable () -> Unit,
-) {
+fun Layout(navigator: BackStack<AppRoute>, content: @Composable () -> Unit) {
     Surface(color = colors.background) {
         Row(
             Modifier.defaultMinSize(minWidth = 800.dp, minHeight = 500.dp).fillMaxSize()
                 .padding(top = 2.dp, start = 1.dp, end = 1.dp, bottom = 1.dp)
         ) {
-            menuBar()
+            MenuBar(navigator)
             Spacer(Modifier.width(4.dp))
-            mainContent()
+            content()
         }
     }
+
 }
 
 @Composable
-fun MenuBar(navigator: Navigator) {
+fun MenuBar(navigator: BackStack<AppRoute>) {
     Surface(
         Modifier.fillMaxHeight().width(180.dp),
         elevation = 3.dp,
@@ -99,38 +95,45 @@ fun MenuBar(navigator: Navigator) {
             Modifier.defaultMinSize(10.dp).padding(vertical = 2.dp)
         ) {
             val selectedItem = remember { mutableStateOf("Apps") }
+            val route = navigator.current.value
             MenuItem(
                 "Apps",
                 icon = Icons.TwoTone.Home,
                 selectItem = selectedItem,
-                onClick = { navigator.replaceCurrent("/apps") }
+                selected = route is AppRoute.Apps && route.filter == "",
+                onClick = { navigator.replace(AppRoute.Apps(filter = "")) }
             )
             MenuItem(
                 "Installed",
                 indent = 40,
                 icon = Icons.TwoTone.KeyboardArrowRight,
                 selectItem = selectedItem,
-                onClick = { navigator.replaceCurrent("/installed") },
+                selected = route is AppRoute.Apps && route.filter == "installed",
+                onClick = { navigator.replace(AppRoute.Apps(filter = "installed")) },
             )
             MenuItem(
                 "Updates",
                 indent = 40,
                 icon = Icons.TwoTone.KeyboardArrowRight,
                 selectItem = selectedItem,
-                onClick = { navigator.replaceCurrent("/updates") },
+                selected = route is AppRoute.Apps && route.filter == "updates",
+                onClick = { navigator.replace(AppRoute.Apps(filter = "updates")) },
             )
             Divider(Modifier.height(1.dp))
             MenuItem(
                 "Buckets",
                 icon = Icons.TwoTone.List,
                 selectItem = selectedItem,
-                onClick = { navigator.replaceCurrent("/buckets") })
+                selected = route == AppRoute.Buckets,
+                onClick = { navigator.replace(AppRoute.Buckets) }
+            )
             Divider(Modifier.height(1.dp))
             MenuItem(
                 "Settings",
                 icon = Icons.TwoTone.Settings,
                 selectItem = selectedItem,
-                onClick = { navigator.replaceCurrent("/settings") }
+                selected = route == AppRoute.Settings,
+                onClick = { navigator.replace(AppRoute.Settings) }
             )
             Divider(Modifier.height(1.dp))
         }
@@ -144,7 +147,7 @@ class AppsViewModel : ViewModel() {
 }
 
 @Composable
-fun AppView() {
+fun AppView(filter: String) {
     val viewModel = viewModel {
         AppsViewModel()
     }
@@ -254,4 +257,3 @@ fun AppCard(app: App, divider: Boolean = false) {
         }
     }
 }
-

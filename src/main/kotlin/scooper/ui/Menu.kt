@@ -20,12 +20,13 @@ fun MenuItem(
     text: String = "",
     modifier: Modifier = Modifier,
     selectItem: MutableState<String>,
+    selected: Boolean = false,
     indent: Int = 30,
     icon: ImageVector? = null,
     onClick: (() -> Unit)? = null,
 ) {
     var hover by remember { mutableStateOf(false) }
-    val highlight = hover || selectItem.value == text
+    val highlight = hover || selected
     var default = Modifier
         .fillMaxWidth()
         .padding(2.dp)
