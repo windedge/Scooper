@@ -1,6 +1,9 @@
 package scooper.ui
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,9 +21,11 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import org.koin.java.KoinJavaComponent.get
 import scooper.util.cursorHand
 import scooper.util.cursorInput
 import scooper.util.onHover
+import scooper.viewmodels.AppsViewModel
 
 @Composable
 fun SearchBox() {
@@ -37,6 +42,7 @@ fun SearchBox() {
 
 @Composable
 fun SearchBar() {
+    val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
     Row(
         Modifier.border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
             .onHover { on ->
@@ -123,7 +129,9 @@ fun SearchBar() {
             singleLine = true,
         )
         Button(
-            onClick = {},
+            onClick = {
+                appsViewModel.loadApps()
+            },
             modifier = Modifier.padding(horizontal = 0.dp).width(100.dp).cursorHand(),
             shape = RoundedCornerShape(
                 topStart = 0.dp,

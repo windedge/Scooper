@@ -1,5 +1,6 @@
 package scooper
 
+import androidx.compose.desktop.Window
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,26 +16,27 @@ import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import moe.tlaster.precompose.PreComposeWindow
-import moe.tlaster.precompose.ui.observeAsState
-import moe.tlaster.precompose.ui.viewModel
-import moe.tlaster.precompose.viewmodel.ViewModel
-import scooper.navigation.Router
-import scooper.navigation.core.BackStack
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import org.koin.core.context.startKoin
+import org.koin.java.KoinJavaComponent.get
+import scooper.di.viewModelsModule
+import scooper.framework.navigation.Router
+import scooper.framework.navigation.core.BackStack
 import scooper.repository.App
-import scooper.repository.AppsRepository
+import scooper.repository.initDb
 import scooper.ui.MenuItem
 import scooper.ui.SearchBox
 import scooper.ui.theme.ScooperTheme
+import scooper.viewmodels.AppsState
+import scooper.viewmodels.AppsViewModel
+import kotlin.time.ExperimentalTime
 
 
 sealed class AppRoute {
@@ -44,7 +46,21 @@ sealed class AppRoute {
     object Settings : AppRoute()
 }
 
-fun main() = PreComposeWindow(size = IntSize(960, 650), title = "Scooper") {
+@ExperimentalTime
+fun main() = Window(size = IntSize(960, 650), title = "Scooper") {
+    initDb()
+    val koinApp = startKoin {
+        modules(viewModelsModule)
+    }
+
+    val appsViewModel = koinApp.koin.get<AppsViewModel>()
+    val mainScope = rememberCoroutineScope()
+    mainScope.launch {
+        appsViewModel.container.sideEffectFlow.collect {
+            println("sideEffect = ${it}")
+        }
+    }
+
     ScooperTheme {
         Router<AppRoute>(start = AppRoute.Apps(filter = "")) { currentRoute ->
             Layout(this) {
@@ -72,13 +88,15 @@ fun main() = PreComposeWindow(size = IntSize(960, 650), title = "Scooper") {
 @Composable
 fun Layout(navigator: BackStack<AppRoute>, content: @Composable () -> Unit) {
     Surface(color = colors.background) {
-        Row(
-            Modifier.defaultMinSize(minWidth = 800.dp, minHeight = 500.dp).fillMaxSize()
-                .padding(top = 2.dp, start = 1.dp, end = 1.dp, bottom = 1.dp)
-        ) {
-            MenuBar(navigator)
-            Spacer(Modifier.width(4.dp))
-            content()
+        Box {
+            Row(
+                Modifier.defaultMinSize(minWidth = 800.dp, minHeight = 500.dp).fillMaxSize()
+                    .padding(top = 2.dp, start = 1.dp, end = 1.dp, bottom = 1.dp)
+            ) {
+                MenuBar(navigator)
+                Spacer(Modifier.width(4.dp))
+                content()
+            }
         }
     }
 
@@ -140,18 +158,10 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
     }
 }
 
-class AppsViewModel : ViewModel() {
-    val apps by lazy {
-        AppsRepository.getApps()
-    }
-}
-
 @Composable
-fun AppView(filter: String) {
-    val viewModel = viewModel {
-        AppsViewModel()
-    }
-    val apps by viewModel.apps.observeAsState()
+fun AppView(filter: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
+    val state = appsViewModel.container.stateFlow.collectAsState(AppsState())
+    val apps = state.value.apps
     Column(Modifier.fillMaxSize()) {
         SearchBox()
         Spacer(Modifier.defaultMinSize(minHeight = 30.dp).fillMaxHeight(0.07f))
