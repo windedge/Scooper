@@ -25,7 +25,7 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.1.0")
     implementation("io.insert-koin:koin-core:3.0.1-beta-2")
-    implementation("org.orbit-mvi:orbit-core:3.0.1")
+    implementation("org.orbit-mvi:orbit-core:3.1.1")
 
     implementation("org.jetbrains.exposed:exposed-core:0.30.1")
     implementation("org.jetbrains.exposed:exposed-dao:0.30.1")

@@ -18,7 +18,7 @@ data class AppsState(
 sealed class AppsSideEffect {
     object Empty : AppsSideEffect()
     object Loading : AppsSideEffect()
-    object LoadingFinish : AppsSideEffect()
+    object Done : AppsSideEffect()
     data class Toast(val text: String) : AppsSideEffect()
 }
 
@@ -30,9 +30,8 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     fun loadApps(page: Int = 0) = intent {
         postSideEffect(AppsSideEffect.Loading)
         val apps = AppsRepository.getApps()
-        println("apps.size = ${apps.size}")
         reduce { state.copy(apps = apps) }
-        postSideEffect(AppsSideEffect.LoadingFinish)
+        postSideEffect(AppsSideEffect.Done)
     }
 }
 

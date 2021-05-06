@@ -49,16 +49,8 @@ sealed class AppRoute {
 @ExperimentalTime
 fun main() = Window(size = IntSize(960, 650), title = "Scooper") {
     initDb()
-    val koinApp = startKoin {
+    startKoin {
         modules(viewModelsModule)
-    }
-
-    val appsViewModel = koinApp.koin.get<AppsViewModel>()
-    val mainScope = rememberCoroutineScope()
-    mainScope.launch {
-        appsViewModel.container.sideEffectFlow.collect {
-            println("sideEffect = ${it}")
-        }
     }
 
     ScooperTheme {
@@ -87,6 +79,20 @@ fun main() = Window(size = IntSize(960, 650), title = "Scooper") {
 
 @Composable
 fun Layout(navigator: BackStack<AppRoute>, content: @Composable () -> Unit) {
+    val appsViewModel = get<AppsViewModel>(AppsViewModel::class.java)
+
+    /*
+    val sideEffect by appsViewModel.container.sideEffectFlow.collectAsState(AppsSideEffect.Empty)
+    println("sideEffect = ${sideEffect::class.java}")
+    */
+
+    val layoutScope = rememberCoroutineScope()
+    layoutScope.launch {
+        appsViewModel.container.sideEffectFlow.collect {
+            println("sideEffect = ${it}")
+        }
+    }
+
     Surface(color = colors.background) {
         Box {
             Row(
