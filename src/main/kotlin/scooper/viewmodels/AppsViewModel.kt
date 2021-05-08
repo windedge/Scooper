@@ -7,7 +7,7 @@ import org.orbitmvi.orbit.container
 import org.orbitmvi.orbit.syntax.simple.intent
 import org.orbitmvi.orbit.syntax.simple.postSideEffect
 import org.orbitmvi.orbit.syntax.simple.reduce
-import scooper.repository.App
+import scooper.data.App
 import scooper.repository.AppsRepository
 
 data class AppsState(
@@ -24,14 +24,19 @@ sealed class AppsSideEffect {
 
 class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     override val container: Container<AppsState, AppsSideEffect> = GlobalScope.container(AppsState()) {
-        loadApps()
+        getApps()
     }
 
-    fun loadApps(page: Int = 0) = intent {
+    fun getApps(page: Int = 0) = intent {
         postSideEffect(AppsSideEffect.Loading)
-        val apps = AppsRepository.getApps()
+        val apps = AppsRepository.getApps(limit = 1000)
         reduce { state.copy(apps = apps) }
         postSideEffect(AppsSideEffect.Done)
+    }
+
+    fun reloadApps() = intent {
+        AppsRepository.loadApps()
+        getApps()
     }
 }
 

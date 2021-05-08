@@ -130,7 +130,7 @@ fun SearchBar() {
         )
         Button(
             onClick = {
-                appsViewModel.loadApps()
+                appsViewModel.getApps()
             },
             modifier = Modifier.padding(horizontal = 0.dp).width(100.dp).cursorHand(),
             shape = RoundedCornerShape(

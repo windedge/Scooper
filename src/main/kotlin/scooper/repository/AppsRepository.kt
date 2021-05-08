@@ -7,27 +7,18 @@ import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.`java-time`.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
+import scooper.data.App
+import scooper.data.Bucket
+import scooper.util.ScooperException
 import java.io.File
-
-
-data class App(
-    val name: String,
-    val version: String,
-    val global: Boolean = false,
-    val installed: Boolean = false,
-    val description: String? = null,
-    val url: String? = null,
-    val homepage: String? = null,
-    val license: String? = null,
-    val licenseUrl: String? = null
-)
 
 
 object Apps : IntIdTable() {
     val name = varchar("name", 1000)
     val version = varchar("version", 1000)
-    val bucket = reference("bucket_id", Buckets)
+    val bucketId = reference("bucket_id", Buckets)
 
     val global = bool("global").default(false)
     val installed = bool("installed").default(false)
@@ -36,6 +27,12 @@ object Apps : IntIdTable() {
     val homepage = text("homepage").nullable()
     val license = varchar("license", 1000).nullable()
     val licenseUrl = text("license_url").nullable()
+    val createAt = datetime("create_at")
+    val updateAt = datetime("update_at")
+
+    init {
+        index(isUnique = true, name, bucketId)
+    }
 }
 
 object Buckets : IntIdTable() {
@@ -48,13 +45,15 @@ class AppEntity(id: EntityID<Int>) : Entity<Int>(id) {
 
     var name by Apps.name
     var version by Apps.version
-    var bucket by BucketEntity referencedOn Apps.bucket
+    var bucket by BucketEntity referencedOn Apps.bucketId
     var global by Apps.global
     var installed by Apps.installed
     var description by Apps.description
     var url by Apps.url
     var homepage by Apps.homepage
     var license by Apps.license
+    var createAt by Apps.createAt
+    var updateAt by Apps.updateAt
 }
 
 class BucketEntity(id: EntityID<Int>) : IntEntity(id) {
@@ -68,7 +67,7 @@ class BucketEntity(id: EntityID<Int>) : IntEntity(id) {
 object AppsRepository {
     fun getApps(offset: Long = 0L, limit: Int = 20): List<App> {
         val apps = transaction {
-            val query = AppEntity.all().limit(limit, offset)
+            val query = AppEntity.all().orderBy(Apps.updateAt to SortOrder.DESC).limit(limit, offset)
             query.map {
                 App(
                     name = it.name,
@@ -78,11 +77,76 @@ object AppsRepository {
                     installed = it.installed,
                     homepage = it.homepage,
                     url = it.url,
-                )
+
+                    bucket = Bucket(name = it.bucket.name)
+                ).apply {
+                    createAt = it.createAt
+                    updateAt = it.updateAt
+                }
             }
         }
-        println("apps.count() = ${apps.count()}")
         return apps
+    }
+
+    fun loadApps() {
+        transaction {
+            for (bucket in Scoop.bucketNames) {
+                if (Buckets.select { Buckets.name eq bucket }.count() <= 0) {
+                    BucketEntity.new {
+                        name = bucket
+                    }
+                }
+            }
+        }
+
+        transaction {
+            for (app in Scoop.apps) {
+                val query = Apps.leftJoin(Buckets).select {
+                    Apps.name eq app.name and (Buckets.name eq app.bucket.name)
+                }
+
+                val rows = AppEntity.wrapRows(query).toList()
+                val bkt = BucketEntity.find { Buckets.name eq app.bucket.name }.first()
+                when {
+                    rows.isEmpty() -> {
+                        AppEntity.new {
+                            updateByApp(app, bkt)
+                        }
+                    }
+                    rows.size == 1 -> {
+                        val row = rows[0]
+                        row.apply {
+                            updateByApp(app, bkt)
+                        }
+                    }
+                    else -> {
+                        throw ScooperException("Found more than one app with same name and same bucket.")
+                    }
+                }
+            }
+        }
+    }
+
+    private fun AppEntity.updateByApp(
+        app: App,
+        bkt: BucketEntity
+    ) {
+        name = app.name
+        version = app.version
+        global = app.global
+        installed = app.installed
+        description = app.description
+        homepage = app.homepage
+        url = app.url
+
+        createAt = app.createAt
+        updateAt = app.updateAt
+
+        bucket = bkt
+    }
+
+    fun getLocalApps(): List<App> {
+        return Scoop.apps
     }
 }
 
@@ -96,6 +160,8 @@ fun initDb() {
 
     val appCount = transaction { Apps.selectAll().count() }
     if (appCount == 0L) {
+        AppsRepository.loadApps()
+        /*
         val extra = transaction { BucketEntity.new { name = "extra" } }
         transaction {
             val descList = listOf(
@@ -118,6 +184,7 @@ fun initDb() {
                 }
             }
         }
+        */
     }
 }
 

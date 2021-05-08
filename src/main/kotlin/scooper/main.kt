@@ -26,16 +26,17 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.koin.core.context.startKoin
 import org.koin.java.KoinJavaComponent.get
+import scooper.data.App
 import scooper.di.viewModelsModule
 import scooper.framework.navigation.Router
 import scooper.framework.navigation.core.BackStack
-import scooper.repository.App
 import scooper.repository.initDb
 import scooper.ui.MenuItem
 import scooper.ui.SearchBox
 import scooper.ui.theme.ScooperTheme
 import scooper.viewmodels.AppsState
 import scooper.viewmodels.AppsViewModel
+import java.time.format.DateTimeFormatter
 import kotlin.time.ExperimentalTime
 
 
@@ -228,10 +229,10 @@ fun AppCard(app: App, divider: Boolean = false) {
                         Text(app.name, style = typography.h6)
                         Text(app.description ?: "", maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            Text("2020-02-02", Modifier.widthIn(80.dp, 100.dp))
+                            val formatter = DateTimeFormatter.ofPattern("YYYY-MM-dd")
+                            Text(app.updateAt.format(formatter), Modifier.widthIn(80.dp, 100.dp))
                             Spacer(Modifier.width(30.dp))
-                            // Text("[${app.bucket.name}]")
-                            Text("[extra]")
+                            Text("[${app.bucket.name}]")
                         }
                     }
                     Column(
@@ -242,7 +243,12 @@ fun AppCard(app: App, divider: Boolean = false) {
                             if (app.global) "*global*" else "",
                             style = typography.button.copy(color = colors.secondary)
                         )
-                        Text(app.version)
+                        Text(
+                            app.version,
+                            Modifier.width(100.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         Row(
                             modifier = Modifier.height(30.dp).border(
                                 1.dp, color = colors.onBackground, shape = RoundedCornerShape(4.dp)
@@ -252,7 +258,10 @@ fun AppCard(app: App, divider: Boolean = false) {
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier.fillMaxHeight().width(90.dp).clickable { },
                             ) {
-                                Text("Installed", modifier = Modifier.padding(5.5.dp))
+                                Text(
+                                    if (app.installed) "Installed" else "Install",
+                                    modifier = Modifier.padding(5.5.dp)
+                                )
                             }
                             Box(
                                 Modifier.height(30.dp).width(1.dp).padding(vertical = 5.dp)
