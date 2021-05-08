@@ -16,8 +16,11 @@ import java.io.File
 
 
 object Apps : IntIdTable() {
+    override val tableName = "apps"
+
     val name = varchar("name", 1000)
     val version = varchar("version", 1000)
+    val latestVersion = varchar("latest_version", 1000)
     val bucketId = reference("bucket_id", Buckets)
 
     val global = bool("global").default(false)
@@ -36,6 +39,8 @@ object Apps : IntIdTable() {
 }
 
 object Buckets : IntIdTable() {
+    override val tableName = "buckets"
+
     val name = varchar("name", 1000)
     val url = text("url").nullable()
 }
@@ -45,6 +50,7 @@ class AppEntity(id: EntityID<Int>) : Entity<Int>(id) {
 
     var name by Apps.name
     var version by Apps.version
+    var latestVersion by Apps.latestVersion
     var bucket by BucketEntity referencedOn Apps.bucketId
     var global by Apps.global
     var installed by Apps.installed
@@ -65,28 +71,55 @@ class BucketEntity(id: EntityID<Int>) : IntEntity(id) {
 
 
 object AppsRepository {
-    fun getApps(offset: Long = 0L, limit: Int = 20): List<App> {
-        val apps = transaction {
-            val query = AppEntity.all().orderBy(Apps.updateAt to SortOrder.DESC).limit(limit, offset)
-            query.map {
+    fun getBuckets(): List<Bucket> = transaction {
+        BucketEntity.all().map {
+            Bucket(name = it.name, url = it.url)
+        }
+    }
+
+    fun getApps(
+        query: String = "",
+        bucket: String = "",
+        scope: String = "all",
+        offset: Long = 0L,
+        limit: Int = 20
+    ): List<App> =
+        transaction {
+            val conditions = Apps.leftJoin(Buckets).selectAll()
+            if (query.isNotBlank()) {
+                conditions.andWhere { Apps.name like "%$query%" or (Apps.description match "%$query%") }
+            }
+            if (bucket.isNotBlank()) {
+                conditions.andWhere { Buckets.name eq bucket }
+            }
+            if (scope == "installed") {
+                conditions.andWhere { Apps.installed eq true }
+            } else if (scope == "updates") {
+                conditions.andWhere { Apps.installed eq true and (Apps.version neq Apps.latestVersion) }
+            }
+
+            val result = AppEntity.wrapRows(conditions)
+                .orderBy(Apps.updateAt to SortOrder.DESC)
+                .limit(limit, offset)
+
+            result.map {
                 App(
                     name = it.name,
-                    version = it.version,
+                    latestVersion = it.latestVersion,
                     global = it.global,
                     description = it.description,
                     installed = it.installed,
                     homepage = it.homepage,
                     url = it.url,
-
-                    bucket = Bucket(name = it.bucket.name)
                 ).apply {
+                    version = it.version
                     createAt = it.createAt
                     updateAt = it.updateAt
+
+                    this.bucket = Bucket(name = it.bucket.name)
                 }
             }
         }
-        return apps
-    }
 
     fun loadApps() {
         transaction {
@@ -133,6 +166,7 @@ object AppsRepository {
     ) {
         name = app.name
         version = app.version
+        latestVersion = app.latestVersion
         global = app.global
         installed = app.installed
         description = app.description
@@ -143,10 +177,6 @@ object AppsRepository {
         updateAt = app.updateAt
 
         bucket = bkt
-    }
-
-    fun getLocalApps(): List<App> {
-        return Scoop.apps
     }
 }
 

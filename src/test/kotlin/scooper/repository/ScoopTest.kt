@@ -11,12 +11,12 @@ internal class ScoopTest {
     @Test
     fun getApps() {
         val apps = Scoop.apps
-        println("apps = ${apps.joinToString("\n")}")
+        // println("apps = ${apps.joinToString("\n")}")
         // assertNotEquals(0, apps.size)
 
         // println("Scoop.bucketsBaseDir = ${Scoop.bucketsBaseDir}")
         // println("Scoop.bucketDirs = ${Scoop.bucketDirs}")
-        println("Scoop.localInstalledApps = ${Scoop.localInstalledAppDirs.joinToString("\n")}")
-        println("Scoop.globalInstalledApps = ${Scoop.globalInstalledAppDirs.joinToString("\n")}")
+        // println("Scoop.localInstalledApps = ${Scoop.localInstalledAppDirs.joinToString("\n")}")
+        // println("Scoop.globalInstalledApps = ${Scoop.globalInstalledAppDirs.joinToString("\n")}")
     }
 }

@@ -34,7 +34,6 @@ import scooper.repository.initDb
 import scooper.ui.MenuItem
 import scooper.ui.SearchBox
 import scooper.ui.theme.ScooperTheme
-import scooper.viewmodels.AppsState
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
 import kotlin.time.ExperimentalTime
@@ -50,15 +49,19 @@ sealed class AppRoute {
 @ExperimentalTime
 fun main() = Window(size = IntSize(960, 650), title = "Scooper") {
     initDb()
-    startKoin {
+    val koinApp = startKoin {
         modules(viewModelsModule)
     }
 
+    val appsViewModel = koinApp.koin.get<AppsViewModel>()
     ScooperTheme {
         Router<AppRoute>(start = AppRoute.Apps(filter = "")) { currentRoute ->
             Layout(this) {
                 when (val route = currentRoute.value) {
-                    is AppRoute.Apps -> AppView(route.filter)
+                    is AppRoute.Apps -> {
+                        appsViewModel.resetFilter()
+                        AppView(route.filter)
+                    }
                     AppRoute.Buckets -> Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.fillMaxSize()
@@ -167,7 +170,8 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
 
 @Composable
 fun AppView(filter: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
-    val state = appsViewModel.container.stateFlow.collectAsState(AppsState())
+    appsViewModel.getApps(scope = filter)
+    val state = appsViewModel.container.stateFlow.collectAsState()
     val apps = state.value.apps
     Column(Modifier.fillMaxSize()) {
         SearchBox()
@@ -259,7 +263,7 @@ fun AppCard(app: App, divider: Boolean = false) {
                                 modifier = Modifier.fillMaxHeight().width(90.dp).clickable { },
                             ) {
                                 Text(
-                                    if (app.installed) "Installed" else "Install",
+                                    if (app.updatable) "Update" else if (app.installed) "Installed" else "Install",
                                     modifier = Modifier.padding(5.5.dp)
                                 )
                             }

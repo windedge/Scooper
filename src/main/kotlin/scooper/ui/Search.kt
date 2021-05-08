@@ -43,27 +43,22 @@ fun SearchBox() {
 @Composable
 fun SearchBar() {
     val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
-    Row(
-        Modifier.border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
-            .onHover { on ->
-                if (on) {
-                    border(2.dp, MaterialTheme.colors.secondary, shape = MaterialTheme.shapes.medium)
-                }
-            },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-
-        val items =
-            listOf(
-                "main",
-                "extras",
-                "versions",
-                "java",
-                "xxxxxxxxxxxxxxxxxxxxxxxxx"
+    val modifier = Modifier.border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
+        .onHover { on ->
+            if (on) border(
+                2.dp,
+                MaterialTheme.colors.secondary,
+                shape = MaterialTheme.shapes.medium
             )
+        }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        val state by appsViewModel.container.stateFlow.collectAsState()
+        val buckets = mutableListOf("")
+        buckets.addAll(state.buckets.map { it.name })
+
         var expand by remember { mutableStateOf(false) }
         var selectedItem by remember { mutableStateOf(-1) }
-        var bucket by remember { mutableStateOf("Select bucket") }
+        var bucket by remember { mutableStateOf("") }
 
         Spacer(Modifier.width(10.dp))
 
@@ -78,7 +73,7 @@ fun SearchBar() {
                 Modifier.width(120.dp).cursorHand(),
                 offset = DpOffset(x = (-10).dp, y = 6.dp)
             ) {
-                items.forEachIndexed() { idx, title ->
+                buckets.forEachIndexed() { idx, title ->
                     var hover by remember { mutableStateOf(false) }
                     DropdownMenuItem(
                         onClick = {
@@ -101,10 +96,10 @@ fun SearchBar() {
             }
 
             val color =
-                if (selectedItem != -1) MaterialTheme.colors.onSurface else Color.LightGray
+                if (selectedItem > 0) MaterialTheme.colors.onSurface else Color.LightGray
 
             Text(
-                bucket,
+                bucket.ifBlank { "Select bucket" },
                 modifier = Modifier.width(100.dp),
                 style = MaterialTheme.typography.body1.copy(color = color),
                 maxLines = 1,
@@ -130,7 +125,7 @@ fun SearchBar() {
         )
         Button(
             onClick = {
-                appsViewModel.getApps()
+                appsViewModel.getApps(query.text, bucket = bucket)
             },
             modifier = Modifier.padding(horizontal = 0.dp).width(100.dp).cursorHand(),
             shape = RoundedCornerShape(

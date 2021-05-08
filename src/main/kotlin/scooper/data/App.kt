@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 
 data class App(
     var name: String,
-    var version: String,
+    var latestVersion: String,
     var global: Boolean = false,
     var installed: Boolean = false,
     var description: String? = null,
@@ -13,11 +13,14 @@ data class App(
     var license: String? = null,
     var licenseUrl: String? = null,
 
-) {
+    ) {
+    lateinit var version: String
     lateinit var createAt: LocalDateTime
     lateinit var updateAt: LocalDateTime
 
     lateinit var bucket: Bucket
+
+    val updatable: Boolean get() = this.version != this.latestVersion
 }
 
 

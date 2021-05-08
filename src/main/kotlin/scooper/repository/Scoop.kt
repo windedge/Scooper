@@ -46,14 +46,14 @@ object Scoop {
     val localInstalledAppDirs: List<File>
         get() {
             return rootDir
-                .resolve("apps").listFiles { filter -> filter.isDirectory }
+                .resolve("apps").listFiles { file -> file.isDirectory and file.resolve("current").exists() }
                 ?.toList() ?: listOf()
         }
 
     val globalInstalledAppDirs: List<File>
         get() {
             return globalRootDir
-                .resolve("apps").listFiles { filter -> filter.isDirectory }
+                .resolve("apps").listFiles { file -> file.isDirectory and file.resolve("current").exists() }
                 ?.toList() ?: listOf()
         }
 
@@ -66,9 +66,10 @@ object Scoop {
             for (bucketDir in bucketDirs) {
                 val bucket = Bucket(name = bucketDir.name, url = "")
                 val apps = bucketDir.resolve("bucket").listFiles()
-                    // ?.take(100)
+                    // ?.take(10)
                     ?.map { file ->
                         parseManifest(file).apply {
+                            this.version = this.latestVersion
                             this.bucket = bucket
                             val attrs = Files.readAttributes(
                                 file.toPath(),
@@ -83,11 +84,18 @@ object Scoop {
                                 ZoneId.systemDefault()
                             )
 
-                            if (globalInstalledApps.contains(this.name)) {
+                            if (globalInstalledApps.contains(name)) {
                                 this.global = true
+                            }
+
+                            if (globalInstalledApps.contains(name) || localInstallApps.contains(name)) {
                                 this.installed = true
-                            } else if (localInstallApps.contains(this.name)) {
-                                this.installed = true
+                                val version = (globalInstalledAppDirs + localInstalledAppDirs)
+                                    .find { it.name == name }!!
+                                    .resolve("current")
+                                    .toPath().toRealPath().fileName.toString()
+
+                                this.version = version
                             }
                         }
                     } ?: listOf()
@@ -101,7 +109,7 @@ object Scoop {
         return json.run {
             App(
                 name = manifest.nameWithoutExtension,
-                version = getString("version"),
+                latestVersion = getString("version"),
                 homepage = getString("homepage"),
                 description = getString("description"),
                 url = getString("url"),
