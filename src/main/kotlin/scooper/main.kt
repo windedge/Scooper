@@ -19,6 +19,7 @@ import androidx.compose.material.icons.twotone.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -170,7 +171,7 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
 
 @Composable
 fun AppView(filter: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
-    appsViewModel.getApps(scope = filter)
+    appsViewModel.applyFilters(scope = filter)
     val state = appsViewModel.container.stateFlow.collectAsState()
     val apps = state.value.apps
     Column(Modifier.fillMaxSize()) {
@@ -230,7 +231,15 @@ fun AppCard(app: App, divider: Boolean = false) {
                         Modifier.fillMaxHeight().defaultMinSize(400.dp).fillMaxWidth(0.7f),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(app.name, style = typography.h6)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(app.name, style = typography.h6)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                if (app.global) "*global*" else "",
+                                style = typography.button.copy(color = colors.secondary)
+                            )
+                        }
+
                         Text(app.description ?: "", maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Row(modifier = Modifier.fillMaxWidth()) {
                             val formatter = DateTimeFormatter.ofPattern("YYYY-MM-dd")
@@ -239,20 +248,31 @@ fun AppCard(app: App, divider: Boolean = false) {
                             Text("[${app.bucket.name}]")
                         }
                     }
+
                     Column(
-                        Modifier.fillMaxHeight(),
+                        Modifier.fillMaxHeight().width(120.dp),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            if (app.global) "*global*" else "",
-                            style = typography.button.copy(color = colors.secondary)
-                        )
-                        Text(
                             app.version,
-                            Modifier.width(100.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = if (app.updatable) 1 else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = true,
                         )
+                        if (app.updatable) {
+                            Text(
+                                "⬇".padStart(3, ' '),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = true
+                            )
+                            Text(
+                                app.latestVersion,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = true
+                            )
+                        }
                         Row(
                             modifier = Modifier.height(30.dp).border(
                                 1.dp, color = colors.onBackground, shape = RoundedCornerShape(4.dp)
@@ -264,7 +284,8 @@ fun AppCard(app: App, divider: Boolean = false) {
                             ) {
                                 Text(
                                     if (app.updatable) "Update" else if (app.installed) "Installed" else "Install",
-                                    modifier = Modifier.padding(5.5.dp)
+                                    modifier = Modifier.padding(5.5.dp),
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                             Box(
