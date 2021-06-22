@@ -1,5 +1,6 @@
 package scooper.viewmodels
 
+import dorkbox.executor.listener.ProcessDestroyer
 import kotlinx.coroutines.GlobalScope
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -10,6 +11,7 @@ import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
+import scooper.repository.Scoop
 
 data class AppsFilter(
     val query: String = "",
@@ -21,7 +23,9 @@ data class AppsFilter(
 data class AppsState(
     val apps: List<App> = emptyList(),
     val buckets: List<Bucket> = emptyList(),
-    val filter: AppsFilter = AppsFilter()
+    val filter: AppsFilter = AppsFilter(),
+    val installingApp: String? = null,
+    val updatingApps: Boolean = false
 )
 
 sealed class AppsSideEffect {
@@ -34,10 +38,10 @@ sealed class AppsSideEffect {
 class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     override val container: Container<AppsState, AppsSideEffect> = GlobalScope.container(AppsState()) {
         getBuckets()
-        getApps()
+        applyFilters()
     }
 
-    fun getApps(
+    fun applyFilters(
         query: String? = null,
         bucket: String? = null,
         scope: String? = null,
@@ -71,11 +75,64 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     fun reloadApps() = intent {
         AppsRepository.loadApps()
-        getApps()
+        applyFilters()
     }
 
     fun resetFilter() = intent {
         reduce { state.copy(filter = AppsFilter()) }
+    }
+
+    fun updateApps() = intent {
+        reduce { state.copy(updatingApps = true) }
+        Scoop.update {
+            reloadApps()
+            reduce { state.copy(updatingApps = false) }
+        }
+    }
+
+    fun install(app: App, global: Boolean = false) = intent {
+        reduce {
+            state.copy(installingApp = app.name)
+        }
+
+        Scoop.install(app, global) {
+            reloadApps()
+            reduce {
+                state.copy(installingApp = null)
+            }
+        }
+    }
+
+    fun uninstall(app: App) = intent {
+        reduce {
+            state.copy(installingApp = app.name)
+        }
+        Scoop.uninstall(app, app.global) {
+            reloadApps()
+            reduce {
+                state.copy(installingApp = null)
+            }
+        }
+    }
+
+    fun upgrade(app: App) = intent {
+        reduce {
+            state.copy(installingApp = app.name)
+        }
+        Scoop.upgrade(app, app.global) {
+            reloadApps()
+            reduce {
+                state.copy(installingApp = null)
+            }
+        }
+    }
+
+    fun cancel() = intent {
+        Scoop.stop()
+        AppsRepository.loadApps()
+        reduce {
+            state.copy(installingApp = null)
+        }
     }
 }
 

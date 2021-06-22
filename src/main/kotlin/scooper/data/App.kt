@@ -5,8 +5,9 @@ import java.time.LocalDateTime
 data class App(
     var name: String,
     var latestVersion: String,
+    var version: String? = null,
     var global: Boolean = false,
-    var installed: Boolean = false,
+    var status: String = "uninstall",
     var description: String? = null,
     var url: String? = null,
     var homepage: String? = null,
@@ -14,13 +15,14 @@ data class App(
     var licenseUrl: String? = null,
 
     ) {
-    lateinit var version: String
+
     lateinit var createAt: LocalDateTime
     lateinit var updateAt: LocalDateTime
 
     lateinit var bucket: Bucket
 
-    val updatable: Boolean get() = this.version != this.latestVersion
+    val updatable: Boolean get() = this.version != null && this.version != this.latestVersion
+    val installed: Boolean get() = this.status == "installed"
 }
 
 

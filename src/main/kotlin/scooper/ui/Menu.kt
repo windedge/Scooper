@@ -3,17 +3,79 @@ package scooper.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Icon
+import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.twotone.Home
+import androidx.compose.material.icons.twotone.KeyboardArrowRight
+import androidx.compose.material.icons.twotone.List
+import androidx.compose.material.icons.twotone.Settings
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import scooper.AppRoute
+import scooper.framework.navigation.core.BackStack
 import scooper.util.cursorHand
 import scooper.util.onHover
+
+@Composable
+fun MenuBar(navigator: BackStack<AppRoute>) {
+    Surface(
+        Modifier.fillMaxHeight().width(180.dp),
+        elevation = 3.dp,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Column(
+            Modifier.defaultMinSize(10.dp).padding(vertical = 2.dp)
+        ) {
+            val selectedItem = remember { mutableStateOf("Apps") }
+            val route = navigator.current.value
+            MenuItem(
+                "Apps",
+                icon = Icons.TwoTone.Home,
+                selectItem = selectedItem,
+                selected = route is AppRoute.Apps && route.scope == "",
+                onClick = { navigator.replace(AppRoute.Apps(scope = "")) }
+            )
+            MenuItem(
+                "Installed",
+                indent = 40,
+                icon = Icons.TwoTone.KeyboardArrowRight,
+                selectItem = selectedItem,
+                selected = route is AppRoute.Apps && route.scope == "installed",
+                onClick = { navigator.replace(AppRoute.Apps(scope = "installed")) },
+            )
+            MenuItem(
+                "Updates",
+                indent = 40,
+                icon = Icons.TwoTone.KeyboardArrowRight,
+                selectItem = selectedItem,
+                selected = route is AppRoute.Apps && route.scope == "updates",
+                onClick = { navigator.replace(AppRoute.Apps(scope = "updates")) },
+            )
+            Divider(Modifier.height(1.dp))
+            MenuItem(
+                "Buckets",
+                icon = Icons.TwoTone.List,
+                selectItem = selectedItem,
+                selected = route == AppRoute.Buckets,
+                onClick = { navigator.replace(AppRoute.Buckets) }
+            )
+            Divider(Modifier.height(1.dp))
+            MenuItem(
+                "Settings",
+                icon = Icons.TwoTone.Settings,
+                selectItem = selectedItem,
+                selected = route == AppRoute.Settings,
+                onClick = { navigator.replace(AppRoute.Settings) }
+            )
+            Divider(Modifier.height(1.dp))
+        }
+    }
+}
 
 @Composable
 fun MenuItem(
@@ -31,8 +93,8 @@ fun MenuItem(
         .fillMaxWidth()
         .padding(2.dp)
         .height(35.dp)
-        .background(color = if (highlight) colors.primary else Color.Unspecified)
         .cursorHand()
+        .background(color = if (highlight) colors.primary else Color.Unspecified)
     if (onClick != null) {
         default = default.onHover { hover = it }.clickable {
             onClick.invoke()
@@ -59,4 +121,3 @@ fun MenuItem(
         Text(text, color = color)
     }
 }
-

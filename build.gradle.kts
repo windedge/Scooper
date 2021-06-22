@@ -3,10 +3,10 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.4.32"
-    kotlin("plugin.serialization") version "1.4.32"
+    kotlin("jvm") version "1.5.10"
+    kotlin("plugin.serialization") version "1.5.10"
     // id("org.jetbrains.compose") version "0.3.2"
-    id("org.jetbrains.compose") version "0.4.0-build184"
+    id("org.jetbrains.compose") version "0.5.0-build225"
 }
 
 group = "scooper"
@@ -33,7 +33,16 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-java-time:0.31.1")
     // implementation("org.jetbrains.exposed:exposed-jodatime:0.30.1")
     implementation("org.xerial:sqlite-jdbc:3.30.1")
-    implementation("org.slf4j:slf4j-nop:1.7.30")
+
+    // implementation("org.slf4j:slf4j-nop:1.7.30")
+    implementation("org.slf4j:slf4j-api:1.8.0-beta4")
+    implementation("org.slf4j:slf4j-simple:1.8.0-beta4")
+    // implementation("log4j:log4j:1.2.17")
+
+    // implementation("com.lordcodes.turtle:turtle:0.5.0")
+    implementation("com.dorkbox:Executor:3.2") {
+        exclude("com.dorkbox:Updates")
+    }
 
     //test
     implementation("org.junit.jupiter:junit-jupiter:5.4.2")

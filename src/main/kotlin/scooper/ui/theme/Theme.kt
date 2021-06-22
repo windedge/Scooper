@@ -22,6 +22,7 @@ private val LightColorPalette = lightColors(
     onSurface = LightColors.surfaceTextColor,
     background = LightColors.backgroupColor,
     onBackground = LightColors.backgroundTextColor,
+    error = LightColors.errorColor
 
     /* Other default colors to override
 background = Color.White,

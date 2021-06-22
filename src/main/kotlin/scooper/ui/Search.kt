@@ -1,6 +1,5 @@
 package scooper.ui
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,12 +10,19 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.KeyboardArrowDown
+import androidx.compose.material.icons.twotone.Refresh
 import androidx.compose.material.icons.twotone.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -34,12 +40,39 @@ fun SearchBox() {
         elevation = 3.dp,
         shape = MaterialTheme.shapes.large
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            SearchBar()
+        Layout(content = {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                SearchBar()
+                // println("constraints = ${constraints}")
+                Button(onClick = {}, modifier = Modifier.layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+
+                    layout(0, 0) { }
+                }) {
+                    Icon(Icons.TwoTone.Refresh, "", modifier = Modifier.size(18.dp))
+                }
+            }
+        }) { measurables, constraints ->
+            val placeables = measurables.map { measurable ->
+                // Measure each child
+                measurable.measure(constraints)
+            }
+            var yPosition = 0
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                placeables.forEach { placeable ->
+                    // Position item on the screen
+                    placeable.placeRelative(x = 0, y = yPosition)
+
+                    // Record the y co-ord placed up to
+                    yPosition += placeable.height
+                }
+            }
+
         }
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun SearchBar() {
     val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
@@ -70,7 +103,7 @@ fun SearchBar() {
         ) {
             DropdownMenu(
                 expand, onDismissRequest = { expand = false },
-                Modifier.width(120.dp).cursorHand(),
+                modifier = Modifier.width(120.dp).cursorHand(),
                 offset = DpOffset(x = (-10).dp, y = 6.dp)
             ) {
                 buckets.forEachIndexed() { idx, title ->
@@ -110,14 +143,17 @@ fun SearchBar() {
                 "",
             )
         }
-        // val query = remember { mutableStateOf("") }
         var query by remember { mutableStateOf(TextFieldValue()) }
-        @OptIn(ExperimentalFoundationApi::class)
         BasicTextField(
             query,
             onValueChange = { query = it },
             modifier = Modifier.padding(start = 5.dp, end = 10.dp)
-                .defaultMinSize(120.dp).fillMaxWidth(0.4f)
+                .defaultMinSize(120.dp).fillMaxWidth(0.4f).onPreviewKeyEvent {
+                    if (it.key == Key.Enter) {
+                        appsViewModel.applyFilters(query.text, bucket = bucket);
+                        true
+                    } else false
+                }
                 .cursorInput().pointerInput(Unit) {
 
                 },
@@ -125,7 +161,7 @@ fun SearchBar() {
         )
         Button(
             onClick = {
-                appsViewModel.getApps(query.text, bucket = bucket)
+                appsViewModel.applyFilters(query.text, bucket = bucket)
             },
             modifier = Modifier.padding(horizontal = 0.dp).width(100.dp).cursorHand(),
             shape = RoundedCornerShape(

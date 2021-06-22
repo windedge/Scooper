@@ -1,10 +1,17 @@
 package scooper.repository
 
+import dorkbox.executor.Executor
+import dorkbox.executor.listener.ProcessListener
+import dorkbox.executor.processResults.ProcessResult
+import dorkbox.executor.processResults.SyncProcessResult
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.data.Bucket
+import scooper.util.killTree
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
@@ -13,6 +20,7 @@ import java.time.ZoneId
 
 @Suppress("MemberVisibilityCanBePrivate")
 object Scoop {
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     val rootDir: File
         get() {
@@ -46,21 +54,21 @@ object Scoop {
     val localInstalledAppDirs: List<File>
         get() {
             return rootDir
-                .resolve("apps").listFiles { file -> file.isDirectory and file.resolve("current").exists() }
+                .resolve("apps").listFiles { file -> file.isDirectory }
                 ?.toList() ?: listOf()
         }
 
     val globalInstalledAppDirs: List<File>
         get() {
             return globalRootDir
-                .resolve("apps").listFiles { file -> file.isDirectory and file.resolve("current").exists() }
+                .resolve("apps").listFiles { file -> file.isDirectory }
                 ?.toList() ?: listOf()
         }
 
     val apps: List<App>
         get() {
-            val localInstallApps = localInstalledAppDirs.map { it.name }
-            val globalInstalledApps = globalInstalledAppDirs.map { it.name }
+            val localInstallApps = localInstalledAppDirs.map { it.name.toLowerCase() }
+            val globalInstalledApps = globalInstalledAppDirs.map { it.name.toLowerCase() }
 
             val all = mutableListOf<App>()
             for (bucketDir in bucketDirs) {
@@ -84,18 +92,28 @@ object Scoop {
                                 ZoneId.systemDefault()
                             )
 
-                            if (globalInstalledApps.contains(name)) {
+                            if (globalInstalledApps.contains(name.toLowerCase())) {
                                 this.global = true
                             }
 
-                            if (globalInstalledApps.contains(name) || localInstallApps.contains(name)) {
-                                this.installed = true
+                            if (globalInstalledApps.contains(name.toLowerCase())
+                                || localInstallApps.contains(name.toLowerCase())
+                            ) {
                                 val version = (globalInstalledAppDirs + localInstalledAppDirs)
-                                    .find { it.name == name }!!
-                                    .resolve("current")
-                                    .toPath().toRealPath().fileName.toString()
-
+                                    .find { it.name.equals(name, ignoreCase = true) }!!
+                                    .resolve("current").let {
+                                        if (!it.exists()) {
+                                            null
+                                        } else {
+                                            it.toPath().toRealPath().fileName.toString()
+                                        }
+                                    }
                                 this.version = version
+                                if (version == null) {
+                                    this.status = "failed"
+                                } else {
+                                    this.status = "installed"
+                                }
                             }
                         }
                     } ?: listOf()
@@ -116,6 +134,80 @@ object Scoop {
             )
         }
     }
+
+    val processes = mutableMapOf<Long, Process>()
+    val listener = object : ProcessListener() {
+        override fun afterStart(process: Process, executor: Executor) {
+            synchronized(processes) {
+                processes.put(process.pid(), process)
+            }
+        }
+
+        override fun afterFinish(process: Process, result: ProcessResult) {
+            synchronized(processes) {
+                processes.remove(process.pid())
+            }
+        }
+    }
+
+    fun update(onFinish: suspend () -> Unit = {}) {
+        val commandArgs = mutableListOf("scoop", "update")
+        val command = command(commandArgs, onFinish = onFinish)
+        command.startAsShellAsync()
+    }
+
+    fun install(app: App, global: Boolean = false, onFinish: suspend () -> Unit = {}) {
+        val commandArgs = if (global) {
+            mutableListOf("sudo", "scoop", "install", "-g", app.name)
+        } else {
+            mutableListOf("scoop", "install", app.name)
+        }
+        val command = command(commandArgs, onFinish)
+        command.startAsShellAsync()
+    }
+
+    fun uninstall(app: App, global: Boolean = false, onFinish: suspend () -> Unit = {}) {
+        val commandArgs = if (global) {
+            mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
+        } else {
+            mutableListOf("scoop", "uninstall", app.name)
+        }
+        val command = command(commandArgs, onFinish)
+        command.startAsShellAsync()
+    }
+
+    fun upgrade(app: App, global: Boolean = false, onFinish: suspend () -> Unit = {}) {
+        val commandArgs = if (global) {
+            mutableListOf("sudo", "scoop", "update", "-g", app.name)
+        } else {
+            mutableListOf("scoop", "update", app.name)
+        }
+        val command = command(commandArgs, onFinish)
+        command.startAsShellAsync()
+    }
+
+    fun stop() {
+        for ((_, process) in processes) {
+            process.killTree()
+        }
+    }
+
+    private fun command(
+        commandArgs: Iterable<String>,
+        onFinish: suspend () -> Unit = {}
+    ) = Executor(commandArgs).redirectErrorAsInfo().redirectOutputAsInfo()
+        .addListener(listener)
+        .addListener(object : ProcessListener() {
+            override fun afterFinish(process: Process, result: ProcessResult) {
+                runBlocking {
+                    logger.info("execute finished.");
+                    onFinish()
+                    if (result is SyncProcessResult) {
+                        logger.info("result.output.utf8() = " + result.output.utf8());
+                    }
+                }
+            }
+        })
 }
 
 fun JsonObject.getString(key: String): String {
