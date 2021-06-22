@@ -181,7 +181,7 @@ object AppsRepository {
 }
 
 fun initDb() {
-    val databasePath = File("d:\\tmp\\", "scooper.db")
+    val databasePath = File(System.getenv("USERPROFILE")).resolve("scooper.db")
     Database.connect("jdbc:sqlite:$databasePath", "org.sqlite.JDBC")
 
     transaction {
