@@ -5,12 +5,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "1.5.10"
     kotlin("plugin.serialization") version "1.5.10"
-    // id("org.jetbrains.compose") version "0.3.2"
     id("org.jetbrains.compose") version "0.5.0-build225"
 }
 
 group = "scooper"
-version = "0.1.0"
+version = "1.0.0"
 
 repositories {
     google()
@@ -60,8 +59,8 @@ compose.desktop {
     application {
         mainClass = "scooper.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "scooper"
+            targetFormats(TargetFormat.Msi)
+            packageName = "Scooper"
             packageVersion = "1.0.0"
             vendor = "xujl"
         }

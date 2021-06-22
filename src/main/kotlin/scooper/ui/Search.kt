@@ -43,10 +43,7 @@ fun SearchBox() {
         Layout(content = {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 SearchBar()
-                // println("constraints = ${constraints}")
                 Button(onClick = {}, modifier = Modifier.layout { measurable, constraints ->
-                    val placeable = measurable.measure(constraints)
-
                     layout(0, 0) { }
                 }) {
                     Icon(Icons.TwoTone.Refresh, "", modifier = Modifier.size(18.dp))

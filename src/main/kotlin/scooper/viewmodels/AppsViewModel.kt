@@ -1,6 +1,7 @@
 package scooper.viewmodels
 
 import dorkbox.executor.listener.ProcessDestroyer
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -36,6 +37,7 @@ sealed class AppsSideEffect {
 }
 
 class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
+
     override val container: Container<AppsState, AppsSideEffect> = GlobalScope.container(AppsState()) {
         getBuckets()
         applyFilters()

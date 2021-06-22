@@ -67,8 +67,8 @@ object Scoop {
 
     val apps: List<App>
         get() {
-            val localInstallApps = localInstalledAppDirs.map { it.name.toLowerCase() }
-            val globalInstalledApps = globalInstalledAppDirs.map { it.name.toLowerCase() }
+            val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
+            val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
 
             val all = mutableListOf<App>()
             for (bucketDir in bucketDirs) {
@@ -92,12 +92,12 @@ object Scoop {
                                 ZoneId.systemDefault()
                             )
 
-                            if (globalInstalledApps.contains(name.toLowerCase())) {
+                            if (globalInstalledApps.contains(name.lowercase())) {
                                 this.global = true
                             }
 
-                            if (globalInstalledApps.contains(name.toLowerCase())
-                                || localInstallApps.contains(name.toLowerCase())
+                            if (globalInstalledApps.contains(name.lowercase())
+                                || localInstallApps.contains(name.lowercase())
                             ) {
                                 val version = (globalInstalledAppDirs + localInstalledAppDirs)
                                     .find { it.name.equals(name, ignoreCase = true) }!!
