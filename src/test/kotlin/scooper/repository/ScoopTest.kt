@@ -1,10 +1,10 @@
 package scooper.repository
 
 import org.junit.jupiter.api.Test
+import java.io.File
 
 
 internal class ScoopTest {
-
 
 
     @OptIn(ExperimentalStdlibApi::class)
@@ -18,5 +18,12 @@ internal class ScoopTest {
         // println("Scoop.bucketDirs = ${Scoop.bucketDirs}")
         // println("Scoop.localInstalledApps = ${Scoop.localInstalledAppDirs.joinToString("\n")}")
         // println("Scoop.globalInstalledApps = ${Scoop.globalInstalledAppDirs.joinToString("\n")}")
+    }
+
+    @Test
+    fun testGetUrl() {
+        val bucketDir = File("""D:\tools\scoop\buckets\main""")
+        val url = Scoop.getBucketRepo(bucketDir)
+        println("url = ${url}")
     }
 }

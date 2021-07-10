@@ -26,7 +26,7 @@ internal class AppsRepositoryTest {
 
     @Test
     fun loadApps() {
-        AppsRepository.loadApps()
+        AppsRepository.loadAll()
 
         transaction {
             val appsCount = Apps.selectAll().count()

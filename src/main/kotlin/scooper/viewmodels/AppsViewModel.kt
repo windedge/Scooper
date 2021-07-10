@@ -1,7 +1,5 @@
 package scooper.viewmodels
 
-import dorkbox.executor.listener.ProcessDestroyer
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -13,6 +11,7 @@ import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.repository.Scoop
+import java.util.*
 
 data class AppsFilter(
     val query: String = "",
@@ -50,13 +49,13 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         page: Int? = null
     ) = intent {
         postSideEffect(AppsSideEffect.Loading)
+        val currentQuery = query ?: state.filter.query
+        val currentBucket = bucket ?: state.filter.selectBucket
+        val currentScope = scope ?: state.filter.scope
+        val currentPage = page ?: state.filter.page
+        val apps = AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = 1000)
+        println("applyFilters: now = ${Date(System.currentTimeMillis())}")
         reduce {
-            val currentQuery = query ?: state.filter.query
-            val currentBucket = bucket ?: state.filter.selectBucket
-            val currentScope = scope ?: state.filter.scope
-            val currentPage = page ?: state.filter.page
-
-            val apps = AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = 1000)
             state.copy(
                 apps = apps,
                 filter = state.filter.copy(
@@ -71,6 +70,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     }
 
     fun getBuckets() = intent {
+        AppsRepository.loadBuckets()
         val buckets = AppsRepository.getBuckets()
         reduce { state.copy(buckets = buckets) }
     }
@@ -87,8 +87,12 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     fun updateApps() = intent {
         reduce { state.copy(updatingApps = true) }
         Scoop.update {
+            println("before reloadApps: ${Date(System.currentTimeMillis())}")
             reloadApps()
-            reduce { state.copy(updatingApps = false) }
+            println("after reloadApps: ${Date(System.currentTimeMillis())}")
+            reduce {
+                state.copy(updatingApps = false)
+            }
         }
     }
 
@@ -131,10 +135,35 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     fun cancel() = intent {
         Scoop.stop()
-        AppsRepository.loadApps()
         reduce {
             state.copy(installingApp = null)
         }
+    }
+
+    fun addBucket(bucket: String, url: String? = null) = intent {
+        Scoop.addBucket(bucket, url, onFinish = { exitValue ->
+            if (exitValue != 0) {
+                postSideEffect(AppsSideEffect.Toast("add bucket error!"))
+                return@addBucket
+            } else {
+                postSideEffect(AppsSideEffect.Toast("add bucket successfully!"))
+            }
+            getBuckets()
+            reloadApps()
+        })
+    }
+
+    fun deleteBucket(bucket: String) = intent {
+        Scoop.removeBucket(bucket, onFinish = { exitValue ->
+            if (exitValue != 0) {
+                postSideEffect(AppsSideEffect.Toast("remove bucket error!"))
+                return@removeBucket
+            } else {
+                postSideEffect(AppsSideEffect.Toast("remove bucket successfully!"))
+            }
+            getBuckets()
+            reloadApps()
+        })
     }
 }
 

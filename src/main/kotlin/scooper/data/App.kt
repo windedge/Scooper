@@ -13,13 +13,11 @@ data class App(
     var homepage: String? = null,
     var license: String? = null,
     var licenseUrl: String? = null,
-
-    ) {
+    var bucket: Bucket? = null,
+) {
 
     lateinit var createAt: LocalDateTime
     lateinit var updateAt: LocalDateTime
-
-    lateinit var bucket: Bucket
 
     val updatable: Boolean get() = this.version != null && this.version != this.latestVersion
     val installed: Boolean get() = this.status == "installed"
@@ -29,4 +27,9 @@ data class App(
 data class Bucket(
     val name: String,
     val url: String? = null
+)
+
+data class Setting(
+    val proxy: String = "",
+    val ariaEnable: Boolean = false
 )

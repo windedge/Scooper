@@ -3,19 +3,19 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.5.10"
-    kotlin("plugin.serialization") version "1.5.10"
-    id("org.jetbrains.compose") version "0.5.0-build225"
+    kotlin("jvm") version "1.5.21"
+    kotlin("plugin.serialization") version "1.5.21"
+    id("org.jetbrains.compose") version "1.0.0-alpha4-build318"
 }
 
 group = "scooper"
-version = "1.0.0"
+version = "0.5.0"
 
 repositories {
-    google()
     jcenter()
     mavenCentral()
-    maven { url = uri("https://maven.pkg.jetbrains.space/public/p/compose/dev") }
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+    google()
 }
 
 dependencies {
@@ -24,23 +24,20 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.1.0")
     implementation("io.insert-koin:koin-core:3.0.1-beta-2")
-    implementation("org.orbit-mvi:orbit-core:3.1.1")
+    implementation("org.orbit-mvi:orbit-core:4.1.3")
 
-    implementation("org.jetbrains.exposed:exposed-core:0.31.1")
-    implementation("org.jetbrains.exposed:exposed-dao:0.31.1")
-    implementation("org.jetbrains.exposed:exposed-jdbc:0.31.1")
-    implementation("org.jetbrains.exposed:exposed-java-time:0.31.1")
+    implementation("org.jetbrains.exposed:exposed-core:0.32.1")
+    implementation("org.jetbrains.exposed:exposed-dao:0.32.1")
+    implementation("org.jetbrains.exposed:exposed-jdbc:0.32.1")
+    implementation("org.jetbrains.exposed:exposed-java-time:0.32.1")
     // implementation("org.jetbrains.exposed:exposed-jodatime:0.30.1")
     implementation("org.xerial:sqlite-jdbc:3.30.1")
 
-    // implementation("org.slf4j:slf4j-nop:1.7.30")
     implementation("org.slf4j:slf4j-api:1.8.0-beta4")
     implementation("org.slf4j:slf4j-simple:1.8.0-beta4")
-    // implementation("log4j:log4j:1.2.17")
 
-    // implementation("com.lordcodes.turtle:turtle:0.5.0")
     implementation("com.dorkbox:Executor:3.2") {
-        exclude("com.dorkbox:Updates")
+        // exclude("com.dorkbox", "Updates")
     }
 
     //test
@@ -60,8 +57,9 @@ compose.desktop {
         mainClass = "scooper.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
+            modules("java.instrument", "java.sql", "jdk.unsupported")
             packageName = "Scooper"
-            packageVersion = "1.0.0"
+            packageVersion = version.toString()
             vendor = "xujl"
         }
     }

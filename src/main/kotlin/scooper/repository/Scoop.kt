@@ -51,6 +51,15 @@ object Scoop {
             return buckets
         }
 
+    fun getBucketRepo(bucketDir: File): String {
+        val result = Executor().command("git", "remote", "-v")
+            .workingDirectory(bucketDir).enableRead()
+            .startBlocking()
+        val regex = """origin\s+(.*)\s+\(fetch\)""".toRegex(RegexOption.MULTILINE)
+        val output = result.output.string()
+        return regex.find(output)!!.groupValues[1]
+    }
+
     val localInstalledAppDirs: List<File>
         get() {
             return rootDir
@@ -131,6 +140,7 @@ object Scoop {
                 homepage = getString("homepage"),
                 description = getString("description"),
                 url = getString("url"),
+                license = getString("license")
             )
         }
     }
@@ -150,13 +160,13 @@ object Scoop {
         }
     }
 
-    fun update(onFinish: suspend () -> Unit = {}) {
+    fun update(onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = mutableListOf("scoop", "update")
         val command = command(commandArgs, onFinish = onFinish)
         command.startAsShellAsync()
     }
 
-    fun install(app: App, global: Boolean = false, onFinish: suspend () -> Unit = {}) {
+    fun install(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "install", "-g", app.name)
         } else {
@@ -166,7 +176,7 @@ object Scoop {
         command.startAsShellAsync()
     }
 
-    fun uninstall(app: App, global: Boolean = false, onFinish: suspend () -> Unit = {}) {
+    fun uninstall(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
         } else {
@@ -176,7 +186,7 @@ object Scoop {
         command.startAsShellAsync()
     }
 
-    fun upgrade(app: App, global: Boolean = false, onFinish: suspend () -> Unit = {}) {
+    fun upgrade(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "update", "-g", app.name)
         } else {
@@ -194,20 +204,35 @@ object Scoop {
 
     private fun command(
         commandArgs: Iterable<String>,
-        onFinish: suspend () -> Unit = {}
+        onFinish: suspend (exitValue: Int) -> Unit = {}
     ) = Executor(commandArgs).redirectErrorAsInfo().redirectOutputAsInfo()
         .addListener(listener)
         .addListener(object : ProcessListener() {
             override fun afterFinish(process: Process, result: ProcessResult) {
                 runBlocking {
-                    logger.info("execute finished.");
-                    onFinish()
+                    logger.info("execute finished, exit value: ${result.getExitValue()}.");
+                    onFinish(result.getExitValue())
                     if (result is SyncProcessResult) {
                         logger.info("result.output.utf8() = " + result.output.utf8());
                     }
                 }
             }
         })
+
+    fun addBucket(bucket: String, url: String? = null, onFinish: suspend (exitValue: Int) -> Unit) {
+        val commandArgs = mutableListOf("scoop", "bucket", "add", bucket)
+        if (url != null) {
+            commandArgs.add(url)
+        }
+        val command = command(commandArgs, onFinish = onFinish)
+        command.startAsShellAsync()
+    }
+
+    fun removeBucket(bucket: String, onFinish: suspend (exitValue: Int) -> Unit) {
+        val commandArgs = mutableListOf("scoop", "bucket", "rm", bucket)
+        val command = command(commandArgs, onFinish = onFinish)
+        command.startAsShellAsync()
+    }
 }
 
 fun JsonObject.getString(key: String): String {

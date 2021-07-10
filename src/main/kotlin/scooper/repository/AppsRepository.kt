@@ -21,7 +21,7 @@ object Apps : IntIdTable() {
     val name = varchar("name", 1000)
     val version = varchar("version", 1000).nullable()
     val latestVersion = varchar("latest_version", 1000)
-    val bucketId = reference("bucket_id", Buckets)
+    val bucketId = reference("bucket_id", Buckets, onDelete = ReferenceOption.SET_NULL).nullable()
 
     val global = bool("global").default(false)
     val status = varchar("status", 20).default("uninstall")
@@ -51,7 +51,7 @@ class AppEntity(id: EntityID<Int>) : Entity<Int>(id) {
     var name by Apps.name
     var version by Apps.version
     var latestVersion by Apps.latestVersion
-    var bucket by BucketEntity referencedOn Apps.bucketId
+    var bucket by BucketEntity optionalReferencedOn Apps.bucketId
     var global by Apps.global
     var status by Apps.status
     var description by Apps.description
@@ -83,86 +83,94 @@ object AppsRepository {
         scope: String = "all",
         offset: Long = 0L,
         limit: Int = 20
-    ): List<App> =
-        transaction {
-            val conditions = Apps.leftJoin(Buckets).selectAll()
-            if (query.isNotBlank()) {
-                conditions.andWhere { Apps.name like "%$query%" or (Apps.description match "%$query%") }
-            }
-            if (bucket.isNotBlank()) {
-                conditions.andWhere { Buckets.name eq bucket }
-            }
-            if (scope == "installed") {
-                conditions.andWhere { Apps.status eq "installed" }
-            } else if (scope == "updates") {
-                conditions.andWhere { Apps.status eq "installed" and (Apps.version neq Apps.latestVersion) }
-            }
-
-            val result = AppEntity.wrapRows(conditions)
-                .orderBy(Apps.updateAt to SortOrder.DESC)
-                .limit(limit, offset)
-
-            result.map {
-                App(
-                    name = it.name,
-                    latestVersion = it.latestVersion,
-                    global = it.global,
-                    description = it.description,
-                    status = it.status,
-                    homepage = it.homepage,
-                    url = it.url,
-                ).apply {
-                    version = it.version
-                    createAt = it.createAt
-                    updateAt = it.updateAt
-
-                    this.bucket = Bucket(name = it.bucket.name)
-                }
+    ): List<App> = transaction {
+        val conditions = Apps.leftJoin(Buckets).selectAll()
+        if (query.isNotBlank()) {
+            val words = query.trim().split(" ")
+            for (word in words) {
+                conditions.andWhere { Apps.name like "%$word%" or (Apps.description match "%$word%") }
             }
         }
-
-    fun loadApps() {
-        transaction {
-            for (bucket in Scoop.bucketNames) {
-                if (Buckets.select { Buckets.name eq bucket }.count() <= 0) {
-                    BucketEntity.new {
-                        name = bucket
-                    }
-                }
-            }
+        if (bucket.isNotBlank()) {
+            conditions.andWhere { Buckets.name eq bucket }
+        }
+        if (scope == "installed") {
+            conditions.andWhere { Apps.status eq "installed" }
+        } else if (scope == "updates") {
+            conditions.andWhere { Apps.status eq "installed" and (Apps.version neq Apps.latestVersion) }
         }
 
-        transaction {
-            for (app in Scoop.apps) {
-                val query = Apps.leftJoin(Buckets).select {
-                    Apps.name eq app.name and (Buckets.name eq app.bucket.name)
-                }
+        val result = AppEntity.wrapRows(conditions)
+            .orderBy(Apps.updateAt to SortOrder.DESC)
+            .limit(limit, offset)
 
-                val rows = AppEntity.wrapRows(query).toList()
-                val bkt = BucketEntity.find { Buckets.name eq app.bucket.name }.first()
-                when {
-                    rows.isEmpty() -> {
-                        AppEntity.new {
-                            update(app, bkt)
-                        }
-                    }
-                    rows.size == 1 -> {
-                        val row = rows[0]
-                        row.apply {
-                            update(app, bkt)
-                        }
-                    }
-                    else -> {
-                        throw ScooperException("Found more than one app with same name and bucket.")
-                    }
+        result.map {
+            App(
+                name = it.name,
+                latestVersion = it.latestVersion,
+                global = it.global,
+                description = it.description,
+                status = it.status,
+                homepage = it.homepage,
+                url = it.url,
+            ).apply {
+                version = it.version
+                createAt = it.createAt
+                updateAt = it.updateAt
+
+                if (it.bucket != null) {
+                    this.bucket = Bucket(name = it.bucket!!.name)
                 }
             }
         }
     }
 
+    fun loadAll() {
+        loadBuckets()
+        loadApps()
+    }
+
+    fun loadApps() = transaction {
+        val apps = Scoop.apps
+        for (app in apps) {
+            val query = Apps.leftJoin(Buckets).select { Apps.name eq app.name }
+
+            val rows = AppEntity.wrapRows(query).toList()
+            val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
+            when {
+                rows.isEmpty() -> {
+                    AppEntity.new { update(app, bkt) }
+                }
+                rows.size == 1 -> {
+                    val row = rows.first()
+                    row.apply { update(app, bkt) }
+                }
+                else -> {
+                    throw ScooperException("Found more than one app with same name and bucket.")
+                }
+            }
+        }
+
+        val appNames = apps.map { it.name }
+        Apps.deleteWhere { Apps.name notInList appNames and (Apps.status neq "installed") }
+    }
+
+    fun loadBuckets() = transaction {
+        for (bucketDir in Scoop.bucketDirs) {
+            val bucket = bucketDir.name
+            if (Buckets.select { Buckets.name eq bucket }.count() <= 0) {
+                BucketEntity.new {
+                    name = bucket
+                    url = Scoop.getBucketRepo(bucketDir)
+                }
+            }
+        }
+        Buckets.deleteWhere { Buckets.name notInList Scoop.bucketNames }
+    }
+
     private fun AppEntity.update(
         app: App,
-        bkt: BucketEntity
+        bkt: BucketEntity?
     ) {
         name = app.name
         version = app.version
@@ -172,17 +180,17 @@ object AppsRepository {
         description = app.description
         homepage = app.homepage
         url = app.url
-
         createAt = app.createAt
         updateAt = app.updateAt
-
         bucket = bkt
     }
 }
 
 fun initDb() {
     val databasePath = File(System.getenv("USERPROFILE")).resolve("scooper.db")
-    Database.connect("jdbc:sqlite:$databasePath", "org.sqlite.JDBC")
+    Database.connect("jdbc:sqlite:$databasePath", "org.sqlite.JDBC", setupConnection = { connection ->
+        connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
+    })
 
     transaction {
         SchemaUtils.createMissingTablesAndColumns(Apps, Buckets)
@@ -190,7 +198,7 @@ fun initDb() {
 
     val appCount = transaction { Apps.selectAll().count() }
     if (appCount == 0L) {
-        AppsRepository.loadApps()
+        AppsRepository.loadAll()
     }
 }
 

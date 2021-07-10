@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.input.TextFieldValue
@@ -43,7 +42,7 @@ fun SearchBox() {
         Layout(content = {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 SearchBar()
-                Button(onClick = {}, modifier = Modifier.layout { measurable, constraints ->
+                Button(onClick = {}, modifier = Modifier.layout { _, _ ->
                     layout(0, 0) { }
                 }) {
                     Icon(Icons.TwoTone.Refresh, "", modifier = Modifier.size(18.dp))
@@ -145,14 +144,11 @@ fun SearchBar() {
             query,
             onValueChange = { query = it },
             modifier = Modifier.padding(start = 5.dp, end = 10.dp)
-                .defaultMinSize(120.dp).fillMaxWidth(0.4f).onPreviewKeyEvent {
+                .defaultMinSize(120.dp).fillMaxWidth(0.4f).cursorInput().onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
                         appsViewModel.applyFilters(query.text, bucket = bucket);
                         true
                     } else false
-                }
-                .cursorInput().pointerInput(Unit) {
-
                 },
             singleLine = true,
         )

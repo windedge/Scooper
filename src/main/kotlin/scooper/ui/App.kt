@@ -15,6 +15,7 @@ import androidx.compose.material.icons.twotone.KeyboardArrowDown
 import androidx.compose.material.icons.twotone.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -31,8 +32,9 @@ import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
 
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun AppPage(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
+fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
     appsViewModel.applyFilters(scope = scope)
     val state = appsViewModel.container.stateFlow.collectAsState()
     val apps = state.value.apps
@@ -45,17 +47,9 @@ fun AppPage(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::cla
         ) {
 
             if (state.value.updatingApps) {
-                Row(
-                    Modifier.fillMaxHeight().padding(horizontal = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Text("Updating...", color = colors.secondary)
-                    CircularProgressIndicator(
-                        Modifier.height(15.dp).width(25.dp).padding(horizontal = 5.dp),
-                        strokeWidth = 2.dp
-                    )
+                Box(Modifier.fillMaxHeight().width(60.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
                 }
-
             } else {
                 BoxWithTooltip(
                     tooltip = {
@@ -72,7 +66,9 @@ fun AppPage(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::cla
                         }
                     },
                     delay = 600, // in milliseconds
-                    offset = DpOffset((-16).dp, 0.dp) // tooltip offset
+                    tooltipPlacement = TooltipPlacement.CursorPoint(
+                        offset = DpOffset((-16).dp, 0.dp),
+                    ),
                 ) {
                     Button(
                         onClick = { appsViewModel.updateApps() },
@@ -191,7 +187,7 @@ fun AppCard(
                             val formatter = DateTimeFormatter.ofPattern("YYYY-MM-dd")
                             Text(app.updateAt.format(formatter), Modifier.widthIn(80.dp, 100.dp))
                             Spacer(Modifier.width(30.dp))
-                            Text("[${app.bucket.name}]")
+                            Text("[${app.bucket?.name ?: ""}]")
                         }
                     }
 
@@ -199,20 +195,6 @@ fun AppCard(
                         Modifier.fillMaxHeight().width(120.dp),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        if (app.updatable) {
-                            Text(
-                                app.latestVersion,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                softWrap = true
-                            )
-                            Text(
-                                "⬆".padStart(3, ' '),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                softWrap = true
-                            )
-                        }
                         Text(
                             app.version ?: app.status,
                             maxLines = if (app.updatable) 1 else 3,
@@ -220,6 +202,20 @@ fun AppCard(
                             softWrap = true,
                             color = if (app.status == "failed") Color.Red else Color.Unspecified,
                         )
+                        if (app.updatable) {
+                            Text(
+                                "⬇️".padStart(3, ' '),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = true
+                            )
+                            Text(
+                                app.latestVersion,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = true
+                            )
+                        }
 
                         ActionButton(app, installing, onInstall, onUpdate, onUninstall, onCancel)
                     }
