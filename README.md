@@ -1,5 +1,5 @@
 # Scooper
-The Missing UI for Scoop. 
+The Missing UI of Scoop. 
 
 [Scoop](https://scoop.sh/) is a powerful tool to manage apps under windows, but for daily usage, the command line interface is a little painful, this ultility can make life easier to maintain(install/upgrade/navigate/remove) apps.
 
