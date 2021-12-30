@@ -3,9 +3,9 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.5.21"
-    kotlin("plugin.serialization") version "1.5.21"
-    id("org.jetbrains.compose") version "1.0.0-alpha4-build318"
+    kotlin("jvm") version "1.6.10"
+    kotlin("plugin.serialization") version "1.6.10"
+    id("org.jetbrains.compose") version "1.0.1"
 }
 
 group = "scooper"
@@ -40,14 +40,14 @@ dependencies {
         // exclude("com.dorkbox", "Updates")
     }
 
-    //test
+    // test
     implementation("org.junit.jupiter:junit-jupiter:5.4.2")
     testImplementation(kotlin("test"))
 }
 
 tasks.withType<KotlinCompile> {
     kotlinOptions {
-        // jvmTarget = "11"
+        jvmTarget = "11"
         freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
     }
 }
@@ -71,6 +71,10 @@ compileKotlin.kotlinOptions {
 val compileTestKotlin: KotlinCompile by tasks
 compileTestKotlin.kotlinOptions {
     jvmTarget = "11"
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(11))
 }
 
 tasks.test {

@@ -35,7 +35,7 @@ import scooper.viewmodels.AppsViewModel
 @Composable
 fun SearchBox() {
     Surface(
-        Modifier.fillMaxWidth().height(80.dp),
+        Modifier.fillMaxWidth().height(90.dp),
         elevation = 3.dp,
         shape = MaterialTheme.shapes.large
     ) {
@@ -72,7 +72,8 @@ fun SearchBox() {
 @Composable
 fun SearchBar() {
     val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
-    val modifier = Modifier.border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
+    val modifier = Modifier.padding(0.dp)
+        .border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
         .onHover { on ->
             if (on) border(
                 2.dp,
@@ -110,7 +111,7 @@ fun SearchBar() {
                             selectedItem = idx
                             bucket = title
                         },
-                        modifier = Modifier.sizeIn(maxHeight = 30.dp)
+                        modifier = Modifier.sizeIn(maxHeight = 40.dp)
                             .background(color = if (hover) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.surface)
                             .onHover { hover = it }
                     ) {
@@ -156,7 +157,10 @@ fun SearchBar() {
             onClick = {
                 appsViewModel.applyFilters(query.text, bucket = bucket)
             },
-            modifier = Modifier.padding(horizontal = 0.dp).width(100.dp).cursorHand(),
+            modifier = Modifier
+                .height(40.dp)
+                .padding(0.dp)
+                .width(108.dp).cursorHand(),
             shape = RoundedCornerShape(
                 topStart = 0.dp,
                 bottomStart = 0.dp,

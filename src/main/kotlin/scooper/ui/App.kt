@@ -19,7 +19,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.vectorXmlResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.loadXmlImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -30,9 +31,12 @@ import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
+import org.xml.sax.InputSource
+import androidx.compose.ui.res.useResource
+import androidx.compose.ui.unit.Density
 
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
     appsViewModel.applyFilters(scope = scope)
@@ -167,7 +171,7 @@ fun AppCard(
                             Text(app.name, style = typography.h6)
                             if (app.homepage != null && app.homepage!!.isNotBlank()) {
                                 Icon(
-                                    imageVector = vectorXmlResource("external_link_icon.xml"),
+                                    imageVector = loadXmlImageVector("external_link_icon.xml"),
                                     app.homepage,
                                     modifier = Modifier.cursorHand().clickable {
                                         java.awt.Desktop.getDesktop()
@@ -334,3 +338,8 @@ fun ActionButton(
         }
     }
 }
+
+// fun loadXmlImageVector(file: File, density: Density): ImageVector =
+//     file.inputStream().buffered().use { loadXmlImageVector(InputSource(it), density) }
+fun loadXmlImageVector(path: String, density: Density = Density(1f)): ImageVector =
+    useResource(path) { stream -> stream.buffered().use { loadXmlImageVector(InputSource(it), density) } }

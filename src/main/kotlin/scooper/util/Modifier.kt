@@ -3,12 +3,14 @@ package scooper.util
 import androidx.compose.foundation.background
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.input.pointer.pointerMoveFilter
 import scooper.LocalWindow
 import java.awt.Cursor
 
+@OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.onHover(block: @Composable Modifier.(on: Boolean) -> Unit): Modifier = composed {
     var hover by remember { mutableStateOf(false) }
     block(hover)
@@ -34,6 +36,7 @@ fun Modifier.cursorInput(): Modifier = composed {
     cursorOnHover(Cursor(Cursor.TEXT_CURSOR))
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.cursorLink(
     hoverModifier: Modifier = Modifier,
     onHover: @Composable (on: Boolean) -> Unit = {}

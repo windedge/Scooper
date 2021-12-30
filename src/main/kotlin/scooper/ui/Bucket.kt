@@ -33,7 +33,7 @@ import java.awt.Cursor
 import java.awt.Desktop
 import java.net.URI
 
-@ExperimentalComposeUiApi
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewModel::class.java)) {
     var bucketToDelete by remember { mutableStateOf("") }
@@ -166,7 +166,6 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
     }
 }
 
-@ExperimentalComposeUiApi
 @Composable
 fun ConfirmDialog(
     text: String? = null,
@@ -239,6 +238,7 @@ fun BucketCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit) {
     BoxWithConstraints {
