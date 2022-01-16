@@ -182,9 +182,9 @@ object Scoop {
 
     fun install(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "install", "-g", app.name)
+            mutableListOf("sudo", "scoop", "install", "-g", String.format("%s/%s", app.bucket?.name,app.name))
         } else {
-            mutableListOf("scoop", "install", app.name)
+            mutableListOf("scoop", "install", String.format("%s/%s", app.bucket?.name,app.name))
         }
         val command = command(commandArgs, onFinish)
         command.startAsShellAsync()
@@ -224,10 +224,10 @@ object Scoop {
         .addListener(object : ProcessListener() {
             override fun afterFinish(process: Process, result: ProcessResult) {
                 runBlocking {
-                    logger.info("execute finished, exit value: ${result.getExitValue()}.");
+                    logger.info("execute finished, exit value: ${result.getExitValue()}.")
                     onFinish(result.getExitValue())
                     if (result is SyncProcessResult) {
-                        logger.info("result.output.utf8() = " + result.output.utf8());
+                        logger.info("result.output.utf8() = " + result.output.utf8())
                     }
                 }
             }

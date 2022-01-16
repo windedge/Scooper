@@ -110,13 +110,14 @@ fun SearchBar() {
                             expand = false
                             selectedItem = idx
                             bucket = title
+                            appsViewModel.applyFilters("", bucket = bucket)
                         },
                         modifier = Modifier.sizeIn(maxHeight = 40.dp)
                             .background(color = if (hover) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.surface)
                             .onHover { hover = it }
                     ) {
                         Text(
-                            title,
+                            title.ifBlank { "All" },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             color = if (hover) MaterialTheme.colors.onPrimary else MaterialTheme.colors.onSurface,
@@ -147,7 +148,7 @@ fun SearchBar() {
             modifier = Modifier.padding(start = 5.dp, end = 10.dp)
                 .defaultMinSize(120.dp).fillMaxWidth(0.4f).cursorInput().onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
-                        appsViewModel.applyFilters(query.text, bucket = bucket);
+                        appsViewModel.applyFilters(query.text, bucket = bucket)
                         true
                     } else false
                 },
