@@ -24,11 +24,23 @@ object Scoop {
 
     val rootDir: File
         get() {
+            val scoop = System.getenv("SCOOP")
+            if(!scoop.isNullOrEmpty()){
+                val root = File(scoop)
+                if (root.exists())
+                    return root
+            }
             return File(System.getenv("USERPROFILE")).resolve("scoop")
         }
 
     val globalRootDir: File
         get() {
+            val scoop = System.getenv("SCOOP_GLOBAL")
+            if(!scoop.isNullOrEmpty()) {
+                val root = File(scoop)
+                if (root.exists())
+                    return root
+            }
             return File(System.getenv("ALLUSERSPROFILE")).resolve("scoop")
         }
 
@@ -83,7 +95,9 @@ object Scoop {
             for (bucketDir in bucketDirs) {
                 val bucket = Bucket(name = bucketDir.name, url = "")
                 val apps = bucketDir.resolve("bucket").listFiles()
-                    // ?.take(10)
+                    ?.filter {
+                        !it.isDirectory and (it.extension == "json")
+                    }
                     ?.map { file ->
                         parseManifest(file).apply {
                             this.version = this.latestVersion
