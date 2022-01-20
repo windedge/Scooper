@@ -263,6 +263,21 @@ fun ActionButton(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (app.status == "failed") {
+                DropdownMenuItem(
+                    onClick = {
+                        expand = false
+                        onUninstall(app)
+                    },
+                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
+                ) {
+                    Text(
+                        "Uninstall",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
         if (app.installed) {
             DropdownMenuItem(
