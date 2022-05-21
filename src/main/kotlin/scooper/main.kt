@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.InternalCoroutinesApi
@@ -50,7 +51,11 @@ fun main() = application {
         size = WindowSize(960.dp, 650.dp),
         position = WindowPosition(Alignment.Center)
     )
-    Window(onCloseRequest = ::exitApplication, state, title = "Scooper") {
+    Window(
+        onCloseRequest = ::exitApplication, state,
+        title = "Scooper",
+        icon = painterResource("logo.svg"),
+    ) {
         val appsViewModel = koinApp.koin.get<AppsViewModel>()
         val scope = rememberCoroutineScope()
         val scaffoldState = rememberScaffoldState()
@@ -87,7 +92,7 @@ fun main() = application {
                     }
                 }) {
                     Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
-                    // Router<AppRoute>(start = AppRoute.Buckets) { currentRoute ->
+                        // Router<AppRoute>(start = AppRoute.Buckets) { currentRoute ->
                         Layout(this) {
                             when (val route = currentRoute.value) {
                                 is AppRoute.Apps -> {
