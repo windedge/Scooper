@@ -5,11 +5,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "1.6.10"
     kotlin("plugin.serialization") version "1.6.10"
-    id("org.jetbrains.compose") version "1.0.1"
+    id("org.jetbrains.compose") version "1.1.1"
 }
 
 group = "scooper"
-version = "0.6.0"
+version = "0.6.2"
 
 repositories {
     jcenter()
@@ -61,6 +61,10 @@ compose.desktop {
             packageName = "Scooper"
             packageVersion = version.toString()
             vendor = "xujl"
+
+            windows {
+                iconFile.set(project.file("icons/icon.ico"))
+            }
         }
     }
 }
