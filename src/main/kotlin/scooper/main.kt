@@ -63,7 +63,6 @@ fun main() = application {
             appsViewModel.container.sideEffectFlow.collect { sideEffect ->
                 when (sideEffect) {
                     AppsSideEffect.Empty -> {
-                        print(".....")
                     }
                     is AppsSideEffect.Toast -> {
                         scope.launch {

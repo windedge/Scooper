@@ -8,8 +8,8 @@ plugins {
     id("org.jetbrains.compose") version "1.1.1"
 }
 
-group = "scooper"
-version = "0.6.2"
+group = "Scooper"
+version = "0.6.3"
 
 repositories {
     jcenter()
@@ -52,17 +52,25 @@ tasks.withType<KotlinCompile> {
     }
 }
 
+// tasks.withType<AbstractJLinkTask> {
+//     setProperty("stripDebug\$compose", false)
+// }
+
 compose.desktop {
     application {
         mainClass = "scooper.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             modules("java.instrument", "java.sql", "jdk.unsupported")
-            packageName = "Scooper"
+            // includeAllModules = true
+            packageName = group.toString()
             packageVersion = version.toString()
             vendor = "xujl"
 
             windows {
+                menuGroup = group.toString()
+                shortcut = true
+                // console = true
                 iconFile.set(project.file("icons/icon.ico"))
             }
         }
