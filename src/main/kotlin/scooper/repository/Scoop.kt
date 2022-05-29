@@ -11,6 +11,7 @@ import kotlinx.serialization.json.jsonObject
 import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.data.Bucket
+import scooper.util.findExecutable
 import scooper.util.killTree
 import java.io.File
 import java.nio.file.Files
@@ -25,7 +26,7 @@ object Scoop {
     val rootDir: File
         get() {
             val scoop = System.getenv("SCOOP")
-            if(!scoop.isNullOrEmpty()){
+            if (!scoop.isNullOrEmpty()) {
                 val root = File(scoop)
                 if (root.exists())
                     return root
@@ -36,7 +37,7 @@ object Scoop {
     val globalRootDir: File
         get() {
             val scoop = System.getenv("SCOOP_GLOBAL")
-            if(!scoop.isNullOrEmpty()) {
+            if (!scoop.isNullOrEmpty()) {
                 val root = File(scoop)
                 if (root.exists())
                     return root
@@ -63,13 +64,17 @@ object Scoop {
             return buckets
         }
 
-    fun getBucketRepo(bucketDir: File): String {
+    fun getBucketRepo(bucketDir: File): String? {
+        if (findExecutable("git.exe") == null) {
+            return null
+        }
+
         val result = Executor().command("git", "remote", "-v")
             .workingDirectory(bucketDir).enableRead()
             .startBlocking()
-        val regex = """origin\s+(.*)\s+\(fetch\)""".toRegex(RegexOption.MULTILINE)
         val output = result.output.string()
-        return regex.find(output)!!.groupValues[1]
+        val regex = """origin\s+(.*)\s+\(fetch\)""".toRegex(RegexOption.MULTILINE)
+        return regex.find(output)?.groupValues?.get(1)
     }
 
     val localInstalledAppDirs: List<File>
@@ -182,9 +187,9 @@ object Scoop {
 
     fun install(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "install", "-g", String.format("%s/%s", app.bucket?.name,app.name))
+            mutableListOf("sudo", "scoop", "install", "-g", String.format("%s/%s", app.bucket!!.name, app.name))
         } else {
-            mutableListOf("scoop", "install", String.format("%s/%s", app.bucket?.name,app.name))
+            mutableListOf("scoop", "install", String.format("%s/%s", app.bucket!!.name, app.name))
         }
         val command = command(commandArgs, onFinish)
         command.startAsShellAsync()

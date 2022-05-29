@@ -11,7 +11,6 @@ import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.repository.Scoop
-import java.util.*
 
 data class AppsFilter(
     val query: String = "",
@@ -43,10 +42,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     }
 
     fun applyFilters(
-        query: String? = null,
-        bucket: String? = null,
-        scope: String? = null,
-        page: Int? = null
+        query: String? = null, bucket: String? = null, scope: String? = null, page: Int? = null
     ) = intent {
         postSideEffect(AppsSideEffect.Loading)
         val currentQuery = query ?: state.filter.query
@@ -54,11 +50,9 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         val currentScope = scope ?: state.filter.scope
         val currentPage = page ?: state.filter.page
         val apps = AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = 1000)
-        println("applyFilters: now = ${Date(System.currentTimeMillis())}")
         reduce {
             state.copy(
-                apps = apps,
-                filter = state.filter.copy(
+                apps = apps, filter = state.filter.copy(
                     query = currentQuery,
                     selectBucket = currentBucket,
                     scope = currentScope,
@@ -87,9 +81,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     fun updateApps() = intent {
         reduce { state.copy(updatingApps = true) }
         Scoop.update {
-            println("before reloadApps: ${Date(System.currentTimeMillis())}")
             reloadApps()
-            println("after reloadApps: ${Date(System.currentTimeMillis())}")
             reduce {
                 state.copy(updatingApps = false)
             }
@@ -141,7 +133,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     }
 
     fun addBucket(bucket: String, url: String? = null) = intent {
-        Scoop.addBucket(bucket, url, onFinish = { exitValue ->
+        Scoop.addBucket(bucket, url) { exitValue ->
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("add bucket error!"))
                 return@addBucket
@@ -150,11 +142,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
             }
             getBuckets()
             reloadApps()
-        })
+        }
     }
 
     fun deleteBucket(bucket: String) = intent {
-        Scoop.removeBucket(bucket, onFinish = { exitValue ->
+        Scoop.removeBucket(bucket) { exitValue ->
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("remove bucket error!"))
                 return@removeBucket
@@ -163,7 +155,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
             }
             getBuckets()
             reloadApps()
-        })
+        }
     }
 }
 
