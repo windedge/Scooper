@@ -27,17 +27,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import org.koin.java.KoinJavaComponent.get
+import org.slf4j.LoggerFactory
 import scooper.util.cursorHand
 import scooper.util.cursorInput
 import scooper.util.onHover
 import scooper.viewmodels.AppsViewModel
 
+private val logger = LoggerFactory.getLogger("scooper.ui.Search")
+
 @Composable
 fun SearchBox() {
     Surface(
-        Modifier.fillMaxWidth().height(90.dp),
-        elevation = 3.dp,
-        shape = MaterialTheme.shapes.large
+        Modifier.fillMaxWidth().height(90.dp), elevation = 3.dp, shape = MaterialTheme.shapes.large
     ) {
         Layout(content = {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -63,7 +64,6 @@ fun SearchBox() {
                     yPosition += placeable.height
                 }
             }
-
         }
     }
 }
@@ -72,15 +72,13 @@ fun SearchBox() {
 @Composable
 fun SearchBar() {
     val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
-    val modifier = Modifier.padding(0.dp)
-        .border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
-        .onHover { on ->
-            if (on) border(
-                2.dp,
-                MaterialTheme.colors.secondary,
-                shape = MaterialTheme.shapes.medium
-            )
-        }
+    val modifier =
+        Modifier.padding(0.dp).border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
+            .onHover { on ->
+                if (on) border(
+                    2.dp, MaterialTheme.colors.secondary, shape = MaterialTheme.shapes.medium
+                )
+            }
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         val state by appsViewModel.container.stateFlow.collectAsState()
         val buckets = mutableListOf("")
@@ -94,28 +92,26 @@ fun SearchBar() {
 
         Row(
             Modifier.cursorHand().clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { expand = true }, verticalAlignment = Alignment.CenterVertically
+                interactionSource = remember { MutableInteractionSource() }, indication = null
+            ) { expand = !expand }, verticalAlignment = Alignment.CenterVertically
         ) {
             DropdownMenu(
-                expand, onDismissRequest = { expand = false },
+                expand,
+                onDismissRequest = { expand = false },
                 modifier = Modifier.width(120.dp).cursorHand(),
                 offset = DpOffset(x = (-10).dp, y = 6.dp)
             ) {
                 buckets.forEachIndexed() { idx, title ->
                     var hover by remember { mutableStateOf(false) }
-                    DropdownMenuItem(
-                        onClick = {
-                            expand = false
-                            selectedItem = idx
-                            bucket = title
-                            appsViewModel.applyFilters("", bucket = bucket)
-                        },
+                    DropdownMenuItem(onClick = {
+                        expand = false
+                        selectedItem = idx
+                        bucket = title
+                        appsViewModel.applyFilters("", bucket = bucket)
+                    },
                         modifier = Modifier.sizeIn(maxHeight = 40.dp)
                             .background(color = if (hover) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.surface)
-                            .onHover { hover = it }
-                    ) {
+                            .onHover { hover = it }) {
                         Text(
                             title.ifBlank { "All" },
                             maxLines = 1,
@@ -126,8 +122,7 @@ fun SearchBar() {
                 }
             }
 
-            val color =
-                if (selectedItem > 0) MaterialTheme.colors.onSurface else Color.LightGray
+            val color = if (selectedItem > 0) MaterialTheme.colors.onSurface else Color.LightGray
 
             Text(
                 bucket.ifBlank { "Select bucket" },
@@ -145,8 +140,8 @@ fun SearchBar() {
         BasicTextField(
             query,
             onValueChange = { query = it },
-            modifier = Modifier.padding(start = 5.dp, end = 10.dp)
-                .defaultMinSize(120.dp).fillMaxWidth(0.4f).cursorInput().onPreviewKeyEvent {
+            modifier = Modifier.padding(start = 5.dp, end = 10.dp).defaultMinSize(120.dp).fillMaxWidth(0.4f)
+                .cursorInput().onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
                         appsViewModel.applyFilters(query.text, bucket = bucket)
                         true
@@ -158,21 +153,13 @@ fun SearchBar() {
             onClick = {
                 appsViewModel.applyFilters(query.text, bucket = bucket)
             },
-            modifier = Modifier
-                .height(40.dp)
-                .padding(0.dp)
-                .width(108.dp).cursorHand(),
+            modifier = Modifier.height(40.dp).padding(0.dp).width(108.dp).cursorHand(),
             shape = RoundedCornerShape(
-                topStart = 0.dp,
-                bottomStart = 0.dp,
-                topEnd = 4.dp,
-                bottomEnd = 4.dp
+                topStart = 0.dp, bottomStart = 0.dp, topEnd = 4.dp, bottomEnd = 4.dp
             )
         ) {
             Icon(
-                Icons.TwoTone.Search,
-                "",
-                modifier = Modifier.size(18.dp)
+                Icons.TwoTone.Search, "", modifier = Modifier.size(18.dp)
             )
             Text("Search")
         }

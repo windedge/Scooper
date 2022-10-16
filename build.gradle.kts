@@ -3,13 +3,13 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.6.10"
-    kotlin("plugin.serialization") version "1.6.10"
-    id("org.jetbrains.compose") version "1.1.1"
+    kotlin("jvm") version "1.7.20"
+    kotlin("plugin.serialization") version "1.7.20"
+    id("org.jetbrains.compose") version "1.2.0"
 }
 
 group = "Scooper"
-version = "0.6.3"
+version = "0.6.5"
 
 repositories {
     jcenter()
@@ -45,17 +45,6 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        jvmTarget = "11"
-        freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
-    }
-}
-
-// tasks.withType<AbstractJLinkTask> {
-//     setProperty("stripDebug\$compose", false)
-// }
-
 compose.desktop {
     application {
         mainClass = "scooper.MainKt"
@@ -76,9 +65,11 @@ compose.desktop {
         }
     }
 }
+
 val compileKotlin: KotlinCompile by tasks
 compileKotlin.kotlinOptions {
     jvmTarget = "11"
+    freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
 }
 val compileTestKotlin: KotlinCompile by tasks
 compileTestKotlin.kotlinOptions {
@@ -88,6 +79,10 @@ compileTestKotlin.kotlinOptions {
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(11))
 }
+
+// tasks.withType<AbstractJLinkTask> {
+//     setProperty("stripDebug\$compose", false)
+// }
 
 tasks.test {
     useJUnitPlatform()
