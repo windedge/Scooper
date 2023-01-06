@@ -15,34 +15,34 @@ import androidx.compose.material.icons.twotone.KeyboardArrowDown
 import androidx.compose.material.icons.twotone.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.loadXmlImageVector
+import androidx.compose.ui.res.useResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import org.koin.java.KoinJavaComponent.get
+import org.xml.sax.InputSource
 import scooper.data.App
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
-import org.xml.sax.InputSource
-import androidx.compose.ui.res.useResource
-import androidx.compose.ui.unit.Density
 
 
-@OptIn(ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
     appsViewModel.applyFilters(scope = scope)
     val state = appsViewModel.container.stateFlow.collectAsState()
     val apps = state.value.apps
     val installingApp = state.value.installingApp
+    val waitingApps = state.value.waitingApps
     Column(Modifier.fillMaxSize()) {
         SearchBox()
         Box(
@@ -50,12 +50,12 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
             contentAlignment = Alignment.CenterEnd
         ) {
 
-            if (state.value.updatingApps) {
+            if (state.value.refreshing) {
                 Box(Modifier.fillMaxHeight().width(60.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
                 }
             } else {
-                BoxWithTooltip(
+                TooltipArea(
                     tooltip = {
                         Surface(
                             modifier = Modifier.shadow(4.dp),
@@ -69,13 +69,13 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
                             )
                         }
                     },
-                    delay = 600, // in milliseconds
+                    delayMillis = 600, // in milliseconds
                     tooltipPlacement = TooltipPlacement.CursorPoint(
                         offset = DpOffset((-16).dp, 0.dp),
-                    ),
+                    )
                 ) {
                     Button(
-                        onClick = { appsViewModel.updateApps() },
+                        onClick = { appsViewModel.queuedUpdateApps() },
                         Modifier.height(25.dp).cursorLink(),
                         contentPadding = PaddingValues(4.dp)
                     ) {
@@ -88,19 +88,20 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
         AppList(
             apps,
             installingApp = installingApp,
-            onInstall = appsViewModel::install,
-            onUpdate = appsViewModel::upgrade,
-            onUninstall = appsViewModel::uninstall,
+            waitingApps = waitingApps,
+            onInstall = appsViewModel::queuedInstall,
+            onUpdate = appsViewModel::queuedUpdate,
+            onUninstall = appsViewModel::queuedUninstall,
             onCancel = appsViewModel::cancel
         )
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppList(
     apps: List<App>,
     installingApp: String? = null,
+    waitingApps: Set<String> = setOf(),
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
     onUpdate: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
@@ -122,6 +123,7 @@ fun AppList(
                         app,
                         divider = idx > 0,
                         installing = app.name == installingApp,
+                        waiting = waitingApps.contains(app.uniqueName),
                         onInstall = onInstall,
                         onUpdate = onUpdate,
                         onUninstall = onUninstall,
@@ -145,6 +147,7 @@ fun AppCard(
     app: App,
     divider: Boolean = false,
     installing: Boolean = false,
+    waiting: Boolean = false,
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
     onUpdate: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
@@ -221,7 +224,7 @@ fun AppCard(
                             )
                         }
 
-                        ActionButton(app, installing, onInstall, onUpdate, onUninstall, onCancel)
+                        ActionButton(app, installing, waiting, onInstall, onUpdate, onUninstall, onCancel)
                     }
                 }
 
@@ -236,6 +239,7 @@ fun AppCard(
 fun ActionButton(
     app: App,
     installing: Boolean,
+    waiting: Boolean,
     onInstall: (app: App, global: Boolean) -> Unit,
     onUpdate: (app: App) -> Unit,
     onUninstall: (app: App) -> Unit,
@@ -298,7 +302,7 @@ fun ActionButton(
 
     Row(
         modifier = Modifier.height(30.dp).border(
-            1.dp, color = MaterialTheme.colors.onBackground, shape = RoundedCornerShape(4.dp)
+            1.dp, color = colors.onBackground, shape = RoundedCornerShape(4.dp)
         )
     ) {
         var modifier = Modifier.fillMaxHeight().width(90.dp)
@@ -307,18 +311,25 @@ fun ActionButton(
         when {
             installing -> {
                 text = "Cancel"
-                modifier =
-                    modifier.cursorLink().background(MaterialTheme.colors.error).clickable { onCancel() }
-                textColor = MaterialTheme.colors.onError
+                modifier = modifier.cursorLink().background(colors.error).clickable { onCancel() }
+                textColor = colors.onError
             }
+
+            waiting -> {
+                text = "Waiting"
+                textColor = colors.onSecondary
+            }
+
             app.status == "installed" && app.updatable -> {
                 text = "Update"
                 modifier = modifier.cursorLink().clickable { onUpdate(app) }
             }
+
             app.status == "installed" -> {
                 text = "Installed"
-                textColor = MaterialTheme.colors.onSecondary
+                textColor = colors.onSecondary
             }
+
             else -> {
                 text = "Install"
                 modifier = modifier.cursorLink().clickable { onInstall(app, false) }
@@ -333,10 +344,10 @@ fun ActionButton(
 
         Box(
             Modifier.height(30.dp).width(1.dp).padding(vertical = 5.dp)
-                .background(color = MaterialTheme.colors.onBackground)
+                .background(color = colors.onBackground)
         )
 
-        if (installing) {
+        if (installing || waiting) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.fillMaxHeight().width(25.dp)
@@ -347,7 +358,7 @@ fun ActionButton(
             Icon(
                 Icons.TwoTone.KeyboardArrowDown,
                 "",
-                tint = MaterialTheme.colors.onBackground,
+                tint = colors.onBackground,
                 modifier = Modifier.fillMaxHeight().width(25.dp).cursorLink().clickable { expand = true }
             )
         }

@@ -16,13 +16,15 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerMoveFilter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogState
-import androidx.compose.ui.window.WindowSize
 import org.koin.java.KoinJavaComponent
 import scooper.LocalWindow
 import scooper.data.Bucket
@@ -66,15 +68,14 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
                 Modifier.fillMaxWidth().height(60.dp).padding(4.dp)
                     .background(color = if (isHover) colors.primary else Color.Transparent)
                     .clickable {
-                        bucketName = ""; bucketUrl = ""; showAddDialog = true;
+                        bucketName = ""; bucketUrl = ""; showAddDialog = true
                     }
-                    .pointerMoveFilter(onEnter = {
+                    .onPointerEvent(PointerEventType.Enter) {
                         isHover = true
-                        false
-                    }, onExit = {
+                    }
+                    .onPointerEvent(PointerEventType.Exit) {
                         isHover = false
-                        false
-                    }),
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 val color = if (isHover) colors.onPrimary else colors.onSurface
@@ -97,17 +98,17 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
             Text(
                 "Known Buckets",
                 style = MaterialTheme.typography.h5,
-                color = MaterialTheme.colors.onBackground,
+                color = colors.onBackground,
                 modifier = Modifier.padding(top = 20.dp)
             )
 
-            KnownBuckets(bucketNames, onAdd = { appsViewModel.addBucket(it) })
+            KnownBuckets(bucketNames, onAdd = { appsViewModel.queuedAddBucket(it) })
 
             Spacer(Modifier.height(10.dp))
         }
         VerticalScrollbar(
             modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
-                .background(color = MaterialTheme.colors.background),
+                .background(color = colors.background),
             adapter = rememberScrollbarAdapter(scrollState = scrollState /* TextBox height + Spacer height*/)
         )
     }
@@ -116,7 +117,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
             text = "Confirm to delete?",
             onConfirm = {
                 showDeleteDialog = false
-                appsViewModel.deleteBucket(bucketToDelete)
+                appsViewModel.queuedRemoveBucket(bucketToDelete)
             },
             onCancel = { showDeleteDialog = false }
         )
@@ -136,11 +137,11 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
                 if (bucketNameError || bucketUrlError) {
                     return@ConfirmDialog
                 }
-                appsViewModel.addBucket(bucketName, bucketUrl)
+                appsViewModel.queuedAddBucket(bucketName, bucketUrl)
             },
             onCancel = { showAddDialog = false },
             confirmText = "Add",
-            state = DialogState(size = WindowSize(400.dp, 250.dp))
+            state = DialogState(size = DpSize(400.dp, 250.dp))
         ) {
             CompositionLocalProvider(LocalContentColor provides Color.Black) {
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -174,7 +175,7 @@ fun ConfirmDialog(
     onCancel: () -> Unit,
     confirmText: String? = null,
     cancelText: String? = null,
-    state: DialogState = DialogState(size = WindowSize(300.dp, 200.dp)),
+    state: DialogState = DialogState(size = DpSize(300.dp, 200.dp)),
     content: @Composable (() -> Unit)? = null
 ) {
     Dialog(onCloseRequest = onCancel, state = state, title = title ?: "Scooper") {
@@ -228,7 +229,7 @@ fun BucketCard(
                             Icons.TwoTone.Delete,
                             "",
                             Modifier.cursorLink(),
-                            tint = MaterialTheme.colors.onSecondary
+                            tint = colors.onSecondary
                         )
                     }
                 }
@@ -245,7 +246,7 @@ fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit)
         val maxWidth = this.maxWidth
         Column {
             val columns = (maxWidth.value / 168).toInt()
-            val knownBuckets = KNOWN_BUCKETS - bucketNames
+            val knownBuckets = KNOWN_BUCKETS - bucketNames.toSet()
             // val knownBuckets = KNOWN_BUCKETS
             val rows = knownBuckets.size / columns + 1
 
@@ -265,19 +266,23 @@ fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit)
                                 ) {
                                     val bucketName = knownBuckets.elementAt(idx)
                                     Text(bucketName, style = MaterialTheme.typography.h6)
-                                    BoxWithTooltip(tooltip = {
-                                        Surface(
-                                            modifier = Modifier.shadow(4.dp),
-                                            color = Color(255, 255, 210),
-                                            shape = RoundedCornerShape(4.dp)
-                                        ) {
-                                            Text(
-                                                text = "Add Bucket",
-                                                modifier = Modifier.padding(5.dp),
-                                                color = Color.Gray
-                                            )
-                                        }
-                                    }) {
+                                    TooltipArea(
+                                        tooltip = {
+                                            Surface(
+                                                modifier = Modifier.shadow(4.dp),
+                                                color = Color(255, 255, 210),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Add Bucket",
+                                                    modifier = Modifier.padding(5.dp),
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                        }, tooltipPlacement = TooltipPlacement.CursorPoint(
+                                            offset = DpOffset(0.dp, 16.dp)
+                                        )
+                                    ) {
                                         IconButton(onClick = { onAdd(bucketName) }) {
                                             Icon(
                                                 Icons.TwoTone.AddCircle,

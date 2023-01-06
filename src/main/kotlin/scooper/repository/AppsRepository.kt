@@ -7,12 +7,15 @@ import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.`java-time`.datetime
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.notInList
+import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.util.ScooperException
 import java.io.File
+import java.time.LocalDateTime
 
 
 object Apps : IntIdTable() {
@@ -141,10 +144,12 @@ object AppsRepository {
                 rows.isEmpty() -> {
                     AppEntity.new { update(app, bkt) }
                 }
+
                 rows.size == 1 -> {
                     val row = rows.first()
                     row.apply { update(app, bkt) }
                 }
+
                 else -> {
                     throw ScooperException("Found more than one app with same name and bucket.")
                 }
@@ -152,7 +157,7 @@ object AppsRepository {
         }
 
         val appNames = apps.map { it.name }
-        Apps.deleteWhere { Apps.name notInList appNames and (Apps.status neq "installed") }
+        Apps.deleteWhere { name notInList appNames and (status neq "installed") }
     }
 
     fun loadBuckets() = transaction {
@@ -165,7 +170,22 @@ object AppsRepository {
                 }
             }
         }
-        Buckets.deleteWhere { Buckets.name notInList Scoop.bucketNames }
+        Buckets.deleteWhere { name notInList Scoop.bucketNames }
+    }
+
+    fun updateApp(app: App) = transaction {
+        val query = Apps.leftJoin(Buckets).select { Apps.name eq app.name }
+        if (app.bucket != null) {
+            query.andWhere { Buckets.name eq app.bucket!!.name }
+        }
+        val appEntity = AppEntity.wrapRows(query).firstOrNull() ?: return@transaction
+        appEntity.update(
+            app.also {
+                it.createAt = appEntity.createAt
+                it.updateAt = appEntity.updateAt
+            },
+            appEntity.bucket
+        )
     }
 
     private fun AppEntity.update(
