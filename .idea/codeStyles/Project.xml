@@ -13,7 +13,6 @@
         <package name="" withSubpackages="true" static="true" />
       </value>
     </option>
-    <option name="RIGHT_MARGIN" value="110" />
     <option name="LINE_COMMENT_AT_FIRST_COLUMN" value="false" />
     <option name="BLANK_LINES_AROUND_FIELD" value="1" />
     <option name="BLANK_LINES_AFTER_CLASS_HEADER" value="1" />

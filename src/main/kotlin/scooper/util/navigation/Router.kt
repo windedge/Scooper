@@ -1,4 +1,4 @@
-package scooper.framework.navigation
+package scooper.util.navigation
 
 // import androidx.activity.OnBackPressedCallback
 // import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -10,10 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import scooper.framework.navigation.core.BackStack
-import scooper.framework.navigation.core.BackStackId
-import scooper.framework.navigation.core.Route
-import scooper.framework.navigation.core.backStackController
+import scooper.util.navigation.core.BackStack
+import scooper.util.navigation.core.BackStackId
+import scooper.util.navigation.core.Route
+import scooper.util.navigation.core.backStackController
 
 internal val LocalNullableBackStack = compositionLocalOf<BackStack<*>?> { null }
 internal val LocalOnBackPressedDispatcherEnabled = compositionLocalOf { false }

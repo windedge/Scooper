@@ -21,6 +21,7 @@ data class App(
 
     val updatable: Boolean get() = this.version != null && this.version != this.latestVersion
     val installed: Boolean get() = this.status == "installed"
+    val uniqueName: String get() = if (this.bucket != null) "${this.bucket!!.name}/${this.name}" else this.name
 }
 
 

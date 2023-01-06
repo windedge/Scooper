@@ -6,7 +6,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.input.pointer.pointerMoveFilter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import scooper.LocalWindow
 import java.awt.Cursor
 
@@ -14,10 +15,8 @@ import java.awt.Cursor
 fun Modifier.onHover(block: @Composable Modifier.(on: Boolean) -> Unit): Modifier = composed {
     var hover by remember { mutableStateOf(false) }
     block(hover)
-    val modifier = pointerMoveFilter(
-        onEnter = { hover = true; false },
-        onExit = { hover = false; false }
-    )
+    val modifier = onPointerEvent(PointerEventType.Enter) { hover = true }
+            .onPointerEvent(PointerEventType.Exit) { hover = false }
 
     modifier
 }
@@ -43,10 +42,12 @@ fun Modifier.cursorLink(
 ): Modifier = composed {
     var hover by remember { mutableStateOf(false) }
     onHover(hover)
-    var default = pointerMoveFilter(
-        onEnter = { hover = true; false },
-        onExit = { hover = false; false }
-    )
+    var default = onPointerEvent(PointerEventType.Enter) {
+        hover = true
+    }
+        .onPointerEvent(PointerEventType.Exit) {
+            hover = false
+        }
     if (hover) {
         // LocalAppWindow.current.window.cursor = Cursor(Cursor.HAND_CURSOR)
         LocalWindow.current.cursor = Cursor(Cursor.HAND_CURSOR)

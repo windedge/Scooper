@@ -96,15 +96,14 @@ object Scoop {
             val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
             val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
 
-            val all = mutableListOf<App>()
+            val allApps = mutableListOf<App>()
             for (bucketDir in bucketDirs) {
                 val bucket = Bucket(name = bucketDir.name, url = "")
                 val apps = bucketDir.resolve("bucket").listFiles()
                     ?.filter {
                         !it.isDirectory and (it.extension == "json")
-                    }
-                    ?.map { file ->
-                        parseManifest(file).apply {
+                    }?.mapNotNull { file ->
+                        parseManifest(file)?.apply {
                             this.version = this.latestVersion
                             this.bucket = bucket
                             val attrs = Files.readAttributes(
@@ -144,15 +143,23 @@ object Scoop {
                                 }
                             }
                         }
-                    } ?: listOf()
-                all.addAll(apps)
+                    }
+                    ?: listOf()
+                allApps.addAll(apps)
             }
-            return all
+            return allApps
         }
 
-    private fun parseManifest(manifest: File): App {
-        val json = Json.parseToJsonElement(manifest.readText()).jsonObject
-        return json.run {
+    private fun parseManifest(manifest: File): App? {
+        // logger.info("parsing manifest: ${manifest.absolutePath}")
+        val json = try {
+            Json.parseToJsonElement(manifest.readText()).jsonObject
+        } catch (e: Exception) {
+            logger.error("parsing manifest: ${manifest.absolutePath}, error: ${e.message}")
+            null
+        }
+
+        return json?.run {
             App(
                 name = manifest.nameWithoutExtension,
                 latestVersion = getString("version"),
@@ -179,10 +186,9 @@ object Scoop {
         }
     }
 
-    fun update(onFinish: suspend (exitValue: Int) -> Unit = {}) {
+    fun refresh(onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = mutableListOf("scoop", "update")
-        val command = command(commandArgs, onFinish = onFinish)
-        command.startAsShellAsync()
+        execute(commandArgs, onFinish = onFinish)
     }
 
     fun install(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -191,8 +197,7 @@ object Scoop {
         } else {
             mutableListOf("scoop", "install", String.format("%s/%s", app.bucket!!.name, app.name))
         }
-        val command = command(commandArgs, onFinish)
-        command.startAsShellAsync()
+        execute(commandArgs, onFinish)
     }
 
     fun uninstall(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -201,56 +206,58 @@ object Scoop {
         } else {
             mutableListOf("scoop", "uninstall", app.name)
         }
-        val command = command(commandArgs, onFinish)
-        command.startAsShellAsync()
+        execute(commandArgs, onFinish)
     }
 
-    fun upgrade(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
+    fun update(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "update", "-g", app.name)
         } else {
             mutableListOf("scoop", "update", app.name)
         }
-        val command = command(commandArgs, onFinish)
-        command.startAsShellAsync()
+        execute(commandArgs, onFinish)
     }
-
-    fun stop() {
-        for ((_, process) in processes) {
-            process.killTree()
-        }
-    }
-
-    private fun command(
-        commandArgs: Iterable<String>,
-        onFinish: suspend (exitValue: Int) -> Unit = {}
-    ) = Executor(commandArgs).redirectErrorAsInfo().redirectOutputAsInfo()
-        .addListener(listener)
-        .addListener(object : ProcessListener() {
-            override fun afterFinish(process: Process, result: ProcessResult) {
-                runBlocking {
-                    logger.info("execute finished, exit value: ${result.getExitValue()}.")
-                    onFinish(result.getExitValue())
-                    if (result is SyncProcessResult) {
-                        logger.info("result.output.utf8() = " + result.output.utf8())
-                    }
-                }
-            }
-        })
 
     fun addBucket(bucket: String, url: String? = null, onFinish: suspend (exitValue: Int) -> Unit) {
         val commandArgs = mutableListOf("scoop", "bucket", "add", bucket)
         if (url != null) {
             commandArgs.add(url)
         }
-        val command = command(commandArgs, onFinish = onFinish)
-        command.startAsShellAsync()
+        execute(commandArgs, onFinish)
     }
 
     fun removeBucket(bucket: String, onFinish: suspend (exitValue: Int) -> Unit) {
         val commandArgs = mutableListOf("scoop", "bucket", "rm", bucket)
-        val command = command(commandArgs, onFinish = onFinish)
-        command.startAsShellAsync()
+        execute(commandArgs, onFinish)
+    }
+
+    fun stop() {
+        for ((_, process) in processes) {
+            logger.warn("stopping process: ${process.pid()}")
+            process.killTree()
+            logger.warn("process stopped, exitValue: ${process.exitValue()}")
+        }
+    }
+
+    private fun execute(
+        commandArgs: Iterable<String>,
+        onFinish: suspend (exitValue: Int) -> Unit = {}
+    ): SyncProcessResult {
+
+        val executor = Executor(commandArgs)
+            .redirectErrorAsInfo()
+            .redirectOutputAsInfo()
+            .addListener(listener)
+            .addListener(object : ProcessListener() {
+                override fun afterFinish(process: Process, result: ProcessResult) {
+                    runBlocking {
+                        logger.info("execute finished, exit value: ${result.exitValue}.")
+                        onFinish(result.exitValue)
+                    }
+                }
+            })
+
+        return executor.startAsShellBlocking()
     }
 }
 

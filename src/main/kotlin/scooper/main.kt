@@ -5,10 +5,7 @@ package scooper
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -16,13 +13,14 @@ import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.koin.core.context.startKoin
 import scooper.di.viewModelsModule
-import scooper.framework.navigation.Router
-import scooper.framework.navigation.core.BackStack
+import scooper.util.navigation.Router
+import scooper.util.navigation.core.BackStack
 import scooper.repository.initDb
 import scooper.ui.AppScreen
 import scooper.ui.BucketsScreen
@@ -40,15 +38,15 @@ sealed class AppRoute {
 
 val LocalWindow = compositionLocalOf<ComposeWindow> { error("Undefined window") }
 
-@OptIn(ExperimentalComposeUiApi::class)
 fun main() = application {
     initDb()
     val koinApp = startKoin {
         modules(viewModelsModule)
     }
     val state = rememberWindowState(
+        width = 960.dp,
+        height = 650.dp,
         placement = WindowPlacement.Floating,
-        size = WindowSize(960.dp, 650.dp),
         position = WindowPosition(Alignment.Center)
     )
     Window(
@@ -59,16 +57,20 @@ fun main() = application {
         val appsViewModel = koinApp.koin.get<AppsViewModel>()
         val scope = rememberCoroutineScope()
         val scaffoldState = rememberScaffoldState()
+
         scope.launch {
+
             appsViewModel.container.sideEffectFlow.collect { sideEffect ->
                 when (sideEffect) {
                     AppsSideEffect.Empty -> {
                     }
+
                     is AppsSideEffect.Toast -> {
                         scope.launch {
                             scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
                         }
                     }
+
                     else -> {
                     }
                 }
@@ -98,10 +100,12 @@ fun main() = application {
                                     appsViewModel.resetFilter()
                                     AppScreen(route.scope)
                                 }
+
                                 AppRoute.Buckets -> {
                                     appsViewModel.getBuckets()
                                     BucketsScreen()
                                 }
+
                                 AppRoute.Settings -> SettingScreen()
                                 AppRoute.Splash -> TODO()
                             }
@@ -114,7 +118,6 @@ fun main() = application {
 
 }
 
-@OptIn(InternalCoroutinesApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun Layout(navigator: BackStack<AppRoute>, content: @Composable () -> Unit) {
     Surface(color = colors.background) {

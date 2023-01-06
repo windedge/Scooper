@@ -1,4 +1,4 @@
-package scooper.framework.navigation.core
+package scooper.util.navigation.core
 
 val backStackController by lazy { BackStackController() }
 
