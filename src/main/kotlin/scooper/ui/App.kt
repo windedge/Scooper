@@ -23,9 +23,7 @@ import androidx.compose.ui.res.loadXmlImageVector
 import androidx.compose.ui.res.useResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.*
 import org.koin.java.KoinJavaComponent.get
 import org.xml.sax.InputSource
 import scooper.data.App
@@ -252,50 +250,30 @@ fun ActionButton(
         offset = DpOffset(x = (-24).dp, y = 1.dp)
     ) {
 
-        // var hover by remember { mutableStateOf(false) }
         if (!app.installed) {
-            DropdownMenuItem(
-                onClick = {
-                    expand = false
-                    onInstall(app, true)
-                },
-                modifier = Modifier.sizeIn(maxHeight = 25.dp)
-            ) {
-                Text(
-                    "Install Globally",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            if (app.status != "failed") {
+                DropdownMenuItem(
+                    onClick = { expand = false; onInstall(app, true) },
+                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
+                ) {
+                    MenuText("Install Globally")
+                }
             }
             if (app.status == "failed") {
                 DropdownMenuItem(
-                    onClick = {
-                        expand = false
-                        onUninstall(app)
-                    },
+                    onClick = { expand = false; onUninstall(app) },
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)
                 ) {
-                    Text(
-                        "Uninstall",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    MenuText("Uninstall")
                 }
             }
         }
         if (app.installed) {
             DropdownMenuItem(
-                onClick = {
-                    expand = false
-                    onUninstall(app)
-                },
+                onClick = { expand = false; onUninstall(app) },
                 modifier = Modifier.sizeIn(maxHeight = 25.dp)
             ) {
-                Text(
-                    "Uninstall",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                MenuText("Uninstall")
             }
         }
     }
@@ -362,6 +340,17 @@ fun ActionButton(
                 modifier = Modifier.fillMaxHeight().width(25.dp).cursorLink().clickable { expand = true }
             )
         }
+    }
+}
+
+@Composable
+fun MenuText(text: String) {
+    ProvideTextStyle(typography.subtitle2) {
+        Text(
+            text,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
