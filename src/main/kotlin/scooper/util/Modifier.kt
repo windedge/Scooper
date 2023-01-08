@@ -16,7 +16,7 @@ fun Modifier.onHover(block: @Composable Modifier.(on: Boolean) -> Unit): Modifie
     var hover by remember { mutableStateOf(false) }
     block(hover)
     val modifier = onPointerEvent(PointerEventType.Enter) { hover = true }
-            .onPointerEvent(PointerEventType.Exit) { hover = false }
+        .onPointerEvent(PointerEventType.Exit) { hover = false }
 
     modifier
 }
@@ -44,10 +44,9 @@ fun Modifier.cursorLink(
     onHover(hover)
     var default = onPointerEvent(PointerEventType.Enter) {
         hover = true
+    }.onPointerEvent(PointerEventType.Exit) {
+        hover = false
     }
-        .onPointerEvent(PointerEventType.Exit) {
-            hover = false
-        }
     if (hover) {
         // LocalAppWindow.current.window.cursor = Cursor(Cursor.HAND_CURSOR)
         LocalWindow.current.cursor = Cursor(Cursor.HAND_CURSOR)

@@ -66,9 +66,7 @@ fun main() = application {
                     }
 
                     is AppsSideEffect.Toast -> {
-                        scope.launch {
-                            scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
-                        }
+                        scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
                     }
 
                     else -> {
@@ -84,6 +82,7 @@ fun main() = application {
                         val textStyle = MaterialTheme.typography.h2
                         CompositionLocalProvider(LocalTextStyle provides textStyle) {
                             Snackbar(
+                                modifier=Modifier,
                                 backgroundColor = colors.primary,
                                 contentColor = colors.onPrimary
                             ) {

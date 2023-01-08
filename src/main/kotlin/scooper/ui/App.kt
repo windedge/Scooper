@@ -105,7 +105,7 @@ fun AppList(
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
     onUpdate: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
-    onCancel: () -> Unit = {}
+    onCancel: (app: App?) -> Unit = {}
 ) {
     Surface(
         Modifier.fillMaxSize(),
@@ -151,7 +151,7 @@ fun AppCard(
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
     onUpdate: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
-    onCancel: () -> Unit = {}
+    onCancel: (app: App?) -> Unit = {}
 ) {
     Surface {
         Column {
@@ -243,7 +243,7 @@ fun ActionButton(
     onInstall: (app: App, global: Boolean) -> Unit,
     onUpdate: (app: App) -> Unit,
     onUninstall: (app: App) -> Unit,
-    onCancel: () -> Unit
+    onCancel: (app: App?) -> Unit
 ) {
     var expand by remember { mutableStateOf(false) }
     DropdownMenu(
@@ -311,7 +311,7 @@ fun ActionButton(
         when {
             installing -> {
                 text = "Cancel"
-                modifier = modifier.cursorLink().background(colors.error).clickable { onCancel() }
+                modifier = modifier.cursorLink().background(colors.error).clickable { onCancel(app) }
                 textColor = colors.onError
             }
 
