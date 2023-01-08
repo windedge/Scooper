@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
@@ -29,6 +30,7 @@ import org.koin.java.KoinJavaComponent
 import scooper.LocalWindow
 import scooper.data.Bucket
 import scooper.util.KNOWN_BUCKETS
+import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.viewmodels.AppsViewModel
 import java.awt.Cursor
@@ -50,9 +52,8 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
         val scrollState = rememberScrollState(0)
 
         Column(Modifier.padding(start = 2.dp, end = 6.dp).verticalScroll(scrollState)) {
-            val state = appsViewModel.container.stateFlow.collectAsState()
-            val buckets = state.value.buckets
-            // .let { if (it.size > 4) it.slice(0..4) else it }
+            val state by appsViewModel.container.stateFlow.collectAsState()
+            val buckets = state.buckets
             val bucketNames = buckets.map { it.name }
 
             for (bucket in buckets) {
@@ -67,14 +68,11 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
             Box(
                 Modifier.fillMaxWidth().height(60.dp).padding(4.dp)
                     .background(color = if (isHover) colors.primary else Color.Transparent)
+                    .cursorHand()
+                    .onPointerEvent(PointerEventType.Enter) { isHover = true }
+                    .onPointerEvent(PointerEventType.Exit) { isHover = false }
                     .clickable {
                         bucketName = ""; bucketUrl = ""; showAddDialog = true
-                    }
-                    .onPointerEvent(PointerEventType.Enter) {
-                        isHover = true
-                    }
-                    .onPointerEvent(PointerEventType.Exit) {
-                        isHover = false
                     },
                 contentAlignment = Alignment.Center
             ) {

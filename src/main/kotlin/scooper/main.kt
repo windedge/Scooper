@@ -7,25 +7,21 @@ import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.InternalCoroutinesApi
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import org.koin.core.context.startKoin
 import scooper.di.viewModelsModule
-import scooper.util.navigation.Router
-import scooper.util.navigation.core.BackStack
 import scooper.repository.initDb
 import scooper.ui.AppScreen
 import scooper.ui.BucketsScreen
 import scooper.ui.MenuBar
 import scooper.ui.theme.ScooperTheme
+import scooper.util.navigation.Router
+import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.AppsSideEffect
 import scooper.viewmodels.AppsViewModel
 
@@ -82,7 +78,7 @@ fun main() = application {
                         val textStyle = MaterialTheme.typography.h2
                         CompositionLocalProvider(LocalTextStyle provides textStyle) {
                             Snackbar(
-                                modifier=Modifier,
+                                modifier = Modifier,
                                 backgroundColor = colors.primary,
                                 contentColor = colors.onPrimary
                             ) {
