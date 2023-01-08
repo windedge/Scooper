@@ -63,7 +63,7 @@ sealed class AppsSideEffect {
 class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     private val logger by logger()
 
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+    private val coroutineScope = CoroutineScope(Dispatchers.Default)
     private val channel = Channel<Operation>(1)
 
     override val container: Container<AppsState, AppsSideEffect> = coroutineScope.container(AppsState()) {
@@ -83,7 +83,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
                     OperationType.UNINSTALL_APP -> uninstallApp(operation.target as App)
                     OperationType.ADD_BUCKET -> addScoopBucket(operation.target as String, operation.url)
                     OperationType.REMOVE_BUCKET -> removeScoopBucket(operation.target as String)
-                    OperationType.REFRESH -> updateApps()
+                    OperationType.REFRESH -> refresh()
                 }
                 logger.info("operation = $operation done.")
             }
@@ -118,7 +118,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         reduce { state.copy(buckets = buckets) }
     }
 
-    fun reloadApps() = intent {
+    fun reloadApps() = blockingIntent {
         AppsRepository.loadApps()
         applyFilters()
     }
@@ -127,7 +127,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         reduce { state.copy(filter = AppsFilter()) }
     }
 
-    fun updateApps() = intent {
+    fun refresh() = blockingIntent {
         reduce { state.copy(refreshing = true) }
         Scoop.refresh {
             reloadApps()
@@ -137,7 +137,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         }
     }
 
-    fun queuedUpdateApps() = blockingIntent {
+    fun queuedUpdateApps() = intent {
         channel.send(Operation(OperationType.REFRESH))
     }
 
@@ -147,6 +147,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         }
 
         Scoop.install(app, global) { exitValue ->
+            reduce { state.copy(installingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("Install app error!"))
                 return@install
@@ -155,13 +156,10 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
             postSideEffect(AppsSideEffect.Toast("Install app successfully!"))
             AppsRepository.updateApp(app.copy(status = "installed"))
             applyFilters()
-            reduce {
-                state.copy(installingApp = null)
-            }
         }
     }
 
-    fun queuedInstall(app: App, global: Boolean = false) = blockingIntent {
+    fun queuedInstall(app: App, global: Boolean = false) = intent {
         reduce {
             state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
         }
@@ -172,23 +170,20 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         reduce {
             state.copy(installingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
         }
-        Scoop.uninstall(app, app.global) {exitValue ->
+        Scoop.uninstall(app, app.global) { exitValue ->
+            reduce { state.copy(installingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("Uninstall app error!"))
                 return@uninstall
             }
 
             postSideEffect(AppsSideEffect.Toast("Uninstall app successfully!"))
+            AppsRepository.updateApp(app.copy(status = "uninstall"))
             applyFilters()
-            reduce {
-                AppsRepository.updateApp(app.copy(status = "uninstall"))
-                applyFilters()
-                state.copy(installingApp = null)
-            }
         }
     }
 
-    fun queuedUninstall(app: App) = blockingIntent {
+    fun queuedUninstall(app: App) = intent {
         reduce {
             state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
         }
@@ -199,34 +194,35 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         reduce {
             state.copy(installingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
         }
-        Scoop.update(app, app.global) {exitValue ->
+        Scoop.update(app, app.global) { exitValue ->
+            reduce { state.copy(installingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("Update app error!"))
                 return@update
             }
 
-         postSideEffect(AppsSideEffect.Toast("Update app successfully!"))
-            // reloadApps()
-            reduce {
-                AppsRepository.updateApp(app.copy(version = app.latestVersion))
-                applyFilters()
-                state.copy(installingApp = null)
-            }
+            postSideEffect(AppsSideEffect.Toast("Update app successfully!"))
+            AppsRepository.updateApp(app.copy(version = app.latestVersion))
+            applyFilters()
         }
     }
 
-    fun queuedUpdate(app: App) = blockingIntent {
+    fun queuedUpdate(app: App) = intent {
         reduce {
             state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
         }
         channel.send(Operation(OperationType.UPDATE_APP, app))
     }
 
-    fun cancel() = intent {
+    fun cancel(app: App? = null) = blockingIntent {
         logger.info("cancelling")
         Scoop.stop()
-        reduce {
-            state.copy(installingApp = null)
+
+        if (app != null) {
+            reduce { state.copy(installingApp = null) }
+            logger.info("cancelling app = $app")
+            AppsRepository.updateApp(app.copy(status = "failed"))
+            applyFilters()
         }
     }
 
@@ -243,7 +239,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         }
     }
 
-    fun queuedAddBucket(bucket: String, url: String? = null) = blockingIntent {
+    fun queuedAddBucket(bucket: String, url: String? = null) = intent {
         channel.send(Operation(OperationType.ADD_BUCKET, bucket, url = url))
     }
 
@@ -260,7 +256,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         }
     }
 
-    fun queuedRemoveBucket(bucket: String) = blockingIntent {
+    fun queuedRemoveBucket(bucket: String) = intent {
         channel.send(Operation(OperationType.REMOVE_BUCKET, bucket))
     }
 

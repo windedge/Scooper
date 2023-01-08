@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "Scooper"
-version = "0.7.0"
+version = "0.7.1"
 
 repositories {
     jcenter()
@@ -23,20 +23,20 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
-    implementation("io.insert-koin:koin-core:3.3.0")
+    implementation("io.insert-koin:koin-core:3.3.2")
     implementation("org.orbit-mvi:orbit-core:4.5.0")
-    implementation("org.jetbrains.kotlinx:atomicfu:0.19.0")
+    // implementation("org.jetbrains.kotlinx:atomicfu:0.19.0")
 
     implementation("org.jetbrains.exposed:exposed-core:0.40.1")
     implementation("org.jetbrains.exposed:exposed-dao:0.40.1")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.40.1")
     implementation("org.jetbrains.exposed:exposed-java-time:0.40.1")
-    // implementation("org.jetbrains.exposed:exposed-jodatime:0.30.1")
     implementation("org.xerial:sqlite-jdbc:3.40.0.0")
 
     implementation("org.slf4j:slf4j-api:2.0.5")
     implementation("org.slf4j:slf4j-simple:2.0.5")
 
+    // implementation("com.github.pgreze:kotlin-process:1.4.1")
     implementation("com.dorkbox:Executor:3.11") {
         // exclude("com.dorkbox", "Updates")
     }
