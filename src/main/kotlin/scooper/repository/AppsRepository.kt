@@ -13,9 +13,9 @@ import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
 import scooper.data.App
 import scooper.data.Bucket
+import scooper.util.Scoop
 import scooper.util.ScooperException
 import java.io.File
-import java.time.LocalDateTime
 
 
 object Apps : IntIdTable() {
@@ -166,7 +166,7 @@ object AppsRepository {
             if (Buckets.select { Buckets.name eq bucket }.count() <= 0) {
                 BucketEntity.new {
                     name = bucket
-                    url = Scoop.getBucketRepo(bucketDir)
+                    url = Scoop.getRepoUrl(bucketDir)
                 }
             }
         }

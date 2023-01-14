@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "Scooper"
-version = "0.7.1"
+version = "0.7.2"
 
 repositories {
     jcenter()
@@ -25,7 +25,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
     implementation("io.insert-koin:koin-core:3.3.2")
     implementation("org.orbit-mvi:orbit-core:4.5.0")
-    // implementation("org.jetbrains.kotlinx:atomicfu:0.19.0")
+    // implementation("org.jetbrains.kotlinx:atomicfu:0.18.4")
 
     implementation("org.jetbrains.exposed:exposed-core:0.40.1")
     implementation("org.jetbrains.exposed:exposed-dao:0.40.1")
@@ -36,13 +36,11 @@ dependencies {
     implementation("org.slf4j:slf4j-api:2.0.5")
     implementation("org.slf4j:slf4j-simple:2.0.5")
 
-    // implementation("com.github.pgreze:kotlin-process:1.4.1")
-    implementation("com.dorkbox:Executor:3.11") {
-        // exclude("com.dorkbox", "Updates")
-    }
+    implementation("org.apache.commons:commons-text:1.10.0")
+    implementation("com.github.pgreze:kotlin-process:1.4.1")
 
     // test
-    implementation("org.junit.jupiter:junit-jupiter:5.4.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.9.0")
     testImplementation(kotlin("test"))
 }
 
@@ -60,7 +58,6 @@ compose.desktop {
             windows {
                 menuGroup = group.toString()
                 shortcut = true
-                // console = true
                 iconFile.set(project.file("icons/icon.ico"))
             }
         }

@@ -10,7 +10,7 @@ import org.orbitmvi.orbit.syntax.simple.*
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
-import scooper.repository.Scoop
+import scooper.util.Scoop
 import scooper.util.logger
 
 
@@ -214,18 +214,6 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         channel.send(Operation(OperationType.UPDATE_APP, app))
     }
 
-    fun cancel(app: App? = null) = blockingIntent {
-        logger.info("cancelling")
-        Scoop.stop()
-
-        if (app != null) {
-            reduce { state.copy(installingApp = null) }
-            logger.info("cancelling app = $app")
-            AppsRepository.updateApp(app.copy(status = "failed"))
-            applyFilters()
-        }
-    }
-
     fun addScoopBucket(bucket: String, url: String? = null) = blockingIntent {
         Scoop.addBucket(bucket, url) { exitValue ->
             if (exitValue != 0) {
@@ -260,5 +248,18 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         channel.send(Operation(OperationType.REMOVE_BUCKET, bucket))
     }
 
+    fun cancel(app: App? = null) = blockingIntent {
+        logger.info("cancelling")
+        Scoop.stop()
+
+        reduce { state.copy(refreshing = false) }
+
+        if (app != null) {
+            reduce { state.copy(installingApp = null) }
+            logger.info("cancelling app = ${app.uniqueName}")
+            AppsRepository.updateApp(app.copy(status = "failed"))
+            applyFilters()
+        }
+    }
 }
 

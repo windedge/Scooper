@@ -1,13 +1,15 @@
 package scooper.repository
 
 import org.junit.jupiter.api.Test
+import org.koin.core.time.measureDuration
+import scooper.util.Scoop
 import java.io.File
+import kotlin.system.measureTimeMillis
+import kotlin.time.measureTime
 
 
 internal class ScoopTest {
 
-
-    @OptIn(ExperimentalStdlibApi::class)
     @Test
     fun getApps() {
         val apps = Scoop.apps
@@ -22,8 +24,18 @@ internal class ScoopTest {
 
     @Test
     fun testGetUrl() {
-        val bucketDir = File("""D:\tools\scoop\buckets\main""")
-        val url = Scoop.getBucketRepo(bucketDir)
-        println("url = ${url}")
+        var duration = measureDuration {
+            val bucketDir = File("""D:\tools\scoop\buckets\main""")
+            val url = Scoop.getBucketRepo(bucketDir)
+            println("url = ${url}")
+        }
+        println("getBucketRepo, duration = ${duration}")
+
+        duration = measureDuration {
+            val bucketDir = File("""D:\tools\scoop\buckets\main""")
+            val url = Scoop.getRepoUrl(bucketDir)
+            println("url = ${url}")
+        }
+        println("getRepoUrl, duration = ${duration}")
     }
 }
