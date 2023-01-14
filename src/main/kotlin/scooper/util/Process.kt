@@ -1,11 +1,60 @@
 package scooper.util
 
+import com.github.pgreze.process.ProcessResult
+import com.github.pgreze.process.Redirect
+import com.github.pgreze.process.process
 import java.io.File
+import kotlinx.coroutines.*
+import org.apache.commons.text.StringEscapeUtils
+import org.slf4j.LoggerFactory
+import java.io.InputStream
+import java.nio.charset.Charset
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
+
+private val logger = LoggerFactory.getLogger("Process.kt")
 
 
-fun Process.killTree() {
-    this.descendants().forEach { it.destroy() }
-    this.destroy()
+@Suppress("SameParameterValue")
+fun execute(
+    vararg commandArgs: String,
+    asShell: Boolean = true,
+    workingDir: File? = null,
+    onFinish: suspend (exitValue: Int) -> Unit = {},
+): ProcessResult {
+    val args = commandArgs.toList()
+    return execute(args, asShell, workingDir, onFinish)
+}
+
+fun execute(
+    commandArgs: List<String>,
+    asShell: Boolean = true,
+    workingDir: File? = null,
+    onFinish: suspend (exitValue: Int) -> Unit = {},
+): ProcessResult = runBlocking {
+    val command = if (asShell) {
+        val args = commandArgs.joinToString(" ", transform = StringEscapeUtils::escapeXSI)
+        arrayOf("cmd", "/c", args)
+    } else {
+        commandArgs.toTypedArray()
+    }
+
+    val result = process(
+        *command,
+        stdout = Redirect.CAPTURE,
+        stderr = Redirect.CAPTURE,
+        directory = workingDir,
+    ) { output -> logger.info(output) }
+    onFinish(result.resultCode)
+    return@runBlocking result
+}
+
+fun killAllSubProcesses() {
+    ProcessHandle.current().descendants().forEach { it.destroy() }
+    while (ProcessHandle.current().descendants().anyMatch { it.isAlive }) {
+        runBlocking { delay(100) }
+    }
 }
 
 fun findExecutable(name: String): String? {

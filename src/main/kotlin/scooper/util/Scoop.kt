@@ -1,18 +1,11 @@
-package scooper.repository
+package scooper.util
 
-import dorkbox.executor.Executor
-import dorkbox.executor.listener.ProcessListener
-import dorkbox.executor.processResults.ProcessResult
-import dorkbox.executor.processResults.SyncProcessResult
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.data.Bucket
-import scooper.util.findExecutable
-import scooper.util.killTree
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
@@ -69,12 +62,16 @@ object Scoop {
             return null
         }
 
-        val result = Executor().command("git", "remote", "-v")
-            .workingDirectory(bucketDir).enableRead()
-            .startBlocking()
-        val output = result.output.string()
+        val result = execute("git", "remote", "-v", asShell = false, workingDir = bucketDir)
+        val output = result.output.joinToString("\n")
         val regex = """origin\s+(.*)\s+\(fetch\)""".toRegex(RegexOption.MULTILINE)
         return regex.find(output)?.groupValues?.get(1)
+    }
+
+    fun getRepoUrl(bucketDir: File): String? {
+        val repoInfo = bucketDir.resolve(".git/config").readText()
+        val regex = """\[remote "origin"]\s*\n(\s*\n*)+url\s*=\s*(.+)""".toRegex()
+        return regex.find(repoInfo)?.groupValues?.get(2)
     }
 
     val localInstalledAppDirs: List<File>
@@ -171,21 +168,6 @@ object Scoop {
         }
     }
 
-    val processes = mutableMapOf<Long, Process>()
-    val listener = object : ProcessListener() {
-        override fun afterStart(process: Process, executor: Executor) {
-            synchronized(processes) {
-                processes.put(process.pid(), process)
-            }
-        }
-
-        override fun afterFinish(process: Process, result: ProcessResult) {
-            synchronized(processes) {
-                processes.remove(process.pid())
-            }
-        }
-    }
-
     fun refresh(onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = mutableListOf("scoop", "update")
         execute(commandArgs, onFinish = onFinish)
@@ -197,7 +179,7 @@ object Scoop {
         } else {
             mutableListOf("scoop", "install", String.format("%s/%s", app.bucket!!.name, app.name))
         }
-        execute(commandArgs, onFinish)
+        execute(commandArgs, onFinish = onFinish)
     }
 
     fun uninstall(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -206,7 +188,7 @@ object Scoop {
         } else {
             mutableListOf("scoop", "uninstall", app.name)
         }
-        execute(commandArgs, onFinish)
+        execute(commandArgs, onFinish = onFinish)
     }
 
     fun update(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -215,7 +197,7 @@ object Scoop {
         } else {
             mutableListOf("scoop", "update", app.name)
         }
-        execute(commandArgs, onFinish)
+        execute(commandArgs, onFinish = onFinish)
     }
 
     fun addBucket(bucket: String, url: String? = null, onFinish: suspend (exitValue: Int) -> Unit) {
@@ -223,42 +205,20 @@ object Scoop {
         if (url != null) {
             commandArgs.add(url)
         }
-        execute(commandArgs, onFinish)
+        execute(commandArgs, onFinish = onFinish)
     }
 
     fun removeBucket(bucket: String, onFinish: suspend (exitValue: Int) -> Unit) {
         val commandArgs = mutableListOf("scoop", "bucket", "rm", bucket)
-        execute(commandArgs, onFinish)
+        execute(commandArgs, onFinish = onFinish)
     }
 
     fun stop() {
-        for ((_, process) in processes) {
-            logger.warn("stopping process: ${process.pid()}")
-            process.killTree()
-            logger.warn("process stopped, exitValue: ${process.exitValue()}")
-        }
+        logger.warn("stopping all processes...")
+        killAllSubProcesses()
+        logger.warn("stopping all processes...")
     }
 
-    private fun execute(
-        commandArgs: Iterable<String>,
-        onFinish: suspend (exitValue: Int) -> Unit = {}
-    ): SyncProcessResult {
-
-        val executor = Executor(commandArgs)
-            .redirectErrorAsInfo()
-            .redirectOutputAsInfo()
-            .addListener(listener)
-            .addListener(object : ProcessListener() {
-                override fun afterFinish(process: Process, result: ProcessResult) {
-                    runBlocking {
-                        logger.info("execute finished, exit value: ${result.exitValue}.")
-                        onFinish(result.exitValue)
-                    }
-                }
-            })
-
-        return executor.startAsShellBlocking()
-    }
 }
 
 fun JsonObject.getString(key: String): String {
