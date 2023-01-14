@@ -200,6 +200,11 @@ object Scoop {
         execute(commandArgs, onFinish = onFinish)
     }
 
+    fun download(app: App, onFinish: suspend (exitValue: Int) -> Unit = {}) {
+        val commandArgs = mutableListOf("scoop", "download", app.uniqueName)
+        execute(commandArgs, onFinish = onFinish)
+    }
+
     fun addBucket(bucket: String, url: String? = null, onFinish: suspend (exitValue: Int) -> Unit) {
         val commandArgs = mutableListOf("scoop", "bucket", "add", bucket)
         if (url != null) {

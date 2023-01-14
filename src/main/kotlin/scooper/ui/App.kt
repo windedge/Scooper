@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.*
 import org.koin.java.KoinJavaComponent.get
 import org.xml.sax.InputSource
 import scooper.data.App
+import scooper.ui.components.Tooltip
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.viewmodels.AppsViewModel
@@ -39,7 +40,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
     appsViewModel.applyFilters(scope = scope)
     val state = appsViewModel.container.stateFlow.collectAsState()
     val apps = state.value.apps
-    val installingApp = state.value.installingApp
+    val processingApp = state.value.processingApp
     val waitingApps = state.value.waitingApps
     Column(Modifier.fillMaxSize()) {
         SearchBox()
@@ -53,25 +54,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
                     CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
                 }
             } else {
-                TooltipArea(
-                    tooltip = {
-                        Surface(
-                            modifier = Modifier.shadow(4.dp),
-                            color = Color(255, 255, 210),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "Update Scoop",
-                                modifier = Modifier.padding(5.dp),
-                                color = Color.Gray
-                            )
-                        }
-                    },
-                    delayMillis = 600, // in milliseconds
-                    tooltipPlacement = TooltipPlacement.CursorPoint(
-                        offset = DpOffset((-16).dp, 0.dp),
-                    )
-                ) {
+                Tooltip("Refreshing Scoop") {
                     Button(
                         onClick = { appsViewModel.queuedUpdateApps() },
                         Modifier.height(25.dp).cursorLink(),
@@ -85,10 +68,11 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
         }
         AppList(
             apps,
-            installingApp = installingApp,
+            processingApp = processingApp,
             waitingApps = waitingApps,
             onInstall = appsViewModel::queuedInstall,
             onUpdate = appsViewModel::queuedUpdate,
+            onDownload = appsViewModel::queuedDownload,
             onUninstall = appsViewModel::queuedUninstall,
             onCancel = appsViewModel::cancel
         )
@@ -98,10 +82,11 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
 @Composable
 fun AppList(
     apps: List<App>,
-    installingApp: String? = null,
+    processingApp: String? = null,
     waitingApps: Set<String> = setOf(),
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
     onUpdate: (app: App) -> Unit = {},
+    onDownload: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
     onCancel: (app: App?) -> Unit = {}
 ) {
@@ -120,10 +105,11 @@ fun AppList(
                     AppCard(
                         app,
                         divider = idx > 0,
-                        installing = app.name == installingApp,
+                        installing = app.name == processingApp,
                         waiting = waitingApps.contains(app.uniqueName),
                         onInstall = onInstall,
                         onUpdate = onUpdate,
+                        onDownload = onDownload,
                         onUninstall = onUninstall,
                         onCancel = onCancel
                     )
@@ -148,6 +134,7 @@ fun AppCard(
     waiting: Boolean = false,
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
     onUpdate: (app: App) -> Unit = {},
+    onDownload: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
     onCancel: (app: App?) -> Unit = {}
 ) {
@@ -222,7 +209,7 @@ fun AppCard(
                             )
                         }
 
-                        ActionButton(app, installing, waiting, onInstall, onUpdate, onUninstall, onCancel)
+                        ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onCancel)
                     }
                 }
 
@@ -233,6 +220,7 @@ fun AppCard(
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ActionButton(
     app: App,
@@ -240,16 +228,16 @@ fun ActionButton(
     waiting: Boolean,
     onInstall: (app: App, global: Boolean) -> Unit,
     onUpdate: (app: App) -> Unit,
+    onDownload: (app: App) -> Unit,
     onUninstall: (app: App) -> Unit,
     onCancel: (app: App?) -> Unit
 ) {
     var expand by remember { mutableStateOf(false) }
     DropdownMenu(
         expand, onDismissRequest = { expand = false },
-        modifier = Modifier.width(140.dp).padding(vertical = 0.dp).cursorHand(),
-        offset = DpOffset(x = (-24).dp, y = 1.dp)
+        modifier = Modifier.width(142.dp).padding(vertical = 0.dp).cursorHand(),
+        // offset = DpOffset(x = (-24).dp, y = 1.dp)
     ) {
-
         if (!app.installed) {
             if (app.status != "failed") {
                 DropdownMenuItem(
@@ -257,6 +245,12 @@ fun ActionButton(
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)
                 ) {
                     MenuText("Install Globally")
+                }
+                DropdownMenuItem(
+                    onClick = { expand = false; onDownload(app) },
+                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
+                ) {
+                    MenuText("Download")
                 }
             }
             if (app.status == "failed") {
@@ -274,6 +268,17 @@ fun ActionButton(
                 modifier = Modifier.sizeIn(maxHeight = 25.dp)
             ) {
                 MenuText("Uninstall")
+            }
+
+            if (app.updatable) {
+                DropdownMenuItem(
+                    onClick = { expand = false; onDownload(app) },
+                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
+                ) {
+                    Tooltip("Download Newest App") {
+                        MenuText("Download Newest")
+                    }
+                }
             }
         }
     }

@@ -2,7 +2,6 @@ package scooper.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
@@ -12,16 +11,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -29,6 +25,7 @@ import androidx.compose.ui.window.DialogState
 import org.koin.java.KoinJavaComponent
 import scooper.LocalWindow
 import scooper.data.Bucket
+import scooper.ui.components.Tooltip
 import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
 import scooper.util.cursorLink
@@ -237,7 +234,6 @@ fun BucketCard(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit) {
     BoxWithConstraints {
@@ -264,23 +260,7 @@ fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit)
                                 ) {
                                     val bucketName = knownBuckets.elementAt(idx)
                                     Text(bucketName, style = MaterialTheme.typography.h6)
-                                    TooltipArea(
-                                        tooltip = {
-                                            Surface(
-                                                modifier = Modifier.shadow(4.dp),
-                                                color = Color(255, 255, 210),
-                                                shape = RoundedCornerShape(4.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Add Bucket",
-                                                    modifier = Modifier.padding(5.dp),
-                                                    color = Color.Gray
-                                                )
-                                            }
-                                        }, tooltipPlacement = TooltipPlacement.CursorPoint(
-                                            offset = DpOffset(0.dp, 16.dp)
-                                        )
-                                    ) {
+                                    Tooltip("Add Bucket") {
                                         IconButton(onClick = { onAdd(bucketName) }) {
                                             Icon(
                                                 Icons.TwoTone.AddCircle,
