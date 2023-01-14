@@ -9,6 +9,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -31,11 +32,15 @@ fun Tooltip(
                 Text(
                     text = text,
                     modifier = Modifier.padding(10.dp),
-                    color = Color.DarkGray
+                    color = Color.Gray
                 )
             }
         },
         delayMillis = 600, // in millisecond
+        tooltipPlacement = TooltipPlacement.CursorPoint(
+            alignment = Alignment.BottomEnd,
+            offset = DpOffset(-10.dp, 5.dp) // tooltip offset
+        )
     )
     {
         content()
