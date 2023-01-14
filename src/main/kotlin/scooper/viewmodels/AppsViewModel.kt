@@ -15,7 +15,7 @@ import scooper.util.logger
 
 
 enum class OperationType {
-    INSTALL_APP, UPDATE_APP, UNINSTALL_APP, ADD_BUCKET, REMOVE_BUCKET, REFRESH
+    INSTALL_APP, UPDATE_APP, DOWNLOAD_APP, UNINSTALL_APP, ADD_BUCKET, REMOVE_BUCKET, REFRESH
 }
 
 data class Operation(
@@ -45,7 +45,7 @@ data class AppsState(
     val apps: List<App> = emptyList(),
     val buckets: List<Bucket> = emptyList(),
     val filter: AppsFilter = AppsFilter(),
-    val installingApp: String? = null,
+    val processingApp: String? = null,
     val refreshing: Boolean = false,
     val waitingApps: Set<String> = emptySet()
 )
@@ -80,6 +80,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
                 when (operation.action) {
                     OperationType.INSTALL_APP -> installApp(operation.target as App, operation.global)
                     OperationType.UPDATE_APP -> updateApp(operation.target as App)
+                    OperationType.DOWNLOAD_APP -> downloadApp(operation.target as App)
                     OperationType.UNINSTALL_APP -> uninstallApp(operation.target as App)
                     OperationType.ADD_BUCKET -> addScoopBucket(operation.target as String, operation.url)
                     OperationType.REMOVE_BUCKET -> removeScoopBucket(operation.target as String)
@@ -143,11 +144,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     fun installApp(app: App, global: Boolean = false) = blockingIntent {
         reduce {
-            state.copy(installingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
+            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
         }
 
         Scoop.install(app, global) { exitValue ->
-            reduce { state.copy(installingApp = null) }
+            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("Install app error!"))
                 return@install
@@ -168,10 +169,10 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     fun uninstallApp(app: App) = blockingIntent {
         reduce {
-            state.copy(installingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
+            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
         }
         Scoop.uninstall(app, app.global) { exitValue ->
-            reduce { state.copy(installingApp = null) }
+            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("Uninstall app error!"))
                 return@uninstall
@@ -192,10 +193,10 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     fun updateApp(app: App) = blockingIntent {
         reduce {
-            state.copy(installingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
+            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
         }
         Scoop.update(app, app.global) { exitValue ->
-            reduce { state.copy(installingApp = null) }
+            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(AppsSideEffect.Toast("Update app error!"))
                 return@update
@@ -213,6 +214,30 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         }
         channel.send(Operation(OperationType.UPDATE_APP, app))
     }
+
+    fun downloadApp(app: App) = blockingIntent {
+        reduce {
+            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
+        }
+        Scoop.download(app) { exitValue ->
+            reduce { state.copy(processingApp = null) }
+            if (exitValue != 0) {
+                postSideEffect(AppsSideEffect.Toast("Download app: ${app.name} error!"))
+                return@download
+            }
+
+            postSideEffect(AppsSideEffect.Toast("Download app: ${app.name} successfully!"))
+            applyFilters()
+        }
+    }
+
+    fun queuedDownload(app: App) = intent {
+        reduce {
+            state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
+        }
+        channel.send(Operation(OperationType.DOWNLOAD_APP, app))
+    }
+
 
     fun addScoopBucket(bucket: String, url: String? = null) = blockingIntent {
         Scoop.addBucket(bucket, url) { exitValue ->
@@ -255,7 +280,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         reduce { state.copy(refreshing = false) }
 
         if (app != null) {
-            reduce { state.copy(installingApp = null) }
+            reduce { state.copy(processingApp = null) }
             logger.info("cancelling app = ${app.uniqueName}")
             AppsRepository.updateApp(app.copy(status = "failed"))
             applyFilters()
