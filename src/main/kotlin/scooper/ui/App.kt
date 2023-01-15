@@ -16,7 +16,6 @@ import androidx.compose.material.icons.twotone.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.loadXmlImageVector
@@ -57,6 +56,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
                 Tooltip("Refreshing Scoop") {
                     Button(
                         onClick = { appsViewModel.queuedUpdateApps() },
+                        // onClick = { appsViewModel.test() },
                         Modifier.height(25.dp).cursorLink(),
                         contentPadding = PaddingValues(4.dp)
                     ) {

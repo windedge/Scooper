@@ -150,11 +150,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         Scoop.install(app, global) { exitValue ->
             reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
-                postSideEffect(AppsSideEffect.Toast("Install app error!"))
+                postSideEffect(AppsSideEffect.Toast("Install app, ${app.uniqueName} error!"))
                 return@install
             }
 
-            postSideEffect(AppsSideEffect.Toast("Install app successfully!"))
+            postSideEffect(AppsSideEffect.Toast("Install app, ${app.uniqueName} successfully!"))
             AppsRepository.updateApp(app.copy(status = "installed"))
             applyFilters()
         }
@@ -174,11 +174,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         Scoop.uninstall(app, app.global) { exitValue ->
             reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
-                postSideEffect(AppsSideEffect.Toast("Uninstall app error!"))
+                postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} error!"))
                 return@uninstall
             }
 
-            postSideEffect(AppsSideEffect.Toast("Uninstall app successfully!"))
+            postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} successfully!"))
             AppsRepository.updateApp(app.copy(status = "uninstall"))
             applyFilters()
         }
@@ -198,11 +198,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         Scoop.update(app, app.global) { exitValue ->
             reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
-                postSideEffect(AppsSideEffect.Toast("Update app error!"))
+                postSideEffect(AppsSideEffect.Toast("Update app, ${app.uniqueName} error!"))
                 return@update
             }
 
-            postSideEffect(AppsSideEffect.Toast("Update app successfully!"))
+            postSideEffect(AppsSideEffect.Toast("Update app, ${app.uniqueName} successfully!"))
             AppsRepository.updateApp(app.copy(version = app.latestVersion))
             applyFilters()
         }
@@ -222,11 +222,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         Scoop.download(app) { exitValue ->
             reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
-                postSideEffect(AppsSideEffect.Toast("Download app: ${app.name} error!"))
+                postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} error!"))
                 return@download
             }
 
-            postSideEffect(AppsSideEffect.Toast("Download app: ${app.name} successfully!"))
+            postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} successfully!"))
             applyFilters()
         }
     }
@@ -242,11 +242,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     fun addScoopBucket(bucket: String, url: String? = null) = blockingIntent {
         Scoop.addBucket(bucket, url) { exitValue ->
             if (exitValue != 0) {
-                postSideEffect(AppsSideEffect.Toast("add bucket error!"))
+                postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket error!"))
                 return@addBucket
             }
 
-            postSideEffect(AppsSideEffect.Toast("add bucket successfully!"))
+            postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket successfully!"))
             getBuckets()
             reloadApps()
         }
@@ -259,11 +259,11 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
     fun removeScoopBucket(bucket: String) = blockingIntent {
         Scoop.removeBucket(bucket) { exitValue ->
             if (exitValue != 0) {
-                postSideEffect(AppsSideEffect.Toast("remove bucket error!"))
+                postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket error!"))
                 return@removeBucket
             }
 
-            postSideEffect(AppsSideEffect.Toast("remove bucket successfully!"))
+            postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket successfully!"))
             getBuckets()
             reloadApps()
         }

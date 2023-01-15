@@ -25,6 +25,7 @@ import androidx.compose.ui.window.DialogState
 import org.koin.java.KoinJavaComponent
 import scooper.LocalWindow
 import scooper.data.Bucket
+import scooper.ui.components.OutlinedTextField
 import scooper.ui.components.Tooltip
 import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
@@ -97,7 +98,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
                 modifier = Modifier.padding(top = 20.dp)
             )
 
-            KnownBuckets(bucketNames, onAdd = { appsViewModel.queuedAddBucket(it) })
+            KnownBuckets(bucketNames, onAdd = { appsViewModel.addScoopBucket(it) })
 
             Spacer(Modifier.height(10.dp))
         }
@@ -132,30 +133,30 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
                 if (bucketNameError || bucketUrlError) {
                     return@ConfirmDialog
                 }
-                appsViewModel.queuedAddBucket(bucketName, bucketUrl)
+                appsViewModel.addScoopBucket(bucketName, bucketUrl)
             },
             onCancel = { showAddDialog = false },
             confirmText = "Add",
-            state = DialogState(size = DpSize(400.dp, 250.dp))
+            state = DialogState(size = DpSize(350.dp, 230.dp))
         ) {
             CompositionLocalProvider(LocalContentColor provides Color.Black) {
-                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.Start) {
                     OutlinedTextField(
                         bucketName,
                         onValueChange = { bucketName = it; bucketNameError = false },
                         label = { Text("bucket") },
                         singleLine = true,
-
-                        // modifier = Modifier.padding(4.dp),
-
+                        modifier = Modifier.height(50.dp).fillMaxWidth()
                     )
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         bucketUrl,
                         onValueChange = { bucketUrl = it; bucketUrlError = false },
                         label = { Text("url") },
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.height(50.dp).fillMaxWidth()
                     )
+
                 }
             }
         }
@@ -170,7 +171,7 @@ fun ConfirmDialog(
     onCancel: () -> Unit,
     confirmText: String? = null,
     cancelText: String? = null,
-    state: DialogState = DialogState(size = DpSize(300.dp, 200.dp)),
+    state: DialogState = DialogState(size = DpSize(300.dp, 180.dp)),
     content: @Composable (() -> Unit)? = null
 ) {
     Dialog(onCloseRequest = onCancel, state = state, title = title ?: "Scooper") {
@@ -186,12 +187,16 @@ fun ConfirmDialog(
                 }
                 Divider(Modifier.height(9.dp).padding(horizontal = 8.dp, vertical = 4.dp))
                 Row(
-                    Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 20.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    Button(onConfirm) { Text(confirmText ?: "OK") }
+                    Button(onConfirm, modifier = Modifier.width(80.dp).height(40.dp).cursorLink()) {
+                        Text(confirmText ?: "OK")
+                    }
                     Spacer(Modifier.width(6.dp))
-                    Button(onClick = onCancel) { Text(cancelText ?: "Cancel") }
+                    OutlinedButton(onClick = onCancel, modifier = Modifier.height(40.dp).cursorLink()) {
+                        Text(cancelText ?: "Cancel")
+                    }
                 }
             }
         }

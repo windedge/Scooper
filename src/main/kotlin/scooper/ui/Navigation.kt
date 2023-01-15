@@ -22,7 +22,7 @@ import scooper.util.cursorHand
 import scooper.util.onHover
 
 @Composable
-fun MenuBar(navigator: BackStack<AppRoute>) {
+fun SideBar(navigator: BackStack<AppRoute>) {
     Surface(
         Modifier.fillMaxHeight().width(180.dp),
         elevation = 3.dp,
@@ -33,14 +33,14 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
         ) {
             val selectedItem = remember { mutableStateOf("Apps") }
             val route = navigator.current.value
-            MenuItem(
+            NavItem(
                 "Apps",
                 icon = Icons.TwoTone.Home,
                 selectItem = selectedItem,
                 selected = route is AppRoute.Apps && route.scope == "",
                 onClick = { navigator.replace(AppRoute.Apps(scope = "")) }
             )
-            MenuItem(
+            NavItem(
                 "Installed",
                 indent = 40,
                 icon = Icons.TwoTone.KeyboardArrowRight,
@@ -48,7 +48,7 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
                 selected = route is AppRoute.Apps && route.scope == "installed",
                 onClick = { navigator.replace(AppRoute.Apps(scope = "installed")) },
             )
-            MenuItem(
+            NavItem(
                 "Updates",
                 indent = 40,
                 icon = Icons.TwoTone.KeyboardArrowRight,
@@ -57,7 +57,7 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
                 onClick = { navigator.replace(AppRoute.Apps(scope = "updates")) },
             )
             Divider(Modifier.height(1.dp))
-            MenuItem(
+            NavItem(
                 "Buckets",
                 icon = Icons.TwoTone.List,
                 selectItem = selectedItem,
@@ -65,7 +65,7 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
                 onClick = { navigator.replace(AppRoute.Buckets) }
             )
             Divider(Modifier.height(1.dp))
-            MenuItem(
+            NavItem(
                 "Settings",
                 icon = Icons.TwoTone.Settings,
                 selectItem = selectedItem,
@@ -78,7 +78,7 @@ fun MenuBar(navigator: BackStack<AppRoute>) {
 }
 
 @Composable
-fun MenuItem(
+fun NavItem(
     text: String = "",
     modifier: Modifier = Modifier,
     selectItem: MutableState<String>,
