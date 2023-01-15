@@ -1,14 +1,16 @@
 package scooper
 
-// import androidx.compose.desktop.Window
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
@@ -18,7 +20,8 @@ import scooper.di.viewModelsModule
 import scooper.repository.initDb
 import scooper.ui.AppScreen
 import scooper.ui.BucketsScreen
-import scooper.ui.MenuBar
+import scooper.ui.SideBar
+import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.ScooperTheme
 import scooper.util.navigation.Router
 import scooper.util.navigation.core.BackStack
@@ -73,20 +76,10 @@ fun main() = application {
 
         CompositionLocalProvider(LocalWindow provides window) {
             ScooperTheme {
-                Scaffold(scaffoldState = scaffoldState, snackbarHost = {
-                    SnackbarHost(it) { snackbarData ->
-                        val textStyle = MaterialTheme.typography.h2
-                        CompositionLocalProvider(LocalTextStyle provides textStyle) {
-                            Snackbar(
-                                modifier = Modifier,
-                                backgroundColor = colors.primary,
-                                contentColor = colors.onPrimary
-                            ) {
-                                Text(snackbarData.message)
-                            }
-                        }
-                    }
-                }) {
+                Scaffold(
+                    scaffoldState = scaffoldState,
+                    snackbarHost = { SnackbarHost(it) },
+                ) {
                     Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
                         // Router<AppRoute>(start = AppRoute.Buckets) { currentRoute ->
                         Layout(this) {
@@ -121,7 +114,7 @@ fun Layout(navigator: BackStack<AppRoute>, content: @Composable () -> Unit) {
                 Modifier.defaultMinSize(minWidth = 800.dp, minHeight = 500.dp).fillMaxSize()
                     .padding(top = 2.dp, start = 1.dp, end = 1.dp, bottom = 1.dp)
             ) {
-                MenuBar(navigator)
+                SideBar(navigator)
                 Spacer(Modifier.width(4.dp))
                 content()
             }
