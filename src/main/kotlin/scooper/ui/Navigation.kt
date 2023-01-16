@@ -1,7 +1,6 @@
 package scooper.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
@@ -16,20 +15,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import scooper.AppRoute
-import scooper.util.navigation.core.BackStack
+import org.koin.java.KoinJavaComponent
 import scooper.util.cursorHand
+import scooper.util.navigation.core.BackStack
+import scooper.util.noRippleClickable
 import scooper.util.onHover
+import scooper.viewmodels.AppsViewModel
 
 @Composable
 fun SideBar(navigator: BackStack<AppRoute>) {
+    val appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewModel::class.java)
     Surface(
         Modifier.fillMaxHeight().width(180.dp),
-        elevation = 3.dp,
+        elevation = 1.dp,
         shape = MaterialTheme.shapes.large,
     ) {
         Column(
-            Modifier.defaultMinSize(10.dp).padding(vertical = 2.dp)
+            Modifier.defaultMinSize(10.dp).padding(vertical = 1.dp)
         ) {
             val selectedItem = remember { mutableStateOf("Apps") }
             val route = navigator.current.value
@@ -38,7 +40,10 @@ fun SideBar(navigator: BackStack<AppRoute>) {
                 icon = Icons.TwoTone.Home,
                 selectItem = selectedItem,
                 selected = route is AppRoute.Apps && route.scope == "",
-                onClick = { navigator.replace(AppRoute.Apps(scope = "")) }
+                onClick = {
+                    appsViewModel.resetFilter()
+                    navigator.popupAllAndPush(AppRoute.Apps(scope = ""))
+                }
             )
             NavItem(
                 "Installed",
@@ -46,7 +51,10 @@ fun SideBar(navigator: BackStack<AppRoute>) {
                 icon = Icons.TwoTone.KeyboardArrowRight,
                 selectItem = selectedItem,
                 selected = route is AppRoute.Apps && route.scope == "installed",
-                onClick = { navigator.replace(AppRoute.Apps(scope = "installed")) },
+                onClick = {
+                    appsViewModel.resetFilter()
+                    navigator.popupAllAndPush(AppRoute.Apps(scope = "installed"))
+                },
             )
             NavItem(
                 "Updates",
@@ -54,7 +62,10 @@ fun SideBar(navigator: BackStack<AppRoute>) {
                 icon = Icons.TwoTone.KeyboardArrowRight,
                 selectItem = selectedItem,
                 selected = route is AppRoute.Apps && route.scope == "updates",
-                onClick = { navigator.replace(AppRoute.Apps(scope = "updates")) },
+                onClick = {
+                    appsViewModel.resetFilter()
+                    navigator.popupAllAndPush(AppRoute.Apps(scope = "updates"))
+                },
             )
             Divider(Modifier.height(1.dp))
             NavItem(
@@ -62,7 +73,7 @@ fun SideBar(navigator: BackStack<AppRoute>) {
                 icon = Icons.TwoTone.List,
                 selectItem = selectedItem,
                 selected = route == AppRoute.Buckets,
-                onClick = { navigator.replace(AppRoute.Buckets) }
+                onClick = { navigator.popupAllAndPush(AppRoute.Buckets) }
             )
             Divider(Modifier.height(1.dp))
             NavItem(
@@ -70,7 +81,7 @@ fun SideBar(navigator: BackStack<AppRoute>) {
                 icon = Icons.TwoTone.Settings,
                 selectItem = selectedItem,
                 selected = route == AppRoute.Settings,
-                onClick = { navigator.replace(AppRoute.Settings) }
+                onClick = { navigator.popupAllAndPush(AppRoute.Settings) }
             )
             Divider(Modifier.height(1.dp))
         }
@@ -96,7 +107,7 @@ fun NavItem(
         .cursorHand()
         .background(color = if (highlight) colors.primary else Color.Unspecified)
     if (onClick != null) {
-        default = default.onHover { hover = it }.clickable {
+        default = default.onHover { hover = it }.noRippleClickable {
             onClick.invoke()
             selectItem.value = text
         }

@@ -22,11 +22,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import org.koin.java.KoinJavaComponent.get
+import org.orbitmvi.orbit.annotation.OrbitExperimental
 import org.slf4j.LoggerFactory
 import scooper.util.cursorHand
 import scooper.util.cursorInput
@@ -38,7 +38,7 @@ private val logger = LoggerFactory.getLogger("scooper.ui.Search")
 @Composable
 fun SearchBox() {
     Surface(
-        Modifier.fillMaxWidth().height(90.dp), elevation = 3.dp, shape = MaterialTheme.shapes.large
+        Modifier.fillMaxWidth().height(90.dp), elevation = 1.dp, shape = MaterialTheme.shapes.large
     ) {
         Layout(content = {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -68,7 +68,7 @@ fun SearchBox() {
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, OrbitExperimental::class)
 @Composable
 fun SearchBar() {
     val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
@@ -136,14 +136,15 @@ fun SearchBar() {
                 "",
             )
         }
-        var query by remember { mutableStateOf(TextFieldValue()) }
+        // var query by remember { mutableStateOf(TextFieldValue()) }
+        val query = state.filter.query
         BasicTextField(
             query,
-            onValueChange = { query = it },
+            onValueChange = { appsViewModel.onQueryChange(it) },
             modifier = Modifier.padding(start = 5.dp, end = 10.dp).defaultMinSize(120.dp).fillMaxWidth(0.4f)
                 .cursorInput().onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
-                        appsViewModel.applyFilters(query.text, bucket = bucket)
+                        appsViewModel.applyFilters(query, bucket = bucket)
                         true
                     } else false
                 },
@@ -151,7 +152,7 @@ fun SearchBar() {
         )
         Button(
             onClick = {
-                appsViewModel.applyFilters(query.text, bucket = bucket)
+                appsViewModel.applyFilters(query, bucket = bucket)
             },
             modifier = Modifier.height(40.dp).padding(0.dp).width(108.dp).cursorHand(),
             shape = RoundedCornerShape(

@@ -1,5 +1,7 @@
 package scooper.util
 
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -15,6 +17,9 @@ import java.time.ZoneId
 @Suppress("MemberVisibilityCanBePrivate")
 object Scoop {
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    private val _logStream = MutableSharedFlow<String>() // private mutable shared flow
+    val logStream = _logStream.asSharedFlow()
 
     val rootDir: File
         get() {
@@ -170,7 +175,7 @@ object Scoop {
 
     fun refresh(onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = mutableListOf("scoop", "update")
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun install(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -179,7 +184,7 @@ object Scoop {
         } else {
             mutableListOf("scoop", "install", String.format("%s/%s", app.bucket!!.name, app.name))
         }
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun uninstall(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -188,7 +193,7 @@ object Scoop {
         } else {
             mutableListOf("scoop", "uninstall", app.name)
         }
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun update(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
@@ -197,12 +202,12 @@ object Scoop {
         } else {
             mutableListOf("scoop", "update", app.name)
         }
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun download(app: App, onFinish: suspend (exitValue: Int) -> Unit = {}) {
         val commandArgs = mutableListOf("scoop", "download", app.uniqueName)
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun addBucket(bucket: String, url: String? = null, onFinish: suspend (exitValue: Int) -> Unit) {
@@ -210,12 +215,12 @@ object Scoop {
         if (url != null) {
             commandArgs.add(url)
         }
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun removeBucket(bucket: String, onFinish: suspend (exitValue: Int) -> Unit) {
         val commandArgs = mutableListOf("scoop", "bucket", "rm", bucket)
-        execute(commandArgs, onFinish = onFinish)
+        executeAndLog(commandArgs, onFinish = onFinish)
     }
 
     fun stop() {
@@ -224,6 +229,9 @@ object Scoop {
         logger.warn("stopping all processes...")
     }
 
+    private fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
+        execute(args, consumer = { _logStream.emit(it); logger.info(it) }, onFinish = onFinish)
+    }
 }
 
 fun JsonObject.getString(key: String): String {

@@ -10,6 +10,7 @@ import org.orbitmvi.orbit.syntax.simple.*
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
+import scooper.ui.AppRoute
 import scooper.util.Scoop
 import scooper.util.logger
 
@@ -47,7 +48,8 @@ data class AppsState(
     val filter: AppsFilter = AppsFilter(),
     val processingApp: String? = null,
     val refreshing: Boolean = false,
-    val waitingApps: Set<String> = emptySet()
+    val waitingApps: Set<String> = emptySet(),
+    val output: String = ""
 )
 
 
@@ -56,6 +58,8 @@ sealed class AppsSideEffect {
     object Loading : AppsSideEffect()
     object Done : AppsSideEffect()
     data class Toast(val text: String) : AppsSideEffect()
+    data class Log(val text: String) : AppsSideEffect()
+    data class Route(val route: AppRoute) : AppsSideEffect()
 }
 
 @OptIn(ExperimentalCoroutinesApi::class, OrbitExperimental::class)
@@ -70,6 +74,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         launchOperationQueue()
         getBuckets()
         applyFilters()
+        subscribeLogging()
     }
 
     fun launchOperationQueue() {
@@ -91,10 +96,21 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
         }
     }
 
+    fun subscribeLogging() {
+        coroutineScope.launch(Dispatchers.IO) {
+            Scoop.logStream.collect {
+                intent {
+                    postSideEffect(AppsSideEffect.Log(it))
+                    val output = state.output + it + "\n"
+                    reduce { state.copy(output = output) }
+                }
+            }
+        }
+    }
+
     fun applyFilters(
         query: String? = null, bucket: String? = null, scope: String? = null, page: Int? = null
     ) = intent {
-        postSideEffect(AppsSideEffect.Loading)
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectBucket
         val currentScope = scope ?: state.filter.scope
@@ -110,7 +126,10 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
                 )
             )
         }
-        postSideEffect(AppsSideEffect.Done)
+    }
+
+    fun onQueryChange(text: String) = blockingIntent {
+        reduce { state.copy(filter = state.filter.copy(query = text)) }
     }
 
     fun getBuckets() = intent {

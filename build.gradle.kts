@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "Scooper"
-version = "0.7.4"
+version = "0.7.5"
 
 repositories {
     jcenter()
@@ -46,7 +46,7 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "scooper.MainKt"
+        mainClass = "scooper.ui.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             modules("java.instrument", "java.sql", "jdk.unsupported")
