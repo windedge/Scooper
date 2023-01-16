@@ -119,6 +119,11 @@ class BackStack<T> internal constructor(val key: BackStackKey, start: T, otherSt
         return true
     }
 
+    fun popupAllAndPush(vararg values: T) {
+        popUntil { false }
+        push(*values)
+    }
+
     fun replace(vararg withValues: T) = replaceRoute(current, *withValues)
     fun replaceRoute(route: Route<T>, vararg withValues: T): Boolean {
         val routeIndex = routes.indexOf(route)

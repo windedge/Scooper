@@ -3,17 +3,10 @@ package scooper.util
 import com.github.pgreze.process.ProcessResult
 import com.github.pgreze.process.Redirect
 import com.github.pgreze.process.process
-import java.io.File
 import kotlinx.coroutines.*
 import org.apache.commons.text.StringEscapeUtils
 import org.slf4j.LoggerFactory
-import java.io.InputStream
-import java.nio.charset.Charset
-import java.nio.file.Path
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.CoroutineContext
-
-private val logger = LoggerFactory.getLogger("Process.kt")
+import java.io.File
 
 
 @Suppress("SameParameterValue")
@@ -21,17 +14,19 @@ fun execute(
     vararg commandArgs: String,
     asShell: Boolean = true,
     workingDir: File? = null,
+    consumer: suspend (line: String) -> Unit = { },
     onFinish: suspend (exitValue: Int) -> Unit = {},
 ): ProcessResult {
     val args = commandArgs.toList()
-    return execute(args, asShell, workingDir, onFinish)
+    return execute(args, asShell, workingDir, consumer = consumer, onFinish = onFinish)
 }
 
 fun execute(
     commandArgs: List<String>,
     asShell: Boolean = true,
     workingDir: File? = null,
-    onFinish: suspend (exitValue: Int) -> Unit = {},
+    consumer: suspend (line: String) -> Unit = { },
+    onFinish: suspend (exitValue: Int) -> Unit,
 ): ProcessResult = runBlocking {
     val command = if (asShell) {
         val args = commandArgs.joinToString(" ", transform = StringEscapeUtils::escapeXSI)
@@ -45,7 +40,8 @@ fun execute(
         stdout = Redirect.CAPTURE,
         stderr = Redirect.CAPTURE,
         directory = workingDir,
-    ) { output -> logger.info(output) }
+        consumer = consumer,
+    )
     onFinish(result.resultCode)
     return@runBlocking result
 }

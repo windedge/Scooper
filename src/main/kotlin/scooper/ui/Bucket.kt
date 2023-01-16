@@ -23,15 +23,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogState
 import org.koin.java.KoinJavaComponent
-import scooper.LocalWindow
 import scooper.data.Bucket
 import scooper.ui.components.OutlinedTextField
 import scooper.ui.components.Tooltip
 import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.noRippleClickable
 import scooper.viewmodels.AppsViewModel
-import java.awt.Cursor
 import java.awt.Desktop
 import java.net.URI
 
@@ -49,7 +48,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
     Box(Modifier.fillMaxSize()) {
         val scrollState = rememberScrollState(0)
 
-        Column(Modifier.padding(start = 2.dp, end = 6.dp).verticalScroll(scrollState)) {
+        Column(Modifier.padding(start = 2.dp, end = 14.dp).verticalScroll(scrollState)) {
             val state by appsViewModel.container.stateFlow.collectAsState()
             val buckets = state.buckets
             val bucketNames = buckets.map { it.name }
@@ -62,23 +61,20 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
             }
 
             var isHover by remember { mutableStateOf(false) }
-            val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f))
+            val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 2f), 0f))
             Box(
                 Modifier.fillMaxWidth().height(60.dp).padding(4.dp)
                     .background(color = if (isHover) colors.primary else Color.Transparent)
                     .cursorHand()
                     .onPointerEvent(PointerEventType.Enter) { isHover = true }
                     .onPointerEvent(PointerEventType.Exit) { isHover = false }
-                    .clickable {
+                    .noRippleClickable {
                         bucketName = ""; bucketUrl = ""; showAddDialog = true
                     },
                 contentAlignment = Alignment.Center
             ) {
                 val color = if (isHover) colors.onPrimary else colors.onSurface
-                if (isHover) {
-                    LocalWindow.current.cursor = Cursor(Cursor.HAND_CURSOR)
-                } else {
-                    LocalWindow.current.cursor = Cursor(Cursor.DEFAULT_CURSOR)
+                if (!isHover) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawRoundRect(color = color, style = stroke)
                     }

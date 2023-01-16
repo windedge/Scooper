@@ -16,12 +16,32 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+enum class TooltipPostion {
+    Top, Bottom
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Tooltip(
-    text: String = "Tooltip",
-    content: @Composable () -> Unit
+    text: String = "...",
+    position: TooltipPostion = TooltipPostion.Bottom,
+    content: @Composable () -> Unit,
 ) {
+    val tooltipPlacement = when (position) {
+        TooltipPostion.Top -> {
+            TooltipPlacement.CursorPoint(
+                alignment = Alignment.TopStart,
+                offset = DpOffset((-8).dp, (-8).dp) // tooltip offset
+            )
+        }
+
+        TooltipPostion.Bottom -> {
+            TooltipPlacement.CursorPoint(
+                alignment = Alignment.BottomStart,
+                offset = DpOffset((-8).dp, 8.dp) // tooltip offset
+            )
+        }
+    }
     TooltipArea(
         tooltip = {
             Surface(
@@ -33,17 +53,13 @@ fun Tooltip(
                     text = text,
                     modifier = Modifier.padding(10.dp),
                     color = Color.Gray,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                 )
             }
         },
         delayMillis = 600, // in millisecond
-        tooltipPlacement = TooltipPlacement.CursorPoint(
-            alignment = Alignment.BottomEnd,
-            offset = DpOffset((-10).dp, 5.dp) // tooltip offset
-        )
-    )
-    {
+        tooltipPlacement = tooltipPlacement
+    ) {
         content()
     }
 }

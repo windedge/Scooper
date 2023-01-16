@@ -32,15 +32,15 @@ import scooper.util.cursorLink
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
 
-
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
-    appsViewModel.applyFilters(scope = scope)
     val state = appsViewModel.container.stateFlow.collectAsState()
     val apps = state.value.apps
     val processingApp = state.value.processingApp
     val waitingApps = state.value.waitingApps
+    LaunchedEffect(scope) {
+        appsViewModel.applyFilters(scope = scope)
+    }
     Column(Modifier.fillMaxSize()) {
         SearchBox()
         Box(
@@ -250,7 +250,7 @@ fun ActionButton(
                     onClick = { expand = false; onDownload(app) },
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)
                 ) {
-                    MenuText("Download")
+                    MenuText("Download Only")
                 }
             }
             if (app.status == "failed") {
