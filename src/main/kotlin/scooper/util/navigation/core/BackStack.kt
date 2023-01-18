@@ -1,5 +1,7 @@
 package scooper.util.navigation.core
 
+// source: https://github.com/mvarnagiris/compose-navigation
+
 typealias BackStackId = String
 
 data class BackStackKey internal constructor(val id: BackStackId, val parentKey: BackStackKey?) {

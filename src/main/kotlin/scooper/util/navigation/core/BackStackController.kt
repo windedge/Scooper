@@ -1,5 +1,7 @@
 package scooper.util.navigation.core
 
+// source: https://github.com/mvarnagiris/compose-navigation
+
 val backStackController by lazy { BackStackController() }
 
 class BackStackController internal constructor() {
