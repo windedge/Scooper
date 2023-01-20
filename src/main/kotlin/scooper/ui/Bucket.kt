@@ -22,21 +22,18 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogState
-import org.koin.java.KoinJavaComponent
+import org.koin.java.KoinJavaComponent.get
 import scooper.data.Bucket
 import scooper.ui.components.OutlinedTextField
 import scooper.ui.components.Tooltip
-import scooper.util.KNOWN_BUCKETS
-import scooper.util.cursorHand
-import scooper.util.cursorLink
-import scooper.util.noRippleClickable
+import scooper.util.*
 import scooper.viewmodels.AppsViewModel
 import java.awt.Desktop
 import java.net.URI
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewModel::class.java)) {
+fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
     var bucketToDelete by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -45,65 +42,66 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
     var bucketNameError by remember { mutableStateOf(false) }
     var bucketUrlError by remember { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize()) {
-        val scrollState = rememberScrollState(0)
+    Surface(elevation = 1.dp, color = colors.background) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            val scrollState = rememberScrollState(0)
+            Column(Modifier.padding(start = 2.dp, end = 14.dp).verticalScroll(scrollState)) {
+                val state by appsViewModel.container.stateFlow.collectAsState()
+                val buckets = state.buckets
+                val bucketNames = buckets.map { it.name }
 
-        Column(Modifier.padding(start = 2.dp, end = 14.dp).verticalScroll(scrollState)) {
-            val state by appsViewModel.container.stateFlow.collectAsState()
-            val buckets = state.buckets
-            val bucketNames = buckets.map { it.name }
-
-            for (bucket in buckets) {
-                BucketCard(bucket, onDelete = {
-                    bucketToDelete = bucket.name
-                    showDeleteDialog = true
-                })
-            }
-
-            var isHover by remember { mutableStateOf(false) }
-            val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 2f), 0f))
-            Box(
-                Modifier.fillMaxWidth().height(60.dp).padding(4.dp)
-                    .background(color = if (isHover) colors.primary else Color.Transparent)
-                    .cursorHand()
-                    .onPointerEvent(PointerEventType.Enter) { isHover = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHover = false }
-                    .noRippleClickable {
-                        bucketName = ""; bucketUrl = ""; showAddDialog = true
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                val color = if (isHover) colors.onPrimary else colors.onSurface
-                if (!isHover) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawRoundRect(color = color, style = stroke)
-                    }
+                for (bucket in buckets) {
+                    BucketCard(bucket, onDelete = {
+                        bucketToDelete = bucket.name
+                        showDeleteDialog = true
+                    })
                 }
+
+                var isHover by remember { mutableStateOf(false) }
+                val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 2f), 0f))
+                Box(
+                    Modifier.fillMaxWidth().height(60.dp).padding(4.dp)
+                        .background(color = if (isHover) colors.primary else Color.Transparent)
+                        .cursorHand()
+                        .onPointerEvent(PointerEventType.Enter) { isHover = true }
+                        .onPointerEvent(PointerEventType.Exit) { isHover = false }
+                        .noRippleClickable {
+                            bucketName = ""; bucketUrl = ""; showAddDialog = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    val color = if (isHover) colors.onPrimary else colors.onSurface
+                    if (!isHover) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            drawRoundRect(color = color, style = stroke)
+                        }
+                    }
+                    Text(
+                        textAlign = TextAlign.Center,
+                        text = "Add Bucket...",
+                        color = color,
+                        fontWeight = if (isHover) FontWeight.Bold else FontWeight.Bold,
+                    )
+                }
+
                 Text(
-                    textAlign = TextAlign.Center,
-                    text = "Add Bucket...",
-                    color = color,
-                    fontWeight = if (isHover) FontWeight.Bold else FontWeight.Bold,
+                    "Known Buckets",
+                    style = MaterialTheme.typography.h5,
+                    color = colors.onBackground,
+                    modifier = Modifier.padding(top = 20.dp)
                 )
+
+                KnownBuckets(bucketNames, onAdd = { appsViewModel.queuedAddBucket(it) })
+
+                Spacer(Modifier.height(10.dp))
             }
-
-            Text(
-                "Known Buckets",
-                style = MaterialTheme.typography.h5,
-                color = colors.onBackground,
-                modifier = Modifier.padding(top = 20.dp)
+            VerticalScrollbar(
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().background(color = colors.background),
+                adapter = rememberScrollbarAdapter(scrollState = scrollState /* TextBox height + Spacer height*/)
             )
-
-            KnownBuckets(bucketNames, onAdd = { appsViewModel.addScoopBucket(it) })
-
-            Spacer(Modifier.height(10.dp))
         }
-        VerticalScrollbar(
-            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
-                .background(color = colors.background),
-            adapter = rememberScrollbarAdapter(scrollState = scrollState /* TextBox height + Spacer height*/)
-        )
     }
+
     if (showDeleteDialog) {
         ConfirmDialog(
             text = "Confirm to delete?",
@@ -129,7 +127,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewM
                 if (bucketNameError || bucketUrlError) {
                     return@ConfirmDialog
                 }
-                appsViewModel.addScoopBucket(bucketName, bucketUrl)
+                appsViewModel.queuedAddBucket(bucketName, bucketUrl)
             },
             onCancel = { showAddDialog = false },
             confirmText = "Add",

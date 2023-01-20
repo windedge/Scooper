@@ -36,7 +36,9 @@ sealed class AppRoute {
 
 fun main() = application {
     initDb()
-    val koinApp = startKoin { modules(viewModelsModule) }
+    val koinApp = remember { startKoin { modules(viewModelsModule) } }
+    val scope = rememberCoroutineScope()
+
     val winState = rememberWindowState(
         width = 960.dp,
         height = 600.dp,
@@ -48,59 +50,53 @@ fun main() = application {
         title = "Scooper",
         icon = painterResource("logo.svg"),
     ) {
-        val density = LocalDensity.current.density
-        window.minimumSize = Dimension((800 * density).toInt(), (500 * density).toInt())
-
-        val appsViewModel = koinApp.koin.get<AppsViewModel>()
-        val state by appsViewModel.container.stateFlow.collectAsState()
-
-        val scope = rememberCoroutineScope()
-        val scaffoldState = rememberScaffoldState()
-        var statusText by remember { mutableStateOf("") }
-        val output = state.output
-
-        scope.launch {
-            appsViewModel.container.sideEffectFlow.collect { sideEffect ->
-                when (sideEffect) {
-                    AppsSideEffect.Empty -> {}
-                    is AppsSideEffect.Toast -> {
-                        scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
-                    }
-
-                    is AppsSideEffect.Log -> {
-                        statusText = sideEffect.text
-                    }
-
-                    is AppsSideEffect.Route -> TODO()
-                    AppsSideEffect.Loading -> TODO()
-                    AppsSideEffect.Done -> TODO()
-                    // else -> TODO()
-                }
-            }
+        with(LocalDensity.current) {
+            window.minimumSize = Dimension(800.dp.roundToPx(), 500.dp.roundToPx())
         }
+        val scaffoldState = rememberScaffoldState()
+        val appsViewModel = koinApp.koin.get<AppsViewModel>()
+        var statusText by remember { mutableStateOf("") }
 
         ScooperTheme {
             Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
+
+                scope.launch {
+                    appsViewModel.container.sideEffectFlow.collect { sideEffect ->
+                        when (sideEffect) {
+                            AppsSideEffect.Empty -> {}
+                            is AppsSideEffect.Toast -> {
+                                scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
+                            }
+
+                            is AppsSideEffect.Log -> {
+                                statusText = sideEffect.text
+                            }
+
+                            is AppsSideEffect.Route -> TODO()
+                            AppsSideEffect.Loading -> TODO()
+                            AppsSideEffect.Done -> TODO()
+                            // else -> TODO()
+                        }
+                    }
+                }
+
+                val showTopBar = when (currentRoute.value) {
+                    AppRoute.Settings -> false
+                    AppRoute.Output -> false
+                    else -> true
+                }
                 Scaffold(
-                    modifier = Modifier.requiredSizeIn(minWidth = 780.dp, minHeight = 450.dp),
                     scaffoldState = scaffoldState,
                     snackbarHost = { SnackbarHost(it) },
-                    bottomBar = {
-                        StatusBar(statusText, onClick = {
-                            if (currentRoute.value != AppRoute.Output) {
-                                this.push(AppRoute.Output)
-                            } else {
-                                this.pop()
-                            }
-                        })
-                    }
+                    topBar = { NavHeader(showTopBar) },
+                    bottomBar = { StatusBar(statusText) }
                 ) {
-                    Layout(this, modifier = Modifier.padding(it) /*statusBar = { this.statusBar(statusText) }*/) {
+                    Layout(modifier = Modifier.padding(it)) {
                         when (val route = currentRoute.value) {
                             is AppRoute.Apps -> AppScreen(route.scope)
                             AppRoute.Buckets -> BucketsScreen()
                             AppRoute.Settings -> SettingScreen()
-                            AppRoute.Output -> OutputScreen(output, onBack = { this@Router.pop() })
+                            AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
                             AppRoute.Splash -> TODO()
                         }
                     }

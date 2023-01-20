@@ -4,6 +4,8 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import org.jetbrains.skiko.SystemTheme
+import org.jetbrains.skiko.currentSystemTheme
 
 private val DarkColorPalette = darkColors(
     primary = purple200,
@@ -34,8 +36,8 @@ onBackground = Color.Black,
 )
 
 @Composable
-fun ScooperTheme(darkTheme: Boolean = false, content: @Composable() () -> Unit) {
-    val colors = if (darkTheme) {
+fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, content: @Composable() () -> Unit) {
+    val colors = if (currentTheme == SystemTheme.DARK) {
         DarkColorPalette
     } else {
         LightColorPalette

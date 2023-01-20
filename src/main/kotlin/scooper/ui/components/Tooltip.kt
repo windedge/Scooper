@@ -12,12 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-enum class TooltipPostion {
+enum class TooltipPosition {
     Top, Bottom
 }
 
@@ -25,18 +24,18 @@ enum class TooltipPostion {
 @Composable
 fun Tooltip(
     text: String = "...",
-    position: TooltipPostion = TooltipPostion.Bottom,
+    position: TooltipPosition = TooltipPosition.Bottom,
     content: @Composable () -> Unit,
 ) {
     val tooltipPlacement = when (position) {
-        TooltipPostion.Top -> {
+        TooltipPosition.Top -> {
             TooltipPlacement.CursorPoint(
                 alignment = Alignment.TopStart,
                 offset = DpOffset((-8).dp, (-8).dp) // tooltip offset
             )
         }
 
-        TooltipPostion.Bottom -> {
+        TooltipPosition.Bottom -> {
             TooltipPlacement.CursorPoint(
                 alignment = Alignment.BottomStart,
                 offset = DpOffset((-8).dp, 8.dp) // tooltip offset
@@ -48,7 +47,7 @@ fun Tooltip(
             Surface(
                 modifier = Modifier.shadow(4.dp),
                 // color = Color(255, 255, 210),
-                color = MaterialTheme.colors.background,
+                color = MaterialTheme.colors.primaryVariant,
                 shape = RoundedCornerShape(4.dp)
             ) {
                 Text(

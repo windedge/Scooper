@@ -43,13 +43,13 @@ data class AppsFilter(
 )
 
 data class AppsState(
-    val apps: List<App> = emptyList(),
+    val apps: List<App>? = null,
     val buckets: List<Bucket> = emptyList(),
     val filter: AppsFilter = AppsFilter(),
     val processingApp: String? = null,
     val refreshing: Boolean = false,
     val waitingApps: Set<String> = emptySet(),
-    val output: String = ""
+    val output: String = "",
 )
 
 
@@ -72,8 +72,8 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     override val container: Container<AppsState, AppsSideEffect> = coroutineScope.container(AppsState()) {
         launchOperationQueue()
-        getBuckets()
         applyFilters()
+        getBuckets()
         subscribeLogging()
     }
 
@@ -110,7 +110,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
 
     fun applyFilters(
         query: String? = null, bucket: String? = null, scope: String? = null, page: Int? = null
-    ) = intent {
+    ) = blockingIntent {
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectBucket
         val currentScope = scope ?: state.filter.scope
