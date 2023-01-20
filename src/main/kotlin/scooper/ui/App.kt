@@ -12,19 +12,16 @@ import androidx.compose.material.MaterialTheme.shapes
 import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.twotone.KeyboardArrowDown
-import androidx.compose.material.icons.twotone.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.loadXmlImageVector
-import androidx.compose.ui.res.useResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import org.koin.java.KoinJavaComponent.get
-import org.xml.sax.InputSource
+import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.ui.components.Tooltip
 import scooper.util.cursorHand
@@ -32,50 +29,53 @@ import scooper.util.cursorLink
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
 
+@Suppress("unused")
+private val logger = LoggerFactory.getLogger("ui.App")
+
 @Composable
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
-    val state = appsViewModel.container.stateFlow.collectAsState()
-    val apps = state.value.apps
-    val processingApp = state.value.processingApp
-    val waitingApps = state.value.waitingApps
+    val state by appsViewModel.container.stateFlow.collectAsState()
+    val apps = state.apps
+    val processingApp = state.processingApp
+    val waitingApps = state.waitingApps
     LaunchedEffect(scope) {
         appsViewModel.applyFilters(scope = scope)
     }
-    Column(Modifier.fillMaxSize()) {
-        SearchBox()
-        Box(
-            Modifier.defaultMinSize(minHeight = 30.dp).fillMaxHeight(0.07f).fillMaxWidth(),
-            contentAlignment = Alignment.CenterEnd
-        ) {
 
-            if (state.value.refreshing) {
-                Box(Modifier.fillMaxHeight().width(60.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
-                }
-            } else {
-                Tooltip("Refreshing Scoop") {
-                    Button(
-                        onClick = { appsViewModel.queuedUpdateApps() },
-                        // onClick = { appsViewModel.test() },
-                        Modifier.height(25.dp).cursorLink(),
-                        contentPadding = PaddingValues(4.dp)
-                    ) {
-                        Icon(Icons.TwoTone.Refresh, contentDescription = null)
-                    }
-                }
+    Surface(Modifier.fillMaxSize(), elevation = 1.dp, shape = shapes.large) {
+        if (apps == null) return@Surface
 
-            }
+        if (apps.isNotEmpty()) {
+            AppList(
+                apps,
+                processingApp = processingApp,
+                waitingApps = waitingApps,
+                onInstall = appsViewModel::queuedInstall,
+                onUpdate = appsViewModel::queuedUpdate,
+                onDownload = appsViewModel::queuedDownload,
+                onUninstall = appsViewModel::queuedUninstall,
+                onCancel = appsViewModel::cancel
+            )
+        } else {
+            NoResults()
         }
-        AppList(
-            apps,
-            processingApp = processingApp,
-            waitingApps = waitingApps,
-            onInstall = appsViewModel::queuedInstall,
-            onUpdate = appsViewModel::queuedUpdate,
-            onDownload = appsViewModel::queuedDownload,
-            onUninstall = appsViewModel::queuedUninstall,
-            onCancel = appsViewModel::cancel
+    }
+}
+
+@Composable
+fun NoResults() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            painterResource("no-results.svg"),
+            contentDescription = "No Results",
+            modifier = Modifier.size(60.dp), tint = colors.primary
         )
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("No Results", style = typography.h6, color = colors.primary)
     }
 }
 
@@ -90,40 +90,35 @@ fun AppList(
     onUninstall: (app: App) -> Unit = {},
     onCancel: (app: App?) -> Unit = {}
 ) {
-    Surface(
-        Modifier.fillMaxSize(),
-        elevation = 1.dp,
-        shape = shapes.large
+    Box(
+        modifier = Modifier.fillMaxSize().padding(2.dp)
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize().padding(2.dp)
-        ) {
 
-            val state = rememberLazyListState()
-            LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
-                itemsIndexed(items = apps) { idx, app ->
-                    AppCard(
-                        app,
-                        divider = idx > 0,
-                        installing = app.name == processingApp,
-                        waiting = waitingApps.contains(app.uniqueName),
-                        onInstall = onInstall,
-                        onUpdate = onUpdate,
-                        onDownload = onDownload,
-                        onUninstall = onUninstall,
-                        onCancel = onCancel
-                    )
-                }
-            }
-            VerticalScrollbar(
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
-                    .background(color = colors.background),
-                adapter = rememberScrollbarAdapter(
-                    scrollState = state // TextBox height + Spacer height
+        val state = rememberLazyListState()
+        LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
+            itemsIndexed(items = apps) { idx, app ->
+                AppCard(
+                    app,
+                    divider = idx > 0,
+                    installing = app.name == processingApp,
+                    waiting = waitingApps.contains(app.uniqueName),
+                    onInstall = onInstall,
+                    onUpdate = onUpdate,
+                    onDownload = onDownload,
+                    onUninstall = onUninstall,
+                    onCancel = onCancel
                 )
-            )
+            }
         }
+        VerticalScrollbar(
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+                .background(color = colors.background),
+            adapter = rememberScrollbarAdapter(
+                scrollState = state // TextBox height + Spacer height
+            )
+        )
     }
+
 }
 
 @Composable
@@ -159,7 +154,8 @@ fun AppCard(
                             Text(app.name, style = typography.h6)
                             if (app.homepage != null && app.homepage!!.isNotBlank()) {
                                 Icon(
-                                    imageVector = loadXmlImageVector("external_link_icon.xml"),
+                                    painter = painterResource("external_link_icon.xml"),
+                                    // imageVector = loadXmlImageVector("external_link_icon.xml"),
                                     app.homepage,
                                     modifier = Modifier.cursorHand().clickable {
                                         java.awt.Desktop.getDesktop()
@@ -170,7 +166,7 @@ fun AppCard(
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 if (app.global) "*global*" else "",
-                                style = typography.button.copy(color = colors.secondary)
+                                style = typography.button.copy(color = colors.primary)
                             )
                         }
 
@@ -220,7 +216,6 @@ fun AppCard(
 }
 
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ActionButton(
     app: App,
@@ -358,8 +353,3 @@ fun MenuText(text: String) {
         )
     }
 }
-
-// fun loadXmlImageVector(file: File, density: Density): ImageVector =
-//     file.inputStream().buffered().use { loadXmlImageVector(InputSource(it), density) }
-fun loadXmlImageVector(path: String, density: Density = Density(1f)): ImageVector =
-    useResource(path) { stream -> stream.buffered().use { loadXmlImageVector(InputSource(it), density) } }

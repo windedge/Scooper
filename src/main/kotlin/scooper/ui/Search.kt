@@ -1,85 +1,77 @@
 package scooper.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.*
+import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.twotone.Clear
 import androidx.compose.material.icons.twotone.KeyboardArrowDown
-import androidx.compose.material.icons.twotone.Refresh
-import androidx.compose.material.icons.twotone.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import org.koin.java.KoinJavaComponent.get
-import org.orbitmvi.orbit.annotation.OrbitExperimental
 import org.slf4j.LoggerFactory
+import scooper.ui.components.IconButton
+import scooper.util.bottomBorder
 import scooper.util.cursorHand
-import scooper.util.cursorInput
 import scooper.util.onHover
 import scooper.viewmodels.AppsViewModel
 
+@Suppress("unused")
 private val logger = LoggerFactory.getLogger("scooper.ui.Search")
 
+/*
 @Composable
 fun SearchBox() {
     Surface(
-        Modifier.fillMaxWidth().height(90.dp), elevation = 1.dp, shape = MaterialTheme.shapes.large
+        Modifier.fillMaxWidth(), elevation = 1.dp, shape = MaterialTheme.shapes.large
     ) {
-        Layout(content = {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                SearchBar()
-                Button(onClick = {}, modifier = Modifier.layout { _, _ ->
-                    layout(0, 0) { }
-                }) {
-                    Icon(Icons.TwoTone.Refresh, "", modifier = Modifier.size(18.dp))
-                }
-            }
-        }) { measurables, constraints ->
-            val placeables = measurables.map { measurable ->
-                // Measure each child
-                measurable.measure(constraints)
-            }
-            var yPosition = 0
-            layout(constraints.maxWidth, constraints.maxHeight) {
-                placeables.forEach { placeable ->
-                    // Position item on the screen
-                    placeable.placeRelative(x = 0, y = yPosition)
-
-                    // Record the y co-ord placed up to
-                    yPosition += placeable.height
-                }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            SearchBar()
+            Button(onClick = {}, modifier = Modifier.layout { _, _ ->
+                layout(0, 0) { }
+            }) {
+                Icon(Icons.TwoTone.Refresh, "", modifier = Modifier.size(18.dp))
             }
         }
     }
 }
+*/
 
-@OptIn(ExperimentalComposeUiApi::class, OrbitExperimental::class)
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun SearchBar() {
+fun SearchBar(show: Boolean = true) {
+    if (!show) return;
+
     val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
-    val modifier =
-        Modifier.padding(0.dp).border(1.dp, MaterialTheme.colors.primary, shape = MaterialTheme.shapes.medium)
-            .onHover { on ->
-                if (on) border(
-                    2.dp, MaterialTheme.colors.secondary, shape = MaterialTheme.shapes.medium
-                )
-            }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+
+    var isHovered by remember { mutableStateOf(false) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderWidth = if (isHovered || isFocused) 1.6.dp else 1.dp
+    val modifier = Modifier.padding(bottom = 2.dp).height(35.dp)
+        .bottomBorder(borderWidth, color = colors.primary)
+        .onHover { isHovered = it }
+        .focusable(true, interactionSource = interactionSource)
+
+    Row(
+        modifier = modifier, verticalAlignment = Alignment.CenterVertically
+    ) {
         val state by appsViewModel.container.stateFlow.collectAsState()
         val buckets = mutableListOf("")
         buckets.addAll(state.buckets.map { it.name })
@@ -88,12 +80,9 @@ fun SearchBar() {
         var selectedItem by remember { mutableStateOf(-1) }
         var bucket by remember { mutableStateOf("") }
 
-        Spacer(Modifier.width(10.dp))
-
         Row(
-            Modifier.cursorHand().clickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null
-            ) { expand = !expand }, verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.height(30.dp).cursorHand().clickable { expand = !expand },
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             DropdownMenu(
                 expand,
@@ -107,26 +96,26 @@ fun SearchBar() {
                         expand = false
                         selectedItem = idx
                         bucket = title
-                        appsViewModel.applyFilters("", bucket = bucket)
+                        appsViewModel.applyFilters(bucket = bucket)
                     },
                         modifier = Modifier.sizeIn(maxHeight = 40.dp)
-                            .background(color = if (hover) MaterialTheme.colors.primaryVariant else MaterialTheme.colors.surface)
+                            .background(color = if (hover) colors.primaryVariant else colors.surface)
                             .onHover { hover = it }) {
                         Text(
                             title.ifBlank { "All" },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            color = if (hover) MaterialTheme.colors.onPrimary else MaterialTheme.colors.onSurface,
+                            color = colors.onSurface,
                         )
                     }
                 }
             }
 
-            val color = if (selectedItem > 0) MaterialTheme.colors.onSurface else Color.LightGray
+            val color = if (selectedItem > 0) colors.onSurface else Color.LightGray
 
             Text(
                 bucket.ifBlank { "Select bucket" },
-                modifier = Modifier.width(100.dp),
+                modifier = Modifier.width(90.dp).padding(start = 4.dp),
                 style = MaterialTheme.typography.body1.copy(color = color),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -134,35 +123,50 @@ fun SearchBar() {
             Icon(
                 Icons.TwoTone.KeyboardArrowDown,
                 "",
+                tint = colors.primary
             )
         }
-        // var query by remember { mutableStateOf(TextFieldValue()) }
+
         val query = state.filter.query
+        val inputFocusRequester = remember { FocusRequester() }
         BasicTextField(
             query,
-            onValueChange = { appsViewModel.onQueryChange(it) },
-            modifier = Modifier.padding(start = 5.dp, end = 10.dp).defaultMinSize(120.dp).fillMaxWidth(0.4f)
-                .cursorInput().onPreviewKeyEvent {
+            onValueChange = { appsViewModel.applyFilters(it) },
+            modifier = Modifier.padding(start = 5.dp).defaultMinSize(120.dp).fillMaxWidth(0.4f)
+                // .cursorInput()
+                .focusRequester(inputFocusRequester)
+                .onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
                         appsViewModel.applyFilters(query, bucket = bucket)
                         true
                     } else false
                 },
             singleLine = true,
+            interactionSource = interactionSource
         )
-        Button(
-            onClick = {
-                appsViewModel.applyFilters(query, bucket = bucket)
-            },
-            modifier = Modifier.height(40.dp).padding(0.dp).width(108.dp).cursorHand(),
-            shape = RoundedCornerShape(
-                topStart = 0.dp, bottomStart = 0.dp, topEnd = 4.dp, bottomEnd = 4.dp
-            )
+
+        if (query.isNotEmpty()) {
+            IconButton(
+                onClick = {
+                    appsViewModel.applyFilters(query = "")
+                    inputFocusRequester.requestFocus()
+                },
+                modifier = Modifier.cursorHand().padding(horizontal = 2.5.dp),
+                rippleRadius = 10.dp,
+            ) {
+                Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(15.dp), tint = colors.onSecondary)
+            }
+        } else {
+            Spacer(modifier = Modifier.width(20.dp))
+        }
+
+        IconButton(
+            onClick = { appsViewModel.applyFilters(query, bucket = bucket) },
+            modifier = Modifier.cursorHand().padding(horizontal = 5.dp),
+            interactionSource = interactionSource
         ) {
-            Icon(
-                Icons.TwoTone.Search, "", modifier = Modifier.size(18.dp)
-            )
-            Text("Search")
+            Icon(Icons.Filled.Search, "", modifier = Modifier.size(18.dp), tint = colors.primary)
         }
     }
+
 }

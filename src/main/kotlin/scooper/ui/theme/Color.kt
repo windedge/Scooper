@@ -9,10 +9,10 @@ val teal200 = Color(0xFF03DAC5)
 
 object LightColors {
     //    val primaryColor = Color(0xFF01579B)
-    val primaryColor = Color(0xFF4F83CC)
+    val primaryColor = Color(0xFF0A59CD)
 
     //    val primaryLightColor = Color(0xFF7986CB)
-    val primaryLightColor = Color(0xFF84b2ff)
+    val primaryLightColor = Color(0xFFE8ECF3)
 
     //    val primaryLightColor = Color(0xFF9E9E9E)
     val primaryDarkColor = Color(0xFF02579b)

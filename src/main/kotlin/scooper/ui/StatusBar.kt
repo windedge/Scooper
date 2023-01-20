@@ -12,18 +12,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import scooper.ui.components.Tooltip
-import scooper.ui.components.TooltipPostion
+import scooper.ui.components.TooltipPosition
 import scooper.util.cursorHand
+import scooper.util.navigation.LocalBackStack
+import scooper.util.navigation.core.BackStack
 import scooper.util.noRippleClickable
 
+@Suppress("UNCHECKED_CAST")
 @Composable
-fun StatusBar(statusText: String, onClick: () -> Unit) {
+fun StatusBar(statusText: String) {
+    val navigator: BackStack<AppRoute> = LocalBackStack.current as BackStack<AppRoute>
     ProvideTextStyle(MaterialTheme.typography.caption.copy(color = MaterialTheme.colors.onSecondary)) {
         Column {
             // Divider(color = colors.onBackground)
-            Tooltip("Show Console Logs", position = TooltipPostion.Top) {
+            Tooltip("Show Console Logs", position = TooltipPosition.Top) {
                 Box(modifier = Modifier.fillMaxWidth().cursorHand()
-                    .noRippleClickable { onClick() })
+                    .noRippleClickable {
+                        if (navigator.current.value != AppRoute.Output) {
+                            navigator.push(AppRoute.Output)
+                        } else {
+                            navigator.pop()
+                        }
+                    })
                 {
                     Text(
                         statusText,
