@@ -5,6 +5,7 @@ import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -46,13 +47,14 @@ fun Tooltip(
         tooltip = {
             Surface(
                 modifier = Modifier.shadow(4.dp),
-                color = Color(255, 255, 210),
+                // color = Color(255, 255, 210),
+                color = MaterialTheme.colors.background,
                 shape = RoundedCornerShape(4.dp)
             ) {
                 Text(
                     text = text,
                     modifier = Modifier.padding(10.dp),
-                    color = Color.Gray,
+                    color = MaterialTheme.colors.onSurface,
                     fontSize = 13.sp,
                 )
             }
