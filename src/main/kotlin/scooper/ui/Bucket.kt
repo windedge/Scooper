@@ -11,11 +11,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpSize
@@ -41,6 +45,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
     var bucketUrl by remember { mutableStateOf("") }
     var bucketNameError by remember { mutableStateOf(false) }
     var bucketUrlError by remember { mutableStateOf(false) }
+    val inputFocusRequester = remember { FocusRequester() }
 
     Surface(elevation = 1.dp, color = colors.background) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -135,12 +140,15 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
         ) {
             CompositionLocalProvider(LocalContentColor provides Color.Black) {
                 Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.Start) {
+                    SideEffect {
+                        inputFocusRequester.requestFocus()
+                    }
                     OutlinedTextField(
                         bucketName,
                         onValueChange = { bucketName = it; bucketNameError = false },
                         label = { Text("bucket") },
                         singleLine = true,
-                        modifier = Modifier.height(50.dp).fillMaxWidth()
+                        modifier = Modifier.height(50.dp).fillMaxWidth().focusRequester(inputFocusRequester)
                     )
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
@@ -150,7 +158,6 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
                         singleLine = true,
                         modifier = Modifier.height(50.dp).fillMaxWidth()
                     )
-
                 }
             }
         }
