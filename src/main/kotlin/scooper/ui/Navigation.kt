@@ -30,13 +30,13 @@ import scooper.viewmodels.AppsViewModel
 
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun NavHeader(show: Boolean = true) {
+fun NavHeader(show: Boolean = true, modifier: Modifier = Modifier) {
     if (!show) return
 
     val currentRoute = (LocalBackStack.current as BackStack<AppRoute>).current.value
 
     Surface(
-        Modifier.fillMaxWidth().padding(bottom = 4.dp).height(65.dp),
+        modifier = modifier.then(Modifier.fillMaxWidth().padding(bottom = 4.dp).height(65.dp)),
         elevation = 5.dp,
         shape = MaterialTheme.shapes.large
     ) {

@@ -1,5 +1,8 @@
 package scooper.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -34,6 +37,7 @@ sealed class AppRoute {
 
 // val LocalWindow = compositionLocalOf<ComposeWindow> { error("Undefined window") }
 
+@OptIn(ExperimentalAnimationApi::class)
 fun main() = application {
     initDb()
     val koinApp = remember { startKoin { modules(viewModelsModule) } }
@@ -59,7 +63,6 @@ fun main() = application {
 
         ScooperTheme {
             Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
-
                 scope.launch {
                     appsViewModel.container.sideEffectFlow.collect { sideEffect ->
                         when (sideEffect) {
@@ -80,6 +83,7 @@ fun main() = application {
                     }
                 }
 
+
                 val showTopBar = when (currentRoute.value) {
                     AppRoute.Settings -> false
                     AppRoute.Output -> false
@@ -87,17 +91,19 @@ fun main() = application {
                 }
                 Scaffold(
                     scaffoldState = scaffoldState,
-                    snackbarHost = { SnackbarHost(it) },
+                    snackbarHost = { hostState -> SnackbarHost(hostState) },
                     topBar = { NavHeader(showTopBar) },
                     bottomBar = { StatusBar(statusText) }
-                ) {
-                    Layout(modifier = Modifier.padding(it)) {
-                        when (val route = currentRoute.value) {
-                            is AppRoute.Apps -> AppScreen(route.scope)
-                            AppRoute.Buckets -> BucketsScreen()
-                            AppRoute.Settings -> SettingScreen()
-                            AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
-                            AppRoute.Splash -> TODO()
+                ) { paddingValues ->
+                    Layout(modifier = Modifier.padding(paddingValues)) {
+                        EnterAnimation {
+                            when (val route = currentRoute.value) {
+                                is AppRoute.Apps -> AppScreen(route.scope)
+                                AppRoute.Buckets -> BucketsScreen()
+                                AppRoute.Settings -> SettingScreen()
+                                AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
+                                AppRoute.Splash -> TODO()
+                            }
                         }
                     }
                 }
@@ -106,3 +112,23 @@ fun main() = application {
     }
 }
 
+@Composable
+fun EnterAnimation(content: @Composable AnimatedVisibilityScope.() -> Unit) {
+    AnimatedVisibility(
+        visibleState = remember { MutableTransitionState(false) }
+            .apply { targetState = true },
+        enter = fadeIn(
+            animationSpec = tween(
+                durationMillis = 300,
+                delayMillis = 0,
+                easing = FastOutSlowInEasing
+            )
+        ) + slideInVertically(
+            animationSpec = spring(),
+            initialOffsetY = { height -> height / 10 }
+        ),
+        exit = ExitTransition.None,
+    ) {
+        this.content()
+    }
+}
