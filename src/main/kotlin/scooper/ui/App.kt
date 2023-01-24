@@ -230,7 +230,7 @@ fun ActionButton(
     var expand by remember { mutableStateOf(false) }
     DropdownMenu(
         expand, onDismissRequest = { expand = false },
-        modifier = Modifier.width(142.dp).padding(vertical = 0.dp).cursorHand(),
+        modifier = Modifier.width(IntrinsicSize.Max).padding(vertical = 0.dp).cursorHand(),
         // offset = DpOffset(x = (-24).dp, y = 1.dp)
     ) {
         if (!app.installed) {
