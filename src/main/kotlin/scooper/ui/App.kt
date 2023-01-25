@@ -26,6 +26,7 @@ import scooper.data.App
 import scooper.ui.components.Tooltip
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.viewmodels.AppsFilter
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
 
@@ -36,6 +37,7 @@ private val logger = LoggerFactory.getLogger("ui.App")
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
     val state by appsViewModel.container.stateFlow.collectAsState()
     val apps = state.apps
+    val filter = state.filter
     val processingApp = state.processingApp
     val waitingApps = state.waitingApps
     LaunchedEffect(scope) {
@@ -48,6 +50,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
         if (apps.isNotEmpty()) {
             AppList(
                 apps,
+                filter,
                 processingApp = processingApp,
                 waitingApps = waitingApps,
                 onInstall = appsViewModel::queuedInstall,
@@ -63,25 +66,9 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
 }
 
 @Composable
-fun NoResults() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            painterResource("no-results.svg"),
-            contentDescription = "No Results",
-            modifier = Modifier.size(60.dp), tint = colors.primary
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("No Results", style = typography.h6, color = colors.primary)
-    }
-}
-
-@Composable
 fun AppList(
     apps: List<App>,
+    filter: AppsFilter,
     processingApp: String? = null,
     waitingApps: Set<String> = setOf(),
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
@@ -95,6 +82,7 @@ fun AppList(
     ) {
 
         val state = rememberLazyListState()
+        LaunchedEffect(filter) { state.scrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
             itemsIndexed(items = apps) { idx, app ->
                 AppCard(
@@ -111,14 +99,10 @@ fun AppList(
             }
         }
         VerticalScrollbar(
-            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
-                .background(color = colors.background),
-            adapter = rememberScrollbarAdapter(
-                scrollState = state // TextBox height + Spacer height
-            )
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().background(color = colors.background),
+            adapter = rememberScrollbarAdapter(scrollState = state)
         )
     }
-
 }
 
 @Composable
@@ -351,5 +335,23 @@ fun MenuText(text: String) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+
+@Composable
+fun NoResults() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            painterResource("no-results.svg"),
+            contentDescription = "No Results",
+            modifier = Modifier.size(60.dp), tint = colors.primary
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("No Results", style = typography.h6, color = colors.primary)
     }
 }

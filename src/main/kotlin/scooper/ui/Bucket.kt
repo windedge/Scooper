@@ -50,6 +50,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
     Surface(elevation = 1.dp, color = colors.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             val scrollState = rememberScrollState(0)
+            LaunchedEffect(Unit) { scrollState.scrollTo(0) }
             Column(Modifier.padding(start = 2.dp, end = 14.dp).verticalScroll(scrollState)) {
                 val state by appsViewModel.container.stateFlow.collectAsState()
                 val buckets = state.buckets
