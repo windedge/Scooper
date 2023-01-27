@@ -254,9 +254,7 @@ fun ActionButton(
                     onClick = { expand = false; onDownload(app) },
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)
                 ) {
-                    Tooltip("Download Newest App") {
-                        MenuText("Download Newest")
-                    }
+                    MenuText("Download Latest")
                 }
             }
         }
