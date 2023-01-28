@@ -198,7 +198,7 @@ class AppsViewModel : ContainerHost<AppsState, AppsSideEffect> {
             }
 
             postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} successfully!"))
-            AppsRepository.updateApp(app.copy(status = "uninstall"))
+            AppsRepository.updateApp(app.copy(status = "uninstall", global = false))
             applyFilters()
         }
     }
