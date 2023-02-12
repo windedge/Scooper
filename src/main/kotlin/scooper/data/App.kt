@@ -29,8 +29,3 @@ data class Bucket(
     val name: String,
     val url: String? = null
 )
-
-data class Setting(
-    val proxy: String = "",
-    val ariaEnable: Boolean = false
-)

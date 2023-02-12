@@ -9,17 +9,19 @@ plugins {
 }
 
 group = "Scooper"
-version = "0.8.1"
+version = "0.8.5"
 
 repositories {
-    jcenter()
     mavenCentral()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+    maven("https://jitpack.io")
     google()
 }
 
 dependencies {
     implementation(compose.desktop.currentOs)
+    implementation(compose.uiTooling)
+    implementation(compose.preview)
     implementation(kotlin("stdlib-jdk8"))
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
@@ -69,6 +71,7 @@ compileKotlin.kotlinOptions {
     jvmTarget = "11"
     freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
 }
+
 val compileTestKotlin: KotlinCompile by tasks
 compileTestKotlin.kotlinOptions {
     jvmTarget = "11"

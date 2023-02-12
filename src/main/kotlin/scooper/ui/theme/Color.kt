@@ -35,5 +35,5 @@ object LightColors {
     // val backgroupColor = Color(0xFFF4F7FD)
     val backgroundTextColor = Color.LightGray
 
-    val errorColor = Color(0xFFFFCCBC)
+    val errorColor = Color(0xFFFFA99A)
 }

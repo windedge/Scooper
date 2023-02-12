@@ -3,6 +3,7 @@ package scooper.util.form_builder
 //source: https://github.com/jkuatdsc/form-builder
 
 import androidx.compose.runtime.*
+import java.net.ProxySelector
 
 /**
  * This class represents the state of a single form field.
@@ -57,6 +58,7 @@ open class TextFieldState(
                 is Validators.Email -> validateEmail(it.message)
                 is Validators.Phone -> validatePhone(it.message)
                 is Validators.WebUrl -> validateWebUrl(it.message)
+                is Validators.ProxyAddress -> validateProxyAddress(it.message)
                 is Validators.CardNumber -> validateCardNumber(it.message)
                 is Validators.Required -> validateRequired(it.message)
                 is Validators.Min -> validateMinChars(it.limit, it.message)
@@ -64,6 +66,7 @@ open class TextFieldState(
                 is Validators.Custom -> validateCustom(it.function, it.message)
                 is Validators.MinValue -> validateMinValue(it.limit, it.message)
                 is Validators.MaxValue -> validateMaxValue(it.limit, it.message)
+                else -> true
             }
         }
         return validations.all { it }
@@ -117,6 +120,15 @@ open class TextFieldState(
         val webUrlRegex =
             "(https?://)?(www\\.)?[-a-zA-Z0-9@:%._+~#=]{2,256}\\.[a-z]{2,4}\\b([-a-zA-Z0-9@:%_+~#?&/=]*)"
         val valid = webUrlRegex.toRegex().matches(value)
+        if (!valid) showError(message)
+        return valid
+    }
+
+    internal fun validateProxyAddress(message: String): Boolean {
+        ProxySelector.getDefault()
+        val proxyAddrRegex =
+            "^(?:(\\w+):(\\w*)@)?(([a-zA-Z][a-zA-Z0-9-_]{0,61}[a-zA-Z0-9](\\.[a-zA-Z]{1,6})?)|(\\d{1,3}(?:\\.\\d{1,3}){3})):\\d{1,5}$"
+        val valid = proxyAddrRegex.toRegex().matches(value)
         if (!valid) showError(message)
         return valid
     }

@@ -2,12 +2,15 @@ package scooper.util
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.descriptors.elementNames
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.data.Bucket
+import scooper.data.ScoopConfig
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
@@ -231,6 +234,39 @@ object Scoop {
 
     private fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
         execute(args, consumer = { _logStream.emit(it); logger.info(it) }, onFinish = onFinish)
+    }
+
+    val configFile: File
+        get() {
+            return File(System.getenv("USERPROFILE")).resolve(".config/scoop/config.json")
+        }
+
+    fun readScoopConfig(file: File = configFile): ScoopConfig {
+        val format = Json {
+            isLenient = true
+            ignoreUnknownKeys = true
+        }
+        val jsonText = file.readText()
+        return format.decodeFromString(jsonText)
+    }
+
+    @OptIn(ExperimentalSerializationApi::class)
+    fun writeScoopConfig(config: ScoopConfig, file: File = configFile) {
+        val format = Json {
+            // encodeDefaults = true
+            isLenient = true
+            ignoreUnknownKeys = true
+            prettyPrint = true
+        }
+        val json = format.encodeToJsonElement(config).jsonObject
+        val jsonFromConfig = Json.parseToJsonElement(file.readText()).jsonObject
+
+        val keysToRemove = ScoopConfig.serializer().descriptor.elementNames.toSet() - json.jsonObject.keys
+        val jsonToWrite = buildJsonObject {
+            jsonFromConfig.filter { it.key !in keysToRemove }.forEach { put(it.key, it.value) }
+            json.forEach { put(it.key, it.value) }
+        }
+        file.writeText(format.encodeToString(jsonToWrite))
     }
 }
 

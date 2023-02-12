@@ -2,9 +2,12 @@ package scooper.util.form_builder
 
 //source: https://github.com/jkuatdsc/form-builder
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 
 /**
  *
@@ -29,7 +32,6 @@ abstract class BaseState<T>(
      * This is the state of the field. It can be anything specified by the extending class. For instance, for a [TextFieldState] it can be a [String] and for [SelectState] it can be a [List] of [String]s.
      */
     abstract var value: T
-        internal set
 
     /**
      * This is the error message that is displayed when the field is invalid. You can access this property in order to display the error in the UI.

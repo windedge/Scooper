@@ -81,7 +81,10 @@ fun SearchBar(show: Boolean = true) {
         var bucket by remember { mutableStateOf("") }
 
         Row(
-            modifier = Modifier.height(30.dp).cursorHand().clickable { expand = !expand },
+            modifier = Modifier.height(30.dp)
+                .background(color = Color.Unspecified, shape = MaterialTheme.shapes.small)
+                .cursorHand()
+                .clickable() { expand = !expand },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DropdownMenu(
