@@ -1,6 +1,9 @@
 package scooper.util.form_builder
 
+
 //source: https://github.com/jkuatdsc/form-builder
+
+
 
 /**
  *ChoiceState is a class that holds the chosen value from a selection of choices.
@@ -24,6 +27,7 @@ class ChoiceState(
     initial: String = "",
     validators: List<Validators>,
     transform: Transform<String>? = null,
+    val choices: Map<String, String> = emptyMap(),
 ) : TextFieldState(initial = initial, name = name, validators = validators, transform = transform) {
 
     /**
@@ -36,10 +40,21 @@ class ChoiceState(
         val validations = validators.map {
             when (it) {
                 is Validators.Required -> validateRequired(it.message)
+                is Validators.ValidChoice -> validateChoice(it.message)
                 is Validators.Custom -> validateCustom(it.function, it.message)
                 else -> throw Exception("${it::class.simpleName} validator cannot be applied to ChoiceState. Did you mean Validators.Custom?")
             }
         }
         return validations.all { it }
     }
+
+    internal fun validateChoice(message: String): Boolean {
+        val valid = this.choices.containsKey(value)
+        if (!valid) showError(message)
+        return valid
+    }
+
 }
+
+
+

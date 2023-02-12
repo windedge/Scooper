@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.twotone.*
 import androidx.compose.runtime.*
@@ -14,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import org.koin.java.KoinJavaComponent.get
@@ -24,8 +24,6 @@ import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
-import scooper.util.noRippleClickable
-import scooper.util.onHover
 import scooper.viewmodels.AppsViewModel
 
 @Suppress("UNCHECKED_CAST")
@@ -70,20 +68,48 @@ fun MoreActionsButton() {
     IconButton(onClick = { open = true }, Modifier.cursorLink(), rippleRadius = 20.dp) {
         Icon(painterResource("more.svg"), "More Actions", modifier = Modifier.height(30.dp), tint = colors.primary)
 
-        // val menuTextStyle = LocalTextStyle.current.copy(fontSize = 10.sp)
-        // CompositionLocalProvider(LocalTextStyle provides menuTextStyle) {
         DropdownMenu(open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 modifier = Modifier.height(30.dp).cursorHand(),
-                onClick = { navigator.push(AppRoute.Settings) }) {
+                onClick = { navigator.push(AppRoute.Settings.General) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Settings, "Settings", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
                     Text("Settings")
                 }
             }
+
+            DropdownMenuItem(
+                modifier = Modifier.height(30.dp).cursorHand(),
+                onClick = { navigator.push(AppRoute.Settings.Cleanup) }) {
+                Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource("cleaning_services_black_24dp.svg"), "Cleanup", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("Cleanup")
+                }
+            }
+
+            DropdownMenuItem(
+                modifier = Modifier.height(30.dp).cursorHand(),
+                onClick = { navigator.push(AppRoute.Output) }) {
+                Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource("CommandLine.svg"), "View Logs", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("View Logs")
+                }
+            }
+
+            DropdownMenuItem(
+                modifier = Modifier.height(30.dp).cursorHand(),
+                onClick = { navigator.push(AppRoute.Settings.About) }) {
+                Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Info, "About", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text("About")
+                }
+            }
+
         }
-        // }
     }
 }
 
@@ -161,7 +187,7 @@ fun AppRoute.MenuItem(
     Box(
         modifier = modifier
             .then(default)
-            .background(color = if (highlight) colors.primaryVariant else Color.Unspecified)
+            .background(color = if (highlight) colors.primary else Color.Unspecified)
             .cursorHand()
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -170,7 +196,7 @@ fun AppRoute.MenuItem(
         var style = MaterialTheme.typography.subtitle1
         val scale = 1.0
         if (highlight) {
-            style = style.copy(fontSize = style.fontSize * scale)
+            style = style.copy(fontSize = style.fontSize * scale, color = colors.onPrimary)
         }
 
         Text(text, modifier = Modifier.padding(contentPadding), style = style)
@@ -243,7 +269,6 @@ fun SideBar(navigator: BackStack<AppRoute>) {
         }
     }
 }
-*/
 
 @Composable
 fun NavItem(
@@ -289,3 +314,4 @@ fun NavItem(
         Text(text, color = color)
     }
 }
+*/
