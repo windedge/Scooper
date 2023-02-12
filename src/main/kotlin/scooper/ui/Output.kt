@@ -79,7 +79,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
                 {},
                 modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState),
                 readOnly = true,
-                textStyle = MaterialTheme.typography.caption.copy(fontSize = 13.sp, color = Color.DarkGray),
+                textStyle = MaterialTheme.typography.caption.copy(fontSize = 13.sp, color = MaterialTheme.colors.onSecondary),
                 onTextLayout = { contentHeight = it.size.height }
             )
             Canvas(modifier = Modifier.fillMaxSize()) {

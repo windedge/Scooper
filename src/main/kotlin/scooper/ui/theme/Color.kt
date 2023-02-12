@@ -6,6 +6,15 @@ val purple200 = Color(0xFFBB86FC)
 val purple500 = Color(0xFF6200EE)
 val purple700 = Color(0xFF3700B3)
 val teal200 = Color(0xFF03DAC5)
+val indigo300 = Color(0xFF7986CB)
+val indigoA200 = Color(0xFF536DFE)
+val gray100 = Color(0xFFF5F5F5)
+val gray200 = Color(0xFFEEEEEE)
+val gray300 = Color(0xFFE0E0E0)
+val gray400 = Color(0xFFBDBDBD)
+val gray600 = Color(0xFF757575)
+val gray800 = Color(0xFF424242)
+val gray900 = Color(0xFF212121)
 
 object LightColors {
     //    val primaryColor = Color(0xFF01579B)
@@ -23,7 +32,8 @@ object LightColors {
     val primaryTextColor = Color.White
 
     // val secondaryTextColor = Color.White
-    val secondaryTextColor = Color(0xff9E9E9E)
+    // val secondaryTextColor = Color(0xFF9E9E9E)
+    val secondaryTextColor = gray600
 
     //    val surfaceColor = Color(0xFFF9FCFF)
     val surfaceColor = Color.White

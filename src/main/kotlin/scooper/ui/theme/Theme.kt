@@ -4,16 +4,19 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import org.jetbrains.skiko.SystemTheme
 import org.jetbrains.skiko.currentSystemTheme
 
-private val DarkColorPalette = darkColors(
-    primary = purple200,
-    primaryVariant = purple700,
-    secondary = teal200
+private val darkColorPalette = darkColors(
+    primary = indigoA200,
+    primaryVariant = indigo300,
+    secondary = teal200,
+    onSecondary = gray400,
+    background = gray800,
 )
 
-private val LightColorPalette = lightColors(
+private val lightColorPalette = lightColors(
     primary = LightColors.primaryColor,
     primaryVariant = LightColors.primaryLightColor,
     onPrimary = LightColors.primaryTextColor,
@@ -38,9 +41,9 @@ onBackground = Color.Black,
 @Composable
 fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, content: @Composable() () -> Unit) {
     val colors = if (currentTheme == SystemTheme.DARK) {
-        DarkColorPalette
+        darkColorPalette
     } else {
-        LightColorPalette
+        lightColorPalette
     }
 
     MaterialTheme(
