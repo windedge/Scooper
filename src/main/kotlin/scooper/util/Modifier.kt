@@ -1,7 +1,10 @@
+@file:Suppress("unused")
+
 package scooper.util
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -10,8 +13,40 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+
+inline fun Modifier.ifTrue(predicate: Boolean, builder: () -> Modifier) =
+    then(if (predicate) builder() else Modifier)
+
+fun Modifier.paddingIfHeight(padding: PaddingValues): Modifier = composed {
+    val layoutDirection = LocalLayoutDirection.current
+
+    layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        var width = placeable.width
+        var height = placeable.height
+        var posX = 0
+        var posY = 0
+
+        if (placeable.height > 0) {
+            val startPadding = padding.calculateLeftPadding(layoutDirection).roundToPx()
+            val endPadding = padding.calculateRightPadding(layoutDirection).roundToPx()
+            val topPadding = padding.calculateTopPadding().roundToPx()
+            val bottomPadding = padding.calculateBottomPadding().roundToPx()
+
+            width += (startPadding + endPadding)
+            height += (topPadding + bottomPadding)
+            posX += startPadding
+            posY += topPadding
+        }
+        layout(width, height) {
+            placeable.placeRelative(posX, posY)
+        }
+    }
+}
 
 fun Modifier.bottomBorder(strokeWidth: Dp, color: Color) = composed {
     val density = LocalDensity.current

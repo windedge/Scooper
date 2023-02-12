@@ -6,7 +6,9 @@ private const val EMAIL_MESSAGE = "Invalid email address"
 private const val REQUIRED_MESSAGE = "This field is required"
 private const val PHONE_MESSAGE = "Invalid phone number"
 private const val WEB_URL_MESSAGE = "Invalid web url"
+private const val PROXY_ADDRESS_MESSAGE = "Invalid proxy address"
 private const val CARD_NUMBER_MESSAGE = "Invalid card number"
+private const val CHOICE_MESSAGE = "Invalid choice option"
 
 /**
  *
@@ -51,6 +53,11 @@ sealed interface Validators {
     class WebUrl(var message: String = WEB_URL_MESSAGE) : Validators
 
     /**
+     * Proxy Address validator, eg: http(s)://host:port
+     */
+    class ProxyAddress(var message: String = PROXY_ADDRESS_MESSAGE): Validators
+
+    /**
      * This is a card number validator. It will return true if the string value is a valid card number.
      * @param message the error message to display if the value is not a valid card number. By default we use the [CARD_NUMBER_MESSAGE] constant.
      */
@@ -75,6 +82,9 @@ sealed interface Validators {
      * @param message the error message to display if the value is empty. By default we use the [REQUIRED_MESSAGE] constant.
      */
     class Required(var message: String = REQUIRED_MESSAGE) : Validators
+
+
+    class ValidChoice(var message: String = CHOICE_MESSAGE) : Validators
 
     /**
      * This is validator gives you the option to provide your own implementation of the validator. You can pass in a custom function to validate the field value.

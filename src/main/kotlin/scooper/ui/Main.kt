@@ -12,16 +12,19 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
+import scooper.data.toSystemTheme
 import scooper.di.viewModelsModule
 import scooper.repository.initDb
 import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.ScooperTheme
 import scooper.util.navigation.Router
-import scooper.viewmodels.AppsSideEffect
+import scooper.viewmodels.SideEffect
 import scooper.viewmodels.AppsViewModel
+import scooper.viewmodels.SettingsViewModel
 import java.awt.Dimension
 
 @Suppress("unused")
@@ -31,13 +34,18 @@ sealed class AppRoute {
     data class Apps(val scope: String) : AppRoute()
     object Splash : AppRoute()
     object Buckets : AppRoute()
-    object Settings : AppRoute()
+    sealed class Settings(val menuText: String) : AppRoute() {
+        object General : Settings("General")
+        object UI : Settings("UI")
+        object Cleanup : Settings("Cleanup")
+        object About : Settings("About")
+    }
+
     object Output : AppRoute()
 }
 
 // val LocalWindow = compositionLocalOf<ComposeWindow> { error("Undefined window") }
 
-@OptIn(ExperimentalAnimationApi::class)
 fun main() = application {
     initDb()
     val koinApp = remember { startKoin { modules(viewModelsModule) } }
@@ -57,38 +65,62 @@ fun main() = application {
         with(LocalDensity.current) {
             window.minimumSize = Dimension(800.dp.roundToPx(), 500.dp.roundToPx())
         }
-        val scaffoldState = rememberScaffoldState()
         val appsViewModel = koinApp.koin.get<AppsViewModel>()
+        val settingsViewModel = koinApp.koin.get<SettingsViewModel>()
+
+        val settings by settingsViewModel.container.stateFlow.collectAsState()
+        val uiConfig = settings.uiConfig
+        val theme = uiConfig.theme.toSystemTheme()
+        LaunchedEffect(Unit) {
+            if (uiConfig.refreshOnStartup) {
+                appsViewModel.queuedUpdateApps()
+            }
+        }
+
+        val scaffoldState = rememberScaffoldState()
         var statusText by remember { mutableStateOf("") }
 
-        ScooperTheme {
-            Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
+        ScooperTheme(currentTheme = theme) {
+            val initialRoute = AppRoute.Apps(scope = "")
+            // val initialRoute = AppRoute.Settings.General
+            Router<AppRoute>(start = initialRoute) { currentRoute ->
                 scope.launch {
-                    appsViewModel.container.sideEffectFlow.collect { sideEffect ->
+                    val sideEffectFlow =
+                        merge(appsViewModel.container.sideEffectFlow, settingsViewModel.container.sideEffectFlow)
+                    sideEffectFlow.collect { sideEffect ->
                         when (sideEffect) {
-                            AppsSideEffect.Empty -> {}
-                            is AppsSideEffect.Toast -> {
+                            SideEffect.Empty -> {}
+                            is SideEffect.Toast -> {
                                 scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
                             }
 
-                            is AppsSideEffect.Log -> {
+                            is SideEffect.Log -> {
                                 statusText = sideEffect.text
                             }
 
-                            is AppsSideEffect.Route -> TODO()
-                            AppsSideEffect.Loading -> TODO()
-                            AppsSideEffect.Done -> TODO()
+                            SideEffect.Loading -> {
+                                // this@Router.push(AppRoute.Settings.UI)
+                            }
+
+                            SideEffect.Done -> TODO()
+
+                            is SideEffect.Route -> TODO()
+
                             // else -> TODO()
                         }
                     }
                 }
 
-
                 val showTopBar = when (currentRoute.value) {
-                    AppRoute.Settings -> false
+                    is AppRoute.Settings -> false
                     AppRoute.Output -> false
                     else -> true
                 }
+                val enableAnimation = when (currentRoute.value) {
+                    !is AppRoute.Settings -> true
+                    else -> this.snapshot.size > 1 && this.previous.value !is AppRoute.Settings
+                }
+
                 Scaffold(
                     scaffoldState = scaffoldState,
                     snackbarHost = { hostState -> SnackbarHost(hostState) },
@@ -96,13 +128,15 @@ fun main() = application {
                     bottomBar = { StatusBar(statusText) }
                 ) { paddingValues ->
                     Layout(modifier = Modifier.padding(paddingValues)) {
-                        EnterAnimation {
+                        EnterAnimation(enableAnimation) {
                             when (val route = currentRoute.value) {
+                                AppRoute.Splash -> TODO()
+
                                 is AppRoute.Apps -> AppScreen(route.scope)
                                 AppRoute.Buckets -> BucketsScreen()
-                                AppRoute.Settings -> SettingScreen()
                                 AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
-                                AppRoute.Splash -> TODO()
+
+                                is AppRoute.Settings -> SettingScreen()
                             }
                         }
                     }
@@ -113,22 +147,26 @@ fun main() = application {
 }
 
 @Composable
-fun EnterAnimation(content: @Composable AnimatedVisibilityScope.() -> Unit) {
-    AnimatedVisibility(
-        visibleState = remember { MutableTransitionState(false) }
-            .apply { targetState = true },
-        enter = fadeIn(
-            animationSpec = tween(
-                durationMillis = 300,
-                delayMillis = 0,
-                easing = FastOutSlowInEasing
-            )
-        ) + slideInVertically(
-            animationSpec = spring(),
-            initialOffsetY = { height -> height / 10 }
-        ),
-        exit = ExitTransition.None,
-    ) {
-        this.content()
+fun EnterAnimation(enable: Boolean = true, content: @Composable () -> Unit) {
+    if (enable) {
+        AnimatedVisibility(
+            visibleState = remember { MutableTransitionState(false) }
+                .apply { targetState = true },
+            enter = fadeIn(
+                animationSpec = tween(
+                    durationMillis = 300,
+                    delayMillis = 0,
+                    easing = FastOutSlowInEasing
+                )
+            ) + slideInVertically(
+                animationSpec = spring(),
+                initialOffsetY = { height -> height / 10 }
+            ),
+            exit = ExitTransition.None,
+        ) {
+            content()
+        }
+    } else {
+        content()
     }
 }
