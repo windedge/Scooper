@@ -130,13 +130,12 @@ fun SearchBar(show: Boolean = true) {
             )
         }
 
-        val query = state.filter.query
+        val query by appsViewModel.queryText.collectAsState()
         val inputFocusRequester = remember { FocusRequester() }
         BasicTextField(
             query,
-            onValueChange = { appsViewModel.applyFilters(it) },
+            onValueChange = { appsViewModel.onQueryChange(it) },
             modifier = Modifier.padding(start = 5.dp).defaultMinSize(120.dp).fillMaxWidth(0.4f)
-                // .cursorInput()
                 .focusRequester(inputFocusRequester)
                 .onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
@@ -151,7 +150,7 @@ fun SearchBar(show: Boolean = true) {
         if (query.isNotEmpty()) {
             IconButton(
                 onClick = {
-                    appsViewModel.applyFilters(query = "")
+                    appsViewModel.onQueryChange("")
                     inputFocusRequester.requestFocus()
                 },
                 modifier = Modifier.cursorHand().padding(horizontal = 2.5.dp),
@@ -164,7 +163,9 @@ fun SearchBar(show: Boolean = true) {
         }
 
         IconButton(
-            onClick = { appsViewModel.applyFilters(query, bucket = bucket) },
+            onClick = {
+                appsViewModel.applyFilters(query, bucket = bucket)
+            },
             modifier = Modifier.cursorHand().padding(horizontal = 5.dp),
             interactionSource = interactionSource
         ) {
