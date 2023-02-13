@@ -2,6 +2,7 @@ package scooper.viewmodels
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.*
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.annotation.OrbitExperimental
@@ -58,17 +59,29 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
     private val logger by logger()
 
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
-    private val channel = Channel<Operation>(1)
-
     override val container: Container<AppsState, SideEffect> = coroutineScope.container(AppsState()) {
         launchOperationQueue()
         applyFilters()
         getBuckets()
         subscribeLogging()
+        subscribeQuery()
+    }
 
-        intent {
-            postSideEffect(SideEffect.Loading)
+    private val channel = Channel<Operation>(1)
+    private val _queryText = MutableStateFlow<String>("")
+    val queryText = _queryText.asStateFlow()
+
+    @OptIn(FlowPreview::class)
+    fun subscribeQuery() {
+        coroutineScope.launch {
+            _queryText.debounce(500L).collect {
+                this@AppsViewModel.applyFilters(query = it)
+            }
         }
+    }
+
+    fun onQueryChange(text: String) {
+        _queryText.value = text
     }
 
     fun launchOperationQueue() {
@@ -104,7 +117,7 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
 
     fun applyFilters(
         query: String? = null, bucket: String? = null, scope: String? = null, page: Int? = null
-    ) = blockingIntent {
+    ) = intent {
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectBucket
         val currentScope = scope ?: state.filter.scope
@@ -122,10 +135,6 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         }
     }
 
-    fun onQueryChange(text: String) = blockingIntent {
-        reduce { state.copy(filter = state.filter.copy(query = text)) }
-    }
-
     fun getBuckets() = intent {
         AppsRepository.loadBuckets()
         val buckets = AppsRepository.getBuckets()
@@ -138,6 +147,7 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
     }
 
     fun resetFilter() = intent {
+        _queryText.value = ""
         reduce { state.copy(filter = AppsFilter()) }
     }
 
