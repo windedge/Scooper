@@ -74,7 +74,7 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
     @OptIn(FlowPreview::class)
     fun subscribeQuery() {
         coroutineScope.launch {
-            _queryText.debounce(500L).collect {
+            _queryText.debounce(400L).collect {
                 this@AppsViewModel.applyFilters(query = it)
             }
         }
