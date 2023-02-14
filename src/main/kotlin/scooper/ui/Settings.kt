@@ -11,12 +11,15 @@ import androidx.compose.material.icons.twotone.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
 import org.koin.java.KoinJavaComponent.get
 import scooper.data.Theme
 import scooper.ui.components.ExposedDropdownMenu
 import scooper.ui.components.TextField
+import scooper.ui.components.Tooltip
 import scooper.util.*
 import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
@@ -42,9 +45,8 @@ fun SettingScreen() {
             when (currentRoute) {
                 AppRoute.Settings.General -> GeneralSettings()
                 AppRoute.Settings.UI -> UISettings()
-                // AppRoute.Settings.Cleanup -> TODO()
-                // AppRoute.Settings.About -> TODO()
-                else -> Text(currentRoute.menuText)
+                AppRoute.Settings.Cleanup -> CleanupBox()
+                AppRoute.Settings.About -> AboutSection()
             }
         }
     }
@@ -196,6 +198,54 @@ fun UISettings(settingsViewModel: SettingsViewModel = get(SettingsViewModel::cla
 }
 
 @Composable
+fun CleanupBox() {
+
+}
+
+@Composable
+fun AboutSection() {
+    Column {
+        SettingContainer {
+            Column {
+                PrefRow(title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painterResource("logo.svg"),
+                            contentDescription = "logo",
+                            modifier = Modifier.size(30.dp),
+                            tint = colors.primary
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            BuildConfig.APP_NAME,
+                            modifier = Modifier,
+                            style = MaterialTheme.typography.h6
+                        )
+                    }
+                })
+                Divider()
+                PrefRow(title = {
+                    Text("Version: %s".format(BuildConfig.APP_VERSION))
+                }) {
+                    val url = "https://github.com/windedge/Scooper"
+                    IconButton(
+                        onClick = { java.awt.Desktop.getDesktop().browse(java.net.URI.create(url)) },
+                        modifier = Modifier.cursorHand()
+                    ) {
+                        Tooltip(url) {
+                            Icon(painterResource("github-fill.svg"), "github")
+                        }
+
+                    }
+                }
+
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+@Composable
 fun PrefTextField(
     value: String,
     onValueChange: (String) -> Unit = {},
@@ -232,7 +282,7 @@ fun PrefRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     nestedContent: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit,
+    content: (@Composable () -> Unit)? = null,
 ) {
     PrefRow(
         title = { Text(title) },
@@ -250,7 +300,7 @@ fun PrefRow(
     modifier: Modifier = Modifier,
     subtitle: @Composable (() -> Unit)? = null,
     nestedContent: @Composable (() -> Unit)? = null,
-    content: @Composable () -> Unit,
+    content: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier = modifier.then(Modifier.fillMaxWidth().padding(10.dp))) {
         Row(
@@ -268,7 +318,7 @@ fun PrefRow(
                 }
             }
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                content()
+                content?.invoke()
             }
         }
         if (nestedContent != null) {
@@ -304,8 +354,10 @@ fun SettingContainer(
                 content()
             }
             Spacer(modifier = Modifier.height(10.dp))
-            Button(onClick = { onApply?.invoke() }, modifier = Modifier.cursorHand(), enabled = applyEnabled) {
-                Text("Apply")
+            if (onApply != null) {
+                Button(onClick = { onApply.invoke() }, modifier = Modifier.cursorHand(), enabled = applyEnabled) {
+                    Text("Apply")
+                }
             }
         }
 

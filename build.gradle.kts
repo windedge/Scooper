@@ -5,11 +5,12 @@ plugins {
     kotlin("jvm") version "1.7.20"
     kotlin("plugin.serialization") version "1.7.20"
 
-    id("org.jetbrains.compose") version "1.2.2"
+    id("org.jetbrains.compose") version "1.3.0"
+    id("com.github.gmazzo.buildconfig") version "3.1.0"
 }
 
 group = "Scooper"
-version = "0.8.6"
+version = "0.8.7"
 
 repositories {
     mavenCentral()
@@ -87,4 +88,13 @@ java {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+fun String.quoted() = "\"$this\""
+buildConfig {
+    packageName("scooper.util")
+    useKotlinOutput()
+    // useKotlinOutput { topLevelConstants = true }
+    buildConfigField("String", "APP_NAME", project.name.quoted())
+    buildConfigField("String", "APP_VERSION", provider { "${project.version}".quoted() })
 }
