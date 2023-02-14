@@ -1,11 +1,11 @@
 package scooper.repository
 
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.koin.core.time.measureDuration
 import scooper.util.Scoop
+import scooper.util.execute
 import java.io.File
-import kotlin.system.measureTimeMillis
-import kotlin.time.measureTime
 
 
 internal class ScoopTest {
@@ -38,4 +38,20 @@ internal class ScoopTest {
         }
         println("getRepoUrl, duration = ${duration}")
     }
+
+    @Test
+    fun encoding() {
+        println("System.getProperty(\"file.encoding\") = ${System.getProperty("file.encoding")}")
+        val charset = charset(System.getProperty("file.encoding"))
+        println("charset = ${charset}")
+
+        runBlocking {
+            execute("scoop", "update", "adb", asShell = true, charset = charset, consumer = {
+                println(it)
+            })
+        }
+
+    }
+
+
 }

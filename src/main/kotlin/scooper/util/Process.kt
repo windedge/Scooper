@@ -5,26 +5,29 @@ import com.github.pgreze.process.Redirect
 import com.github.pgreze.process.process
 import kotlinx.coroutines.*
 import org.apache.commons.text.StringEscapeUtils
-import org.slf4j.LoggerFactory
 import java.io.File
+import java.nio.charset.Charset
 
+val defaultCharset by lazy { charset(System.getProperty("file.encoding")) }
 
 @Suppress("SameParameterValue")
 fun execute(
     vararg commandArgs: String,
     asShell: Boolean = true,
     workingDir: File? = null,
+    charset: Charset = defaultCharset,
     consumer: suspend (line: String) -> Unit = { },
     onFinish: suspend (exitValue: Int) -> Unit = {},
 ): ProcessResult {
     val args = commandArgs.toList()
-    return execute(args, asShell, workingDir, consumer = consumer, onFinish = onFinish)
+    return execute(args, asShell, workingDir, charset = charset, consumer = consumer, onFinish = onFinish)
 }
 
 fun execute(
     commandArgs: List<String>,
     asShell: Boolean = true,
     workingDir: File? = null,
+    charset: Charset = defaultCharset,
     consumer: suspend (line: String) -> Unit = { },
     onFinish: suspend (exitValue: Int) -> Unit,
 ): ProcessResult = runBlocking {
@@ -41,6 +44,7 @@ fun execute(
         stderr = Redirect.CAPTURE,
         directory = workingDir,
         consumer = consumer,
+        charset = charset
     )
     onFinish(result.resultCode)
     return@runBlocking result
