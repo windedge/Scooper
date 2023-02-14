@@ -78,7 +78,7 @@ object Scoop {
 
     fun getRepoUrl(bucketDir: File): String? {
         val repoInfo = bucketDir.resolve(".git/config").readText()
-        val regex = """\[remote "origin"]\s*\n(\s*\n*)+url\s*=\s*(.+)""".toRegex()
+        val regex = """\[remote\s+"origin"]\s*\n(\s*\n*)+url\s*=\s*(.+)""".toRegex()
         return regex.find(repoInfo)?.groupValues?.get(2)
     }
 
