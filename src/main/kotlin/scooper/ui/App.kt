@@ -24,8 +24,10 @@ import org.koin.java.KoinJavaComponent.get
 import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.ui.components.Tooltip
+import scooper.ui.components.TooltipPosition
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.onHover
 import scooper.viewmodels.AppsFilter
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
@@ -136,16 +138,16 @@ fun AppCard(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(app.name, style = typography.h6)
-                            if (app.homepage != null && app.homepage!!.isNotBlank()) {
-                                Icon(
-                                    painter = painterResource("external_link_icon.xml"),
-                                    // imageVector = loadXmlImageVector("external_link_icon.xml"),
-                                    app.homepage,
-                                    modifier = Modifier.cursorHand().clickable {
-                                        java.awt.Desktop.getDesktop()
-                                            .browse(java.net.URI.create(app.homepage!!))
-                                    }
-                                )
+                            if (app.homepage?.isNotEmpty() == true) {
+                                Tooltip(app.homepage, position = TooltipPosition.Top) {
+                                    Icon(
+                                        painter = painterResource("external_link_icon.xml"),
+                                        app.homepage,
+                                        modifier = Modifier.cursorHand().clickable {
+                                            java.awt.Desktop.getDesktop().browse(java.net.URI.create(app.homepage!!))
+                                        }
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
