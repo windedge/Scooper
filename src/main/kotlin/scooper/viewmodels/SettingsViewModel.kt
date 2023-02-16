@@ -14,7 +14,6 @@ import scooper.repository.ConfigRepository
 import scooper.util.Scoop
 import scooper.util.form_builder.*
 
-
 data class SettingsState(
     val uiConfig: UIConfig = UIConfig(),
 )

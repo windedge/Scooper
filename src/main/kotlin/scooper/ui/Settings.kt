@@ -6,25 +6,22 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
 import org.koin.java.KoinJavaComponent.get
 import scooper.data.Theme
-import scooper.ui.components.ExposedDropdownMenu
-import scooper.ui.components.TextField
-import scooper.ui.components.Tooltip
+import scooper.ui.components.*
 import scooper.util.*
 import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.SettingsViewModel
+import java.awt.Desktop
+import java.net.URI
 
 
 val navItems =
@@ -38,14 +35,16 @@ fun SettingScreen() {
     Surface(modifier = Modifier.fillMaxSize()) {
         Row {
             NavBar(
+                navItems,
                 currentRoute,
                 onBack = { navigator.popUntil { routes -> routes.all { it.value !is AppRoute.Settings } } },
-                onClick = { navigator.push(it) })
+                onClick = { navigator.push(it) },
+            )
             Spacer(modifier = Modifier.width(10.dp))
             when (currentRoute) {
                 AppRoute.Settings.General -> GeneralSettings()
                 AppRoute.Settings.UI -> UISettings()
-                AppRoute.Settings.Cleanup -> CleanupBox()
+                AppRoute.Settings.Cleanup -> CleanupContainer()
                 AppRoute.Settings.About -> AboutSection()
             }
         }
@@ -198,208 +197,38 @@ fun UISettings(settingsViewModel: SettingsViewModel = get(SettingsViewModel::cla
 }
 
 @Composable
-fun CleanupBox() {
-
-}
-
-@Composable
 fun AboutSection() {
-    Column {
-        SettingContainer {
-            Column {
-                PrefRow(title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            painterResource("logo.svg"),
-                            contentDescription = "logo",
-                            modifier = Modifier.size(30.dp),
-                            tint = colors.primary
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            BuildConfig.APP_NAME,
-                            modifier = Modifier,
-                            style = MaterialTheme.typography.h6
-                        )
-                    }
-                })
-                Divider()
-                PrefRow(title = {
-                    Text("Version: %s".format(BuildConfig.APP_VERSION))
-                }) {
-                    val url = "https://github.com/windedge/Scooper"
-                    IconButton(
-                        onClick = { java.awt.Desktop.getDesktop().browse(java.net.URI.create(url)) },
-                        modifier = Modifier.cursorHand()
-                    ) {
-                        Tooltip(url) {
-                            Icon(painterResource("github-fill.svg"), "github")
-                        }
-
-                    }
-                }
-
-            }
-        }
-        Spacer(modifier = Modifier.height(20.dp))
-    }
-}
-
-@Composable
-fun PrefTextField(
-    value: String,
-    onValueChange: (String) -> Unit = {},
-    label: String? = null,
-    placeholder: String = "",
-    modifier: Modifier = Modifier,
-    isError: Boolean = false,
-    errorMessage: String? = null,
-) {
-
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (label != null) {
-            Text(label)
-        }
-        TextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = { Text(placeholder) },
-            isError = isError,
-            modifier = modifier.then(Modifier.widthIn(min = 100.dp).fillMaxWidth(0.6f).height(30.dp)),
-            singleLine = true,
-            contentPadding = PaddingValues(5.dp),
-        )
-        if (isError && errorMessage != null) {
-            Text(errorMessage, color = colors.error)
-        }
-    }
-}
-
-
-@Composable
-fun PrefRow(
-    title: String,
-    modifier: Modifier = Modifier,
-    subtitle: String? = null,
-    nestedContent: @Composable (() -> Unit)? = null,
-    content: (@Composable () -> Unit)? = null,
-) {
-    PrefRow(
-        title = { Text(title) },
-        modifier = modifier,
-        subtitle = subtitle?.let { { Text(subtitle) } },
-        nestedContent = nestedContent,
-        content = content
-    )
-}
-
-
-@Composable
-fun PrefRow(
-    title: @Composable () -> Unit,
-    modifier: Modifier = Modifier,
-    subtitle: @Composable (() -> Unit)? = null,
-    nestedContent: @Composable (() -> Unit)? = null,
-    content: (@Composable () -> Unit)? = null,
-) {
-    Column(modifier = modifier.then(Modifier.fillMaxWidth().padding(10.dp))) {
-        Row(
-            modifier = Modifier,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.fillMaxWidth(0.6f)) {
-                ProvideTextStyle(MaterialTheme.typography.subtitle1) {
-                    title()
-                }
-
-                ProvideTextStyle(MaterialTheme.typography.subtitle2.copy(color = colors.onSecondary)) {
-                    subtitle?.invoke()
-                }
-            }
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                content?.invoke()
-            }
-        }
-        if (nestedContent != null) {
-            val padding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-            Box(modifier = Modifier.paddingIfHeight(padding)) {
-                ProvideTextStyle(MaterialTheme.typography.body1) {
-                    nestedContent()
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-fun SettingContainer(
-    modifier: Modifier = Modifier,
-    onApply: (() -> Unit)? = null,
-    applyEnabled: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        val scrollState = rememberScrollState()
-        Column(
-            modifier = modifier.widthIn(max = 850.dp).fillMaxWidth()
-                .heightIn(min = 300.dp)
-                .padding(start = 10.dp, top = 10.dp, end = 10.dp, bottom = 10.dp)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Surface(modifier = Modifier.padding(top = 10.dp), elevation = 4.dp, shape = RoundedCornerShape(6.dp)) {
-                content()
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            if (onApply != null) {
-                Button(onClick = { onApply.invoke() }, modifier = Modifier.cursorHand(), enabled = applyEnabled) {
-                    Text("Apply")
-                }
-            }
-        }
-
-        VerticalScrollbar(
-            rememberScrollbarAdapter(scrollState),
-            modifier = Modifier.fillMaxHeight().align(Alignment.CenterEnd)
-        )
-    }
-}
-
-@Composable
-fun NavBar(activeRoute: AppRoute.Settings, onBack: () -> Unit = {}, onClick: (AppRoute.Settings) -> Unit = {}) {
-    Surface(modifier = Modifier.fillMaxHeight().width(IntrinsicSize.Max).requiredWidthIn(min = 150.dp)) {
+    SettingContainer {
         Column {
-            IconButton(onClick = onBack, modifier = Modifier.padding(5.dp)) {
-                Icon(
-                    Icons.TwoTone.ArrowBack, "", Modifier.size(30.dp).cursorLink(), tint = colors.primary
-                )
+            PrefRow(title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painterResource("logo.svg"),
+                        contentDescription = "logo",
+                        modifier = Modifier.size(30.dp),
+                        tint = colors.primary
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        BuildConfig.APP_NAME,
+                        modifier = Modifier,
+                        style = MaterialTheme.typography.h6
+                    )
+                }
+            })
+            Divider()
+            PrefRow(title = {
+                Text("Version: %s".format(BuildConfig.APP_VERSION))
+            }) {
+                val url = "https://github.com/windedge/Scooper"
+                IconButton(
+                    onClick = { Desktop.getDesktop().browse(URI.create(url)) },
+                    modifier = Modifier.cursorHand()
+                ) {
+                    Tooltip(url) { Icon(painterResource("github-fill.svg"), "github") }
+                }
             }
 
-            Spacer(modifier = Modifier.height(15.dp).fillMaxWidth())
-            // Divider()
-
-            navItems.forEach { route ->
-                NavItem(route.menuText, selected = activeRoute == route, onClick = { onClick(route) })
-            }
         }
-    }
-}
-
-@Composable
-fun NavItem(menu: String, modifier: Modifier = Modifier, selected: Boolean, onClick: () -> Unit = {}) {
-    var default = Modifier.fillMaxWidth().height(50.dp).cursorHand().clickable(onClick = onClick)
-    if (selected) {
-        default = default.background(
-            color = colors.primaryVariant,
-            shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
-        )
-    }
-    Box(
-        modifier = modifier.then(default), contentAlignment = Alignment.CenterStart
-    ) {
-        Text(menu, modifier = Modifier.padding(start = 15.dp), style = MaterialTheme.typography.subtitle1)
     }
 }
