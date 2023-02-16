@@ -1,7 +1,6 @@
 package scooper.ui
 
 import androidx.compose.animation.*
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.*
@@ -19,30 +18,18 @@ import org.slf4j.LoggerFactory
 import scooper.data.toSystemTheme
 import scooper.di.viewModelsModule
 import scooper.repository.initDb
+import scooper.ui.components.EnterAnimation
 import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.ScooperTheme
 import scooper.util.navigation.Router
 import scooper.viewmodels.SideEffect
 import scooper.viewmodels.AppsViewModel
+import scooper.viewmodels.CleanupViewModel
 import scooper.viewmodels.SettingsViewModel
 import java.awt.Dimension
 
 @Suppress("unused")
 private val logger by lazy { LoggerFactory.getLogger("Main") }
-
-sealed class AppRoute {
-    data class Apps(val scope: String) : AppRoute()
-    object Splash : AppRoute()
-    object Buckets : AppRoute()
-    sealed class Settings(val menuText: String) : AppRoute() {
-        object General : Settings("General")
-        object UI : Settings("UI")
-        object Cleanup : Settings("Cleanup")
-        object About : Settings("About")
-    }
-
-    object Output : AppRoute()
-}
 
 // val LocalWindow = compositionLocalOf<ComposeWindow> { error("Undefined window") }
 
@@ -67,6 +54,7 @@ fun main() = application {
         }
         val appsViewModel = koinApp.koin.get<AppsViewModel>()
         val settingsViewModel = koinApp.koin.get<SettingsViewModel>()
+        val cleanupViewModel = koinApp.koin.get<CleanupViewModel>()
 
         val settings by settingsViewModel.container.stateFlow.collectAsState()
         val uiConfig = settings.uiConfig
@@ -81,31 +69,24 @@ fun main() = application {
         var statusText by remember { mutableStateOf("") }
 
         ScooperTheme(currentTheme = theme) {
-            val initialRoute = AppRoute.Apps(scope = "")
-            // val initialRoute = AppRoute.Settings.General
-            Router<AppRoute>(start = initialRoute) { currentRoute ->
+            Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
                 scope.launch {
-                    val sideEffectFlow =
-                        merge(appsViewModel.container.sideEffectFlow, settingsViewModel.container.sideEffectFlow)
+                    val sideEffectFlow = merge(
+                        appsViewModel.container.sideEffectFlow,
+                        settingsViewModel.container.sideEffectFlow,
+                        cleanupViewModel.container.sideEffectFlow,
+                    )
                     sideEffectFlow.collect { sideEffect ->
                         when (sideEffect) {
                             SideEffect.Empty -> {}
-                            is SideEffect.Toast -> {
-                                scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
-                            }
-
-                            is SideEffect.Log -> {
-                                statusText = sideEffect.text
-                            }
-
+                            is SideEffect.Toast -> scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
+                            is SideEffect.Log -> statusText = sideEffect.text
                             SideEffect.Loading -> {
                                 // this@Router.push(AppRoute.Settings.UI)
                             }
 
                             SideEffect.Done -> TODO()
-
                             is SideEffect.Route -> TODO()
-
                             // else -> TODO()
                         }
                     }
@@ -143,30 +124,5 @@ fun main() = application {
                 }
             }
         }
-    }
-}
-
-@Composable
-fun EnterAnimation(enable: Boolean = true, content: @Composable () -> Unit) {
-    if (enable) {
-        AnimatedVisibility(
-            visibleState = remember { MutableTransitionState(false) }
-                .apply { targetState = true },
-            enter = fadeIn(
-                animationSpec = tween(
-                    durationMillis = 300,
-                    delayMillis = 0,
-                    easing = FastOutSlowInEasing
-                )
-            ) + slideInVertically(
-                animationSpec = spring(),
-                initialOffsetY = { height -> height / 10 }
-            ),
-            exit = ExitTransition.None,
-        ) {
-            content()
-        }
-    } else {
-        content()
     }
 }

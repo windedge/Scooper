@@ -38,7 +38,8 @@ fun StatusBar(statusText: String) {
                     Text(
                         statusText,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
                     )
                 }
             }

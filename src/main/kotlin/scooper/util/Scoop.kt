@@ -24,13 +24,19 @@ object Scoop {
     private val _logStream = MutableSharedFlow<String>() // private mutable shared flow
     val logStream = _logStream.asSharedFlow()
 
+    val configFile: File
+        get() {
+            return File(System.getenv("USERPROFILE")).resolve(".config/scoop/config.json")
+        }
+
     val rootDir: File
         get() {
             val scoop = System.getenv("SCOOP")
             if (!scoop.isNullOrEmpty()) {
                 val root = File(scoop)
-                if (root.exists())
+                if (root.exists()) {
                     return root
+                }
             }
             return File(System.getenv("USERPROFILE")).resolve("scoop")
         }
@@ -40,8 +46,9 @@ object Scoop {
             val scoop = System.getenv("SCOOP_GLOBAL")
             if (!scoop.isNullOrEmpty()) {
                 val root = File(scoop)
-                if (root.exists())
+                if (root.exists()) {
                     return root
+                }
             }
             return File(System.getenv("ALLUSERSPROFILE")).resolve("scoop")
         }
@@ -155,6 +162,15 @@ object Scoop {
             return allApps
         }
 
+    val cacheDir: File
+        get() {
+            return rootDir.resolve("cache")
+        }
+
+    fun computeCacheSize(): Long {
+        return cacheDir.dirSize()
+    }
+
     private fun parseManifest(manifest: File): App? {
         // logger.info("parsing manifest: ${manifest.absolutePath}")
         val json = try {
@@ -226,20 +242,28 @@ object Scoop {
         executeAndLog(commandArgs, onFinish = onFinish)
     }
 
+    fun cleanup(vararg apps: String, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit) {
+        val commandArgs = if (global) {
+            mutableListOf("sudo", "scoop", "cleanup", "-g", *apps)
+        } else {
+            mutableListOf("scoop", "cleanup", *apps)
+        }
+
+        executeAndLog(commandArgs, onFinish = onFinish)
+    }
+
+    fun removeCache(vararg apps: String, onFinish: suspend (exitValue: Int) -> Unit) {
+        val targets = if (apps.isEmpty()) arrayOf("-a") else apps
+        val commandArgs = mutableListOf("scoop", "cache", "rm", *targets)
+        logger.info("remove cache, commandArgs = $commandArgs")
+        executeAndLog(commandArgs, onFinish = onFinish)
+    }
+
     fun stop() {
         logger.warn("stopping all processes...")
         killAllSubProcesses()
         logger.warn("stopping all processes...")
     }
-
-    private fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
-        execute(args, consumer = { _logStream.emit(it); logger.info(it) }, onFinish = onFinish)
-    }
-
-    val configFile: File
-        get() {
-            return File(System.getenv("USERPROFILE")).resolve(".config/scoop/config.json")
-        }
 
     fun readScoopConfig(file: File = configFile): ScoopConfig {
         val format = Json {
@@ -268,8 +292,8 @@ object Scoop {
         }
         file.writeText(format.encodeToString(jsonToWrite))
     }
-}
 
-fun JsonObject.getString(key: String): String {
-    return getOrDefault(key, "").toString().removeSurrounding("\"")
+    private fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
+        execute(args, consumer = { _logStream.emit(it); logger.info(it) }, onFinish = onFinish)
+    }
 }

@@ -139,7 +139,7 @@ fun AppCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(app.name, style = typography.h6)
                             if (app.homepage?.isNotEmpty() == true) {
-                                Tooltip(app.homepage, position = TooltipPosition.Top) {
+                                Tooltip(app.homepage!!, position = TooltipPosition.Top) {
                                     Icon(
                                         painter = painterResource("external_link_icon.xml"),
                                         app.homepage,
