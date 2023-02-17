@@ -11,6 +11,7 @@ import org.orbitmvi.orbit.syntax.simple.*
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
+import scooper.util.PAGE_SIZE
 import scooper.util.Scoop
 import scooper.util.logger
 
@@ -37,13 +38,15 @@ data class Operation(
 
 data class AppsFilter(
     val query: String = "",
-    val selectBucket: String = "",
+    val selectedBucket: String = "",
     val page: Int = 1,
+    val pageSize: Int = PAGE_SIZE,
     val scope: String = "all",
 )
 
 data class AppsState(
     val apps: List<App>? = null,
+    val totalCount: Long = 0L,
     val buckets: List<Bucket> = emptyList(),
     val filter: AppsFilter = AppsFilter(),
     val processingApp: String? = null,
@@ -119,18 +122,37 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         query: String? = null, bucket: String? = null, scope: String? = null, page: Int? = null
     ) = intent {
         val currentQuery = query ?: state.filter.query
-        val currentBucket = bucket ?: state.filter.selectBucket
+        val currentBucket = bucket ?: state.filter.selectedBucket
         val currentScope = scope ?: state.filter.scope
-        val currentPage = page ?: state.filter.page
-        val apps = AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = 1000)
+        val result =
+            AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = state.filter.pageSize)
+
         reduce {
             state.copy(
-                apps = apps, filter = state.filter.copy(
+                apps = result.value,
+                totalCount = result.totalCount,
+                filter = state.filter.copy(
                     query = currentQuery,
-                    selectBucket = currentBucket,
+                    selectedBucket = currentBucket,
                     scope = currentScope,
-                    page = currentPage
+                    page = 1
                 )
+            )
+        }
+    }
+
+    fun loadMore() = intent {
+        val filter = state.filter
+        val nextPage = filter.page + 1
+        val offset = (nextPage - 1) * filter.pageSize.toLong()
+        val pageSize = filter.pageSize
+        val result =
+            AppsRepository.getApps(filter.query, filter.selectedBucket, filter.scope, offset = offset, limit = pageSize)
+
+        reduce {
+            state.copy(
+                apps = state.apps?.plus(result.value) ?: result.value,
+                filter = state.filter.copy(page = nextPage)
             )
         }
     }

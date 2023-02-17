@@ -11,3 +11,5 @@ val KNOWN_BUCKETS = setOf(
     "java",
     "games",
 )
+
+const val PAGE_SIZE = 25

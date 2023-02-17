@@ -23,11 +23,11 @@ import androidx.compose.ui.unit.*
 import org.koin.java.KoinJavaComponent.get
 import org.slf4j.LoggerFactory
 import scooper.data.App
+import scooper.ui.components.OnBottomReached
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.util.cursorHand
 import scooper.util.cursorLink
-import scooper.util.onHover
 import scooper.viewmodels.AppsFilter
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
@@ -59,7 +59,8 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
                 onUpdate = appsViewModel::queuedUpdate,
                 onDownload = appsViewModel::queuedDownload,
                 onUninstall = appsViewModel::queuedUninstall,
-                onCancel = appsViewModel::cancel
+                onCancel = appsViewModel::cancel,
+                onLoadMore = appsViewModel::loadMore
             )
         } else {
             NoResults()
@@ -77,19 +78,20 @@ fun AppList(
     onUpdate: (app: App) -> Unit = {},
     onDownload: (app: App) -> Unit = {},
     onUninstall: (app: App) -> Unit = {},
-    onCancel: (app: App?) -> Unit = {}
+    onCancel: (app: App?) -> Unit = {},
+    onLoadMore: () -> Unit = {},
 ) {
     Box(
         modifier = Modifier.fillMaxSize().padding(2.dp)
     ) {
-
         val state = rememberLazyListState()
-        LaunchedEffect(filter) { state.scrollToItem(0) }
+        state.OnBottomReached(2, onLoadMore = onLoadMore)
+
+        LaunchedEffect(filter.query, filter.scope, filter.selectedBucket) { state.animateScrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
             itemsIndexed(items = apps) { idx, app ->
                 AppCard(
                     app,
-                    divider = idx > 0,
                     installing = app.name == processingApp,
                     waiting = waitingApps.contains(app.uniqueName),
                     onInstall = onInstall,
@@ -98,6 +100,9 @@ fun AppList(
                     onUninstall = onUninstall,
                     onCancel = onCancel
                 )
+            }
+            item {
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
         VerticalScrollbar(
@@ -110,7 +115,6 @@ fun AppList(
 @Composable
 fun AppCard(
     app: App,
-    divider: Boolean = false,
     installing: Boolean = false,
     waiting: Boolean = false,
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
@@ -121,9 +125,6 @@ fun AppCard(
 ) {
     Surface {
         Column {
-            if (divider) {
-                Divider(Modifier.height(1.dp).padding(start = 10.dp, end = 10.dp))
-            }
             Box(
                 Modifier.height(120.dp).padding(10.dp),
                 contentAlignment = Alignment.Center
@@ -197,6 +198,7 @@ fun AppCard(
 
                 Spacer(modifier = Modifier.height(1.dp))
             }
+            Divider(Modifier.height(1.dp).padding(start = 10.dp, end = 10.dp))
         }
     }
 }
