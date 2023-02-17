@@ -2,7 +2,6 @@ package scooper.data
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.descriptors.elementNames
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
@@ -13,9 +12,11 @@ import scooper.util.form_builder.ChoiceState
 import scooper.util.form_builder.FormState
 import scooper.util.form_builder.SwitchState
 import scooper.util.form_builder.TextFieldState
-import kotlin.reflect.KMutableProperty1
-import kotlin.reflect.full.declaredMemberProperties
-import kotlin.reflect.full.memberProperties
+import java.io.BufferedOutputStream
+import java.io.ByteArrayOutputStream
+import java.io.Console
+import java.io.OutputStream
+import java.io.PrintStream
 
 class ScoopConfigTest {
     private val format = Json {
@@ -61,8 +62,18 @@ class ScoopConfigTest {
 
     @Test
     fun testWriteConfig() {
-        val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
-        Scoop.writeScoopConfig(config, Scoop.configFile.parentFile.resolve("config.test.json"))
+        // val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
+        // Scoop.writeScoopConfig(config, Scoop.configFile.parentFile.resolve("config.test.json"))
+
+        val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
+        val output = ByteArrayOutputStream()
+        // val output = Byte
+        Scoop.writeScoopConfig(config, Scoop.configFile, output = output)
+
+        println("output = ${output}")
+        assertTrue{
+            !output.toString().contains("aria2")
+        }
     }
 
     @Test
@@ -128,32 +139,11 @@ class ScoopConfigTest {
         assertEquals(Theme.Light, uiconfig.theme)
     }
 
-    @OptIn(ExperimentalSerializationApi::class)
     @Test
     fun testRemoveKeys() {
-        val format = Json {
-            // encodeDefaults = true
-            isLenient = true
-            ignoreUnknownKeys = true
-            prettyPrint = true
-        }
-        val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
-        val json = format.encodeToJsonElement(config).jsonObject
-        val jsonFromFile = format.parseToJsonElement(jsonText).jsonObject
-        /*
-        @Suppress("SimplifiableCall")
-        val keys = ScoopConfig::class
-            .memberProperties
-            .filter { it is KMutableProperty1 }
-            .map { it.name }.toSet()
-        */
-        val keys = ScoopConfig.serializer().descriptor.elementNames.toSet()
-        println("keys = ${keys}")
-        val keysToRemove = keys - json.jsonObject.keys
-        val xxx = jsonFromFile.filter { it.key !in keysToRemove }
-        println("xxx = ${xxx}")
-        assertTrue(!xxx.containsKey("aria2-enabled"))
+        val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
+        val (result, _) = Scoop.mergeConfigToJson(config, jsonText)
+        assertTrue(!result.containsKey("aria2-enabled"))
     }
-
 
 }

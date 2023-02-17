@@ -12,6 +12,7 @@ import scooper.data.App
 import scooper.data.Bucket
 import scooper.data.ScoopConfig
 import java.io.File
+import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.LocalDateTime
@@ -274,8 +275,22 @@ object Scoop {
         return format.decodeFromString(jsonText)
     }
 
+    fun writeScoopConfig(
+        config: ScoopConfig,
+        file: File = configFile,
+        output: OutputStream = configFile.outputStream()
+    ) {
+        val (result, format) = mergeConfigToJson(config, file.readText())
+        output.use {
+            it.write(format.encodeToString(result).toByteArray())
+        }
+    }
+
     @OptIn(ExperimentalSerializationApi::class)
-    fun writeScoopConfig(config: ScoopConfig, file: File = configFile) {
+    internal fun mergeConfigToJson(
+        config: ScoopConfig,
+        originalJsonStr: String,
+    ): Pair<JsonObject, Json> {
         val format = Json {
             // encodeDefaults = true
             isLenient = true
@@ -283,14 +298,14 @@ object Scoop {
             prettyPrint = true
         }
         val json = format.encodeToJsonElement(config).jsonObject
-        val jsonFromConfig = Json.parseToJsonElement(file.readText()).jsonObject
+        val jsonFromConfig = Json.parseToJsonElement(originalJsonStr).jsonObject
 
         val keysToRemove = ScoopConfig.serializer().descriptor.elementNames.toSet() - json.jsonObject.keys
         val jsonToWrite = buildJsonObject {
             jsonFromConfig.filter { it.key !in keysToRemove }.forEach { put(it.key, it.value) }
             json.forEach { put(it.key, it.value) }
         }
-        file.writeText(format.encodeToString(jsonToWrite))
+        return jsonToWrite to format
     }
 
     private fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {

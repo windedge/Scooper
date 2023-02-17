@@ -55,7 +55,7 @@ class SettingsViewModel : ContainerHost<SettingsState, SideEffect> {
                     },
                 )
             ),
-            SwitchState("aria2Enabled"),
+            SwitchState("aria2Enabled", true),
         )
     )
 

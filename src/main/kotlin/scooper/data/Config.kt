@@ -11,7 +11,7 @@ data class ScoopConfig(
     var proxy: String = "",
 
     @SerialName("aria2-enabled")
-    var aria2Enabled: Boolean = false,
+    var aria2Enabled: Boolean = true,
 ) {
     @Suppress("unused")
     val proxyType: String
