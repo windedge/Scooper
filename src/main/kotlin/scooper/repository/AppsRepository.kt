@@ -13,9 +13,9 @@ import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
 import scooper.data.App
 import scooper.data.Bucket
+import scooper.util.PAGE_SIZE
 import scooper.util.Scoop
 import scooper.util.ScooperException
-import java.io.File
 
 
 object Apps : IntIdTable() {
@@ -72,6 +72,10 @@ class BucketEntity(id: EntityID<Int>) : IntEntity(id) {
     var url by Buckets.url
 }
 
+data class PaginatedResult<T>(
+    val value: List<T>,
+    val totalCount: Long
+)
 
 object AppsRepository {
     fun getBuckets(): List<Bucket> = transaction {
@@ -85,8 +89,8 @@ object AppsRepository {
         bucket: String = "",
         scope: String = "all",
         offset: Long = 0L,
-        limit: Int = 20
-    ): List<App> = transaction {
+        limit: Int = PAGE_SIZE,
+    ): PaginatedResult<App> = transaction {
         val conditions = Apps.leftJoin(Buckets).selectAll()
         if (query.isNotBlank()) {
             val words = query.trim().split(" ")
@@ -103,11 +107,14 @@ object AppsRepository {
             conditions.andWhere { Apps.status eq "installed" and (Apps.version neq Apps.latestVersion) }
         }
 
-        val result = AppEntity.wrapRows(conditions)
+        val wrapRows = AppEntity.wrapRows(conditions)
+        val totalCount = wrapRows.count()
+
+        val result = wrapRows
             .orderBy(Apps.updateAt to SortOrder.DESC)
             .limit(limit, offset)
 
-        result.map {
+        val apps = result.map {
             App(
                 name = it.name,
                 latestVersion = it.latestVersion,
@@ -126,6 +133,11 @@ object AppsRepository {
                 }
             }
         }
+
+        PaginatedResult<App>(
+            value = apps,
+            totalCount = totalCount,
+        )
     }
 
     fun loadAll() {
