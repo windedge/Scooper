@@ -2,7 +2,6 @@
   <profile version="1.0">
     <option name="myName" value="Project Default" />
     <inspection_tool class="CheckValidXmlInScriptTagBody" enabled="false" level="ERROR" enabled_by_default="false" />
-    <inspection_tool class="FunctionName" enabled="false" level="WEAK WARNING" enabled_by_default="false" />
     <inspection_tool class="HtmlFormInputWithoutLabel" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
     <inspection_tool class="JSJQueryEfficiency" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
     <inspection_tool class="JpaAttributeMemberSignatureInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
