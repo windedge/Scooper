@@ -61,22 +61,6 @@ class ScoopConfigTest {
     }
 
     @Test
-    fun testWriteConfig() {
-        // val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
-        // Scoop.writeScoopConfig(config, Scoop.configFile.parentFile.resolve("config.test.json"))
-
-        val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
-        val output = ByteArrayOutputStream()
-        // val output = Byte
-        Scoop.writeScoopConfig(config, Scoop.configFile, output = output)
-
-        println("output = ${output}")
-        assertTrue{
-            !output.toString().contains("aria2")
-        }
-    }
-
-    @Test
     fun testGetData() {
         // val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
         // val fields = config::class.declaredMemberProperties
@@ -116,7 +100,10 @@ class ScoopConfigTest {
         val formState = FormState(
             fields = listOf(
                 SwitchState("refreshOnStartup"),
-                ChoiceState("theme", validators = listOf(), choices = Theme.values().associate { it.name to it.name }),
+                ChoiceState(
+                    "theme",
+                    validators = listOf(),
+                    choices = Theme.values().associate { it.name to it.name }),
             )
         )
 
@@ -144,6 +131,22 @@ class ScoopConfigTest {
         val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
         val (result, _) = Scoop.mergeConfigToJson(config, jsonText)
         assertTrue(!result.containsKey("aria2-enabled"))
+        assertTrue(result.containsKey("last_update"))
+    }
+
+    @Test
+    fun testWriteConfig() {
+        // val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
+        // Scoop.writeScoopConfig(config, Scoop.configFile.parentFile.resolve("config.test.json"))
+
+        val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
+        val output = ByteArrayOutputStream()
+        Scoop.writeScoopConfig(config, Scoop.configFile, output)
+
+        val result = output.toString()
+        println("result = ${result}")
+        assertTrue { !result.contains("aria2") }
+        assertTrue(result.contains("last_update"))
     }
 
 }
