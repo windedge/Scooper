@@ -12,6 +12,7 @@ import scooper.data.App
 import scooper.data.Bucket
 import scooper.data.ScoopConfig
 import java.io.File
+import java.io.FileOutputStream
 import java.io.OutputStream
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
@@ -199,9 +200,9 @@ object Scoop {
     }
 
     fun install(app: App, global: Boolean = false, onFinish: suspend (exitValue: Int) -> Unit = {}) {
-        val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "install", "-g", String.format("%s/%s", app.bucket!!.name, app.name))
-        } else {
+        val commandArgs = if (global) mutableListOf(
+            "sudo", "scoop", "install", "-g", String.format("%s/%s", app.bucket!!.name, app.name)
+        ) else {
             mutableListOf("scoop", "install", String.format("%s/%s", app.bucket!!.name, app.name))
         }
         executeAndLog(commandArgs, onFinish = onFinish)
@@ -272,18 +273,21 @@ object Scoop {
             ignoreUnknownKeys = true
         }
         val jsonText = file.readText()
-        return format.decodeFromString(jsonText)
+        return format.decodeFromString(jsonText.ifBlank { "{}" })
     }
 
     fun writeScoopConfig(
         config: ScoopConfig,
         file: File = configFile,
-        output: OutputStream = configFile.outputStream()
+        outputStream: OutputStream? = null,
     ) {
         val (result, format) = mergeConfigToJson(config, file.readText())
+        val finalText = format.encodeToString(result)
+        val output = outputStream ?: FileOutputStream(file)
         output.use {
-            it.write(format.encodeToString(result).toByteArray())
+            it.write(finalText.toByteArray())
         }
+
     }
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -298,7 +302,7 @@ object Scoop {
             prettyPrint = true
         }
         val json = format.encodeToJsonElement(config).jsonObject
-        val jsonFromConfig = Json.parseToJsonElement(originalJsonStr).jsonObject
+        val jsonFromConfig = Json.parseToJsonElement(originalJsonStr.ifBlank { "{}" }).jsonObject
 
         val keysToRemove = ScoopConfig.serializer().descriptor.elementNames.toSet() - json.jsonObject.keys
         val jsonToWrite = buildJsonObject {
