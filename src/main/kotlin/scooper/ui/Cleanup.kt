@@ -40,7 +40,7 @@ fun CleanupContainer(cleanupViewModel: CleanupViewModel = get(CleanupViewModel::
 
     SettingContainer {
         Column {
-            PrefRow(title = "Cache", nestedContent = {
+            PrefRow(title = "Download Cache", nestedContent = {
                 CacheSection(state, onClean = {
                     cleanupViewModel.clearCache()
                 }, onScan = {
