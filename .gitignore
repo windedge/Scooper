@@ -199,3 +199,5 @@ fabric.properties
 /.idea/.name
 
 /wix311/
+
+.projectile
