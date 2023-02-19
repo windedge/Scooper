@@ -24,6 +24,13 @@ jobs:
         with:
           arguments: "packageMsi --stacktrace"
           
+      - name: Upload artifacts
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/compose/binaries/main/msi/*
+          
 #       - name: Grant execute permission for gradlew
 #         run: chmod +x gradlew
 #       - name: Create Windows Distribution
