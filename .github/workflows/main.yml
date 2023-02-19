@@ -1,0 +1,42 @@
+ 
+name: Build Msi
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  windows_build:
+    name: Windows Release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v3.10.0
+        with:
+          java-version: 17
+          distribution: temurin
+            
+      - name: Build Msi
+        uses: gradle/gradle-build-action@v2.4.0 
+        with:
+          arguments: "packageMsi --no-daemon --stacktrace"
+      - name: Upload artifacts
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/compose/binaries/main/msi/*          
+#       - uses: "marvinpinto/action-automatic-releases@latest"
+#         with:
+#           repo_token: "${{ secrets.GITHUB_TOKEN }}"
+#           prerelease: false
+#           files: |
+#             build/compose/binaries/main/msi/*.msi
+            
+            
+#       - name: Grant execute permission for gradlew
+#         run: chmod +x gradlew
+#       - name: Create Windows Distribution
+#         run: ./gradlew packageMsi --info
