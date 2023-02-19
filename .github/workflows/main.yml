@@ -21,7 +21,7 @@ jobs:
       - name: Build Msi
         uses: gradle/gradle-build-action@v2.4.0 
         with:
-          arguments: "packageMsi --stacktrace"
+          arguments: "packageMsi --no-daemon --stacktrace"
           
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
