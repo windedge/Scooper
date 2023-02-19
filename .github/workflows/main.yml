@@ -3,9 +3,8 @@ name: Build Msi
 
 on:
   push:
-    branches:    
-      - master
-    tags: [ '*' ]
+    tags:
+      - "v*"
 
 jobs:
   windows_build:
@@ -24,12 +23,14 @@ jobs:
         with:
           arguments: "packageMsi --stacktrace"
           
-      - name: Upload artifacts
-        uses: softprops/action-gh-release@v1
+      - uses: "marvinpinto/action-automatic-releases@latest"
         with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
           files: |
-            build/compose/binaries/main/msi/*
-          
+            build\compose\binaries\main\msi\*.msi
+            
+            
 #       - name: Grant execute permission for gradlew
 #         run: chmod +x gradlew
 #       - name: Create Windows Distribution
