@@ -1,0 +1,23 @@
+ 
+name: Build Msi
+
+on:
+  push:
+    branches:    
+      - main
+    tags: [ '*' ]
+
+jobs:
+  windows_build:
+    name: Windows Release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Create Windows Distribution
+        run: ./gradlew packageMsi --info
