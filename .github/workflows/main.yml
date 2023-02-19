@@ -28,7 +28,7 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
           files: |
-            build\compose\binaries\main\msi\*.msi
+            build/compose/binaries/main/msi/*.msi
             
             
 #       - name: Grant execute permission for gradlew
