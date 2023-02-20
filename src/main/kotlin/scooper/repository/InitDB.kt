@@ -8,7 +8,7 @@ import java.io.File
 
 
 fun initDb() {
-    val databasePath = File(System.getenv("USERPROFILE")).resolve("scooper.db")
+    val databasePath = File(System.getenv("USERPROFILE")).resolve(".scooper.db")
     Database.connect("jdbc:sqlite:$databasePath", "org.sqlite.JDBC", setupConnection = { connection ->
         connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
     })
