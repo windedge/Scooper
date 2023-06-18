@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
@@ -66,21 +65,25 @@ fun OutputScreen(onBack: () -> Unit = {}) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        BoxWithConstraints(modifier = Modifier.padding(horizontal = 2.dp)) {
+        Box(modifier = Modifier.padding(horizontal = 2.dp)) {
             val padding = 10.dp
-            var contentHeight by remember { mutableStateOf(0) }
-            val boxHeight = LocalDensity.current.run { (this@BoxWithConstraints.maxHeight + padding).roundToPx() }
-            val showScrollButtons by remember(contentHeight, boxHeight) {
-                derivedStateOf { contentHeight > boxHeight }
-            }
+//            var contentHeight by remember { mutableStateOf(0) }
+//            val boxHeight = LocalDensity.current.run { (this@BoxWithConstraints.maxHeight + padding).roundToPx() }
+            // val showScrollButtons by remember(contentHeight, boxHeight) {
+            //     derivedStateOf { contentHeight > boxHeight }
+            // }
+            val showScrollButtons by remember { derivedStateOf { scrollState.maxValue > 0 } }
 
             BasicTextField(
                 output,
                 {},
                 modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState),
                 readOnly = true,
-                textStyle = MaterialTheme.typography.caption.copy(fontSize = 13.sp, color = MaterialTheme.colors.onSecondary),
-                onTextLayout = { contentHeight = it.size.height }
+                textStyle = MaterialTheme.typography.caption.copy(
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colors.onSecondary
+                ),
+//                onTextLayout = { contentHeight = it.size.height }
             )
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawRoundRect(
