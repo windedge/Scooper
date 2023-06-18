@@ -1,13 +1,18 @@
 package scooper.viewmodels
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.annotation.OrbitExperimental
 import org.orbitmvi.orbit.container
-import org.orbitmvi.orbit.syntax.simple.*
+import org.orbitmvi.orbit.syntax.simple.blockingIntent
+import org.orbitmvi.orbit.syntax.simple.intent
+import org.orbitmvi.orbit.syntax.simple.postSideEffect
+import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
@@ -67,28 +72,12 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         applyFilters()
         getBuckets()
         subscribeLogging()
-        subscribeQuery()
     }
 
     private val channel = Channel<Operation>(1)
-    private val _queryText = MutableStateFlow<String>("")
-    val queryText = _queryText.asStateFlow()
-
-    @OptIn(FlowPreview::class)
-    fun subscribeQuery() {
-        coroutineScope.launch {
-            _queryText.debounce(400L).collect {
-                this@AppsViewModel.applyFilters(query = it)
-            }
-        }
-    }
-
-    fun onQueryChange(text: String) {
-        _queryText.value = text
-    }
 
     fun launchOperationQueue() {
-        CoroutineScope(Dispatchers.IO).launch {
+        coroutineScope.launch(Dispatchers.IO) {
             while (!channel.isClosedForReceive) {
                 val operation = channel.receive()
                 logger.info("operation = $operation ...")
@@ -118,14 +107,11 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         }
     }
 
-    fun applyFilters(
-        query: String? = null, bucket: String? = null, scope: String? = null, page: Int? = null
-    ) = intent {
+    fun applyFilters(query: String? = null, bucket: String? = null, scope: String? = null) = intent {
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectedBucket
         val currentScope = scope ?: state.filter.scope
-        val result =
-            AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = state.filter.pageSize)
+        val result = AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = state.filter.pageSize)
 
         reduce {
             state.copy(
@@ -147,7 +133,13 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         val offset = (nextPage - 1) * filter.pageSize.toLong()
         val pageSize = filter.pageSize
         val result =
-            AppsRepository.getApps(filter.query, filter.selectedBucket, filter.scope, offset = offset, limit = pageSize)
+            AppsRepository.getApps(
+                filter.query,
+                filter.selectedBucket,
+                filter.scope,
+                offset = offset,
+                limit = pageSize
+            )
 
         reduce {
             state.copy(
@@ -169,7 +161,6 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
     }
 
     fun resetFilter() = intent {
-        _queryText.value = ""
         reduce { state.copy(filter = AppsFilter()) }
     }
 

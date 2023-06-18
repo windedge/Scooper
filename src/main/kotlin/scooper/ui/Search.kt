@@ -24,6 +24,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.java.KoinJavaComponent.get
 import org.slf4j.LoggerFactory
 import scooper.ui.components.IconButton
@@ -53,7 +57,7 @@ fun SearchBox() {
 }
 */
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, FlowPreview::class)
 @Composable
 fun SearchBar(show: Boolean = true) {
     if (!show) return;
@@ -130,27 +134,36 @@ fun SearchBar(show: Boolean = true) {
             )
         }
 
-        val query by appsViewModel.queryText.collectAsState()
+        var queryText by remember { mutableStateOf("") }
+        LaunchedEffect(queryText) {
+            snapshotFlow { queryText }
+                .distinctUntilChanged()
+                .debounce(400)
+                .collectLatest {
+                    appsViewModel.applyFilters(query = it)
+                }
+        }
         val inputFocusRequester = remember { FocusRequester() }
         BasicTextField(
-            query,
-            onValueChange = { appsViewModel.onQueryChange(it) },
+            queryText,
+            onValueChange = { queryText = it },
             modifier = Modifier.padding(start = 5.dp).defaultMinSize(120.dp).fillMaxWidth(0.4f)
                 .focusRequester(inputFocusRequester)
                 .onPreviewKeyEvent {
                     if (it.key == Key.Enter) {
-                        appsViewModel.applyFilters(query, bucket = bucket)
-                        true
-                    } else false
+                        appsViewModel.applyFilters(queryText, bucket = bucket)
+                        return@onPreviewKeyEvent true
+                    }
+                    false
                 },
             singleLine = true,
             interactionSource = interactionSource
         )
 
-        if (query.isNotEmpty()) {
+        if (queryText.isNotEmpty()) {
             IconButton(
                 onClick = {
-                    appsViewModel.onQueryChange("")
+                    queryText = ""
                     inputFocusRequester.requestFocus()
                 },
                 modifier = Modifier.cursorHand().padding(horizontal = 2.5.dp),
@@ -164,7 +177,7 @@ fun SearchBar(show: Boolean = true) {
 
         IconButton(
             onClick = {
-                appsViewModel.applyFilters(query, bucket = bucket)
+                appsViewModel.applyFilters(queryText, bucket = bucket)
             },
             modifier = Modifier.cursorHand().padding(horizontal = 5.dp),
             interactionSource = interactionSource
