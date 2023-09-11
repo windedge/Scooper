@@ -2,15 +2,15 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "1.7.20"
-    kotlin("plugin.serialization") version "1.7.20"
+    kotlin("jvm") version "1.9.10"
+    kotlin("plugin.serialization") version "1.9.10"
 
-    id("org.jetbrains.compose") version "1.3.0"
+    id("org.jetbrains.compose") version "1.5.1"
     id("com.github.gmazzo.buildconfig") version "3.1.0"
 }
 
 group = "Scooper"
-version = "0.8.10"
+version = "0.8.11"
 
 repositories {
     mavenCentral()
@@ -23,7 +23,7 @@ dependencies {
     implementation(compose.desktop.currentOs)
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.4.1")
-    implementation("io.insert-koin:koin-core:3.3.2")
+    implementation("io.insert-koin:koin-core:3.4.3")
     implementation("org.orbit-mvi:orbit-core:4.5.0")
     // implementation("org.jetbrains.kotlinx:atomicfu:0.18.4")
 
