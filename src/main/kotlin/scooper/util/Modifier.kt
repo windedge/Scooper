@@ -84,13 +84,15 @@ fun Modifier.onHover(block: @Composable Modifier.(on: Boolean) -> Unit): Modifie
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.cursorInput(): Modifier = composed {
-    // cursorOnHover(Cursor(Cursor.TEXT_CURSOR))
-    this.pointerHoverIcon(PointerIconDefaults.Text)
+//     cursorOnHover(Cursor(Cursor.TEXT_CURSOR))
+//    this.pointerHoverIcon(PointerIconDefaults.Text)
+    this.pointerHoverIcon(PointerIcon.Text)
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.cursorHand(): Modifier = composed {
-    this.pointerHoverIcon(PointerIconDefaults.Hand)
+//    this.pointerHoverIcon(PointerIconDefaults.Hand)
+    this.pointerHoverIcon(PointerIcon.Hand)
 }
 
 fun Modifier.cursorLink(): Modifier = cursorHand()
