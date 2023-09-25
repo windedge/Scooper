@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.twotone.Clear
 import androidx.compose.material.icons.twotone.KeyboardArrowDown
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -81,8 +82,9 @@ fun SearchBar(show: Boolean = true) {
         buckets.addAll(state.buckets.map { it.name })
 
         var expand by remember { mutableStateOf(false) }
-        var selectedItem by remember { mutableStateOf(-1) }
-        var bucket by remember { mutableStateOf("") }
+        var selectedItem by rememberSaveable(state.filter.scope) { mutableStateOf(-1) }
+        var bucket by rememberSaveable(state.filter.scope) { mutableStateOf("") }
+        var queryText by rememberSaveable(state.filter.scope) { mutableStateOf("") }
 
         Row(
             modifier = Modifier.height(30.dp)
@@ -134,7 +136,6 @@ fun SearchBar(show: Boolean = true) {
             )
         }
 
-        var queryText by remember { mutableStateOf("") }
         LaunchedEffect(queryText) {
             snapshotFlow { queryText }
                 .distinctUntilChanged()
