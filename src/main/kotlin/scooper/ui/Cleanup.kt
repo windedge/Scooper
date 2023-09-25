@@ -9,7 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.*
+import androidx.compose.material.icons.twotone.Delete
+import androidx.compose.material.icons.twotone.KeyboardArrowDown
+import androidx.compose.material.icons.twotone.KeyboardArrowUp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,9 +19,15 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import org.koin.java.KoinJavaComponent.get
-import scooper.ui.components.*
 import scooper.ui.components.IconButton
-import scooper.util.*
+import scooper.ui.components.Link
+import scooper.ui.components.PrefRow
+import scooper.ui.components.SettingContainer
+import scooper.ui.components.Tooltip
+import scooper.util.Scoop
+import scooper.util.cursorHand
+import scooper.util.cursorLink
+import scooper.util.readableSize
 import scooper.viewmodels.CleanupState
 import scooper.viewmodels.CleanupViewModel
 import scooper.viewmodels.OldVersion
@@ -41,15 +49,28 @@ fun CleanupContainer(cleanupViewModel: CleanupViewModel = get(CleanupViewModel::
     SettingContainer {
         Column {
             PrefRow(title = "Download Cache", nestedContent = {
-                CacheSection(state, onClean = {
-                    cleanupViewModel.clearCache()
-                }, onScan = {
-                    cleanupViewModel.computeCacheSize()
-                })
+                CacheSection(
+                    state,
+                    onClean = { cleanupViewModel.clearCache() },
+                    onScan = { cleanupViewModel.computeCacheSize() },
+                    onOpen = { Desktop.getDesktop().open(Scoop.cacheDir) }
+                )
             }) {
-                Link("Open Directory", onClicked = { Desktop.getDesktop().open(Scoop.cacheDir) })
+                Tooltip("Rescan") {
+                    Box(modifier = Modifier.clickable { cleanupViewModel.computeCacheSize() }) {
+                        Icon(
+                            // Icons.TwoTone.Refresh,
+                            painterResource("search_for.svg"),
+                            "",
+                            tint = colors.primary,
+                            modifier = Modifier.fillMaxHeight().padding(5.dp).width(25.dp).cursorLink()
+                        )
+                    }
+                }
             }
+
             Divider()
+
             PrefRow(title = "Old Versions", nestedContent = {
                 OldVersions(
                     state.oldVersions,
@@ -67,10 +88,9 @@ fun CleanupContainer(cleanupViewModel: CleanupViewModel = get(CleanupViewModel::
                         ) {
                             Icon(
                                 painterResource("search_for.svg"),
-                                // Icons.TwoTone.,
                                 null,
-                                modifier = Modifier.height(20.dp),
-                                tint = colors.primary
+                                tint = colors.primary,
+                                modifier = Modifier.fillMaxHeight().padding(5.dp).width(25.dp).cursorLink()
                             )
                         }
                     }
@@ -81,50 +101,54 @@ fun CleanupContainer(cleanupViewModel: CleanupViewModel = get(CleanupViewModel::
 }
 
 @Composable
-fun CacheSection(state: CleanupState, onClean: () -> Unit, onScan: () -> Unit) {
+fun CacheSection(state: CleanupState, onClean: () -> Unit, onScan: () -> Unit, onOpen: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Total Size: ${state.cacheSize.readableSize()}")
         Spacer(modifier = Modifier.height(5.dp))
         if (state.cleaningCache) {
-            OutlinedButton(onClick = {}, enabled = false) {
+            OutlinedButton(modifier = Modifier.height(35.dp), onClick = {}, enabled = false) {
                 Text("Cleaning...")
             }
-        } else if (state.cacheSize == 0L) {
-            OutlinedButton(
-                onClick = { onScan() },
-                modifier = Modifier.cursorHand()
-            ) {
-                Text("Rescan")
+        } else if (state.scanningCache) {
+            OutlinedButton(modifier = Modifier.height(35.dp), onClick = {}, enabled = false) {
+                Text("Scanning...")
             }
         } else {
             ProvideTextStyle(MaterialTheme.typography.button.copy(color = colors.primary)) {
                 Row(
-                    modifier = Modifier.height(35.dp)
-                        .border(
-                            // 1.dp, color = colors.primary,
-                            border = ButtonDefaults.outlinedBorder,
-                            shape = RoundedCornerShape(4.dp)
-                        )
+                    modifier = Modifier
+                        .border(border = ButtonDefaults.outlinedBorder, shape = RoundedCornerShape(4.dp))
+                        .height(35.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxHeight().cursorHand().clickable { onClean() },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.TwoTone.Delete,
-                            contentDescription = "Clear Cache",
-                            tint = colors.primary,
-                            modifier = Modifier.size(30.dp).padding(start = 5.dp, top = 5.dp, bottom = 5.dp)
-                        )
-                        Text("Clear Cache", modifier = Modifier.padding(end = 5.dp))
-                    }
-                    Divider(modifier = Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically))
-                    Tooltip("Rescan") {
-                        Box(modifier = Modifier.clickable { onScan() }
+                    if (state.cacheSize > 0L) {
+                        Row(
+                            modifier = Modifier.fillMaxHeight().cursorHand().clickable { onClean() },
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                // Icons.TwoTone.Refresh,
-                                painterResource("search_for.svg"),
+                                Icons.TwoTone.Delete, contentDescription = "Clear Cache", tint = colors.primary,
+                                modifier = Modifier.size(30.dp).padding(start = 5.dp, top = 5.dp, bottom = 5.dp)
+                            )
+                            Text("Clear Cache", modifier = Modifier.padding(end = 5.dp))
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxHeight().cursorHand().clickable { onScan() },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painterResource("search_for.svg"), "", tint = colors.primary,
+                                modifier = Modifier.size(30.dp).padding(start = 5.dp, top = 5.dp, bottom = 5.dp)
+                            )
+                            Text("Rescan")
+                        }
+                    }
+                    Divider(modifier = Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically))
+                    Tooltip("Open Directory") {
+                        Box(modifier = Modifier.clickable { onOpen() }) {
+                            Icon(
+//                                Icons.Outlined.Home,
+                                painterResource("folder.svg"),
                                 "",
                                 tint = colors.primary,
                                 modifier = Modifier.fillMaxHeight().padding(5.dp).width(25.dp).cursorLink()
@@ -136,6 +160,8 @@ fun CacheSection(state: CleanupState, onClean: () -> Unit, onScan: () -> Unit) {
         }
     }
 }
+
+private const val MAX_ENTRIES = 3
 
 @Composable
 fun OldVersions(
@@ -195,7 +221,7 @@ fun OldVersions(
                     .border(0.8.dp, color = colors.onBackground, shape = MaterialTheme.shapes.medium)
                     .background(color = colors.background)
             ) {
-                oldVersions.let { if (!showMore) it.filterIndexed { index, _ -> index < 3 } else it }
+                oldVersions.let { if (!showMore && it.size > MAX_ENTRIES) it.filterIndexed { index, _ -> index < MAX_ENTRIES } else it }
                     .forEachIndexed { idx, oldVersion ->
                         if (idx > 0) {
                             Divider()
@@ -203,12 +229,15 @@ fun OldVersions(
                         OldVersion(oldVersion, onDelete = { onDelete(listOf(oldVersion)) })
                     }
             }
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
-                val text = if (showMore) "Show less" else "Show more"
-                val down = rememberVectorPainter(Icons.TwoTone.KeyboardArrowDown)
-                val up = rememberVectorPainter(Icons.TwoTone.KeyboardArrowUp)
-                val icon = if (showMore) up else down
-                Link(text, painter = icon, onClicked = { showMore = !showMore })
+
+            if (oldVersions.size > MAX_ENTRIES) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                    val text = if (showMore) "Show less" else "Show more"
+                    val down = rememberVectorPainter(Icons.TwoTone.KeyboardArrowDown)
+                    val up = rememberVectorPainter(Icons.TwoTone.KeyboardArrowUp)
+                    val icon = if (showMore) up else down
+                    Link(text, painter = icon, onClicked = { showMore = !showMore })
+                }
             }
         }
     }
