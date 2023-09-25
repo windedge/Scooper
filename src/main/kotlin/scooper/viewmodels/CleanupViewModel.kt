@@ -2,6 +2,7 @@ package scooper.viewmodels
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
@@ -48,6 +49,7 @@ class CleanupViewModel : ContainerHost<CleanupState, SideEffect> {
     fun computeCacheSize() = intent {
         reduce { state.copy(scanningCache = true) }
         val size = Scoop.computeCacheSize()
+        delay(500L)
         reduce { state.copy(cacheSize = size, scanningCache = false) }
     }
 
