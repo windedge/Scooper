@@ -19,8 +19,8 @@ data class App(
     lateinit var createAt: LocalDateTime
     lateinit var updateAt: LocalDateTime
 
-    val updatable: Boolean get() = this.version != null && this.version != this.latestVersion
     val installed: Boolean get() = this.status == "installed"
+    val updatable: Boolean get() = this.status == "installed" && this.version != null && this.version != this.latestVersion
     val uniqueName: String get() = if (this.bucket != null) "${this.bucket!!.name}/${this.name}" else this.name
 }
 
