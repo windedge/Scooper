@@ -1,14 +1,18 @@
+![Scooper](./Scooper.png)
+
 # Scooper
 The Missing GUI of Scoop.
 
 [Scoop](https://scoop.sh/) is a powerful tool to manage apps under windows, but for daily usage, the command line interface is a little painful, this ultility can make life easier to maintain(install/upgrade/navigate/remove) apps.
 
-# Screenshot
-![Scooper](./Scooper.png)
+# How to install
 
-# How to use
+Just install with `scoop` obviously:
 
-Just download the install package in the release page.
+```cmd
+scoop bucket add ladle https://github.com/windedge/ladle-bucket
+scoop install scooper
+```
 
 # License
 MIT
