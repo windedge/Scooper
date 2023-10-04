@@ -1,9 +1,8 @@
 package scooper.ui
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.Scaffold
+import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,16 +21,14 @@ import scooper.ui.components.EnterAnimation
 import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.ScooperTheme
 import scooper.util.navigation.Router
-import scooper.viewmodels.SideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
 import scooper.viewmodels.SettingsViewModel
+import scooper.viewmodels.SideEffect
 import java.awt.Dimension
 
 @Suppress("unused")
 private val logger by lazy { LoggerFactory.getLogger("Main") }
-
-// val LocalWindow = compositionLocalOf<ComposeWindow> { error("Undefined window") }
 
 fun main() = application {
     initDb()

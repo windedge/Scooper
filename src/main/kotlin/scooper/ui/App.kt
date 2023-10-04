@@ -28,6 +28,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.onHover
 import scooper.viewmodels.AppsFilter
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
@@ -264,16 +265,13 @@ fun ActionButton(
         }
     }
 
-    Row(
-        modifier = Modifier.height(30.dp).border(
-            1.dp, color = colors.onBackground, shape = RoundedCornerShape(4.dp)
-        )
-    ) {
+    Row(modifier = Modifier.height(30.dp).border(1.dp, color = colors.onBackground, shape = RoundedCornerShape(4.dp))) {
         var modifier = Modifier.fillMaxHeight().width(90.dp)
         val text: String
         var textColor: Color = Color.Unspecified
+        var hover by remember { mutableStateOf(false) }
         when {
-            installing -> {
+            installing || (waiting && hover) -> {
                 text = "Cancel"
                 modifier = modifier.cursorLink().background(colors.error).clickable { onCancel(app) }
                 textColor = colors.onError
@@ -284,12 +282,12 @@ fun ActionButton(
                 textColor = colors.onSecondary
             }
 
-            app.status == "installed" && app.updatable -> {
+            app.updatable -> {
                 text = "Update"
                 modifier = modifier.cursorLink().clickable { onUpdate(app) }
             }
 
-            app.status == "installed" -> {
+            app.installed -> {
                 text = "Installed"
                 textColor = colors.onSecondary
             }
@@ -299,11 +297,13 @@ fun ActionButton(
                 modifier = modifier.cursorLink().clickable { onInstall(app, false) }
             }
         }
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = modifier,
-        ) {
-            Text(text, modifier = Modifier.padding(5.5.dp), fontWeight = FontWeight.Medium, color = textColor)
+        Box(contentAlignment = Alignment.Center, modifier = modifier) {
+            Text(
+                text,
+                modifier = Modifier.padding(5.5.dp).onHover { hover = it },
+                fontWeight = FontWeight.Medium,
+                color = textColor
+            )
         }
 
         Box(
