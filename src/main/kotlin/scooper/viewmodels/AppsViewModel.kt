@@ -80,6 +80,12 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         coroutineScope.launch(Dispatchers.IO) {
             while (!channel.isClosedForReceive) {
                 val operation = channel.receive()
+
+                // pending operation is removed
+                if (operation.target is App && operation.target.uniqueName !in container.stateFlow.value.waitingApps) {
+                    continue
+                }
+
                 logger.info("operation = $operation ...")
                 when (operation.action) {
                     OperationType.INSTALL_APP -> installApp(operation.target as App, operation.global)
@@ -309,15 +315,23 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         channel.send(Operation(OperationType.REMOVE_BUCKET, bucket))
     }
 
-    fun cancel(app: App? = null) = blockingIntent {
+    fun cancel(app: App? = null) = intent {
         logger.info("cancelling")
-        Scoop.stop()
 
+        // cancelling pending operation
+        if (app?.uniqueName in state.waitingApps) {
+            reduce {
+                state.copy(waitingApps = state.waitingApps - setOf(app!!.uniqueName))
+            }
+            return@intent
+        }
+
+        Scoop.stop()
         reduce { state.copy(refreshing = false) }
 
         if (app != null) {
-            reduce { state.copy(processingApp = null) }
             logger.info("cancelling app = ${app.uniqueName}")
+            reduce { state.copy(processingApp = null) }
             AppsRepository.updateApp(app.copy(status = "failed"))
             applyFilters()
         }

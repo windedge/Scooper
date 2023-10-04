@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "Scooper"
-version = "0.8.12"
+version = "0.8.13"
 
 repositories {
     mavenCentral()
