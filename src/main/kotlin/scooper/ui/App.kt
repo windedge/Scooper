@@ -259,7 +259,7 @@ fun ActionButton(
                     onClick = { expand = false; onDownload(app) },
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)
                 ) {
-                    MenuText("Download Latest")
+                    MenuText("Download Only")
                 }
             }
         }
