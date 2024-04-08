@@ -1,0 +1,62 @@
+[versions]
+kotlin = "1.9.22"
+compose = "1.5.12"
+logback = "1.4.5"
+log4j = "2.19.0"
+koin = "3.5.3"
+koin-compose = "1.1.2"
+voyager = "1.0.0"
+orbit = "6.1.0"
+kopybuilder = "0.1.6-SNAPSHOT"
+viform = "0.1.5-SNAPSHOT"
+gettext = "0.6.1"
+exposed = "0.40.1"
+kotlinx-serialization = "1.6.2"
+sqlite-jdbc = "3.41.2.2"
+junit-jupiter = "5.9.0"
+buildconfig = "3.1.0"
+slf4j = "2.0.5"
+common-text = "1.10.0"
+kotlin-process = "1.4.1"
+
+
+[libraries]
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-logger-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin-compose" }
+
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+
+exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }
+exposed-dao = { module = "org.jetbrains.exposed:exposed-dao", version.ref = "exposed" }
+exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
+exposed-java-time = { module = "org.jetbrains.exposed:exposed-java-time", version.ref = "exposed" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+
+
+voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.ref = "voyager" }
+voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
+orbit-core = { module = "org.orbit-mvi:orbit-core", version.ref = "orbit" }
+
+commons-text =  {module = "org.apache.commons:commons-text", version.ref="common-text"}
+kotlin-process =  {module = "com.github.pgreze:kotlin-process", version.ref="kotlin-process"}
+
+slf4j-api =  {module = "org.slf4j:slf4j-api", version.ref="slf4j"}
+slf4j-simple =  {module = "org.slf4j:slf4j-simple", version.ref="slf4j"}
+
+viform-core = { module = "io.github.windedge.viform:viform-core", version.ref = "viform" }
+viform-compose = { module = "io.github.windedge.viform:viform-compose", version.ref = "viform" }
+viform-orbitmvi = { module = "io.githubhub.windedge.viform:viform-orbitmvi", version.ref = "viform" }
+
+gettext = { module = "name.kropp.kotlinx-gettext:kotlinx-gettext", version.ref = "gettext" }
+
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+
+[plugins]
+# multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+kopybuilder = { id = "io.github.windedge.kopybuilder", version.ref = "kopybuilder" }
+gettext = { id = "name.kropp.kotlinx-gettext", version.ref = "gettext" }
+buildconfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildconfig" }
