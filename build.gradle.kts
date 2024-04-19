@@ -24,6 +24,8 @@ dependencies {
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.koin.core)
+    implementation(libs.koin.compose)
+    implementation(libs.koin.logger.slf4j)
     implementation(libs.orbit.core)
 
     // implementation("org.jetbrains.kotlinx:atomicfu:0.18.4")
@@ -46,6 +48,7 @@ dependencies {
 
 compose.desktop {
     application {
+
         mainClass = "scooper.ui.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
@@ -61,6 +64,11 @@ compose.desktop {
                 iconFile.set(project.file("icons/icon.ico"))
             }
         }
+
+        buildTypes.release.proguard {
+            configurationFiles.from("proguard-rules.pro")
+        }
+
     }
 }
 
