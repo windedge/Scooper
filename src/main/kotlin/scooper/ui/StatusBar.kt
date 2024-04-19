@@ -17,6 +17,7 @@ import scooper.util.cursorHand
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.noRippleClickable
+import scooper.util.removeAnsiColor
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -35,8 +36,9 @@ fun StatusBar(statusText: String) {
                         }
                     })
                 {
+                    val annotatedString = removeAnsiColor(statusText)
                     Text(
-                        statusText,
+                        annotatedString,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         overflow = TextOverflow.Ellipsis,
                         maxLines = 1,
