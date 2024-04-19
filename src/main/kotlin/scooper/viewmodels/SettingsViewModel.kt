@@ -28,7 +28,7 @@ class SettingsViewModel : ContainerHost<SettingsState, SideEffect> {
     ) {
         val scoopConfig = Scoop.readScoopConfig()
         scoopFormState.setData(scoopConfig)
-        uiFormState.setData(it.uiConfig)
+        uiFormState.setData(state.uiConfig)
     }
 
     fun switchTheme(theme: Theme) = intent {

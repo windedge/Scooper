@@ -20,9 +20,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
+import org.koin.compose.koinInject
 import org.koin.java.KoinJavaComponent.get
 import org.slf4j.LoggerFactory
 import scooper.data.App
+import scooper.taskqueue.Task
+import scooper.taskqueue.TaskQueue
 import scooper.ui.components.OnBottomReached
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
@@ -38,11 +41,19 @@ private val logger = LoggerFactory.getLogger("ui.App")
 
 @Composable
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
+    val taskQueue: TaskQueue = koinInject()
     val state by appsViewModel.container.stateFlow.collectAsState()
     val apps = state.apps
     val filter = state.filter
-    val processingApp = state.processingApp
-    val waitingApps = state.waitingApps
+//    val waitingApps = state.waitingApps
+    val tasks by taskQueue.pendingTasksFlow.collectAsState(listOf())
+    val waitingApps = tasks.map { it.name }.toSet()
+    val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
+    val processingApp = when (runningTask) {
+        is Task.Install, is Task.Update, is Task.Uninstall, is Task.Download -> runningTask!!.name
+        else -> null
+    }
+
     LaunchedEffect(scope) {
         appsViewModel.applyFilters(scope = scope)
     }
@@ -90,10 +101,10 @@ fun AppList(
 
         LaunchedEffect(filter.query, filter.scope, filter.selectedBucket) { state.animateScrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
-            itemsIndexed(items = apps) { idx, app ->
+            itemsIndexed(items = apps) { _, app ->
                 AppCard(
                     app,
-                    installing = app.name == processingApp,
+                    installing = app.uniqueName == processingApp,
                     waiting = waitingApps.contains(app.uniqueName),
                     onInstall = onInstall,
                     onUpdate = onUpdate,

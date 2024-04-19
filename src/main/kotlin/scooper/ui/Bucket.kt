@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -19,18 +18,20 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogState
+import androidx.compose.ui.window.DialogWindow
 import org.koin.java.KoinJavaComponent.get
 import scooper.data.Bucket
 import scooper.ui.components.OutlinedTextField
 import scooper.ui.components.Tooltip
-import scooper.util.*
+import scooper.util.KNOWN_BUCKETS
+import scooper.util.cursorHand
+import scooper.util.cursorLink
+import scooper.util.noRippleClickable
 import scooper.viewmodels.AppsViewModel
 import java.awt.Desktop
 import java.net.URI
@@ -176,7 +177,7 @@ fun ConfirmDialog(
     state: DialogState = DialogState(size = DpSize(300.dp, 180.dp)),
     content: @Composable (() -> Unit)? = null
 ) {
-    Dialog(onCloseRequest = onCancel, state = state, title = title ?: "Scooper") {
+    DialogWindow(onCloseRequest = onCancel, state = state, title = title ?: "Scooper") {
         BoxWithConstraints {
             val height = this.maxHeight
             Column(Modifier.fillMaxSize()) {

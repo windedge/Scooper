@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 import scooper.data.toSystemTheme
-import scooper.di.viewModelsModule
+import scooper.di.system
+import scooper.di.viewModels
 import scooper.repository.initDb
 import scooper.ui.components.EnterAnimation
 import scooper.ui.components.SnackbarHost
@@ -32,7 +33,7 @@ private val logger by lazy { LoggerFactory.getLogger("Main") }
 
 fun main() = application {
     initDb()
-    val koinApp = remember { startKoin { modules(viewModelsModule) } }
+    val koinApp = remember { startKoin { modules(system, viewModels) } }
     val scope = rememberCoroutineScope()
 
     val winState = rememberWindowState(

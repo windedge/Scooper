@@ -9,7 +9,6 @@ import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.twotone.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,7 +16,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.map
+import org.koin.compose.koinInject
 import org.koin.java.KoinJavaComponent.get
+import scooper.taskqueue.Task
+import scooper.taskqueue.TaskQueue
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
 import scooper.util.cursorHand
@@ -83,7 +86,11 @@ fun MoreActionsButton() {
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Settings.Cleanup) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painterResource("cleaning_services_black_24dp.svg"), "Cleanup", modifier = Modifier.size(16.dp))
+                    Icon(
+                        painterResource("cleaning_services_black_24dp.svg"),
+                        "Cleanup",
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text("Cleanup")
                 }
@@ -115,11 +122,53 @@ fun MoreActionsButton() {
 
 @Composable
 fun RefreshScoopButton() {
-    val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
-    val state by appsViewModel.container.stateFlow.collectAsState()
+    val appsViewModel: AppsViewModel = koinInject()
+    val taskQueue: TaskQueue = koinInject()
+    val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
     Box(modifier = Modifier.width(30.dp), contentAlignment = Alignment.Center) {
-        if (state.refreshing) {
-            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        if (runningTask != null) {
+            val queuedTasks by taskQueue.pendingTasksFlow.map { tasks ->
+                (listOfNotNull(runningTask) + tasks).filterNot { it is Task.Refresh }
+            }.collectAsState(listOf())
+            val queuedTaskSize = queuedTasks.size
+
+            var showQueueTasks by remember { mutableStateOf(false) }
+            val clickIndicator = if (queuedTaskSize > 0) Modifier.cursorLink() else Modifier
+            IconButton(
+                onClick = { showQueueTasks = true }, Modifier.then(clickIndicator),
+                rippleRadius = 20.dp, enabled = queuedTaskSize > 0,
+            ) {
+                Box(Modifier.size(30.dp)) {
+                    if (runningTask is Task.Refresh) {
+                        CircularProgressIndicator(Modifier.size(20.dp).align(Alignment.Center), strokeWidth = 2.dp)
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter))
+                    }
+
+                    if (queuedTaskSize > 0) {
+                        val position = if (runningTask is Task.Refresh) {
+                            Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-10).dp)
+                        } else {
+                            Modifier.align(Alignment.Center).offset(y = (-5).dp)
+                        }
+                        Badge(
+                            modifier = Modifier.then(position),
+                            backgroundColor = colors.primary
+                        ) { Text("$queuedTaskSize") }
+                    }
+
+                    DropdownMenu(showQueueTasks, onDismissRequest = { showQueueTasks = false }) {
+                        for (task in queuedTasks) {
+                            DropdownMenuItem(
+                                modifier = Modifier.height(50.dp).cursorHand(),
+                                onClick = {}) {
+                                Text(task.name)
+                            }
+                        }
+                    }
+                }
+
+            }
         } else {
             Tooltip("Refreshing Scoop") {
                 IconButton(
@@ -127,7 +176,12 @@ fun RefreshScoopButton() {
                     modifier = Modifier.cursorLink(),
                     rippleRadius = 20.dp
                 ) {
-                    Icon(painterResource("sync.svg"), null, modifier = Modifier.height(30.dp), tint = colors.primary)
+                    Icon(
+                        painterResource("sync.svg"),
+                        "refresh",
+                        modifier = Modifier.height(30.dp),
+                        tint = colors.primary
+                    )
                 }
             }
 

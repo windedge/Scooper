@@ -2,8 +2,6 @@ package scooper.viewmodels
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -16,30 +14,11 @@ import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
+import scooper.taskqueue.Task
+import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
 import scooper.util.Scoop
 import scooper.util.logger
-
-
-enum class OperationType {
-    INSTALL_APP, UPDATE_APP, DOWNLOAD_APP, UNINSTALL_APP, ADD_BUCKET, REMOVE_BUCKET, REFRESH
-}
-
-data class Operation(
-    val action: OperationType,
-    val target: Any? = null,   // app or bucket
-    val global: Boolean = false,
-    val url: String? = null,
-) {
-    override fun toString(): String {
-        val target = when (this.target) {
-            is App -> this.target.name
-            is String -> this.target
-            else -> this.target?.toString()
-        }
-        return action.toString() + (target?.let { " -> $it" } ?: "")
-    }
-}
 
 data class AppsFilter(
     val query: String = "",
@@ -54,61 +33,28 @@ data class AppsState(
     val totalCount: Long = 0L,
     val buckets: List<Bucket> = emptyList(),
     val filter: AppsFilter = AppsFilter(),
-    val processingApp: String? = null,
-    val refreshing: Boolean = false,
-    val waitingApps: Set<String> = emptySet(),
     val output: String = "",
 )
 
 
-@OptIn(ExperimentalCoroutinesApi::class, OrbitExperimental::class)
+@OptIn(OrbitExperimental::class)
 @Suppress("MemberVisibilityCanBePrivate")
-class AppsViewModel : ContainerHost<AppsState, SideEffect> {
+class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState, SideEffect> {
     private val logger by logger()
 
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
     override val container: Container<AppsState, SideEffect> = coroutineScope.container(AppsState()) {
-        launchOperationQueue()
         applyFilters()
         getBuckets()
         subscribeLogging()
     }
 
-    private val channel = Channel<Operation>(1)
-
-    fun launchOperationQueue() {
-        coroutineScope.launch(Dispatchers.IO) {
-            while (!channel.isClosedForReceive) {
-                val operation = channel.receive()
-
-                // pending operation is removed
-                if (operation.target is App && operation.target.uniqueName !in container.stateFlow.value.waitingApps) {
-                    continue
-                }
-
-                logger.info("operation = $operation ...")
-                when (operation.action) {
-                    OperationType.INSTALL_APP -> installApp(operation.target as App, operation.global)
-                    OperationType.UPDATE_APP -> updateApp(operation.target as App)
-                    OperationType.DOWNLOAD_APP -> downloadApp(operation.target as App)
-                    OperationType.UNINSTALL_APP -> uninstallApp(operation.target as App)
-                    OperationType.ADD_BUCKET -> addScoopBucket(operation.target as String, operation.url)
-                    OperationType.REMOVE_BUCKET -> removeScoopBucket(operation.target as String)
-                    OperationType.REFRESH -> refresh()
-                }
-                logger.info("operation = $operation done.")
-            }
-        }
-    }
-
-    fun subscribeLogging() {
+    fun subscribeLogging() = intent {
         coroutineScope.launch(Dispatchers.IO) {
             Scoop.logStream.collect {
-                intent {
-                    postSideEffect(SideEffect.Log(it))
-                    val output = state.output + it + "\n"
-                    reduce { state.copy(output = output) }
-                }
+                postSideEffect(SideEffect.Log(it))
+                val output = state.output + it + "\n"
+                reduce { state.copy(output = output) }
             }
         }
     }
@@ -171,26 +117,11 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
     }
 
     fun refresh() = blockingIntent {
-        reduce { state.copy(refreshing = true) }
-        Scoop.refresh {
-            reloadApps()
-            reduce {
-                state.copy(refreshing = false)
-            }
-        }
-    }
-
-    fun queuedUpdateApps() = intent {
-        channel.send(Operation(OperationType.REFRESH))
+        Scoop.refresh { reloadApps() }
     }
 
     fun installApp(app: App, global: Boolean = false) = blockingIntent {
-        reduce {
-            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
-        }
-
         Scoop.install(app, global) { exitValue ->
-            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(SideEffect.Toast("Install app, ${app.uniqueName} error!"))
                 return@install
@@ -202,19 +133,8 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         }
     }
 
-    fun queuedInstall(app: App, global: Boolean = false) = intent {
-        reduce {
-            state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
-        }
-        channel.send(Operation(OperationType.INSTALL_APP, app, global))
-    }
-
     fun uninstallApp(app: App) = blockingIntent {
-        reduce {
-            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
-        }
         Scoop.uninstall(app, app.global) { exitValue ->
-            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(SideEffect.Toast("Uninstall app, ${app.uniqueName} error!"))
                 return@uninstall
@@ -226,19 +146,8 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         }
     }
 
-    fun queuedUninstall(app: App) = intent {
-        reduce {
-            state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
-        }
-        channel.send(Operation(OperationType.UNINSTALL_APP, app))
-    }
-
     fun updateApp(app: App) = blockingIntent {
-        reduce {
-            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
-        }
         Scoop.update(app, app.global) { exitValue ->
-            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(SideEffect.Toast("Update app, ${app.uniqueName} error!"))
                 return@update
@@ -250,19 +159,8 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         }
     }
 
-    fun queuedUpdate(app: App) = intent {
-        reduce {
-            state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
-        }
-        channel.send(Operation(OperationType.UPDATE_APP, app))
-    }
-
     fun downloadApp(app: App) = blockingIntent {
-        reduce {
-            state.copy(processingApp = app.name, waitingApps = state.waitingApps - setOf(app.uniqueName))
-        }
         Scoop.download(app) { exitValue ->
-            reduce { state.copy(processingApp = null) }
             if (exitValue != 0) {
                 postSideEffect(SideEffect.Toast("Download app: ${app.uniqueName} error!"))
                 return@download
@@ -272,14 +170,6 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
             applyFilters()
         }
     }
-
-    fun queuedDownload(app: App) = intent {
-        reduce {
-            state.copy(waitingApps = state.waitingApps + setOf(app.uniqueName))
-        }
-        channel.send(Operation(OperationType.DOWNLOAD_APP, app))
-    }
-
 
     fun addScoopBucket(bucket: String, url: String? = null) = blockingIntent {
         Scoop.addBucket(bucket, url) { exitValue ->
@@ -292,10 +182,6 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
             getBuckets()
             reloadApps()
         }
-    }
-
-    fun queuedAddBucket(bucket: String, url: String? = null) = intent {
-        channel.send(Operation(OperationType.ADD_BUCKET, bucket, url = url))
     }
 
     fun removeScoopBucket(bucket: String) = blockingIntent {
@@ -311,30 +197,56 @@ class AppsViewModel : ContainerHost<AppsState, SideEffect> {
         }
     }
 
-    fun queuedRemoveBucket(bucket: String) = intent {
-        channel.send(Operation(OperationType.REMOVE_BUCKET, bucket))
+    fun cancelTask(app: App) = intent {
+        taskQueue.getTask(app.uniqueName)?.run {
+            taskQueue.cancelTask(app.uniqueName)
+        }
     }
 
     fun cancel(app: App? = null) = intent {
         logger.info("cancelling")
 
         // cancelling pending operation
-        if (app?.uniqueName in state.waitingApps) {
-            reduce {
-                state.copy(waitingApps = state.waitingApps - setOf(app!!.uniqueName))
+        if (app != null && taskQueue.containTask(app.uniqueName)) {
+            logger.info("cancel task = ${app.name}")
+            cancelTask(app)
+        } else {
+            logger.info("Stop scoop")
+            Scoop.stop()
+            if (app != null) {
+                logger.info("cancelling app = ${app.uniqueName}")
+                AppsRepository.updateApp(app.copy(status = "failed"))
+                applyFilters()
             }
-            return@intent
-        }
-
-        Scoop.stop()
-        reduce { state.copy(refreshing = false) }
-
-        if (app != null) {
-            logger.info("cancelling app = ${app.uniqueName}")
-            reduce { state.copy(processingApp = null) }
-            AppsRepository.updateApp(app.copy(status = "failed"))
-            applyFilters()
         }
     }
-}
 
+    fun queuedUpdateApps() = intent {
+        taskQueue.addTask(Task.Refresh { refresh() })
+    }
+
+    fun queuedInstall(app: App, global: Boolean = false) = intent {
+        taskQueue.addTask(Task.Install(app) { installApp(app, global) })
+    }
+
+    fun queuedUninstall(app: App) = intent {
+        taskQueue.addTask(Task.Uninstall(app) { uninstallApp(app) })
+    }
+
+    fun queuedUpdate(app: App) = intent {
+        taskQueue.addTask(Task.Update(app) { updateApp(app) })
+    }
+
+    fun queuedDownload(app: App) = intent {
+        taskQueue.addTask(Task.Download(app) { downloadApp(app) })
+    }
+
+    fun queuedAddBucket(bucket: String, url: String? = null) = intent {
+        taskQueue.addTask(Task.AddBucket(bucket) { addScoopBucket(bucket, url) })
+    }
+
+    fun queuedRemoveBucket(bucket: String) = intent {
+        taskQueue.addTask(Task.RemoveBucket(bucket) { removeScoopBucket(bucket) })
+    }
+
+}
