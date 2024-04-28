@@ -76,17 +76,11 @@ compose.desktop {
 
 val compileKotlin: KotlinCompile by tasks
 compileKotlin.kotlinOptions {
-    jvmTarget = "11"
     freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
 }
 
-val compileTestKotlin: KotlinCompile by tasks
-compileTestKotlin.kotlinOptions {
-    jvmTarget = "11"
-}
-
-java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(11))
+kotlin {
+    jvmToolchain(17)
 }
 
 // tasks.withType<AbstractJLinkTask> {
