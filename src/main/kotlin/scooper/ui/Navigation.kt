@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -38,7 +37,6 @@ import scooper.util.navigation.core.BackStack
 import scooper.util.onHover
 import scooper.viewmodels.AppsViewModel
 import sh.calvin.reorderable.ReorderableColumn
-import sh.calvin.reorderable.ReorderableScope
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -226,7 +224,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
             Icon(
                 painterResource("drag_indicator.svg"),
                 contentDescription = "Reorder Task",
-                modifier = Modifier.size(18.dp).then(draggableHandle?.let { it.cursorHand() } ?: Modifier)
+                modifier = Modifier.size(18.dp).then(draggableHandle?.cursorHand() ?: Modifier)
             )
         }
         Text(
