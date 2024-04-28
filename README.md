@@ -10,7 +10,7 @@ The Missing GUI of Scoop.
 Just install with `scoop` obviously:
 
 ```cmd
-scoop bucket add ladle https://github.com/windedge/ladle-bucket
+scoop bucket add extra
 scoop install scooper
 ```
 
