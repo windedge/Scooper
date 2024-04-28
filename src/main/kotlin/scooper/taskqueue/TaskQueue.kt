@@ -80,6 +80,38 @@ class TaskQueue {
         removeTask(name)
     }
 
+    suspend fun moveTask(name: String, newPosition: Int) {
+        mutex.withLock {
+            logger.info("Moving task $name to position $newPosition")
+            val task = pendingTasks.remove(name)
+            if (task != null) {
+                val updatedTasks = LinkedHashMap(pendingTasks)
+                val keys = updatedTasks.keys.toList()
+                val values = updatedTasks.values.toList()
+
+                // Remove old entry and add at the new position
+                if (newPosition < keys.size) {
+                    val newKeys = mutableListOf<String>().apply {
+                        addAll(keys.subList(0, newPosition))
+                        add(name)
+                        addAll(keys.subList(newPosition, keys.size))
+                    }
+                    val newValues = mutableListOf<Task>().apply {
+                        addAll(values.subList(0, newPosition))
+                        add(task)
+                        addAll(values.subList(newPosition, values.size))
+                    }
+                    pendingTasks.clear()
+                    newKeys.zip(newValues).forEach { (k, v) -> pendingTasks[k] = v }
+                } else {
+                    pendingTasks.putAll(updatedTasks)
+                    pendingTasks[name] = task
+                }
+                _pendingTasksFlow.emit(pendingTasks.values.toList())
+            }
+        }
+    }
+
     suspend fun closeQueue() {
         logger.info("Close queue ...")
         taskChannel.close()
