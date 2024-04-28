@@ -2,6 +2,7 @@
 name: Build Msi
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -22,18 +23,20 @@ jobs:
         uses: gradle/gradle-build-action@v2.4.0 
         with:
           arguments: "packageMsi --no-daemon --stacktrace"
-      - name: Upload artifacts
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      # - name: Upload artifacts
+      #   uses: softprops/action-gh-release@v1
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   with:
+      #     files: |
+      #       build/compose/binaries/main/msi/*          
+      - name: Release
+        uses: "marvinpinto/action-automatic-releases@latest"
         with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: false
           files: |
-            build/compose/binaries/main/msi/*          
-#       - uses: "marvinpinto/action-automatic-releases@latest"
-#         with:
-#           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-#           prerelease: false
-#           files: |
-#             build/compose/binaries/main/msi/*.msi
+            build/compose/binaries/main/msi/*.msi
             
             
 #       - name: Grant execute permission for gradlew
