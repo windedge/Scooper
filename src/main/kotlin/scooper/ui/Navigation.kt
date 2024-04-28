@@ -168,11 +168,9 @@ fun RefreshScoopButton() {
                     }
 
                     DropdownMenu(showQueueTasks, onDismissRequest = { showQueueTasks = false }) {
-                        if (runningTask !is Task.Refresh) {
-                            TaskRow(runningTask!!, true, onCancel = {
-                                scope.launch { Scoop.stop() }
-                            })
-                        }
+                        TaskRow(runningTask!!, true, onCancel = {
+                            scope.launch { Scoop.stop() }
+                        })
 
                         ReorderableColumn(queuedTasks, onSettle = { from, to ->
                             queuedTasks.getOrNull(from)?.let {
