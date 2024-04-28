@@ -40,6 +40,8 @@ dependencies {
 
     implementation(libs.commons.text)
     implementation(libs.kotlin.process)
+    implementation(libs.reorderable)
+//    implementation(libs.compose.dnd)
 
     // test
     testImplementation(libs.junit.jupiter)

@@ -1,6 +1,6 @@
 [versions]
-kotlin = "1.9.22"
-compose = "1.5.12"
+kotlin = "1.9.23"
+compose = "1.6.2"
 logback = "1.4.5"
 log4j = "2.19.0"
 koin = "3.5.3"
@@ -18,6 +18,8 @@ buildconfig = "3.1.0"
 slf4j = "2.0.5"
 common-text = "1.10.0"
 kotlin-process = "1.4.1"
+reorderable = "1.5.2"
+compose-dnd = "0.2.0"
 
 
 [libraries]
@@ -33,13 +35,9 @@ exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "e
 exposed-java-time = { module = "org.jetbrains.exposed:exposed-java-time", version.ref = "exposed" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 
-
 voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.ref = "voyager" }
 voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
 orbit-core = { module = "org.orbit-mvi:orbit-core", version.ref = "orbit" }
-
-commons-text =  {module = "org.apache.commons:commons-text", version.ref="common-text"}
-kotlin-process =  {module = "com.github.pgreze:kotlin-process", version.ref="kotlin-process"}
 
 slf4j-api =  {module = "org.slf4j:slf4j-api", version.ref="slf4j"}
 slf4j-simple =  {module = "org.slf4j:slf4j-simple", version.ref="slf4j"}
@@ -48,6 +46,11 @@ viform-core = { module = "io.github.windedge.viform:viform-core", version.ref = 
 viform-compose = { module = "io.github.windedge.viform:viform-compose", version.ref = "viform" }
 viform-orbitmvi = { module = "io.githubhub.windedge.viform:viform-orbitmvi", version.ref = "viform" }
 
+commons-text =  {module = "org.apache.commons:commons-text", version.ref="common-text"}
+kotlin-process =  {module = "com.github.pgreze:kotlin-process", version.ref="kotlin-process"}
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+#reorderable = { module = "org.burnoutcrew.composereorderable:reorderable", version.ref = "reorderable" }
+#compose-dnd = {module = "com.mohamedrejeb.dnd:compose-dnd", version.ref="compose-dnd"}
 gettext = { module = "name.kropp.kotlinx-gettext:kotlinx-gettext", version.ref = "gettext" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }

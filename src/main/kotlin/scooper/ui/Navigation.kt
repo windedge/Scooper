@@ -1,5 +1,6 @@
 package scooper.ui
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,25 +10,32 @@ import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.twotone.Clear
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.java.KoinJavaComponent.get
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
+import scooper.taskqueue.toTitle
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
+import scooper.util.Scoop
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.AppsViewModel
+import sh.calvin.reorderable.ReorderableColumn
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -125,6 +133,7 @@ fun RefreshScoopButton() {
     val appsViewModel: AppsViewModel = koinInject()
     val taskQueue: TaskQueue = koinInject()
     val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
+    val scope = rememberCoroutineScope { Dispatchers.Default }
     Box(modifier = Modifier.width(30.dp), contentAlignment = Alignment.Center) {
         if (runningTask != null) {
             val queuedTasks by taskQueue.pendingTasksFlow.map { tasks ->
@@ -158,16 +167,83 @@ fun RefreshScoopButton() {
                     }
 
                     DropdownMenu(showQueueTasks, onDismissRequest = { showQueueTasks = false }) {
-                        for (task in queuedTasks) {
-                            DropdownMenuItem(
-                                modifier = Modifier.height(50.dp).cursorHand(),
-                                onClick = {}) {
-                                Text(task.name)
+                        ReorderableColumn(queuedTasks, onSettle = { from, to ->
+                            queuedTasks.getOrNull(from)?.let {
+                                scope.launch { taskQueue.moveTask(it.name, to) }
                             }
+                        }) { _, task, isDragging ->
+                            key(task.id) {
+                                val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp)
+
+                                Surface(elevation = elevation) {
+                                    Row(
+                                        modifier = Modifier.height(40.dp).width(250.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+
+                                        if (task == runningTask) {
+                                            LinearProgressIndicator(
+                                                modifier = Modifier.height(5.dp).width(18.dp).padding(start = 5.dp)
+                                            )
+                                        } else {
+                                            Icon(
+                                                painterResource("drag_indicator.svg"),
+                                                contentDescription = "Reorder Task",
+                                                modifier = Modifier.size(18.dp).draggableHandle()
+                                            )
+                                        }
+                                        Text(
+                                            text = task.toTitle(),
+                                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        if (task == runningTask) {
+                                            IconButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        Scoop.stop()
+                                                        taskQueue.cancelTask(task.name)
+                                                    }
+                                                },
+                                                modifier = Modifier.cursorHand().padding(horizontal = 5.dp),
+                                                rippleRadius = 10.dp,
+                                            ) {
+                                                Icon(
+                                                    painterResource("stop.svg"),
+                                                    "",
+                                                    modifier = Modifier.size(20.dp),
+                                                    tint = colors.onSecondary
+                                                )
+                                            }
+
+                                        } else {
+                                            IconButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        taskQueue.cancelTask(task.name)
+                                                    }
+                                                },
+                                                modifier = Modifier.cursorHand().padding(horizontal = 5.dp),
+                                                rippleRadius = 10.dp,
+                                            ) {
+                                                Icon(
+                                                    Icons.TwoTone.Clear,
+                                                    "",
+                                                    modifier = Modifier.size(20.dp),
+                                                    tint = colors.onSecondary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                            }
+
                         }
                     }
                 }
-
             }
         } else {
             Tooltip("Refreshing Scoop") {
