@@ -19,7 +19,6 @@ slf4j = "2.0.5"
 common-text = "1.10.0"
 kotlin-process = "1.4.1"
 reorderable = "1.5.2"
-compose-dnd = "0.2.0"
 
 
 [libraries]
@@ -49,8 +48,6 @@ viform-orbitmvi = { module = "io.githubhub.windedge.viform:viform-orbitmvi", ver
 commons-text =  {module = "org.apache.commons:commons-text", version.ref="common-text"}
 kotlin-process =  {module = "com.github.pgreze:kotlin-process", version.ref="kotlin-process"}
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
-#reorderable = { module = "org.burnoutcrew.composereorderable:reorderable", version.ref = "reorderable" }
-#compose-dnd = {module = "com.mohamedrejeb.dnd:compose-dnd", version.ref="compose-dnd"}
 gettext = { module = "name.kropp.kotlinx-gettext:kotlinx-gettext", version.ref = "gettext" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
