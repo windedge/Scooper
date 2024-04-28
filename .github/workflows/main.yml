@@ -22,7 +22,7 @@ jobs:
       - name: Build Msi
         uses: gradle/gradle-build-action@v2.4.0 
         with:
-          arguments: "packageMsi --no-daemon --stacktrace"
+          arguments: "packageReleaseMsi --no-daemon --stacktrace"
       # - name: Upload artifacts
       #   uses: softprops/action-gh-release@v1
       #   if: startsWith(github.ref, 'refs/tags/')
@@ -36,7 +36,7 @@ jobs:
           automatic_release_tag: "latest"
           prerelease: false
           files: |
-            build/compose/binaries/main/msi/*.msi
+            build/compose/binaries/main-release/msi/*.msi
             
             
 #       - name: Grant execute permission for gradlew
