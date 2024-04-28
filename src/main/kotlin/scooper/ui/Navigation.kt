@@ -239,6 +239,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
         )
 
         var hover by remember { mutableStateOf(false) }
+        val tint = if (hover) colors.error else colors.onSecondary
         if (isRunning) {
             IconButton(
                 onClick = { onCancel() },
@@ -249,7 +250,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                     painterResource("stop.svg"),
                     "",
                     modifier = Modifier.size(20.dp),
-                    tint = colors.onSecondary
+                    tint = tint
                 )
             }
 
@@ -263,7 +264,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                     Icons.TwoTone.Clear,
                     "",
                     modifier = Modifier.size(20.dp),
-                    tint = if (hover) colors.error else colors.onSecondary
+                    tint = tint
                 )
             }
         }
