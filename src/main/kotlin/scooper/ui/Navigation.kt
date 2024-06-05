@@ -13,9 +13,13 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.twotone.Clear
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -129,6 +133,7 @@ fun MoreActionsButton() {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun RefreshScoopButton() {
     val appsViewModel: AppsViewModel = koinInject()
@@ -189,10 +194,19 @@ fun RefreshScoopButton() {
                 }
             }
         } else {
+            var isCtrlPressed by remember { mutableStateOf(false) }
             Tooltip("Refreshing Scoop") {
                 IconButton(
-                    onClick = { appsViewModel.queuedUpdateApps() },
-                    modifier = Modifier.cursorLink(),
+                    onClick = {
+                        if (isCtrlPressed) {
+                            appsViewModel.scheduleReloadApps()
+                        } else {
+                            appsViewModel.scheduleUpdateApps()
+                        }
+                    },
+                    modifier = Modifier.cursorLink().onPointerEvent(PointerEventType.Press) {
+                        isCtrlPressed = it.keyboardModifiers.isCtrlPressed
+                    },
                     rippleRadius = 20.dp
                 ) {
                     Icon(
@@ -242,12 +256,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(
-                    painterResource("stop.svg"),
-                    "",
-                    modifier = Modifier.size(20.dp),
-                    tint = tint
-                )
+                Icon(painterResource("stop.svg"), "", modifier = Modifier.size(20.dp), tint = tint)
             }
 
         } else {
@@ -256,12 +265,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(
-                    Icons.TwoTone.Clear,
-                    "",
-                    modifier = Modifier.size(20.dp),
-                    tint = tint
-                )
+                Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(20.dp), tint = tint)
             }
         }
     }

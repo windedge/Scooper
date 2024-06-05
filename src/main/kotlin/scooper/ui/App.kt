@@ -67,10 +67,10 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::c
                 filter,
                 processingApp = processingApp,
                 waitingApps = waitingApps,
-                onInstall = appsViewModel::queuedInstall,
-                onUpdate = appsViewModel::queuedUpdate,
-                onDownload = appsViewModel::queuedDownload,
-                onUninstall = appsViewModel::queuedUninstall,
+                onInstall = appsViewModel::scheduleInstall,
+                onUpdate = appsViewModel::scheduleUpdate,
+                onDownload = appsViewModel::scheduleDownload,
+                onUninstall = appsViewModel::scheduleUninstall,
                 onCancel = appsViewModel::cancel,
                 onLoadMore = appsViewModel::loadMore
             )

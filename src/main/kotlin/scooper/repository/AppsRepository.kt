@@ -18,14 +18,11 @@ import scooper.util.Scoop
 import scooper.util.ScooperException
 
 
-object Apps : IntIdTable() {
-    override val tableName = "apps"
-
+object Apps : IntIdTable("apps") {
     val name = varchar("name", 1000)
     val version = varchar("version", 1000).nullable()
     val latestVersion = varchar("latest_version", 1000)
     val bucketId = reference("bucket_id", Buckets, onDelete = ReferenceOption.SET_NULL).nullable()
-
     val global = bool("global").default(false)
     val status = varchar("status", 20).default("uninstall")
     val description = varchar("description", 5000).nullable()
@@ -41,9 +38,7 @@ object Apps : IntIdTable() {
     }
 }
 
-object Buckets : IntIdTable() {
-    override val tableName = "buckets"
-
+object Buckets : IntIdTable("buckets") {
     val name = varchar("name", 1000)
     val url = text("url").nullable()
 }
@@ -148,7 +143,7 @@ object AppsRepository {
     fun loadApps() = transaction {
         val apps = Scoop.apps
         for (app in apps) {
-            val query = Apps.leftJoin(Buckets).select { Apps.name eq app.name }
+            val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
 
             val rows = AppEntity.wrapRows(query).toList()
             val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
@@ -175,7 +170,7 @@ object AppsRepository {
     fun loadBuckets() = transaction {
         for (bucketDir in Scoop.bucketDirs) {
             val bucket = bucketDir.name
-            if (Buckets.select { Buckets.name eq bucket }.count() <= 0) {
+            if (Buckets.selectAll().where { Buckets.name eq bucket }.count() <= 0) {
                 BucketEntity.new {
                     name = bucket
                     url = Scoop.getRepoUrl(bucketDir)
@@ -186,7 +181,7 @@ object AppsRepository {
     }
 
     fun updateApp(app: App) = transaction {
-        val query = Apps.leftJoin(Buckets).select { Apps.name eq app.name }
+        val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
         if (app.bucket != null) {
             query.andWhere { Buckets.name eq app.bucket!!.name }
         }

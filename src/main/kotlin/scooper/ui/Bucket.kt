@@ -98,7 +98,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
                     modifier = Modifier.padding(top = 20.dp)
                 )
 
-                KnownBuckets(bucketNames, onAdd = { appsViewModel.queuedAddBucket(it) })
+                KnownBuckets(bucketNames, onAdd = { appsViewModel.scheduleAddBucket(it) })
 
                 Spacer(Modifier.height(10.dp))
             }
@@ -114,7 +114,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
             text = "Confirm to delete?",
             onConfirm = {
                 showDeleteDialog = false
-                appsViewModel.queuedRemoveBucket(bucketToDelete)
+                appsViewModel.scheduleRemoveBucket(bucketToDelete)
             },
             onCancel = { showDeleteDialog = false }
         )
@@ -134,7 +134,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java))
                 if (bucketNameError || bucketUrlError) {
                     return@ConfirmDialog
                 }
-                appsViewModel.queuedAddBucket(bucketName, bucketUrl)
+                appsViewModel.scheduleAddBucket(bucketName, bucketUrl)
             },
             onCancel = { showAddDialog = false },
             confirmText = "Add",
