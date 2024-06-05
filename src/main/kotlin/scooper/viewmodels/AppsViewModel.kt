@@ -221,31 +221,35 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
         }
     }
 
-    fun queuedUpdateApps() = intent {
+    fun scheduleReloadApps() = intent {
+        taskQueue.addTask(Task.Refresh { reloadApps() })
+    }
+
+    fun scheduleUpdateApps() = intent {
         taskQueue.addTask(Task.Refresh { refresh() })
     }
 
-    fun queuedInstall(app: App, global: Boolean = false) = intent {
+    fun scheduleInstall(app: App, global: Boolean = false) = intent {
         taskQueue.addTask(Task.Install(app) { installApp(app, global) })
     }
 
-    fun queuedUninstall(app: App) = intent {
+    fun scheduleUninstall(app: App) = intent {
         taskQueue.addTask(Task.Uninstall(app) { uninstallApp(app) })
     }
 
-    fun queuedUpdate(app: App) = intent {
+    fun scheduleUpdate(app: App) = intent {
         taskQueue.addTask(Task.Update(app) { updateApp(app) })
     }
 
-    fun queuedDownload(app: App) = intent {
+    fun scheduleDownload(app: App) = intent {
         taskQueue.addTask(Task.Download(app) { downloadApp(app) })
     }
 
-    fun queuedAddBucket(bucket: String, url: String? = null) = intent {
+    fun scheduleAddBucket(bucket: String, url: String? = null) = intent {
         taskQueue.addTask(Task.AddBucket(bucket) { addScoopBucket(bucket, url) })
     }
 
-    fun queuedRemoveBucket(bucket: String) = intent {
+    fun scheduleRemoveBucket(bucket: String) = intent {
         taskQueue.addTask(Task.RemoveBucket(bucket) { removeScoopBucket(bucket) })
     }
 

@@ -59,7 +59,7 @@ fun main() = application {
         val theme = uiConfig.theme.toSystemTheme()
         LaunchedEffect(Unit) {
             if (uiConfig.refreshOnStartup) {
-                appsViewModel.queuedUpdateApps()
+                appsViewModel.scheduleUpdateApps()
             }
         }
 
