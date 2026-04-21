@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogState
 import androidx.compose.ui.window.DialogWindow
-import org.koin.java.KoinJavaComponent.get
+import org.koin.compose.koinInject
 import scooper.data.Bucket
 import scooper.ui.components.OutlinedTextField
 import scooper.ui.components.Tooltip
@@ -32,13 +32,12 @@ import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.noRippleClickable
+import scooper.util.safeBrowse
 import scooper.viewmodels.AppsViewModel
-import java.awt.Desktop
-import java.net.URI
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun BucketsScreen(appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
+fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
     var bucketToDelete by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -219,7 +218,7 @@ fun BucketCard(
                     Text(bucket.name, style = MaterialTheme.typography.h6)
                     Spacer(Modifier.height(8.dp))
                     Text(bucket.url ?: "", modifier = Modifier.cursorLink().clickable {
-                        Desktop.getDesktop().browse(URI.create(bucket.url!!))
+                        safeBrowse(bucket.url)
                     })
                 }
 
@@ -287,42 +286,3 @@ fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit)
         }
     }
 }
-
-/*
-@Composable
-fun ConfirmDialog(
-    text: String? = null,
-    title: String? = null,
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit,
-    confirmText: String? = null,
-    cancelText: String? = null,
-    content: @Composable (() -> Unit)? = null
-) {
-    val body =
-        content ?: {
-            Box(
-                Modifier.height(120.dp).fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text ?: "",
-                    style = MaterialTheme.typography.h6,
-                    color = colors.onSurface
-                )
-            }
-        }
-
-    AlertDialog(
-        onDismissRequest = onCancel,
-        confirmButton = {
-            Button(onClick = onConfirm, contentPadding = PaddingValues(4.dp)) { Text(confirmText ?: "OK") }
-        },
-        text = body,
-        dismissButton = {
-            Button(onClick = onCancel, contentPadding = PaddingValues(4.dp)) { Text(cancelText ?: "Cancel") }
-        },
-        properties = DialogProperties(title = title ?: "Scooper", size = IntSize(240, 150))
-    )
-}
-*/

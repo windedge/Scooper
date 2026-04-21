@@ -27,13 +27,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import org.koin.java.KoinJavaComponent.get
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.taskqueue.toTitle
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
-import scooper.util.Scoop
+import scooper.service.ScoopService
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.navigation.LocalBackStack
@@ -138,6 +137,7 @@ fun MoreActionsButton() {
 fun RefreshScoopButton() {
     val appsViewModel: AppsViewModel = koinInject()
     val taskQueue: TaskQueue = koinInject()
+    val scoopService: ScoopService = koinInject()
     val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
     val scope = rememberCoroutineScope { Dispatchers.Default }
     Box(modifier = Modifier.width(30.dp), contentAlignment = Alignment.Center) {
@@ -172,7 +172,7 @@ fun RefreshScoopButton() {
 
                     DropdownMenu(showQueueTasks, onDismissRequest = { showQueueTasks = false }) {
                         TaskRow(runningTask!!, true, onCancel = {
-                            scope.launch { Scoop.stop() }
+                            scope.launch { scoopService.stop() }
                         })
 
                         ReorderableColumn(queuedTasks, onSettle = { from, to ->
@@ -275,7 +275,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
 @Suppress("UNCHECKED_CAST")
 @Composable
 fun Menu(modifier: Modifier = Modifier) {
-    val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
+    val appsViewModel: AppsViewModel = koinInject()
     val navigator = LocalBackStack.current as BackStack<AppRoute>
 
     Row(
@@ -338,116 +338,3 @@ fun AppRoute.MenuItem(
         Text(text, modifier = Modifier.padding(contentPadding), style = style)
     }
 }
-
-/*
-@Composable
-fun SideBar(navigator: BackStack<AppRoute>) {
-    val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
-    Surface(
-        Modifier.fillMaxHeight().width(180.dp),
-        elevation = 1.dp,
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Column(
-            Modifier.defaultMinSize(10.dp).padding(vertical = 1.dp)
-        ) {
-            val selectedItem = remember { mutableStateOf("Apps") }
-            val route = navigator.current.value
-            NavItem(
-                "Apps",
-                icon = Icons.TwoTone.Home,
-                selectItem = selectedItem,
-                selected = route is AppRoute.Apps && route.scope == "",
-                onClick = {
-                    appsViewModel.resetFilter()
-                    navigator.popupAllAndPush(AppRoute.Apps(scope = ""))
-                }
-            )
-            NavItem(
-                "Installed",
-                indent = 40,
-                icon = Icons.TwoTone.KeyboardArrowRight,
-                selectItem = selectedItem,
-                selected = route is AppRoute.Apps && route.scope == "installed",
-                onClick = {
-                    appsViewModel.resetFilter()
-                    navigator.popupAllAndPush(AppRoute.Apps(scope = "installed"))
-                },
-            )
-            NavItem(
-                "Updates",
-                indent = 40,
-                icon = Icons.TwoTone.KeyboardArrowRight,
-                selectItem = selectedItem,
-                selected = route is AppRoute.Apps && route.scope == "updates",
-                onClick = {
-                    appsViewModel.resetFilter()
-                    navigator.popupAllAndPush(AppRoute.Apps(scope = "updates"))
-                },
-            )
-            Divider(Modifier.height(1.dp))
-            NavItem(
-                "Buckets",
-                icon = Icons.TwoTone.List,
-                selectItem = selectedItem,
-                selected = route == AppRoute.Buckets,
-                onClick = { navigator.popupAllAndPush(AppRoute.Buckets) }
-            )
-            Divider(Modifier.height(1.dp))
-            NavItem(
-                "Settings",
-                icon = Icons.TwoTone.Settings,
-                selectItem = selectedItem,
-                selected = route == AppRoute.Settings,
-                onClick = { navigator.popupAllAndPush(AppRoute.Settings) }
-            )
-            Divider(Modifier.height(1.dp))
-        }
-    }
-}
-
-@Composable
-fun NavItem(
-    text: String = "",
-    modifier: Modifier = Modifier,
-    selectItem: MutableState<String>,
-    selected: Boolean = false,
-    indent: Int = 30,
-    icon: ImageVector? = null,
-    onClick: (() -> Unit)? = null,
-) {
-    var hover by remember { mutableStateOf(false) }
-    val highlight = hover || selected
-    var default = Modifier
-        .fillMaxWidth()
-        .padding(2.dp)
-        .height(35.dp)
-        .cursorHand()
-        .background(color = if (highlight) colors.primary else Color.Unspecified)
-    if (onClick != null) {
-        default = default.onHover { hover = it }.noRippleClickable {
-            onClick.invoke()
-            selectItem.value = text
-        }
-    }
-
-    val combined = modifier.then(default)
-    Row(
-        combined,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Spacer(Modifier.width(indent.dp))
-
-        val color = if (highlight) colors.onPrimary else colors.onSurface
-        if (icon != null) {
-            Icon(
-                icon,
-                "",
-                modifier = Modifier.size(20.dp),
-                tint = if (highlight) colors.onPrimary else colors.onSecondary
-            )
-        }
-        Text(text, color = color)
-    }
-}
-*/

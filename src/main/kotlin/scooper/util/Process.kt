@@ -23,6 +23,10 @@ fun execute(
     return execute(args, asShell, workingDir, charset = charset, consumer = consumer, onFinish = onFinish)
 }
 
+/**
+ * 同步执行命令（阻塞调用线程）。仅在无法使用协程上下文时使用。
+ * 优先使用 [executeSuspend] 版本。
+ */
 fun execute(
     commandArgs: List<String>,
     asShell: Boolean = true,
@@ -31,13 +35,7 @@ fun execute(
     consumer: suspend (line: String) -> Unit = { },
     onFinish: suspend (exitValue: Int) -> Unit,
 ): ProcessResult = runBlocking {
-    val command = if (asShell) {
-        val args = commandArgs.joinToString(" ", transform = StringEscapeUtils::escapeXSI)
-        arrayOf("cmd", "/c", args)
-    } else {
-        commandArgs.toTypedArray()
-    }
-
+    val command = buildCommand(commandArgs, asShell)
     val result = process(
         *command,
         stdout = Redirect.CAPTURE,
@@ -48,6 +46,39 @@ fun execute(
     )
     onFinish(result.resultCode)
     return@runBlocking result
+}
+
+/**
+ * 挂起函数版本，在协程上下文中执行命令，不阻塞线程。
+ */
+suspend fun executeSuspend(
+    commandArgs: List<String>,
+    asShell: Boolean = true,
+    workingDir: File? = null,
+    charset: Charset = defaultCharset,
+    consumer: suspend (line: String) -> Unit = { },
+    onFinish: suspend (exitValue: Int) -> Unit,
+): ProcessResult {
+    val command = buildCommand(commandArgs, asShell)
+    val result = process(
+        *command,
+        stdout = Redirect.CAPTURE,
+        stderr = Redirect.CAPTURE,
+        directory = workingDir,
+        consumer = consumer,
+        charset = charset
+    )
+    onFinish(result.resultCode)
+    return result
+}
+
+private fun buildCommand(commandArgs: List<String>, asShell: Boolean): Array<String> {
+    return if (asShell) {
+        val args = commandArgs.joinToString(" ", transform = StringEscapeUtils::escapeXSI)
+        arrayOf("cmd", "/c", args)
+    } else {
+        commandArgs.toTypedArray()
+    }
 }
 
 fun killAllSubProcesses() {
@@ -64,6 +95,5 @@ fun findExecutable(name: String): String? {
             return file.absolutePath
         }
     }
-    // throw AssertionError("should have found the executable")
     return null
 }

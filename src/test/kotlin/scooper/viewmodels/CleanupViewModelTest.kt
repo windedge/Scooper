@@ -1,18 +1,24 @@
 package scooper.viewmodels
 
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.koin.core.context.startKoin
-import scooper.di.viewModels
-import scooper.util.Scoop
+import scooper.repository.CleanupRepository
+import scooper.service.ScoopLogStream
+import scooper.service.ScoopService
 import scooper.util.readableSize
 import kotlin.test.assertTrue
 
 class CleanupViewModelTest {
 
-    private val koinApp = startKoin { modules(viewModels) }
+    private val scoopService = ScoopService(ScoopLogStream())
+    private val cleanupRepository = CleanupRepository(scoopService)
+    private val koinApp = startKoin {
+        modules(org.koin.dsl.module {
+            single { cleanupRepository }
+            single { CleanupViewModel(get()) }
+        })
+    }
     private val cleanupViewModel = koinApp.koin.get<CleanupViewModel>()
 
     @Test
@@ -22,22 +28,14 @@ class CleanupViewModelTest {
 
     @Test
     fun cacheSize() {
-        val cacheSize = Scoop.computeCacheSize()
+        val cacheSize = cleanupRepository.computeCacheSize()
         assertNotNull { cacheSize.readableSize() }
     }
 
     @Test
-    fun computeOldVersions() {
-        val oldVersions = cleanupViewModel.scanOldVersions()
-        println("oldVersions = ${oldVersions}")
+    fun scanOldVersions() {
+        val oldVersions = cleanupRepository.scanOldVersions()
+        println("oldVersions = $oldVersions")
         assertTrue { oldVersions.isNotEmpty() }
-
-        runBlocking {
-            cleanupViewModel.computeOldVersions()
-            cleanupViewModel.container.stateFlow.collectLatest {
-                it.totalOldSize > 0
-            }
-
-        }
     }
 }

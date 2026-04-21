@@ -21,9 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import org.koin.compose.koinInject
-import org.koin.java.KoinJavaComponent.get
 import org.slf4j.LoggerFactory
 import scooper.data.App
+import scooper.data.AppStatus
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.ui.components.OnBottomReached
@@ -32,6 +32,7 @@ import scooper.ui.components.TooltipPosition
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.onHover
+import scooper.util.safeBrowse
 import scooper.viewmodels.AppsFilter
 import scooper.viewmodels.AppsViewModel
 import java.time.format.DateTimeFormatter
@@ -40,7 +41,7 @@ import java.time.format.DateTimeFormatter
 private val logger = LoggerFactory.getLogger("ui.App")
 
 @Composable
-fun AppScreen(scope: String, appsViewModel: AppsViewModel = get(AppsViewModel::class.java)) {
+fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
     val taskQueue: TaskQueue = koinInject()
     val state by appsViewModel.container.stateFlow.collectAsState()
     val apps = state.apps
@@ -157,7 +158,7 @@ fun AppCard(
                                         painter = painterResource("external_link_icon.xml"),
                                         app.homepage,
                                         modifier = Modifier.cursorHand().clickable {
-                                            java.awt.Desktop.getDesktop().browse(java.net.URI.create(app.homepage!!))
+                                            safeBrowse(app.homepage)
                                         }
                                     )
                                 }
@@ -171,8 +172,8 @@ fun AppCard(
 
                         Text(app.description ?: "", maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            val formatter = DateTimeFormatter.ofPattern("YYYY-MM-dd")
-                            Text(app.updateAt.format(formatter), Modifier.widthIn(80.dp, 100.dp))
+                            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                            Text(app.updateAt?.format(formatter) ?: "", Modifier.widthIn(80.dp, 100.dp))
                             Spacer(Modifier.width(30.dp))
                             Text("[${app.bucket?.name ?: ""}]")
                         }
@@ -183,11 +184,11 @@ fun AppCard(
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            app.version ?: app.status,
+                            app.version ?: app.status.toString(),
                             maxLines = if (app.updatable) 1 else 3,
                             overflow = TextOverflow.Ellipsis,
                             softWrap = true,
-                            color = if (app.status == "failed") Color.Red else Color.Unspecified,
+                            color = if (app.status == AppStatus.FAILED) Color.Red else Color.Unspecified,
                         )
                         if (app.updatable) {
                             Text(
@@ -234,7 +235,7 @@ fun ActionButton(
         // offset = DpOffset(x = (-24).dp, y = 1.dp)
     ) {
         if (!app.installed) {
-            if (app.status != "failed") {
+            if (app.status != AppStatus.FAILED) {
                 DropdownMenuItem(
                     onClick = { expand = false; onInstall(app, true) },
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)
@@ -248,7 +249,7 @@ fun ActionButton(
                     MenuText("Download Only")
                 }
             }
-            if (app.status == "failed") {
+            if (app.status == AppStatus.FAILED) {
                 DropdownMenuItem(
                     onClick = { expand = false; onUninstall(app) },
                     modifier = Modifier.sizeIn(maxHeight = 25.dp)

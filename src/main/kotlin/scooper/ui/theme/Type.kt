@@ -7,7 +7,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import java.io.File
 
-val Arial = FontFamily(androidx.compose.ui.text.platform.Font(File("c:\\Windows\\Fonts\\arial.ttf")))
+val systemRoot = System.getenv("SystemRoot") ?: "C:\\Windows"
+val Arial = FontFamily(androidx.compose.ui.text.platform.Font(File("$systemRoot\\Fonts\\arial.ttf")))
 
 // Set of Material typography styles to start with
 val typography = Typography(

@@ -7,7 +7,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import scooper.util.Scoop
+import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.ChoiceState
 import scooper.util.form_builder.FormState
 import scooper.util.form_builder.SwitchState
@@ -56,7 +56,7 @@ class ScoopConfigTest {
 
     @Test
     fun testReadConfig() {
-        val config = Scoop.readScoopConfig()
+        val config = ScoopConfigManager.readScoopConfig()
         println("config = ${config}")
     }
 
@@ -129,7 +129,7 @@ class ScoopConfigTest {
     @Test
     fun testRemoveKeys() {
         val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
-        val (result, _) = Scoop.mergeConfigToJson(config, jsonText)
+        val (result, _) = ScoopConfigManager.mergeConfigToJson(config, jsonText)
         assertTrue(!result.containsKey("aria2-enabled"))
         assertTrue(result.containsKey("last_update"))
     }
@@ -137,11 +137,11 @@ class ScoopConfigTest {
     @Test
     fun testWriteConfig() {
         // val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
-        // Scoop.writeScoopConfig(config, Scoop.configFile.parentFile.resolve("config.test.json"))
+        // ScoopConfigManager.writeScoopConfig(config, ScoopConfigManager.configFile.parentFile.resolve("config.test.json"))
 
         val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
         val output = ByteArrayOutputStream()
-        Scoop.writeScoopConfig(config, Scoop.configFile, output)
+        ScoopConfigManager.writeScoopConfig(config, ScoopConfigManager.configFile, output)
 
         val result = output.toString()
         println("result = ${result}")

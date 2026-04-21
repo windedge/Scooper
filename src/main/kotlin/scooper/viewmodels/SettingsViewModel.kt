@@ -2,6 +2,8 @@ package scooper.viewmodels
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
@@ -11,23 +13,23 @@ import scooper.data.ScoopConfig
 import scooper.data.Theme
 import scooper.data.UIConfig
 import scooper.repository.ConfigRepository
-import scooper.util.Scoop
+import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
 
 data class SettingsState(
     val uiConfig: UIConfig = UIConfig(),
 )
 
-class SettingsViewModel : ContainerHost<SettingsState, SideEffect> {
+class SettingsViewModel(
+    private val configRepository: ConfigRepository,
+) : ContainerHost<SettingsState, SettingsSideEffect>, AutoCloseable {
 
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
-    override val container: Container<SettingsState, SideEffect> = coroutineScope.container(
-        SettingsState(
-            uiConfig = ConfigRepository.getConfig()
-        )
+    private val supervisorJob = SupervisorJob()
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
+    override val container: Container<SettingsState, SettingsSideEffect> = coroutineScope.container(
+        SettingsState(uiConfig = configRepository.getConfig())
     ) {
-        val scoopConfig = Scoop.readScoopConfig()
-        scoopFormState.setData(scoopConfig)
+        scoopFormState.setData(ScoopConfigManager.readScoopConfig())
         uiFormState.setData(state.uiConfig)
     }
 
@@ -86,12 +88,15 @@ class SettingsViewModel : ContainerHost<SettingsState, SideEffect> {
 
     fun writeScoopConfig() {
         val config = scoopFormState.getData(ScoopConfig::class)
-        Scoop.writeScoopConfig(config)
+        ScoopConfigManager.writeScoopConfig(config)
     }
 
     fun writeUIConfig() {
         val config = uiFormState.getData(UIConfig::class)
-        ConfigRepository.setConfig(config)
+        configRepository.setConfig(config)
     }
 
+    override fun close() {
+        supervisorJob.cancel()
+    }
 }
