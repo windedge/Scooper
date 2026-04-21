@@ -1,29 +1,56 @@
 package scooper.data
 
+import kotlinx.serialization.Serializable
 import java.time.LocalDateTime
 
-data class App(
-    var name: String,
-    var latestVersion: String,
-    var version: String? = null,
-    var global: Boolean = false,
-    var status: String = "uninstall",
-    var description: String? = null,
-    var url: String? = null,
-    var homepage: String? = null,
-    var license: String? = null,
-    var licenseUrl: String? = null,
-    var bucket: Bucket? = null,
-) {
+@Serializable
+data class ShortCut(
+    val title: String,
+    val path: String,
+)
 
-    lateinit var createAt: LocalDateTime
-    lateinit var updateAt: LocalDateTime
+enum class AppStatus {
+    INSTALLED,
+    UNINSTALL,
+    FAILED;
 
-    val installed: Boolean get() = this.status == "installed"
-    val updatable: Boolean get() = this.status == "installed" && this.version != null && this.version != this.latestVersion
-    val uniqueName: String get() = if (this.bucket != null) "${this.bucket!!.name}/${this.name}" else this.name
+    /** Lowercase string for Exposed storage and JSON serialization */
+    override fun toString(): String = name.lowercase()
+
+    companion object {
+        fun fromString(value: String): AppStatus =
+            entries.find { it.name.equals(value, ignoreCase = true) }
+                ?: UNINSTALL
+    }
 }
 
+data class App(
+    val name: String,
+    val latestVersion: String,
+    val version: String? = null,
+    val global: Boolean = false,
+    val status: AppStatus = AppStatus.UNINSTALL,
+    val description: String? = null,
+    val url: String? = null,
+    val homepage: String? = null,
+    val license: String? = null,
+    val licenseUrl: String? = null,
+    val bucket: Bucket? = null,
+    val shortcuts: List<ShortCut>? = null,
+    val createAt: LocalDateTime? = null,
+    val updateAt: LocalDateTime? = null,
+) {
+    val installed: Boolean
+        get() = this.status == AppStatus.INSTALLED
+
+    val updatable: Boolean
+        get() = this.status == AppStatus.INSTALLED
+                && this.version != null
+                && this.version != this.latestVersion
+
+    val uniqueName: String
+        get() = if (this.bucket != null) "${this.bucket!!.name}/${this.name}" else this.name
+}
 
 data class Bucket(
     val name: String,

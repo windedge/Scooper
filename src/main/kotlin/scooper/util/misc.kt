@@ -6,7 +6,9 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import kotlinx.serialization.json.JsonObject
+import java.awt.Desktop
 import java.io.File
+import java.net.URI
 import java.nio.file.Files
 
 fun Double.readableSize() = when {
@@ -81,5 +83,13 @@ fun ansiColorToComposeColor(ansiCode: String): Color {
         "90" -> Color.DarkGray.copy(red = 0.3f, green = 0.3f, blue = 0.3f)
         "97" -> Color.LightGray.copy(red = 0.7f, green = 0.7f, blue = 0.7f)
         else -> Color.Unspecified
+    }
+}
+
+fun safeBrowse(url: String?) {
+    if (url.isNullOrBlank()) return
+    val uri = URI.create(url)
+    if (uri.scheme in listOf("http", "https")) {
+        Desktop.getDesktop().browse(uri)
     }
 }

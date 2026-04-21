@@ -1,82 +1,31 @@
 package scooper.repository
 
-import org.jetbrains.exposed.dao.Entity
-import org.jetbrains.exposed.dao.EntityClass
-import org.jetbrains.exposed.dao.IntEntity
-import org.jetbrains.exposed.dao.IntEntityClass
-import org.jetbrains.exposed.dao.id.EntityID
-import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.notInList
-import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.LocalDateTime
 import scooper.data.App
+import scooper.data.AppStatus
 import scooper.data.Bucket
+import scooper.repository.db.AppEntity
+import scooper.repository.db.Apps
+import scooper.repository.db.BucketEntity
+import scooper.repository.db.Buckets
+import scooper.service.ScoopService
 import scooper.util.PAGE_SIZE
-import scooper.util.Scoop
 import scooper.util.ScooperException
-
-
-object Apps : IntIdTable("apps") {
-    val name = varchar("name", 1000)
-    val version = varchar("version", 1000).nullable()
-    val latestVersion = varchar("latest_version", 1000)
-    val bucketId = reference("bucket_id", Buckets, onDelete = ReferenceOption.SET_NULL).nullable()
-    val global = bool("global").default(false)
-    val status = varchar("status", 20).default("uninstall")
-    val description = varchar("description", 5000).nullable()
-    val url = text("url").nullable()
-    val homepage = text("homepage").nullable()
-    val license = varchar("license", 1000).nullable()
-    val licenseUrl = text("license_url").nullable()
-    val createAt = datetime("create_at")
-    val updateAt = datetime("update_at")
-
-    init {
-        index(isUnique = true, name, bucketId)
-    }
-}
-
-object Buckets : IntIdTable("buckets") {
-    val name = varchar("name", 1000)
-    val url = text("url").nullable()
-}
-
-class AppEntity(id: EntityID<Int>) : Entity<Int>(id) {
-    companion object : EntityClass<Int, AppEntity>(Apps)
-
-    var name by Apps.name
-    var version by Apps.version
-    var latestVersion by Apps.latestVersion
-    var bucket by BucketEntity optionalReferencedOn Apps.bucketId
-    var global by Apps.global
-    var status by Apps.status
-    var description by Apps.description
-    var url by Apps.url
-    var homepage by Apps.homepage
-    var license by Apps.license
-    var createAt by Apps.createAt
-    var updateAt by Apps.updateAt
-}
-
-class BucketEntity(id: EntityID<Int>) : IntEntity(id) {
-    companion object : IntEntityClass<BucketEntity>(Buckets)
-
-    var name by Buckets.name
-    var url by Buckets.url
-}
 
 data class PaginatedResult<T>(
     val value: List<T>,
     val totalCount: Long
 )
 
-object AppsRepository {
+class AppsRepository(
+    private val scoopService: ScoopService,
+) {
     fun getBuckets(): List<Bucket> = transaction {
-        BucketEntity.all().map {
-            Bucket(name = it.name, url = it.url)
-        }
+        BucketEntity.all().map { Bucket(name = it.name, url = it.url) }
     }
 
     fun getApps(
@@ -90,45 +39,40 @@ object AppsRepository {
         if (query.isNotBlank()) {
             val words = query.trim().split(" ")
             for (word in words) {
-                conditions.andWhere { Apps.name like "%$word%" or (Apps.description match "%$word%") }
+                val escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                conditions.andWhere { Apps.name like "%$escaped%" or (Apps.description match "%$escaped%") }
             }
         }
         if (bucket.isNotBlank()) {
             conditions.andWhere { Buckets.name eq bucket }
         }
-        if (scope == "installed") {
-            conditions.andWhere { Apps.status eq "installed" }
+        if (scope == AppStatus.INSTALLED.name.lowercase()) {
+            conditions.andWhere { Apps.status eq AppStatus.INSTALLED }
         } else if (scope == "updates") {
-            conditions.andWhere { Apps.status eq "installed" and (Apps.version neq Apps.latestVersion) }
+            conditions.andWhere { Apps.status eq AppStatus.INSTALLED and (Apps.version neq Apps.latestVersion) }
         }
 
         val wrapRows = AppEntity.wrapRows(conditions)
         val totalCount = wrapRows.count()
-
         val result = wrapRows
             .orderBy(Apps.updateAt to SortOrder.DESC)
             .limit(limit, offset)
 
-        val apps = result.map {
+        val apps = result.map { row ->
             App(
-                name = it.name,
-                latestVersion = it.latestVersion,
-                global = it.global,
-                description = it.description,
-                status = it.status,
-                homepage = it.homepage,
-                url = it.url,
-            ).apply {
-                version = it.version
-                createAt = it.createAt
-                updateAt = it.updateAt
-
-                if (it.bucket != null) {
-                    this.bucket = Bucket(name = it.bucket!!.name)
-                }
-            }
+                name = row.name,
+                latestVersion = row.latestVersion,
+                version = row.version,
+                global = row.global,
+                description = row.description,
+                status = row.status,
+                homepage = row.homepage,
+                url = row.url,
+                createAt = row.createAt,
+                updateAt = row.updateAt,
+                bucket = row.bucket?.let { Bucket(name = it.name) },
+            )
         }
-
         PaginatedResult<App>(
             value = apps,
             totalCount = totalCount,
@@ -141,43 +85,38 @@ object AppsRepository {
     }
 
     fun loadApps() = transaction {
-        val apps = Scoop.apps
+        val apps = scoopService.apps
         for (app in apps) {
             val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
-
             val rows = AppEntity.wrapRows(query).toList()
             val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
             when {
                 rows.isEmpty() -> {
                     AppEntity.new { update(app, bkt) }
                 }
-
                 rows.size == 1 -> {
-                    val row = rows.first()
-                    row.apply { update(app, bkt) }
+                    rows.first().update(app, bkt)
                 }
-
                 else -> {
                     throw ScooperException("Found more than one app with same name and bucket.")
                 }
             }
         }
-
         val appNames = apps.map { it.name }
-        Apps.deleteWhere { name notInList appNames and (status neq "installed") }
+        Apps.deleteWhere { name notInList appNames and (status neq AppStatus.INSTALLED) }
     }
 
     fun loadBuckets() = transaction {
-        for (bucketDir in Scoop.bucketDirs) {
+        for (bucketDir in scoopService.bucketDirs) {
             val bucket = bucketDir.name
             if (Buckets.selectAll().where { Buckets.name eq bucket }.count() <= 0) {
                 BucketEntity.new {
                     name = bucket
-                    url = Scoop.getRepoUrl(bucketDir)
+                    url = scoopService.getRepoUrl(bucketDir)
                 }
             }
         }
-        Buckets.deleteWhere { name notInList Scoop.bucketNames }
+        Buckets.deleteWhere { name notInList scoopService.bucketNames }
     }
 
     fun updateApp(app: App) = transaction {
@@ -187,17 +126,17 @@ object AppsRepository {
         }
         val appEntity = AppEntity.wrapRows(query).firstOrNull() ?: return@transaction
         appEntity.update(
-            app.also {
-                it.createAt = appEntity.createAt
-                it.updateAt = appEntity.updateAt
-            },
+            app.copy(
+                createAt = appEntity.createAt,
+                updateAt = appEntity.updateAt,
+            ),
             appEntity.bucket
         )
     }
 
     private fun AppEntity.update(
         app: App,
-        bkt: BucketEntity?
+        bkt: BucketEntity?,
     ) {
         name = app.name
         version = app.version
@@ -207,10 +146,8 @@ object AppsRepository {
         description = app.description
         homepage = app.homepage
         url = app.url
-        createAt = app.createAt
-        updateAt = app.updateAt
+        createAt = app.createAt ?: LocalDateTime.now()
+        updateAt = app.updateAt ?: LocalDateTime.now()
         bucket = bkt
     }
 }
-
-

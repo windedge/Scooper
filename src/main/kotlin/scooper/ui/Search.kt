@@ -29,8 +29,8 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import org.koin.java.KoinJavaComponent.get
 import org.slf4j.LoggerFactory
+import org.koin.compose.koinInject
 import scooper.ui.components.IconButton
 import scooper.util.bottomBorder
 import scooper.util.cursorHand
@@ -63,7 +63,7 @@ fun SearchBox() {
 fun SearchBar(show: Boolean = true) {
     if (!show) return;
 
-    val appsViewModel: AppsViewModel = get(AppsViewModel::class.java)
+    val appsViewModel: AppsViewModel = koinInject()
 
     var isHovered by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }

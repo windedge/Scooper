@@ -2,8 +2,8 @@ package scooper.taskqueue
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -26,26 +26,46 @@ class TaskQueue {
     val runningTaskFlow = _runningTaskFlow.asSharedFlow()
 
     private val mutex = Mutex()
-    private val taskChannel = Channel<Task>(Channel.UNLIMITED)
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
+
+    /** 通知有新任务加入的信号量 */
+    private val _taskSignal = kotlinx.coroutines.channels.Channel<Unit>(Channel.RENDEZVOUS)
 
     init {
         coroutineScope.launch {
             logger.info("Starting task queue ...")
-            for (x in taskChannel) {
-                val task = pollTask() ?: continue
-                try {
-                    logger.info("Run task: ${task::class.simpleName}: ${task.name}")
-                    removeTask(task.name)
-                    _runningTaskFlow.emit(task)
-                    task.execute()
-                    _resultFlow.emit(Result.success(task))
-                } catch (e: Exception) {
-                    logger.error(e.stackTraceToString())
-                    _resultFlow.emit(Result.failure(e))
-                } finally {
-                    logger.info("Task ended: ${task::class.simpleName}: ${task.name}")
-                    _runningTaskFlow.emit(null)
+            while (true) {
+                // 等待信号
+                _taskSignal.receive()
+                // 处理所有可用任务
+                processNextTask()
+            }
+        }
+    }
+
+    private suspend fun processNextTask() {
+        val task = mutex.withLock {
+            pendingTasks.values.firstOrNull()?.also {
+                pendingTasks.remove(it.name)
+                _pendingTasksFlow.emit(pendingTasks.values.toList())
+            }
+        } ?: return
+
+        try {
+            logger.info("Run task: ${task::class.simpleName}: ${task.name}")
+            _runningTaskFlow.emit(task)
+            task.execute()
+            _resultFlow.emit(Result.success(task))
+        } catch (e: Exception) {
+            logger.error(e.stackTraceToString())
+            _resultFlow.emit(Result.failure(e))
+        } finally {
+            logger.info("Task ended: ${task::class.simpleName}: ${task.name}")
+            _runningTaskFlow.emit(null)
+            // 当前任务完成后，如果还有待处理任务，继续发送信号
+            mutex.withLock {
+                if (pendingTasks.isNotEmpty()) {
+                    _taskSignal.trySend(Unit)
                 }
             }
         }
@@ -62,80 +82,58 @@ class TaskQueue {
     suspend fun addTask(task: Task) {
         mutex.withLock {
             logger.info("Add task ${task.name}")
-            val oldTask = pendingTasks.put(task.name, task)
-            if (oldTask != task) {
-                taskChannel.send(task)
-                _pendingTasksFlow.emit(pendingTasks.values.toList())
-            }
+            pendingTasks[task.name] = task
+            _pendingTasksFlow.emit(pendingTasks.values.toList())
         }
+        _taskSignal.send(Unit)
     }
 
-    private suspend fun pollTask(): Task? {
-        return mutex.withLock {
-            val task = pendingTasks.values.firstOrNull()
-            if (task != null) {
-                pendingTasks.remove(task.name)
-            }
-            task
-        }
-    }
-
-    private suspend fun removeTask(name: String) {
+    suspend fun cancelTask(name: String) {
+        logger.info("Cancel task $name")
         mutex.withLock {
             pendingTasks.remove(name)
             _pendingTasksFlow.emit(pendingTasks.values.toList())
         }
     }
 
-    suspend fun cancelTask(name: String) {
-        logger.info("Cancel task $name")
-        removeTask(name)
-    }
-
     suspend fun moveTask(name: String, newPosition: Int) {
         mutex.withLock {
             logger.info("Moving task $name to position $newPosition")
-            val task = pendingTasks.remove(name)
-            if (task != null) {
-                val keys = pendingTasks.keys.toList()
-                val values = pendingTasks.values.toList()
+            val task = pendingTasks.remove(name) ?: return@withLock
 
-                // Create a new list for keys and values
-                val newKeys = mutableListOf<String>()
-                val newValues = mutableListOf<Task>()
+            val keys = pendingTasks.keys.toList()
+            val values = pendingTasks.values.toList()
 
-                // Determine the new position bounded by the list size
-                val boundedNewPosition = newPosition.coerceAtMost(keys.size)
+            val newKeys = mutableListOf<String>()
+            val newValues = mutableListOf<Task>()
 
-                // Add elements before the new position
-                newKeys.addAll(keys.subList(0, boundedNewPosition))
-                newValues.addAll(values.subList(0, boundedNewPosition))
+            val boundedNewPosition = newPosition.coerceAtMost(keys.size)
 
-                // Add the moved task
-                newKeys.add(name)
-                newValues.add(task)
+            newKeys.addAll(keys.subList(0, boundedNewPosition))
+            newValues.addAll(values.subList(0, boundedNewPosition))
 
-                // Add remaining elements after the new position
-                if (boundedNewPosition < keys.size) {
-                    newKeys.addAll(keys.subList(boundedNewPosition, keys.size))
-                    newValues.addAll(values.subList(boundedNewPosition, values.size))
-                }
+            newKeys.add(name)
+            newValues.add(task)
 
-                // Rebuild the pendingTasks map
-                pendingTasks.clear()
-                newKeys.zip(newValues).forEach { (k, v) -> pendingTasks[k] = v }
-
-                // Emit the updated list of tasks
-                _pendingTasksFlow.emit(pendingTasks.values.toList())
+            if (boundedNewPosition < keys.size) {
+                newKeys.addAll(keys.subList(boundedNewPosition, keys.size))
+                newValues.addAll(values.subList(boundedNewPosition, keys.size))
             }
+
+            pendingTasks.clear()
+            newKeys.zip(newValues).forEach { (k, v) -> pendingTasks[k] = v }
+
+            _pendingTasksFlow.emit(pendingTasks.values.toList())
         }
     }
 
     suspend fun closeQueue() {
         logger.info("Close queue ...")
-        taskChannel.close()
-        pendingTasks.clear()
-        _pendingTasksFlow.emit(listOf())
+        _taskSignal.close()
+        mutex.withLock {
+            pendingTasks.clear()
+            _pendingTasksFlow.emit(listOf())
+        }
         coroutineScope.cancel()
     }
 }

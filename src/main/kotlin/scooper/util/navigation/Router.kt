@@ -61,31 +61,3 @@ fun <T : Any> Router(id: BackStackId, start: T, otherStart: List<T> = emptyList(
     }
 
 }
-
-/*
-@Composable
-private fun HandleBackPress() {
-    val onBackPressedDispatcher = LocalOnBackPressedDispatcherOwner.current.onBackPressedDispatcher
-    val isBackPressAlreadyHandled = LocalOnBackPressedDispatcherEnabled.current
-
-    if (!isBackPressAlreadyHandled) {
-        DisposableEffect(Unit) {
-            val onBackPressCallback = object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    backStackController.pop()
-                }
-            }
-            onBackPressedDispatcher.addCallback(onBackPressCallback)
-
-            backStackController.addListener(object : Listener {
-                override fun onBackStackChanged(snapshot: List<Route<*>>) {
-                    onBackPressCallback.isEnabled = snapshot.size > 1
-                }
-            })
-
-            onDispose {
-                onBackPressCallback.remove()
-            }
-        }
-    }
-}*/

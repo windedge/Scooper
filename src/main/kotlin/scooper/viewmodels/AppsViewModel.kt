@@ -2,6 +2,8 @@ package scooper.viewmodels
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -12,12 +14,14 @@ import org.orbitmvi.orbit.syntax.simple.intent
 import org.orbitmvi.orbit.syntax.simple.postSideEffect
 import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
+import scooper.data.AppStatus
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
+import scooper.service.ScoopCli
+import scooper.service.ScoopLogStream
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
-import scooper.util.Scoop
 import scooper.util.logger
 
 data class AppsFilter(
@@ -39,11 +43,17 @@ data class AppsState(
 
 @OptIn(OrbitExperimental::class)
 @Suppress("MemberVisibilityCanBePrivate")
-class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState, SideEffect> {
+class AppsViewModel(
+    private val taskQueue: TaskQueue,
+    private val appsRepository: AppsRepository,
+    private val scoopLogStream: ScoopLogStream,
+    private val scoopCli: ScoopCli,
+) : ContainerHost<AppsState, AppsSideEffect>, AutoCloseable {
     private val logger by logger()
 
-    private val coroutineScope = CoroutineScope(Dispatchers.Default)
-    override val container: Container<AppsState, SideEffect> = coroutineScope.container(AppsState()) {
+    private val supervisorJob = SupervisorJob()
+    private val coroutineScope = CoroutineScope(Dispatchers.Default + supervisorJob)
+    override val container: Container<AppsState, AppsSideEffect> = coroutineScope.container(AppsState()) {
         applyFilters()
         getBuckets()
         subscribeLogging()
@@ -51,9 +61,10 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
 
     fun subscribeLogging() = intent {
         coroutineScope.launch(Dispatchers.IO) {
-            Scoop.logStream.collect {
-                postSideEffect(SideEffect.Log(it))
-                val output = state.output + it + "\n"
+            scoopLogStream.logStream.collect {
+                postSideEffect(AppsSideEffect.Log(it))
+                val lines = (state.output + it + "\n").lines()
+                val output = lines.takeLast(500).joinToString("\n")
                 reduce { state.copy(output = output) }
             }
         }
@@ -63,7 +74,7 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectedBucket
         val currentScope = scope ?: state.filter.scope
-        val result = AppsRepository.getApps(currentQuery, currentBucket, currentScope, limit = state.filter.pageSize)
+        val result = appsRepository.getApps(currentQuery, currentBucket, currentScope, limit = state.filter.pageSize)
 
         reduce {
             state.copy(
@@ -85,7 +96,7 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
         val offset = (nextPage - 1) * filter.pageSize.toLong()
         val pageSize = filter.pageSize
         val result =
-            AppsRepository.getApps(
+            appsRepository.getApps(
                 filter.query,
                 filter.selectedBucket,
                 filter.scope,
@@ -102,13 +113,13 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
     }
 
     fun getBuckets() = intent {
-        AppsRepository.loadBuckets()
-        val buckets = AppsRepository.getBuckets()
+        appsRepository.loadBuckets()
+        val buckets = appsRepository.getBuckets()
         reduce { state.copy(buckets = buckets) }
     }
 
     fun reloadApps() = blockingIntent {
-        AppsRepository.loadApps()
+        appsRepository.loadApps()
         applyFilters()
     }
 
@@ -117,109 +128,10 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
     }
 
     fun refresh() = blockingIntent {
-        Scoop.refresh { reloadApps() }
+        scoopCli.refresh { reloadApps() }
     }
 
-    fun installApp(app: App, global: Boolean = false) = blockingIntent {
-        Scoop.install(app, global) { exitValue ->
-            if (exitValue != 0) {
-                postSideEffect(SideEffect.Toast("Install app, ${app.uniqueName} error!"))
-                return@install
-            }
-
-            postSideEffect(SideEffect.Toast("Install app, ${app.uniqueName} successfully!"))
-            AppsRepository.updateApp(app.copy(status = "installed"))
-            applyFilters()
-        }
-    }
-
-    fun uninstallApp(app: App) = blockingIntent {
-        Scoop.uninstall(app, app.global) { exitValue ->
-            if (exitValue != 0) {
-                postSideEffect(SideEffect.Toast("Uninstall app, ${app.uniqueName} error!"))
-                return@uninstall
-            }
-
-            postSideEffect(SideEffect.Toast("Uninstall app, ${app.uniqueName} successfully!"))
-            AppsRepository.updateApp(app.copy(status = "uninstall", global = false))
-            applyFilters()
-        }
-    }
-
-    fun updateApp(app: App) = blockingIntent {
-        Scoop.update(app, app.global) { exitValue ->
-            if (exitValue != 0) {
-                postSideEffect(SideEffect.Toast("Update app, ${app.uniqueName} error!"))
-                return@update
-            }
-
-            postSideEffect(SideEffect.Toast("Update app, ${app.uniqueName} successfully!"))
-            AppsRepository.updateApp(app.copy(version = app.latestVersion))
-            applyFilters()
-        }
-    }
-
-    fun downloadApp(app: App) = blockingIntent {
-        Scoop.download(app) { exitValue ->
-            if (exitValue != 0) {
-                postSideEffect(SideEffect.Toast("Download app: ${app.uniqueName} error!"))
-                return@download
-            }
-
-            postSideEffect(SideEffect.Toast("Download app: ${app.uniqueName} successfully!"))
-            applyFilters()
-        }
-    }
-
-    fun addScoopBucket(bucket: String, url: String? = null) = blockingIntent {
-        Scoop.addBucket(bucket, url) { exitValue ->
-            if (exitValue != 0) {
-                postSideEffect(SideEffect.Toast("Add bucket: $bucket error!"))
-                return@addBucket
-            }
-
-            postSideEffect(SideEffect.Toast("Add bucket: $bucket successfully!"))
-            getBuckets()
-            reloadApps()
-        }
-    }
-
-    fun removeScoopBucket(bucket: String) = blockingIntent {
-        Scoop.removeBucket(bucket) { exitValue ->
-            if (exitValue != 0) {
-                postSideEffect(SideEffect.Toast("Remove bucket: $bucket error!"))
-                return@removeBucket
-            }
-
-            postSideEffect(SideEffect.Toast("Remove bucket: $bucket successfully!"))
-            getBuckets()
-            reloadApps()
-        }
-    }
-
-    fun cancelTask(app: App) = intent {
-        taskQueue.getTask(app.uniqueName)?.run {
-            taskQueue.cancelTask(app.uniqueName)
-        }
-    }
-
-    fun cancel(app: App? = null) = intent {
-        logger.info("cancelling")
-
-        // cancelling pending operation
-        if (app != null && taskQueue.containTask(app.uniqueName)) {
-            logger.info("cancel task = ${app.name}")
-            cancelTask(app)
-        } else {
-            logger.info("Stop scoop")
-            Scoop.stop()
-            if (app != null) {
-                logger.info("cancelling app = ${app.uniqueName}")
-                AppsRepository.updateApp(app.copy(status = "failed"))
-                applyFilters()
-            }
-        }
-    }
+    // ==================== Task Queue ====================
 
     fun scheduleReloadApps() = intent {
         taskQueue.addTask(Task.Refresh { reloadApps() })
@@ -230,27 +142,113 @@ class AppsViewModel(private val taskQueue: TaskQueue) : ContainerHost<AppsState,
     }
 
     fun scheduleInstall(app: App, global: Boolean = false) = intent {
-        taskQueue.addTask(Task.Install(app) { installApp(app, global) })
+        taskQueue.addTask(Task.Install(app) { blockingIntent {
+            scoopCli.install(app, global) { exitValue ->
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Install app, ${app.uniqueName} error!"))
+                    return@install
+                }
+                postSideEffect(AppsSideEffect.Toast("Install app, ${app.uniqueName} successfully!"))
+                appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED))
+                applyFilters()
+            }
+        }})
     }
 
     fun scheduleUninstall(app: App) = intent {
-        taskQueue.addTask(Task.Uninstall(app) { uninstallApp(app) })
+        taskQueue.addTask(Task.Uninstall(app) { blockingIntent {
+            scoopCli.uninstall(app, app.global) { exitValue ->
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} error!"))
+                    return@uninstall
+                }
+                postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} successfully!"))
+                appsRepository.updateApp(app.copy(status = AppStatus.UNINSTALL, global = false))
+                applyFilters()
+            }
+        }})
     }
 
     fun scheduleUpdate(app: App) = intent {
-        taskQueue.addTask(Task.Update(app) { updateApp(app) })
+        taskQueue.addTask(Task.Update(app) { blockingIntent {
+            scoopCli.update(app, app.global) { exitValue ->
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Update app, ${app.uniqueName} error!"))
+                    return@update
+                }
+                postSideEffect(AppsSideEffect.Toast("Update app, ${app.uniqueName} successfully!"))
+                appsRepository.updateApp(app.copy(version = app.latestVersion))
+                applyFilters()
+            }
+        }})
     }
 
     fun scheduleDownload(app: App) = intent {
-        taskQueue.addTask(Task.Download(app) { downloadApp(app) })
+        taskQueue.addTask(Task.Download(app) { blockingIntent {
+            scoopCli.download(app) { exitValue ->
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} error!"))
+                    return@download
+                }
+                postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} successfully!"))
+                applyFilters()
+            }
+        }})
     }
 
     fun scheduleAddBucket(bucket: String, url: String? = null) = intent {
-        taskQueue.addTask(Task.AddBucket(bucket) { addScoopBucket(bucket, url) })
+        taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
+            scoopCli.addBucket(bucket, url) { exitValue ->
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket error!"))
+                    return@addBucket
+                }
+                postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket successfully!"))
+                getBuckets()
+                reloadApps()
+            }
+        }})
     }
 
     fun scheduleRemoveBucket(bucket: String) = intent {
-        taskQueue.addTask(Task.RemoveBucket(bucket) { removeScoopBucket(bucket) })
+        taskQueue.addTask(Task.RemoveBucket(bucket) { blockingIntent {
+            scoopCli.removeBucket(bucket) { exitValue ->
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket error!"))
+                    return@removeBucket
+                }
+                postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket successfully!"))
+                getBuckets()
+                reloadApps()
+            }
+        }})
     }
 
+    // ==================== Cancel ====================
+
+    fun cancelTask(app: App) = intent {
+        taskQueue.getTask(app.uniqueName)?.run {
+            taskQueue.cancelTask(app.uniqueName)
+        }
+    }
+
+    fun cancel(app: App? = null) = intent {
+        logger.info("cancelling")
+        if (app != null && taskQueue.containTask(app.uniqueName)) {
+            logger.info("cancel task = ${app.name}")
+            cancelTask(app)
+        } else {
+            logger.info("Stop scoop")
+            scoopCli.stop()
+            if (app != null) {
+                logger.info("cancelling app = ${app.uniqueName}")
+                appsRepository.updateApp(app.copy(status = AppStatus.FAILED))
+                applyFilters()
+            }
+        }
+    }
+
+    override fun close() {
+        supervisorJob.cancel()
+    }
 }

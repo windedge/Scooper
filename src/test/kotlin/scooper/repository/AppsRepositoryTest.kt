@@ -6,6 +6,10 @@ import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import scooper.repository.db.Apps
+import scooper.repository.db.Buckets
+import scooper.service.ScoopLogStream
+import scooper.service.ScoopService
 import java.io.File
 
 
@@ -26,7 +30,8 @@ internal class AppsRepositoryTest {
 
     @Test
     fun loadApps() {
-        AppsRepository.loadAll()
+        val appsRepository = AppsRepository(ScoopService(ScoopLogStream()))
+        appsRepository.loadAll()
 
         transaction {
             val appsCount = Apps.selectAll().count()

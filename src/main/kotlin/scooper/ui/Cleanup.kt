@@ -18,24 +18,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import org.koin.java.KoinJavaComponent.get
+import org.koin.compose.koinInject
+import scooper.repository.CleanupRepository
+import scooper.repository.OldVersion
 import scooper.ui.components.IconButton
 import scooper.ui.components.Link
 import scooper.ui.components.PrefRow
 import scooper.ui.components.SettingContainer
 import scooper.ui.components.Tooltip
-import scooper.util.Scoop
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.readableSize
 import scooper.viewmodels.CleanupState
 import scooper.viewmodels.CleanupViewModel
-import scooper.viewmodels.OldVersion
 import java.awt.Desktop
 
 
 @Composable
-fun CleanupContainer(cleanupViewModel: CleanupViewModel = get(CleanupViewModel::class.java)) {
+fun CleanupContainer(
+    cleanupViewModel: CleanupViewModel = koinInject(),
+    cleanupRepository: CleanupRepository = koinInject(),
+) {
     val state by cleanupViewModel.container.stateFlow.collectAsState()
     LaunchedEffect(Unit) {
         if (state.cacheSize < 0 && !state.scanningCache) {
@@ -53,7 +56,7 @@ fun CleanupContainer(cleanupViewModel: CleanupViewModel = get(CleanupViewModel::
                     state,
                     onClean = { cleanupViewModel.clearCache() },
                     onScan = { cleanupViewModel.computeCacheSize() },
-                    onOpen = { Desktop.getDesktop().open(Scoop.cacheDir) }
+                    onOpen = { Desktop.getDesktop().open(cleanupRepository.cacheDir) }
                 )
             }) {
                 Tooltip("Rescan") {

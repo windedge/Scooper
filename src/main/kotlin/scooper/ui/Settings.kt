@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
-import org.koin.java.KoinJavaComponent.get
+import org.koin.compose.koinInject
 import scooper.data.Theme
 import scooper.ui.components.*
 import scooper.util.*
@@ -20,8 +20,6 @@ import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.SettingsViewModel
-import java.awt.Desktop
-import java.net.URI
 
 
 val navItems =
@@ -82,7 +80,7 @@ inline fun rememberFormChanged(
 }
 
 @Composable
-fun GeneralSettings(settingsViewModel: SettingsViewModel = get(SettingsViewModel::class.java)) {
+fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val formState = settingsViewModel.scoopFormState
     val proxyTypeState: ChoiceState = formState.getState("proxyType")
     val proxyState: TextFieldState = formState.getState("proxy")
@@ -151,7 +149,7 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = get(SettingsViewModel
 }
 
 @Composable
-fun UISettings(settingsViewModel: SettingsViewModel = get(SettingsViewModel::class.java)) {
+fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val formState = settingsViewModel.uiFormState
     val refreshState: SwitchState = formState.getState("refreshOnStartup")
     val themeState: ChoiceState = formState.getState("theme")
@@ -222,7 +220,7 @@ fun AboutSection() {
             }) {
                 val url = "https://github.com/windedge/Scooper"
                 IconButton(
-                    onClick = { Desktop.getDesktop().browse(URI.create(url)) },
+                    onClick = { safeBrowse(url) },
                     modifier = Modifier.cursorHand()
                 ) {
                     Tooltip(url) { Icon(painterResource("github-fill.svg"), "github") }

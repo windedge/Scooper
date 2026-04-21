@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.koin.java.KoinJavaComponent
+import org.koin.compose.koinInject
 import org.orbitmvi.orbit.syntax.simple.intent
 import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.util.cursorHand
@@ -30,7 +30,7 @@ import scooper.viewmodels.AppsViewModel
 
 @Composable
 fun OutputScreen(onBack: () -> Unit = {}) {
-    val appsViewModel: AppsViewModel = KoinJavaComponent.get(AppsViewModel::class.java)
+    val appsViewModel: AppsViewModel = koinInject()
     val state by appsViewModel.container.stateFlow.collectAsState()
     val output = state.output
     val scrollState = rememberScrollState()

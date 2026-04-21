@@ -13,10 +13,10 @@ group = "Scooper"
 version = "0.9.1"
 
 repositories {
+    google()
     mavenCentral()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     maven("https://jitpack.io")
-    google()
 }
 
 dependencies {

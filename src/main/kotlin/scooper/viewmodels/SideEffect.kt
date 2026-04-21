@@ -1,12 +1,14 @@
 package scooper.viewmodels
 
-import scooper.ui.AppRoute
+sealed class AppsSideEffect {
+    data class Toast(val text: String) : AppsSideEffect()
+    data class Log(val text: String) : AppsSideEffect()
+}
 
-sealed class SideEffect {
-    object Empty : SideEffect()
-    object Loading : SideEffect()
-    object Done : SideEffect()
-    data class Toast(val text: String) : SideEffect()
-    data class Log(val text: String) : SideEffect()
-    data class Route(val route: AppRoute) : SideEffect()
+sealed class SettingsSideEffect {
+    data class Toast(val text: String) : SettingsSideEffect()
+}
+
+sealed class CleanupSideEffect {
+    data class Toast(val text: String) : CleanupSideEffect()
 }
