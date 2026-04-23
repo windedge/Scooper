@@ -1,11 +1,14 @@
 package scooper.repository.db
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.dao.Entity
 import org.jetbrains.exposed.dao.EntityClass
 import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import scooper.data.AppStatus
+import scooper.data.ShortCut
 
 class AppEntity(id: EntityID<Int>) : Entity<Int>(id) {
     companion object : EntityClass<Int, AppEntity>(Apps)
@@ -29,6 +32,13 @@ class AppEntity(id: EntityID<Int>) : Entity<Int>(id) {
     var license by Apps.license
     var createAt by Apps.createAt
     var updateAt by Apps.updateAt
+
+    private var _shortcuts by Apps.shortcuts
+    var shortcuts: List<ShortCut>?
+        get() = _shortcuts?.let { Json.decodeFromString(it) }
+        set(value) {
+            _shortcuts = value?.let { Json.encodeToString(it) }
+        }
 }
 
 class BucketEntity(id: EntityID<Int>) : IntEntity(id) {

@@ -18,6 +18,7 @@ object Apps : IntIdTable("apps") {
     val homepage = text("homepage").nullable()
     val license = varchar("license", 1000).nullable()
     val licenseUrl = text("license_url").nullable()
+    val shortcuts = text("shortcuts").nullable()
     val createAt = datetime("create_at")
     val updateAt = datetime("update_at")
 
