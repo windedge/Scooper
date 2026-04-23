@@ -84,7 +84,7 @@ fun SearchBar(show: Boolean = true) {
 
     Row(
         modifier = Modifier.fillMaxWidth().height(56.dp)
-            .background(Color.White)
+            .background(colors.surface)
             .border(width = 1.dp, color = colors.borderDefault)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,

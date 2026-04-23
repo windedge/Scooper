@@ -49,7 +49,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
     var bucketUrlError by remember { mutableStateOf(false) }
     val inputFocusRequester = remember { FocusRequester() }
 
-    Surface(elevation = 0.dp, color = Color.White) {
+    Surface(elevation = 0.dp, color = colors.background) {
         Box(modifier = Modifier.fillMaxSize()) {
             val scrollState = rememberScrollState(0)
             Column(
@@ -179,7 +179,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                     placeholder = { Text("e.g. extras") }
                 )
                 if (bucketNameError) {
-                    Text("Name is required", color = Color.Red, style = MaterialTheme.typography.caption)
+                    Text("Name is required", color = colors.error, style = MaterialTheme.typography.caption)
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -205,7 +205,7 @@ fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .onHover { isHover = it }
-            .background(if (isHover) colors.backgroundHover else Color.White)
+            .background(if (isHover) colors.backgroundHover else colors.surface)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -289,7 +289,7 @@ fun KnownBucketCard(name: String, onAdd: () -> Unit, modifier: Modifier = Modifi
             .clickable { onAdd() },
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, if (isHover) colors.primary else colors.borderDefault),
-        color = Color.White,
+        color = colors.surface,
         elevation = if (isHover) 1.dp else 0.dp
     ) {
         Row(
@@ -301,7 +301,7 @@ fun KnownBucketCard(name: String, onAdd: () -> Unit, modifier: Modifier = Modifi
                 name,
                 style = MaterialTheme.typography.body2.copy(
                     fontWeight = FontWeight.Medium,
-                    color = if (isHover) colors.primary else Slate700
+                    color = if (isHover) colors.primary else colors.textTitle
                 )
             )
             Icon(
@@ -327,14 +327,14 @@ fun ConfirmDialog(
 ) {
     val colors = MaterialTheme.colors
     DialogWindow(onCloseRequest = onCancel, state = state, title = title ?: "Scooper", resizable = false) {
-        Surface(color = Color.White) {
+        Surface(color = colors.surface) {
             Column(Modifier.fillMaxSize()) {
                 // Content
                 Box(Modifier.weight(1f).padding(24.dp)) {
                     if (content != null) content() else {
                         Text(
                             text ?: "",
-                            style = MaterialTheme.typography.body1.copy(color = Slate700)
+                            style = MaterialTheme.typography.body1.copy(color = colors.textTitle)
                         )
                     }
                 }

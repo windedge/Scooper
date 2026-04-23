@@ -260,7 +260,7 @@ fun AppCard(
                                 style = CurrentVersionStyle
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             app.updateAt?.format(DateFormatter) ?: "",
                             style = DateStyle
@@ -367,7 +367,7 @@ fun ActionButton(
                 modifier = Modifier.height(buttonHeight).width(120.dp).cursorLink().onHover { hovered = it },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 colors = ButtonDefaults.buttonColors(
-                    backgroundColor = if (showingCancel) Red500.copy(alpha = 0.92f) else UninstallRed
+                    backgroundColor = if (showingCancel) colors.dangerHover else UninstallRed
                 ),
                 shape = shape,
                 elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
@@ -534,7 +534,7 @@ private fun SegmentedControl(
     val colors = MaterialTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(Color.White)
+            .background(colors.surface)
             .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -569,12 +569,12 @@ private fun SegmentedTab(
     text: String,
     modifier: Modifier = Modifier,
     badge: Int? = null,
-    activeColor: Color = Slate900,
+    activeColor: Color = MaterialTheme.colors.textTitle,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colors
-    val bgColor = if (selected) Color.White else Color.Transparent
+    val bgColor = if (selected) colors.surface else Color.Transparent
     val textColor = if (selected) activeColor else colors.unselectedTabText
     val selectedBorderColor = colors.borderDefault.copy(alpha = 0.5f)
     val badgeBg = if (selected) colors.primaryBadgeBg else colors.unselectedBadgeBg

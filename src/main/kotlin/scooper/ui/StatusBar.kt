@@ -111,7 +111,7 @@ fun StatusBar(statusText: String) {
                         modifier = Modifier
                             .height(20.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color.White)
+                            .background(colors.surface)
                             .border(1.dp, colors.borderDefault, RoundedCornerShape(4.dp))
                             .cursorHand()
                             .noRippleClickable {

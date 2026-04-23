@@ -216,7 +216,7 @@ fun SplashScreen(onClose: () -> Unit) {
                 // Logo with subtle shadow container
                 Box(
                     modifier = Modifier.size(88.dp)
-                        .background(Color.White, RoundedCornerShape(20.dp))
+                        .background(Slate50, RoundedCornerShape(20.dp))
                         .border(1.dp, Slate200, RoundedCornerShape(20.dp))
                         .padding(16.dp),
                     contentAlignment = Alignment.Center

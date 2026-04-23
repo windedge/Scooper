@@ -32,6 +32,7 @@ import scooper.util.readableSize
 import scooper.viewmodels.CleanupState
 import scooper.viewmodels.CleanupViewModel
 import java.awt.Desktop
+import scooper.ui.theme.*
 
 
 @Composable
@@ -106,7 +107,7 @@ fun CleanupContainer(
 @Composable
 fun CacheSection(state: CleanupState, onClean: () -> Unit, onScan: () -> Unit, onOpen: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Total Size: ${state.cacheSize.readableSize()}")
+        Text("Total Size: ${state.cacheSize.readableSize()}", color = colors.textBody)
         Spacer(modifier = Modifier.height(5.dp))
         if (state.cleaningCache) {
             OutlinedButton(modifier = Modifier.height(35.dp), onClick = {}, enabled = false) {
@@ -185,7 +186,7 @@ fun OldVersions(
             modifier = Modifier.fillMaxWidth().height(40.dp).padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Great, old versions has been cleaned up.")
+            Text("Great, old versions has been cleaned up.", color = colors.textBody)
         }
         return
     }
@@ -199,7 +200,7 @@ fun OldVersions(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Total Size: ${totalSize.readableSize()}")
+                Text("Total Size: ${totalSize.readableSize()}", color = colors.textBody)
                 if (cleaning) {
                     Box(
                         modifier = Modifier.height(48.dp),
@@ -221,7 +222,7 @@ fun OldVersions(
             var showMore by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier.fillMaxWidth()
-                    .border(0.8.dp, color = colors.onBackground, shape = MaterialTheme.shapes.medium)
+                    .border(0.8.dp, color = colors.borderDefault, shape = MaterialTheme.shapes.medium)
                     .background(color = colors.background)
             ) {
                 oldVersions.let { if (!showMore && it.size > MAX_ENTRIES) it.filterIndexed { index, _ -> index < MAX_ENTRIES } else it }
@@ -260,15 +261,15 @@ fun OldVersion(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit) {
             )
             Spacer(modifier = Modifier.height(5.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                Text("${oldVersion.paths.size} old versions")
-                Text(oldVersion.size.readableSize())
+                Text("${oldVersion.paths.size} old versions", color = colors.textBody)
+                Text(oldVersion.size.readableSize(), color = colors.textBody)
                 if (oldVersion.global) {
                     Text("*global*", color = colors.primary)
                 }
             }
         }
         IconButton(onClick = { onDelete(oldVersion) }, modifier = Modifier.cursorHand()) {
-            Icon(Icons.TwoTone.Delete, contentDescription = "Delete")
+            Icon(Icons.TwoTone.Delete, contentDescription = "Delete", tint = colors.textMuted)
         }
     }
 }
