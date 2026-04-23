@@ -282,7 +282,7 @@ fun AppCard(
 private val DateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 // Pre-computed text styles to avoid copy() on every recomposition
-private val AppNameStyle @Composable get() = typography.body2.copy(fontWeight = FontWeight.SemiBold, color = colors.onSurface)
+private val AppNameStyle @Composable get() = typography.body1.copy(fontWeight = FontWeight.SemiBold, color = colors.onSurface)
 private val DescStyle @Composable get() = typography.body2.copy(color = colors.textBody)
 private val BucketTagStyle @Composable get() = typography.overline.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.textBody)
 private val OldVersionStyle @Composable get() = typography.body2.copy(color = colors.textMuted, textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)

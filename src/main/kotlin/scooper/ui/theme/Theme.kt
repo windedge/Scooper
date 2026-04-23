@@ -37,12 +37,12 @@ private val lightColorPalette = lightColors(
 )
 
 @Composable
-fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, content: @Composable () -> Unit) {
+fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, fontSizeScale: Float = 1.0f, content: @Composable () -> Unit) {
     val colors = if (currentTheme == SystemTheme.DARK) darkColorPalette else lightColorPalette
 
     MaterialTheme(
         colors = colors,
-        typography = typography,
+        typography = typography(fontSizeScale),
         shapes = shapes,
         content = content
     )

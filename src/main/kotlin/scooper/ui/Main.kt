@@ -129,7 +129,7 @@ fun main() = application {
 
         val showFpsState = remember { mutableStateOf(false) }
 
-        ScooperTheme(currentTheme = theme) {
+        ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
             CompositionLocalProvider(LocalShowFps provides showFpsState) {
                 Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
                 val showToolbar = when (currentRoute.value) {
@@ -231,7 +231,7 @@ fun SplashScreen(onClose: () -> Unit) {
                 // App name
                 Text(
                     "Scooper",
-                    style = typography.h5,
+                    style = typography().h5,
                     color = Slate900
                 )
 
@@ -240,7 +240,7 @@ fun SplashScreen(onClose: () -> Unit) {
                 // Tagline
                 Text(
                     "Scoop Package Manager GUI",
-                    style = typography.caption,
+                    style = typography().caption,
                     color = Slate400
                 )
 
