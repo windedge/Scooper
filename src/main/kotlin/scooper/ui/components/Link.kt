@@ -3,6 +3,7 @@ package scooper.ui.components
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme.colors
+import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -10,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import scooper.util.bottomBorder
 import scooper.util.cursorHand
 import scooper.util.noRippleClickable
@@ -33,8 +33,7 @@ fun Link(
     ) {
         Text(
             text,
-            fontSize = 16.sp,
-            color = colors.primary,
+            style = typography.body1.copy(color = colors.primary),
             // textDecoration = if (hover) TextDecoration.Underline else TextDecoration.None
         )
         if (painter != null) {

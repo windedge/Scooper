@@ -16,9 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -233,8 +231,7 @@ fun SplashScreen(onClose: () -> Unit) {
                 // App name
                 Text(
                     "Scooper",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = typography.h5,
                     color = Slate900
                 )
 
@@ -243,7 +240,7 @@ fun SplashScreen(onClose: () -> Unit) {
                 // Tagline
                 Text(
                     "Scoop Package Manager GUI",
-                    fontSize = 13.sp,
+                    style = typography.caption,
                     color = Slate400
                 )
 

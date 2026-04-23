@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.isActive
 import scooper.ui.theme.*
 import scooper.ui.components.Tooltip
@@ -76,7 +75,6 @@ fun StatusBar(statusText: String) {
                 Text(
                     "$fps FPS",
                     style = MaterialTheme.typography.caption.copy(
-                        fontSize = 11.sp,
                         color = fpsColor,
                     ),
                 )
@@ -97,7 +95,6 @@ fun StatusBar(statusText: String) {
                     Text(
                         "Updated just now",
                         style = MaterialTheme.typography.caption.copy(
-                            fontSize = 12.sp,
                             color = colors.textBody
                         )
                     )
@@ -127,7 +124,7 @@ fun StatusBar(statusText: String) {
                         val annotatedString = removeAnsiColor(statusText)
                         Text(
                             annotatedString.ifBlank { "Console" },
-                            style = MaterialTheme.typography.caption.copy(fontSize = 11.sp, color = colors.sidebarTextMedium),
+                            style = MaterialTheme.typography.caption.copy(color = colors.sidebarTextMedium),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

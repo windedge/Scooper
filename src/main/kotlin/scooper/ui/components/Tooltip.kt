@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 enum class TooltipPosition {
     Top, Bottom
@@ -54,7 +53,7 @@ fun Tooltip(
                     text = text,
                     modifier = Modifier.padding(10.dp),
                     color = MaterialTheme.colors.onPrimary,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.caption,
                 )
             }
         },

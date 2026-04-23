@@ -64,9 +64,11 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
         else -> null
     }
 
-    var showOnlyUpdates by remember { mutableStateOf(false) }
+    val isInstalledScope = scope == "installed" || scope == "updates"
+    var showOnlyUpdates by remember { mutableStateOf(scope == "updates") }
     val effectiveScope = when {
-        scope == "installed" && showOnlyUpdates -> "updates"
+        isInstalledScope && showOnlyUpdates -> "updates"
+        isInstalledScope -> "installed"
         else -> scope
     }
 
@@ -78,7 +80,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
         if (apps == null) return@Surface
 
         Column {
-            if (scope == "installed") {
+            if (isInstalledScope) {
                 SegmentedControl(
                     selected = if (showOnlyUpdates) 1 else 0,
                     onUpdateCount = state.updateCount.toInt(),

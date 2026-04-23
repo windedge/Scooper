@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -90,7 +89,6 @@ fun OutputScreen(onBack: () -> Unit = {}) {
                     text = annotatedString,
                     modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState),
                     style = MaterialTheme.typography.caption.copy(
-                        fontSize = 13.sp,
                         color = MaterialTheme.colors.onSurface
                     ),
                 )

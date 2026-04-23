@@ -26,12 +26,9 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -114,8 +111,7 @@ fun SearchBar(show: Boolean = true) {
                 if (queryText.isEmpty()) {
                     Text(
                         "Search packages...",
-                        style = TextStyle(
-                            fontSize = 14.sp,
+                        style = typography.button.copy(
                             color = colors.textPlaceholder,
                         ),
                     )
@@ -133,8 +129,7 @@ fun SearchBar(show: Boolean = true) {
                             false
                         },
                     singleLine = true,
-                    textStyle = TextStyle(
-                        fontSize = 14.sp,
+                    textStyle = typography.button.copy(
                         color = colors.onSurface,
                     ),
                     interactionSource = interactionSource,
@@ -172,7 +167,7 @@ fun SearchBar(show: Boolean = true) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     bucket.ifBlank { "All Buckets" },
-                    style = TextStyle(fontSize = 14.sp, color = colors.onSurface, fontWeight = FontWeight.Normal),
+                    style = typography.body2.copy(color = colors.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -203,8 +198,7 @@ fun SearchBar(show: Boolean = true) {
                             title.ifBlank { "All Buckets" },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(
-                                fontSize = 14.sp,
+                            style = typography.button.copy(
                                 color = if (hover) colors.primary else colors.onSurface,
                             ),
                         )
@@ -231,7 +225,7 @@ fun SearchBar(show: Boolean = true) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
-                    style = TextStyle(fontSize = 14.sp, color = colors.onSurface, fontWeight = FontWeight.Normal),
+                    style = typography.body2.copy(color = colors.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -261,8 +255,7 @@ fun SearchBar(show: Boolean = true) {
                             label,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(
-                                fontSize = 14.sp,
+                            style = typography.button.copy(
                                 color = if (hover) colors.primary else colors.onSurface,
                             ),
                         )
