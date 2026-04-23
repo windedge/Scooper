@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import scooper.util.cursorHand
+import scooper.util.noRippleClickable
 import scooper.util.onHover
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
@@ -90,8 +91,9 @@ fun SidebarNav(
         SidebarNavItem(
             label = "Installed",
             badge = if (updateCount > 0) updateCount.toInt() else null,
-            selected = currentRoute is AppRoute.Apps && currentRoute.scope == "installed",
+            selected = currentRoute is AppRoute.Apps && (currentRoute.scope == "installed" || currentRoute.scope == "updates"),
             onClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "installed")) },
+            onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) },
         ) {
             Icon(painterResource("bar-chart-horizontal-line.svg"), "Installed", modifier = Modifier.size(18.dp))
         }
@@ -143,6 +145,7 @@ private fun SidebarNavItem(
     badge: Int? = null,
     selected: Boolean = false,
     onClick: () -> Unit = {},
+    onBadgeClick: (() -> Unit)? = null,
     icon: @Composable () -> Unit,
 ) {
     val colors = MaterialTheme.colors
@@ -201,17 +204,19 @@ private fun SidebarNavItem(
             )
             if (badge != null) {
                 Spacer(Modifier.weight(1f))
-                Badge(
-                    backgroundColor = if (selected) colors.sidebarBadgeBg else colors.borderDefault,
-                    contentColor = if (selected) colors.sidebarBadgeText else colors.sidebarTextMedium,
+                Box(
+                    modifier = Modifier
+                        .then(if (onBadgeClick != null) Modifier.cursorHand().noRippleClickable { onBadgeClick() } else Modifier)
                 ) {
-                    Text(
-                        "$badge",
-                        style = typography.caption.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
-                        ),
-                    )
+                    Badge(
+                        backgroundColor = if (selected) colors.sidebarBadgeBg else colors.borderDefault,
+                        contentColor = if (selected) colors.sidebarBadgeText else colors.sidebarTextMedium,
+                    ) {
+                        Text(
+                            "$badge",
+                            style = typography.overline,
+                        )
+                    }
                 }
             }
         }
