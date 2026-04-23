@@ -108,6 +108,18 @@ fun SidebarNav(
             Icon(painterResource("component.svg"), "Buckets", modifier = Modifier.size(18.dp))
         }
 
+        Spacer(Modifier.height(16.dp))
+
+        // Tools section
+        SectionHeader("TOOLS")
+        SidebarNavItem(
+            label = "Cleanup",
+            selected = currentRoute is AppRoute.Cleanup,
+            onClick = { navigator.popupAllAndPush(AppRoute.Cleanup) },
+        ) {
+            Icon(painterResource("brush-cleaning.svg"), "Cleanup", modifier = Modifier.size(18.dp))
+        }
+
         Spacer(Modifier.weight(1f))
 
         // Settings at bottom

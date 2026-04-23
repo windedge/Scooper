@@ -27,7 +27,7 @@ import kotlin.math.roundToInt
 
 
 val navItems =
-    listOf(AppRoute.Settings.General, AppRoute.Settings.UI, AppRoute.Settings.Cleanup, AppRoute.Settings.About)
+    listOf(AppRoute.Settings.General, AppRoute.Settings.UI, AppRoute.Settings.About)
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -46,7 +46,6 @@ fun SettingScreen() {
             when (currentRoute) {
                 AppRoute.Settings.General -> GeneralSettings()
                 AppRoute.Settings.UI -> UISettings()
-                AppRoute.Settings.Cleanup -> CleanupContainer()
                 AppRoute.Settings.About -> AboutSection()
             }
         }

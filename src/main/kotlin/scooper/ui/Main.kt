@@ -135,6 +135,7 @@ fun main() = application {
                 val showToolbar = when (currentRoute.value) {
                     is AppRoute.Settings -> false
                     AppRoute.Output -> false
+                    AppRoute.Cleanup -> false
                     else -> true
                 }
 
@@ -152,12 +153,13 @@ fun main() = application {
                             SidebarNav(updateCount = appsState.updateCount)
                         }
                         Column(Modifier.weight(1f)) {
-                            ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets)
+                            ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets && currentRoute.value != AppRoute.Cleanup)
                             Layout {
                                 val routeKey = when (val route = currentRoute.value) {
                                     AppRoute.Splash -> "splash"
                                     is AppRoute.Apps -> "apps:${route.scope}"
                                     AppRoute.Buckets -> "buckets"
+                                    AppRoute.Cleanup -> "cleanup"
                                     AppRoute.Output -> "output"
                                     is AppRoute.Settings -> "settings:${route.menuText}"
                                 }
@@ -170,6 +172,7 @@ fun main() = application {
                                             AppRoute.Splash -> {}
                                             is AppRoute.Apps -> AppScreen(route.scope)
                                             AppRoute.Buckets -> BucketsScreen()
+                                            AppRoute.Cleanup -> CleanupScreen()
                                             AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
                                             is AppRoute.Settings -> SettingScreen()
                                         }
