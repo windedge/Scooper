@@ -53,7 +53,7 @@ fun Tooltip(
                 Text(
                     text = text,
                     modifier = Modifier.padding(10.dp),
-                    color = MaterialTheme.colors.onSurface,
+                    color = MaterialTheme.colors.onPrimary,
                     fontSize = 13.sp,
                 )
             }

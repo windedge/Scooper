@@ -149,7 +149,7 @@ fun SearchBar(show: Boolean = true) {
                     modifier = Modifier.cursorHand().padding(horizontal = 2.dp),
                     rippleRadius = 10.dp,
                 ) {
-                    Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(14.dp), tint = colors.onSecondary)
+                    Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
                 }
             }
         }
@@ -177,7 +177,7 @@ fun SearchBar(show: Boolean = true) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(4.dp))
-                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.onSecondary)
+                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
             }
 
             DropdownMenu(
@@ -196,14 +196,17 @@ fun SearchBar(show: Boolean = true) {
                             appsViewModel.applyFilters(bucket = bucket)
                         },
                         modifier = Modifier.sizeIn(maxHeight = 36.dp)
-                            .background(color = if (hover) colors.primaryVariant else colors.surface)
+                            .background(color = if (hover) colors.primarySubtle else colors.surface)
                             .onHover { hover = it },
                     ) {
                         Text(
                             title.ifBlank { "All Buckets" },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontSize = 14.sp),
+                            style = TextStyle(
+                                fontSize = 14.sp,
+                                color = if (hover) colors.primary else colors.onSurface,
+                            ),
                         )
                     }
                 }
@@ -233,7 +236,7 @@ fun SearchBar(show: Boolean = true) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(4.dp))
-                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.onSecondary)
+                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
             }
 
             DropdownMenu(
@@ -251,14 +254,17 @@ fun SearchBar(show: Boolean = true) {
                             appsViewModel.applyFilters(sort = sortBy)
                         },
                         modifier = Modifier.sizeIn(maxHeight = 36.dp)
-                            .background(color = if (hover) colors.primaryVariant else colors.surface)
+                            .background(color = if (hover) colors.primarySubtle else colors.surface)
                             .onHover { hover = it },
                     ) {
                         Text(
                             label,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontSize = 14.sp),
+                            style = TextStyle(
+                                fontSize = 14.sp,
+                                color = if (hover) colors.primary else colors.onSurface,
+                            ),
                         )
                     }
                 }
