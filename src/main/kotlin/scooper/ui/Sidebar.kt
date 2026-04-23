@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.Settings
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -85,7 +83,7 @@ fun SidebarNav(
             selected = currentRoute is AppRoute.Apps && currentRoute.scope.isEmpty(),
             onClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
         ) {
-            Icon(Icons.Filled.Search, "Discover", modifier = Modifier.size(18.dp))
+            Icon(painterResource("package-search.svg"), "Discover", modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
@@ -95,19 +93,19 @@ fun SidebarNav(
             onClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "installed")) },
             onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) },
         ) {
-            Icon(painterResource("bar-chart-horizontal-line.svg"), "Installed", modifier = Modifier.size(18.dp))
+            Icon(painterResource("package-check.svg"), "Installed", modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.height(16.dp))
 
-        // CONFIGURATION section
-        SectionHeader("CONFIGURATION")
+        // Sources section
+        SectionHeader("SOURCES")
         SidebarNavItem(
             label = "Buckets",
             selected = currentRoute is AppRoute.Buckets,
             onClick = { navigator.popupAllAndPush(AppRoute.Buckets) },
         ) {
-            Icon(painterResource("folder.svg"), "Buckets", modifier = Modifier.size(18.dp))
+            Icon(painterResource("component.svg"), "Buckets", modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.weight(1f))
@@ -118,7 +116,7 @@ fun SidebarNav(
             selected = currentRoute is AppRoute.Settings,
             onClick = { navigator.push(AppRoute.Settings.General) },
         ) {
-            Icon(Icons.Outlined.Settings, "Settings", modifier = Modifier.size(18.dp))
+            Icon(painterResource("sliders-horizontal.svg"), "Settings", modifier = Modifier.size(18.dp))
         }
     }
 }
