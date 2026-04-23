@@ -260,6 +260,7 @@ fun AppCard(
                                 style = CurrentVersionStyle
                             )
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             app.updateAt?.format(DateFormatter) ?: "",
                             style = DateStyle
@@ -360,11 +361,14 @@ fun ActionButton(
     when {
         installing || waiting -> {
             var hovered by remember { mutableStateOf(false) }
+            val showingCancel = installing || hovered
             Button(
                 onClick = { onCancel(app) },
                 modifier = Modifier.height(buttonHeight).width(120.dp).cursorLink().onHover { hovered = it },
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                colors = ButtonDefaults.buttonColors(backgroundColor = UninstallRed),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = if (showingCancel) Red500.copy(alpha = 0.92f) else UninstallRed
+                ),
                 shape = shape,
                 elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
             ) {
@@ -373,7 +377,7 @@ fun ActionButton(
                     Spacer(Modifier.width(6.dp))
                 }
                 Text(
-                    if (installing) "Cancel" else if (hovered) "Cancel" else "Waiting",
+                    if (showingCancel) "Cancel" else "Waiting",
                     color = Color.White,
                     fontWeight = FontWeight.Medium,
                     style = typography.body2,
