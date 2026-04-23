@@ -23,7 +23,7 @@ val system = module {
 }
 
 val viewModels = module {
-    single { AppsViewModel(get(), get(), get(), get(), get()) }
+    single { AppsViewModel(get(), get(), get(), get(), get(), get()) }
     single { SettingsViewModel(get()) }
     single { CleanupViewModel(get()) }
 }

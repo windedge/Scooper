@@ -3,6 +3,7 @@ package scooper.data
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.skiko.SystemTheme
+import scooper.util.PAGE_SIZE
 import org.jetbrains.skiko.currentSystemTheme
 
 @Serializable
@@ -38,6 +39,7 @@ data class UIConfig(
     val fontSizeScale: Float = 1.0f,
     val viewMode: ViewMode = ViewMode.List,
     val paginationMode: PaginationMode = PaginationMode.Waterfall,
+    val pageSize: Int = PAGE_SIZE,
 )
 
 fun Theme.toSystemTheme() = when (this) {
