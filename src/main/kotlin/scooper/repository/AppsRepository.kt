@@ -47,10 +47,12 @@ class AppsRepository(
         if (bucket.isNotBlank()) {
             conditions.andWhere { Buckets.name eq bucket }
         }
-        if (scope == AppStatus.INSTALLED.name.lowercase()) {
-            conditions.andWhere { Apps.status eq AppStatus.INSTALLED }
+        
+        val installedStr = AppStatus.INSTALLED.name.lowercase()
+        if (scope == installedStr) {
+            conditions.andWhere { Apps.status eq installedStr }
         } else if (scope == "updates") {
-            conditions.andWhere { Apps.status eq AppStatus.INSTALLED and (Apps.version neq Apps.latestVersion) }
+            conditions.andWhere { Apps.status eq installedStr and (Apps.version neq Apps.latestVersion) }
         }
 
         val wrapRows = AppEntity.wrapRows(conditions)
@@ -89,7 +91,7 @@ class AppsRepository(
 
     fun getUpdateCount(): Long = transaction {
         Apps.selectAll()
-            .where { Apps.status eq AppStatus.INSTALLED and (Apps.version neq Apps.latestVersion) }
+            .where { Apps.status eq AppStatus.INSTALLED.name.lowercase() and (Apps.version neq Apps.latestVersion) }
             .count()
     }
 
@@ -117,7 +119,7 @@ class AppsRepository(
             }
         }
         val appNames = apps.map { it.name }
-        Apps.deleteWhere { name notInList appNames and (status neq AppStatus.INSTALLED) }
+        Apps.deleteWhere { name notInList appNames and (status neq AppStatus.INSTALLED.name.lowercase()) }
     }
 
     fun loadBuckets() = transaction {
