@@ -15,7 +15,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
 import org.koin.compose.koinInject
+import scooper.data.PaginationMode
 import scooper.data.Theme
+import scooper.data.UIConfig
+import scooper.data.ViewMode
 import scooper.ui.components.*
 import scooper.util.*
 import scooper.ui.theme.*
@@ -220,10 +223,22 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val formState = settingsViewModel.uiFormState
     val refreshState: SwitchState = formState.getState("refreshOnStartup")
     val themeState: ChoiceState = formState.getState("theme")
+    val viewModeState: ChoiceState = formState.getState("viewMode")
+    val paginationModeState: ChoiceState = formState.getState("paginationMode")
 
     LaunchedEffect(themeState.value) {
         val theme = Theme.valueOf(themeState.value)
         settingsViewModel.switchTheme(theme)
+    }
+
+    LaunchedEffect(viewModeState.value) {
+        val mode = ViewMode.valueOf(viewModeState.value)
+        settingsViewModel.switchViewMode(mode)
+    }
+
+    LaunchedEffect(paginationModeState.value) {
+        val mode = PaginationMode.valueOf(paginationModeState.value)
+        settingsViewModel.switchPaginationMode(mode)
     }
 
     val formChangedState = rememberFormChanged(formState)
@@ -267,6 +282,30 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     selected = choices[themeState.value]!!,
                     onItemSelected = { label ->
                         themeState.value = choices.filterValues { it == label }.keys.first()
+                    })
+            }
+            Divider(color = colors.divider)
+            PrefRow(title = "Default View Mode",
+                subtitle = "Choose how packages are displayed in the list.",
+            ) {
+                val choices = viewModeState.choices
+                ExposedDropdownMenu(
+                    choices.values.toList(),
+                    selected = choices[viewModeState.value]!!,
+                    onItemSelected = { label ->
+                        viewModeState.value = choices.filterValues { it == label }.keys.first()
+                    })
+            }
+            Divider(color = colors.divider)
+            PrefRow(title = "Default Pagination Mode",
+                subtitle = "Choose how packages are paginated.",
+            ) {
+                val choices = paginationModeState.choices
+                ExposedDropdownMenu(
+                    choices.values.toList(),
+                    selected = choices[paginationModeState.value]!!,
+                    onItemSelected = { label ->
+                        paginationModeState.value = choices.filterValues { it == label }.keys.first()
                     })
             }
             Divider(color = colors.divider)

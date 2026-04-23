@@ -16,6 +16,8 @@ import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
+import scooper.data.PaginationMode
+import scooper.data.ViewMode
 import scooper.repository.AppsRepository
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
@@ -32,6 +34,7 @@ data class AppsFilter(
     val pageSize: Int = PAGE_SIZE,
     val scope: String = "all",
     val sort: String = "updated",
+    val paginationMode: PaginationMode = PaginationMode.Waterfall,
 )
 
 data class AppsState(
@@ -41,6 +44,7 @@ data class AppsState(
     val filter: AppsFilter = AppsFilter(),
     val output: String = "",
     val updateCount: Long = 0L,
+    val viewMode: ViewMode = ViewMode.List,
 )
 
 
@@ -78,38 +82,69 @@ class AppsViewModel(
         query: String? = null,
         bucket: String? = null,
         scope: String? = null,
-        sort: String? = null
+        sort: String? = null,
+        paginationMode: PaginationMode? = null,
+        pageSize: Int? = null,
     ) = intent {
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectedBucket
         val currentScope = scope ?: state.filter.scope
         val currentSort = sort ?: state.filter.sort
-        val result = appsRepository.getApps(
-            currentQuery,
-            currentBucket,
-            currentScope,
-            limit = state.filter.pageSize,
-            sort = currentSort
-        )
-        val updateCount = appsRepository.getUpdateCount()
+        val currentPaginationMode = paginationMode ?: state.filter.paginationMode
+        val currentPageSize = pageSize ?: state.filter.pageSize
 
-        reduce {
-            state.copy(
-                apps = result.value,
-                totalCount = result.totalCount,
-                updateCount = updateCount,
-                filter = state.filter.copy(
-                    query = currentQuery,
-                    selectedBucket = currentBucket,
-                    scope = currentScope,
-                    sort = currentSort,
-                    page = 1
-                )
+        if (currentPaginationMode == PaginationMode.Pagination) {
+            val result = appsRepository.getApps(
+                currentQuery, currentBucket, currentScope,
+                offset = 0,
+                limit = currentPageSize,
+                sort = currentSort
             )
+            val updateCount = appsRepository.getUpdateCount()
+            reduce {
+                state.copy(
+                    apps = result.value,
+                    totalCount = result.totalCount,
+                    updateCount = updateCount,
+                    filter = state.filter.copy(
+                        query = currentQuery,
+                        selectedBucket = currentBucket,
+                        scope = currentScope,
+                        sort = currentSort,
+                        page = 1,
+                        paginationMode = currentPaginationMode,
+                        pageSize = currentPageSize,
+                    )
+                )
+            }
+        } else {
+            val result = appsRepository.getApps(
+                currentQuery, currentBucket, currentScope,
+                limit = currentPageSize,
+                sort = currentSort
+            )
+            val updateCount = appsRepository.getUpdateCount()
+            reduce {
+                state.copy(
+                    apps = result.value,
+                    totalCount = result.totalCount,
+                    updateCount = updateCount,
+                    filter = state.filter.copy(
+                        query = currentQuery,
+                        selectedBucket = currentBucket,
+                        scope = currentScope,
+                        sort = currentSort,
+                        page = 1,
+                        paginationMode = currentPaginationMode,
+                        pageSize = currentPageSize,
+                    )
+                )
+            }
         }
     }
 
     fun loadMore() = intent {
+        if (state.filter.paginationMode != PaginationMode.Waterfall) return@intent
         val filter = state.filter
         val nextPage = filter.page + 1
         val offset = (nextPage - 1) * filter.pageSize.toLong()
@@ -130,6 +165,31 @@ class AppsViewModel(
                 filter = state.filter.copy(page = nextPage)
             )
         }
+    }
+
+    fun goToPage(page: Int) = intent {
+        if (state.filter.paginationMode != PaginationMode.Pagination) return@intent
+        val filter = state.filter
+        val offset = (page - 1) * filter.pageSize.toLong()
+        val result = appsRepository.getApps(
+            filter.query,
+            filter.selectedBucket,
+            filter.scope,
+            offset = offset,
+            limit = filter.pageSize,
+            sort = filter.sort
+        )
+        reduce {
+            state.copy(
+                apps = result.value,
+                totalCount = result.totalCount,
+                filter = state.filter.copy(page = page)
+            )
+        }
+    }
+
+    fun setViewMode(viewMode: ViewMode) = intent {
+        reduce { state.copy(viewMode = viewMode) }
     }
 
     fun getBuckets() = intent {

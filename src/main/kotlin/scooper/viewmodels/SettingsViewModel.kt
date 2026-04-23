@@ -12,6 +12,8 @@ import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.ScoopConfig
 import scooper.data.Theme
 import scooper.data.UIConfig
+import scooper.data.PaginationMode
+import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
@@ -39,6 +41,14 @@ class SettingsViewModel(
 
     fun switchFontSizeScale(scale: Float) = intent {
         reduce { state.copy(uiConfig = state.uiConfig.copy(fontSizeScale = scale)) }
+    }
+
+    fun switchViewMode(viewMode: ViewMode) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(viewMode = viewMode)) }
+    }
+
+    fun switchPaginationMode(paginationMode: PaginationMode) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(paginationMode = paginationMode)) }
     }
 
     val scoopFormState = FormState(
@@ -69,6 +79,8 @@ class SettingsViewModel(
         fields = listOf(
             SwitchState("refreshOnStartup"),
             ChoiceState("theme", validators = listOf(), choices = Theme.values().associate { it.name to it.name }),
+            ChoiceState("viewMode", validators = listOf(), choices = ViewMode.values().associate { it.name to it.name }),
+            ChoiceState("paginationMode", validators = listOf(), choices = PaginationMode.values().associate { it.name to it.name }),
         )
     )
 

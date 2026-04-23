@@ -9,7 +9,11 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.itemsIndexed as lazyItemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.rememberScrollbarAdapter
@@ -32,6 +36,8 @@ import org.koin.compose.koinInject
 import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.data.AppStatus
+import scooper.data.PaginationMode
+import scooper.data.ViewMode
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.ui.components.IconButton
@@ -64,44 +70,55 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
         else -> null
     }
 
-    val isInstalledScope = scope == "installed" || scope == "updates"
-    var showOnlyUpdates by remember { mutableStateOf(scope == "updates") }
-    val effectiveScope = when {
-        isInstalledScope && showOnlyUpdates -> "updates"
-        isInstalledScope -> "installed"
-        else -> scope
-    }
 
-    LaunchedEffect(effectiveScope) {
-        appsViewModel.applyFilters(scope = effectiveScope)
+    LaunchedEffect(scope) {
+        appsViewModel.applyFilters(scope = scope)
     }
 
     Surface(Modifier.fillMaxSize(), elevation = 0.dp, shape = shapes.large) {
         if (apps == null) return@Surface
 
         Column {
-            if (isInstalledScope) {
-                SegmentedControl(
-                    selected = if (showOnlyUpdates) 1 else 0,
-                    onUpdateCount = state.updateCount.toInt(),
-                    onSelected = { showOnlyUpdates = it == 1 },
-                )
-            }
-
             if (apps.isNotEmpty()) {
-                AppList(
-                    apps,
-                    filter,
-                    processingApp = processingApp,
-                    waitingApps = waitingApps,
-                    onInstall = appsViewModel::scheduleInstall,
-                    onUpdate = appsViewModel::scheduleUpdate,
-                    onDownload = appsViewModel::scheduleDownload,
-                    onUninstall = appsViewModel::scheduleUninstall,
-                    onOpen = appsViewModel::openApp,
-                    onCancel = appsViewModel::cancel,
-                    onLoadMore = appsViewModel::loadMore,
-                )
+                Box(Modifier.weight(1f)) {
+                    when (state.viewMode) {
+                        ViewMode.Grid -> AppGrid(
+                            apps,
+                            filter,
+                            processingApp = processingApp,
+                            waitingApps = waitingApps,
+                            onInstall = appsViewModel::scheduleInstall,
+                            onUpdate = appsViewModel::scheduleUpdate,
+                            onDownload = appsViewModel::scheduleDownload,
+                            onUninstall = appsViewModel::scheduleUninstall,
+                            onOpen = appsViewModel::openApp,
+                            onCancel = appsViewModel::cancel,
+                            onLoadMore = appsViewModel::loadMore,
+                        )
+                        else -> AppList(
+                            apps,
+                            filter,
+                            processingApp = processingApp,
+                            waitingApps = waitingApps,
+                            onInstall = appsViewModel::scheduleInstall,
+                            onUpdate = appsViewModel::scheduleUpdate,
+                            onDownload = appsViewModel::scheduleDownload,
+                            onUninstall = appsViewModel::scheduleUninstall,
+                            onOpen = appsViewModel::openApp,
+                            onCancel = appsViewModel::cancel,
+                            onLoadMore = appsViewModel::loadMore,
+                        )
+                    }
+                }
+                if (state.filter.paginationMode == PaginationMode.Pagination) {
+                    PaginationBar(
+                        currentPage = state.filter.page,
+                        totalPages = ((state.totalCount + state.filter.pageSize - 1) / state.filter.pageSize).toInt().coerceAtLeast(1),
+                        pageSize = state.filter.pageSize,
+                        onGoToPage = { appsViewModel.goToPage(it) },
+                        onPageSizeChange = { appsViewModel.applyFilters(pageSize = it) },
+                    )
+                }
             } else {
                 NoResults()
             }
@@ -284,6 +301,173 @@ fun AppCard(
     }
 }
 private val DateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
+@Composable
+fun AppGrid(
+    apps: List<App>,
+    filter: AppsFilter,
+    processingApp: String? = null,
+    waitingApps: Set<String> = setOf(),
+    onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
+    onUpdate: (app: App) -> Unit = { },
+    onDownload: (app: App) -> Unit = { },
+    onUninstall: (app: App) -> Unit = { },
+    onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
+    onCancel: (app: App?) -> Unit = { },
+    onLoadMore: () -> Unit = { },
+) {
+    val colors = MaterialTheme.colors
+    Box(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp)
+    ) {
+        val gridState = rememberLazyGridState()
+        // Waterfall mode: load more when near bottom
+        if (filter.paginationMode == PaginationMode.Waterfall) {
+            val shouldLoadMore = remember {
+                derivedStateOf {
+                    val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()
+                    lastVisible != null && lastVisible.index >= gridState.layoutInfo.totalItemsCount - 3
+                }
+            }
+            LaunchedEffect(shouldLoadMore) {
+                snapshotFlow { shouldLoadMore.value }.collect { if (it) onLoadMore() }
+            }
+        }
+
+        LaunchedEffect(filter.query, filter.scope, filter.selectedBucket) { gridState.scrollToItem(0) }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize().padding(end = 8.dp),
+            state = gridState,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            itemsIndexed(
+                items = apps,
+                key = { _, app -> app.uniqueName }
+            ) { _, app ->
+                AppGridCard(
+                    app,
+                    installing = app.uniqueName == processingApp,
+                    waiting = waitingApps.contains(app.uniqueName),
+                    onInstall = onInstall,
+                    onUpdate = onUpdate,
+                    onDownload = onDownload,
+                    onUninstall = onUninstall,
+                    onOpen = onOpen,
+                    onCancel = onCancel
+                )
+            }
+        }
+
+        VerticalScrollbar(
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().background(color = colors.background),
+            adapter = rememberScrollbarAdapter(gridState)
+        )
+    }
+}
+
+@Composable
+fun AppGridCard(
+    app: App,
+    installing: Boolean = false,
+    waiting: Boolean = false,
+    onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
+    onUpdate: (app: App) -> Unit = { },
+    onDownload: (app: App) -> Unit = { },
+    onUninstall: (app: App) -> Unit = { },
+    onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
+    onCancel: (app: App?) -> Unit = { }
+) {
+    val colors = MaterialTheme.colors
+    var isHover by remember { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, colors.borderDefault),
+        elevation = if (isHover) 2.dp else 0.dp,
+        modifier = Modifier.onHover { isHover = it },
+    ) {
+        Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            // Header: name + bucket tag
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Text(app.name, style = GridAppNameStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (app.homepage?.isNotEmpty() == true) {
+                        Spacer(Modifier.width(4.dp))
+                        val homepage = app.homepage!!
+                        Icon(
+                            painter = painterResource("external_link_icon.xml"),
+                            homepage,
+                            modifier = Modifier.size(12.dp).cursorHand().clickable { safeBrowse(homepage) },
+                            tint = colors.textMuted
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .border(BorderStroke(1.dp, colors.borderDefault), RoundedCornerShape(3.dp))
+                        .background(colors.backgroundHover, RoundedCornerShape(3.dp))
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
+                    Text(app.bucket?.name?.uppercase() ?: "", style = GridBucketTagStyle)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Description (2 lines)
+            Text(
+                app.description ?: "No description available.",
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = GridDescStyle,
+                modifier = Modifier.height(40.dp)
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            // Bottom: version info + action
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    if (app.updatable) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(app.version ?: "", style = GridOldVersionStyle)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(painterResource("arrow_right.xml"), "", modifier = Modifier.size(10.dp), tint = colors.textMuted)
+                            Spacer(Modifier.width(4.dp))
+                            Text(app.latestVersion, style = GridNewVersionStyle)
+                        }
+                    } else {
+                        Text(app.version ?: "", style = GridCurrentVersionStyle)
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(app.updateAt?.format(DateFormatter) ?: "", style = GridDateStyle)
+                }
+
+                ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel)
+            }
+        }
+    }
+}
+
+private val GridAppNameStyle @Composable get() = typography.body1.copy(fontWeight = FontWeight.SemiBold, color = colors.onSurface, fontSize = 14.sp)
+private val GridBucketTagStyle @Composable get() = typography.overline.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = colors.textBody)
+private val GridDescStyle @Composable get() = typography.body2.copy(color = colors.textBody, fontSize = 13.sp)
+private val GridOldVersionStyle @Composable get() = typography.caption.copy(fontSize = 11.sp, color = colors.textMuted, textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+private val GridNewVersionStyle @Composable get() = typography.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = colors.updateDefault)
+private val GridCurrentVersionStyle @Composable get() = typography.caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Slate700)
+private val GridDateStyle @Composable get() = typography.caption.copy(fontSize = 10.sp, color = colors.textMuted)
 
 // Pre-computed text styles to avoid copy() on every recomposition
 private val AppNameStyle @Composable get() = typography.body1.copy(fontWeight = FontWeight.SemiBold, color = colors.onSurface)
@@ -579,6 +763,144 @@ fun NoResults() {
         )
         Spacer(modifier = Modifier.height(20.dp))
         Text("No Results", style = typography.h6, color = colors.primary)
+    }
+}
+
+@Composable
+fun PaginationBar(
+    currentPage: Int,
+    totalPages: Int,
+    pageSize: Int,
+    onGoToPage: (Int) -> Unit,
+    onPageSizeChange: (Int) -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .background(colors.surface)
+            .border(width = 1.dp, color = colors.borderDefault)
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        // Page size selector
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Rows per page:", style = typography.body2.copy(color = colors.textBody))
+            Spacer(Modifier.width(8.dp))
+            val pageSizeOptions = listOf(10, 25, 50, 100)
+            var expanded by remember { mutableStateOf(false) }
+            Box {
+                Row(
+                    modifier = Modifier.height(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .border(1.dp, colors.borderDefault, RoundedCornerShape(6.dp))
+                        .background(colors.inputBackground)
+                        .cursorHand()
+                        .clickable { expanded = true }
+                        .padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("$pageSize", style = typography.body2.copy(color = colors.onSurface))
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
+                }
+                DropdownMenu(expanded, onDismissRequest = { expanded = false }, modifier = Modifier.width(80.dp).cursorHand()) {
+                    pageSizeOptions.forEach { size ->
+                        var hover by remember { mutableStateOf(false) }
+                        DropdownMenuItem(
+                            onClick = { expanded = false; onPageSizeChange(size) },
+                            modifier = Modifier.sizeIn(maxHeight = 32.dp)
+                                .background(if (hover) colors.primarySubtle else colors.surface)
+                                .onHover { hover = it }
+                        ) {
+                            Text("$size", style = typography.button.copy(color = if (hover) colors.primary else colors.onSurface))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Page navigation
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // First page
+            IconButton(
+                onClick = { onGoToPage(1) },
+                enabled = currentPage > 1,
+                modifier = Modifier.cursorHand()
+            ) {
+                Icon(painterResource("chevrons-left.svg"), "First", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            }
+            // Previous
+            IconButton(
+                onClick = { onGoToPage(currentPage - 1) },
+                enabled = currentPage > 1,
+                modifier = Modifier.cursorHand()
+            ) {
+                Icon(painterResource("chevron-left.svg"), "Prev", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            // Page numbers
+            val pageNumbers = remember(currentPage, totalPages) {
+                val pages = mutableListOf<Any>()
+                if (totalPages <= 5) {
+                    for (i in 1..totalPages) pages.add(i)
+                } else if (currentPage <= 3) {
+                    pages.addAll(listOf(1, 2, 3, 4, "...", totalPages))
+                } else if (currentPage >= totalPages - 2) {
+                    pages.addAll(listOf(1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages))
+                } else {
+                    pages.addAll(listOf(1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages))
+                }
+                pages
+            }
+
+            pageNumbers.forEachIndexed { _, page ->
+                if (page is Int) {
+                    val isSelected = page == currentPage
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isSelected) colors.primary else colors.surface,
+                        border = BorderStroke(1.dp, if (isSelected) colors.primary else colors.borderDefault),
+                        modifier = Modifier.size(30.dp).cursorHand().clickable { onGoToPage(page) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "$page",
+                                style = typography.body2.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isSelected) Color.White else colors.textBody
+                                )
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(6.dp))
+                } else {
+                    Text("...", style = typography.body2.copy(color = colors.textMuted), modifier = Modifier.padding(horizontal = 4.dp))
+                }
+            }
+
+            Spacer(Modifier.width(4.dp))
+
+            // Next
+            IconButton(
+                onClick = { onGoToPage(currentPage + 1) },
+                enabled = currentPage < totalPages,
+                modifier = Modifier.cursorHand()
+            ) {
+                Icon(painterResource("chevron-right.svg"), "Next", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            }
+            Spacer(Modifier.width(8.dp))
+            // Last page
+            IconButton(
+                onClick = { onGoToPage(totalPages) },
+                enabled = currentPage < totalPages,
+                modifier = Modifier.cursorHand()
+            ) {
+                Icon(painterResource("chevrons-right.svg"), "Last", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            }
+        }
     }
 }
 

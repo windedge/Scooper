@@ -29,10 +29,15 @@ enum class Theme() {
     Auto, Light, Dark
 }
 
+enum class ViewMode { List, Grid }
+enum class PaginationMode { Waterfall, Pagination }
+
 data class UIConfig(
     val refreshOnStartup: Boolean = false,
     val theme: Theme = Theme.Auto,
     val fontSizeScale: Float = 1.0f,
+    val viewMode: ViewMode = ViewMode.List,
+    val paginationMode: PaginationMode = PaginationMode.Waterfall,
 )
 
 fun Theme.toSystemTheme() = when (this) {
