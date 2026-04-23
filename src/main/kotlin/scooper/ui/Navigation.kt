@@ -91,20 +91,6 @@ fun MoreActionsButton() {
 
             DropdownMenuItem(
                 modifier = Modifier.height(30.dp).cursorHand(),
-                onClick = { navigator.push(AppRoute.Settings.Cleanup) }) {
-                Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painterResource("cleaning_services_black_24dp.svg"),
-                        "Cleanup",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text("Cleanup")
-                }
-            }
-
-            DropdownMenuItem(
-                modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Output) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
                     Icon(painterResource("CommandLine.svg"), "View Logs", modifier = Modifier.size(16.dp))
