@@ -4,7 +4,9 @@ import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.datetime
 import scooper.data.AppStatus
+import scooper.data.PaginationMode
 import scooper.data.Theme
+import scooper.data.ViewMode
 
 object Apps : IntIdTable("apps") {
     val name = varchar("name", 1000)
@@ -36,4 +38,6 @@ object Configs : IntIdTable(name = "configs") {
     val refreshOnStartup = bool("refresh_on_startup").default(false)
     val theme = enumeration("theme", Theme::class).default(Theme.Auto)
     val fontSizeScale = float("font_size_scale").default(1.0f)
+    val viewMode = enumeration("view_mode", ViewMode::class).default(ViewMode.List)
+    val paginationMode = enumeration("pagination_mode", PaginationMode::class).default(PaginationMode.Waterfall)
 }

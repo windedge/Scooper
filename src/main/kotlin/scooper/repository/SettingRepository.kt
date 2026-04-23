@@ -16,6 +16,8 @@ class ConfigRepository {
                     refreshOnStartup = this[Configs.refreshOnStartup],
                     theme = this[Configs.theme],
                     fontSizeScale = this[Configs.fontSizeScale],
+                    viewMode = this[Configs.viewMode],
+                    paginationMode = this[Configs.paginationMode],
                 )
             }
         }
@@ -28,6 +30,8 @@ class ConfigRepository {
                 it[refreshOnStartup] = config.refreshOnStartup
                 it[theme] = config.theme
                 it[fontSizeScale] = config.fontSizeScale
+                it[viewMode] = config.viewMode
+                it[paginationMode] = config.paginationMode
             }
         }
     }
