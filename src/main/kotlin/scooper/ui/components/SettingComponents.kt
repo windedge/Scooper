@@ -220,7 +220,7 @@ fun NavBar(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "", modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Back", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                    Text("Back", style = MaterialTheme.typography.button)
                 }
             }
         }

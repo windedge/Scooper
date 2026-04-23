@@ -15,40 +15,40 @@ val typography = Typography(
     defaultFontFamily = Arial,
     h5 = TextStyle(
         fontWeight = FontWeight.Bold,
-        fontSize = 22.sp,
+        fontSize = 24.sp,
     ),
     h6 = TextStyle(
         fontWeight = FontWeight.Bold,
-        fontSize = 18.sp,
+        fontSize = 20.sp,
     ),
     body1 = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontSize = 16.sp,
     ),
     body2 = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontSize = 16.sp,
     ),
     button = TextStyle(
         fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
+        fontSize = 15.sp,
         letterSpacing = 0.5.sp,
     ),
     caption = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
+        fontSize = 14.sp,
     ),
     subtitle1 = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontSize = 16.sp,
     ),
     subtitle2 = TextStyle(
         fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
+        fontSize = 14.sp,
     ),
     overline = TextStyle(
         fontWeight = FontWeight.Bold,
-        fontSize = 11.sp,
+        fontSize = 12.sp,
         letterSpacing = 1.sp,
     ),
 )
