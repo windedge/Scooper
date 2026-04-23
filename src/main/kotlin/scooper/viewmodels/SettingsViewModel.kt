@@ -37,6 +37,10 @@ class SettingsViewModel(
         reduce { state.copy(uiConfig = state.uiConfig.copy(theme = theme)) }
     }
 
+    fun switchFontSizeScale(scale: Float) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(fontSizeScale = scale)) }
+    }
+
     val scoopFormState = FormState(
         fields = listOf(
             ChoiceState(
@@ -92,7 +96,12 @@ class SettingsViewModel(
     }
 
     fun writeUIConfig() {
-        val config = uiFormState.getData(UIConfig::class)
+        val formConfig = uiFormState.getData(UIConfig::class)
+        val currentConfig = container.stateFlow.value.uiConfig
+        val config = currentConfig.copy(
+            refreshOnStartup = formConfig.refreshOnStartup,
+            theme = formConfig.theme,
+        )
         configRepository.setConfig(config)
     }
 

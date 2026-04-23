@@ -23,6 +23,7 @@ import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.SettingsViewModel
+import kotlin.math.roundToInt
 
 
 val navItems =
@@ -228,6 +229,14 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
 
     val formChangedState = rememberFormChanged(formState)
     val formChanged by formChangedState.hasChanged
+
+    // Font size scale — managed separately from form_builder
+    val settingsState by settingsViewModel.container.stateFlow.collectAsState()
+    var fontSizeScale by remember { mutableStateOf(settingsState.uiConfig.fontSizeScale) }
+    LaunchedEffect(fontSizeScale) {
+        settingsViewModel.switchFontSizeScale(fontSizeScale)
+    }
+
     SettingContainer(onApply = {
         if (formState.validate()) {
             settingsViewModel.writeUIConfig()
@@ -260,6 +269,30 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     onItemSelected = { label ->
                         themeState.value = choices.filterValues { it == label }.keys.first()
                     })
+            }
+            Divider(color = colors.divider)
+            PrefRow(
+                title = "Font Size",
+                subtitle = "Adjust the application font size. Changes take effect immediately.",
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Slider(
+                        value = fontSizeScale,
+                        onValueChange = { fontSizeScale = (it * 10).roundToInt() / 10f },
+                        valueRange = 0.8f..1.5f,
+                        modifier = Modifier.width(120.dp),
+                        colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary),
+                    )
+                    Text(
+                        String.format("%.1fx", fontSizeScale),
+                        style = MaterialTheme.typography.body2,
+                        color = colors.onSurface,
+                        modifier = Modifier.width(36.dp),
+                    )
+                }
             }
             Divider(color = colors.divider)
             // FPS toggle (not saved to config)

@@ -14,7 +14,8 @@ class ConfigRepository {
             Configs.selectAll().first().run {
                 UIConfig(
                     refreshOnStartup = this[Configs.refreshOnStartup],
-                    theme = this[Configs.theme]
+                    theme = this[Configs.theme],
+                    fontSizeScale = this[Configs.fontSizeScale],
                 )
             }
         }
@@ -26,6 +27,7 @@ class ConfigRepository {
             Configs.update({ Configs.id eq Configs.selectAll().first()[Configs.id] }) {
                 it[refreshOnStartup] = config.refreshOnStartup
                 it[theme] = config.theme
+                it[fontSizeScale] = config.fontSizeScale
             }
         }
     }

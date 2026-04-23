@@ -32,6 +32,7 @@ enum class Theme() {
 data class UIConfig(
     val refreshOnStartup: Boolean = false,
     val theme: Theme = Theme.Auto,
+    val fontSizeScale: Float = 1.0f,
 )
 
 fun Theme.toSystemTheme() = when (this) {

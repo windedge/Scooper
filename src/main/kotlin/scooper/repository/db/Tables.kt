@@ -34,4 +34,5 @@ object Buckets : IntIdTable("buckets") {
 object Configs : IntIdTable(name = "configs") {
     val refreshOnStartup = bool("refresh_on_startup").default(false)
     val theme = enumeration("theme", Theme::class).default(Theme.Auto)
+    val fontSizeScale = float("font_size_scale").default(1.0f)
 }
