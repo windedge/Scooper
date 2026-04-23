@@ -6,10 +6,12 @@ import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
+import scooper.taskqueue.TaskQueue
+
 class ScoopServiceTest {
 
     private val logStream = ScoopLogStream()
-    private val scoopService = ScoopService(logStream)
+    private val scoopService = ScoopService(logStream, TaskQueue())
 
     @Test
     fun `logStream is accessible`() {

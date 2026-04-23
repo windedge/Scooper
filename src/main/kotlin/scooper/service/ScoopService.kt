@@ -6,6 +6,9 @@ import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
 import scooper.data.ShortCut
+import scooper.taskqueue.TaskQueue
+import scooper.util.ProgressParser
+import scooper.util.ScoopConfigManager
 import scooper.util.dirSize
 import scooper.util.execute
 import scooper.util.executeSuspend
@@ -14,6 +17,7 @@ import scooper.util.getString
 import scooper.util.killAllSubProcesses
 import java.io.File
 import java.nio.file.Files
+import java.security.MessageDigest
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -24,8 +28,10 @@ import java.time.ZoneId
  */
 class ScoopService(
     val logStream: ScoopLogStream,
+    private val taskQueue: TaskQueue,
 ) : ScoopCli {
     private val logger = LoggerFactory.getLogger(javaClass)
+    private val manifestDownloader = ManifestDownloader()
 
     // ==================== Environment Paths ====================
 
@@ -90,7 +96,7 @@ class ScoopService(
         return regex.find(repoInfo)?.groupValues?.get(2)
     }
 
-    /** 解析所有 bucket 目录下的 manifest 文件，构建完整的应用列表。 */
+    /** Parse all bucket manifest files to build the complete app list. */
     val apps: List<App>
         get() {
             val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
@@ -175,6 +181,7 @@ class ScoopService(
     }
 
     override suspend fun install(app: App, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+        preDownloadIfNeeded(app)
         val commandArgs = if (global) mutableListOf(
             "sudo", "scoop", "install", "-g", "${app.bucket!!.name}/${app.name}"
         ) else {
@@ -193,6 +200,7 @@ class ScoopService(
     }
 
     override suspend fun update(app: App, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+        preDownloadIfNeeded(app)
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "update", "-g", app.name)
         } else {
@@ -202,7 +210,14 @@ class ScoopService(
     }
 
     override suspend fun download(app: App, onFinish: suspend (exitValue: Int) -> Unit) {
-        executeAndLog(mutableListOf("scoop", "download", app.uniqueName), onFinish = onFinish)
+        val config = ScoopConfigManager.readScoopConfig()
+        if (config.aria2Enabled) {
+            // aria2 mode: use scoop download command, parse progress from output
+            executeAndLog(mutableListOf("scoop", "download", app.uniqueName), onFinish = onFinish)
+        } else {
+            // Non-aria2 mode: use JVM HttpClient for precise progress
+            downloadWithJvm(app, onFinish)
+        }
     }
 
     override suspend fun addBucket(bucket: String, url: String?, onFinish: suspend (exitValue: Int) -> Unit) {
@@ -239,7 +254,155 @@ class ScoopService(
 
     // ==================== Internal Methods ====================
 
+    /** Pre-download files to cache via JVM HttpClient when aria2 is not enabled. */
+    private suspend fun preDownloadIfNeeded(app: App) {
+        val config = ScoopConfigManager.readScoopConfig()
+        if (config.aria2Enabled) return
+
+        val manifestFile = findManifest(app) ?: run {
+            logger.warn("Manifest not found for ${app.uniqueName}, skip pre-download")
+            return
+        }
+
+        val json = try {
+            Json.parseToJsonElement(manifestFile.readText()).jsonObject
+        } catch (e: Exception) {
+            logger.warn("Failed to parse manifest: ${e.message}, skip pre-download")
+            return
+        }
+
+        val info = manifestDownloader.parseDownloadInfo(json)
+        if (info == null) {
+            logger.warn("No download URL found in manifest for ${app.uniqueName}, skip pre-download")
+            return
+        }
+
+        val version = json.getString("version")
+        val ok = downloadManifestItemsToCache(app, version, info, logPrefix = "Pre-download")
+        if (!ok) {
+            logStream.emit("Pre-download failed for ${app.name}, will fallback to scoop")
+        }
+    }
+
+    private suspend fun downloadWithJvm(app: App, onFinish: suspend (exitValue: Int) -> Unit) {
+        val manifestFile = findManifest(app)
+        if (manifestFile == null) {
+            logStream.emit("Manifest not found for ${app.uniqueName}")
+            onFinish(1)
+            return
+        }
+
+        val json = try {
+            Json.parseToJsonElement(manifestFile.readText()).jsonObject
+        } catch (e: Exception) {
+            logStream.emit("Failed to parse manifest: ${e.message}")
+            onFinish(1)
+            return
+        }
+
+        val info = manifestDownloader.parseDownloadInfo(json)
+        if (info == null) {
+            logStream.emit("No download URL found in manifest for ${app.uniqueName}")
+            onFinish(1)
+            return
+        }
+
+        val version = json.getString("version")
+        val ok = downloadManifestItemsToCache(app, version, info, logPrefix = "Download")
+        onFinish(if (ok) 0 else 1)
+    }
+
+    private suspend fun downloadManifestItemsToCache(
+        app: App,
+        version: String,
+        info: DownloadInfo,
+        logPrefix: String,
+    ): Boolean {
+        if (info.items.isEmpty()) return false
+
+        val totalItems = info.items.size
+
+        for ((index, item) in info.items.withIndex()) {
+            val cacheName = cacheFileName(app, version, item.url)
+            val destFile = cacheDir.resolve(cacheName)
+            logStream.emit("$logPrefix url[${index + 1}/$totalItems]: ${item.url}")
+            logStream.emit("$logPrefix cache target[${index + 1}/$totalItems]: ${destFile.absolutePath}")
+
+            if (destFile.exists()) {
+                logStream.emit("File already cached: ${destFile.name}")
+                val overall = (((index + 1).toFloat() / totalItems) * 100).toInt().coerceAtMost(100)
+                taskQueue.updateProgress(overall)
+                continue
+            }
+
+            logStream.emit("Downloading ${app.name}... (${index + 1}/$totalItems)")
+            val result = manifestDownloader.download(
+                url = item.url,
+                destFile = destFile,
+                hash = item.hash,
+            ) { percent ->
+                val overall = (((index + percent / 100f) / totalItems) * 100).toInt().coerceIn(0, 100)
+                taskQueue.updateProgress(overall)
+            }
+
+            if (result != null) {
+                logStream.emit("Downloaded to cache: ${result.absolutePath}")
+                logStream.emit("Cache exists after download: ${result.exists()}")
+            } else {
+                logStream.emit("Failed downloading item[${index + 1}/$totalItems] for ${app.name}")
+                return false
+            }
+        }
+
+        taskQueue.updateProgress(100)
+        return true
+    }
+
+    /** Find the manifest file for the given app. */
+    private fun findManifest(app: App): File? {
+        val bucketDir = app.bucket?.name?.let { bucketsBaseDir.resolve(it) }
+        if (bucketDir != null && bucketDir.exists()) {
+            val manifestFile = bucketDir.resolve("bucket/${app.name}.json")
+            if (manifestFile.exists()) return manifestFile
+        }
+        // Fallback: search all buckets
+        for (dir in bucketDirs) {
+            val manifestFile = dir.resolve("bucket/${app.name}.json")
+            if (manifestFile.exists()) return manifestFile
+        }
+        return null
+    }
+
+    /**
+     * Aligns with scoop's cache_path($app, $version, $url).
+     */
+    private fun cacheFileName(app: App, version: String, url: String): String {
+        val urlHash = MessageDigest.getInstance("SHA-256")
+            .digest(url.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(7)
+        return "${app.name}#$version#$urlHash${scoopCacheExtension(url)}"
+    }
+
+    /**
+     * Aligns with PowerShell: [System.IO.Path]::GetExtension($url)
+     * Does not strip query/fragment, to stay consistent with scoop.
+     */
+    private fun scoopCacheExtension(url: String): String {
+        val normalized = url.replace('/', '\\')
+        val ext = File(normalized).extension
+        return if (ext.isNotEmpty()) ".${ext}" else ""
+    }
+
     private suspend fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
-        executeSuspend(args, consumer = { logStream.emit(it); logger.info(it) }, onFinish = onFinish)
+        executeSuspend(
+            args,
+            consumer = { line ->
+                logStream.emit(line)
+                logger.info(line)
+                ProgressParser.parseProgress(line)?.let { taskQueue.updateProgress(it) }
+            },
+            onFinish = onFinish,
+        )
     }
 }

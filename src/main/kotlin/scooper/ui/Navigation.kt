@@ -151,11 +151,23 @@ fun RefreshScoopButton() {
                     if (runningTask is Task.Refresh) {
                         CircularProgressIndicator(Modifier.size(20.dp).align(Alignment.Center), strokeWidth = 2.dp)
                     } else {
-                        LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter))
+                        val progress by taskQueue.progressFlow.collectAsState(null)
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = progress!! / 100f,
+                                modifier = Modifier.align(Alignment.BottomCenter),
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter))
+                        }
                     }
 
                     if (runningTaskSize > 0) {
-                        val position = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = 2.dp)
+                        val position = if (runningTask is Task.Refresh) {
+                            Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = 2.dp)
+                        } else {
+                            Modifier.align(Alignment.Center)
+                        }
                         Badge(modifier = position, backgroundColor = colors.primary) {
                             Text("$runningTaskSize")
                         }

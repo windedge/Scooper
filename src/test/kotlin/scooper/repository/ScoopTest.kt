@@ -5,12 +5,13 @@ import org.junit.jupiter.api.Test
 import org.koin.core.time.measureDuration
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
+import scooper.taskqueue.TaskQueue
 import scooper.util.execute
 import java.io.File
 
 internal class ScoopTest {
 
-    private val scoopService = ScoopService(ScoopLogStream())
+    private val scoopService = ScoopService(ScoopLogStream(), TaskQueue())
 
     @Test
     fun getApps() {
