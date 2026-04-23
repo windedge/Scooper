@@ -52,7 +52,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
                         Icons.TwoTone.ArrowBack,
                         "",
                         Modifier.cursorLink(),
-                        tint = MaterialTheme.colors.onSecondary
+                        tint = MaterialTheme.colors.onSurface
                     )
                 }
 
@@ -79,7 +79,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
                 readOnly = true,
                 textStyle = MaterialTheme.typography.caption.copy(
                     fontSize = 13.sp,
-                    color = MaterialTheme.colors.onSecondary
+                    color = MaterialTheme.colors.onSurface
                 ),
             )
             Canvas(modifier = Modifier.fillMaxSize()) {

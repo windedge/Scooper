@@ -12,11 +12,7 @@ object Apps : IntIdTable("apps") {
     val latestVersion = varchar("latest_version", 1000)
     val bucketId = reference("bucket_id", Buckets, onDelete = ReferenceOption.SET_NULL).nullable()
     val global = bool("global").default(false)
-    val status = customEnumeration(
-        "status", "VARCHAR(32)",
-        { value -> AppStatus.fromString(value as String) },
-        { value -> (value as AppStatus).name.lowercase() }
-    ).default(AppStatus.UNINSTALL)
+    val status = varchar("status", 20).default(AppStatus.UNINSTALL.name.lowercase())
     val description = varchar("description", 5000).nullable()
     val url = text("url").nullable()
     val homepage = text("homepage").nullable()
@@ -37,9 +33,5 @@ object Buckets : IntIdTable("buckets") {
 
 object Configs : IntIdTable(name = "configs") {
     val refreshOnStartup = bool("refresh_on_startup").default(false)
-    val theme = customEnumeration(
-        "theme", "VARCHAR(32)",
-        { value -> Theme.entries.find { it.name.equals(value as String, ignoreCase = true) } ?: Theme.Auto },
-        { value -> (value as Theme).name }
-    ).default(Theme.Auto)
+    val theme = enumeration("theme", Theme::class).default(Theme.Auto)
 }
