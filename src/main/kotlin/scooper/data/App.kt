@@ -50,6 +50,9 @@ data class App(
 
     val uniqueName: String
         get() = if (this.bucket != null) "${this.bucket!!.name}/${this.name}" else this.name
+
+    val hasShortcuts: Boolean
+        get() = !shortcuts.isNullOrEmpty()
 }
 
 data class Bucket(

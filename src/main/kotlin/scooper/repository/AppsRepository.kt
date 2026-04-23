@@ -81,6 +81,7 @@ class AppsRepository(
                 createAt = row.createAt,
                 updateAt = row.updateAt,
                 bucket = row.bucket?.let { Bucket(name = it.name) },
+                shortcuts = row.shortcuts,
             )
         }
         PaginatedResult<App>(
@@ -165,5 +166,6 @@ class AppsRepository(
         createAt = app.createAt ?: LocalDateTime.now()
         updateAt = app.updateAt ?: LocalDateTime.now()
         bucket = bkt
+        shortcuts = app.shortcuts
     }
 }

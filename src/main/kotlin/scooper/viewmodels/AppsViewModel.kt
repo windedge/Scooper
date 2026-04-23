@@ -19,6 +19,7 @@ import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
+import scooper.service.ScoopService
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
@@ -50,6 +51,7 @@ class AppsViewModel(
     private val appsRepository: AppsRepository,
     private val scoopLogStream: ScoopLogStream,
     private val scoopCli: ScoopCli,
+    private val scoopService: ScoopService,
 ) : ContainerHost<AppsState, AppsSideEffect>, AutoCloseable {
     private val logger by logger()
 
@@ -157,6 +159,10 @@ class AppsViewModel(
 
     fun scheduleUpdateApps() = intent {
         taskQueue.addTask(Task.Refresh { refresh() })
+    }
+
+    fun openApp(app: App, shortcutIndex: Int = 0) = intent {
+        scoopService.openShortcut(app, shortcutIndex)
     }
 
     fun scheduleInstall(app: App, global: Boolean = false) = intent {

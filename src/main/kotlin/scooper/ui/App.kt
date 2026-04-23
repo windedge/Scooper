@@ -98,6 +98,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
                     onUpdate = appsViewModel::scheduleUpdate,
                     onDownload = appsViewModel::scheduleDownload,
                     onUninstall = appsViewModel::scheduleUninstall,
+                    onOpen = appsViewModel::openApp,
                     onCancel = appsViewModel::cancel,
                     onLoadMore = appsViewModel::loadMore,
                 )
@@ -118,6 +119,7 @@ fun AppList(
     onUpdate: (app: App) -> Unit = { },
     onDownload: (app: App) -> Unit = { },
     onUninstall: (app: App) -> Unit = { },
+    onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
     onCancel: (app: App?) -> Unit = { },
     onLoadMore: () -> Unit = { },
 ) {
@@ -143,6 +145,7 @@ fun AppList(
                     onUpdate = onUpdate,
                     onDownload = onDownload,
                     onUninstall = onUninstall,
+                    onOpen = onOpen,
                     onCancel = onCancel
                 )
             }
@@ -166,6 +169,7 @@ fun AppCard(
     onUpdate: (app: App) -> Unit = { },
     onDownload: (app: App) -> Unit = { },
     onUninstall: (app: App) -> Unit = { },
+    onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
     onCancel: (app: App?) -> Unit = { }
 ) {
     val colors = MaterialTheme.colors
@@ -271,7 +275,7 @@ fun AppCard(
 
                     // Action Button
                     Box(modifier = Modifier.width(120.dp)) {
-                        ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onCancel)
+                        ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel)
                     }
                 }
             }
@@ -303,6 +307,7 @@ fun ActionButton(
     onUpdate: (app: App) -> Unit,
     onDownload: (app: App) -> Unit,
     onUninstall: (app: App) -> Unit,
+    onOpen: (app: App, shortcutIndex: Int) -> Unit,
     onCancel: (app: App?) -> Unit
 ) {
     val colors = MaterialTheme.colors
@@ -337,6 +342,19 @@ fun ActionButton(
                 }
             }
             if (app.installed) {
+                // Updatable + hasShortcuts: show shortcuts in dropdown with Open label
+                if (app.updatable && app.hasShortcuts) {
+                    app.shortcuts!!.forEachIndexed { index, shortcut ->
+                        DropdownMenuItem(
+                            onClick = { expand = false; onOpen(app, index) },
+                            modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                        ) {
+                            MenuText("Open ${shortcut.path}")
+                        }
+                    }
+                    Divider()
+                }
+
                 DropdownMenuItem(
                     onClick = { expand = false; onUninstall(app) },
                     modifier = Modifier.sizeIn(maxHeight = 28.dp)
@@ -418,6 +436,43 @@ fun ActionButton(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
+                    }
+                }
+            }
+        }
+
+        app.installed && app.hasShortcuts && !app.updatable -> {
+            // Outlined split: [Open | ▼]
+            var mainHovered by remember { mutableStateOf(false) }
+            var arrowHovered by remember { mutableStateOf(false) }
+            Surface(
+                shape = shape,
+                color = Color.White,
+                border = BorderStroke(1.dp, colors.borderDefault),
+                elevation = 1.dp,
+                modifier = Modifier.height(buttonHeight).width(120.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                            .onHover { mainHovered = it }
+                            .background(if (mainHovered) colors.backgroundHover else Color.Transparent)
+                            .cursorLink()
+                            .clickable { onOpen(app, 0) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Open", color = colors.primary, fontWeight = FontWeight.Medium, style = typography.body2)
+                    }
+                    Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.borderDefault))
+                    Box(
+                        modifier = Modifier.width(28.dp).fillMaxHeight()
+                            .onHover { arrowHovered = it }
+                            .background(if (arrowHovered) colors.divider else colors.backgroundHover)
+                            .cursorLink()
+                            .clickable { expand = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
                     }
                 }
             }

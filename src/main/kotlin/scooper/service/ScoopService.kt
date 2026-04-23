@@ -394,6 +394,26 @@ class ScoopService(
         return if (ext.isNotEmpty()) ".${ext}" else ""
     }
 
+    /** Open a shortcut of an installed app. */
+    fun openShortcut(app: App, shortcutIndex: Int = 0) {
+        val shortcuts = app.shortcuts ?: return
+        if (shortcutIndex !in shortcuts.indices) return
+
+        val root = if (app.global) globalRootDir else rootDir
+        val appDir = root.resolve("apps/${app.name}/current")
+        if (!appDir.exists()) return
+
+        val shortcut = shortcuts[shortcutIndex]
+        // shortcut.title is the exe relative path (e.g. "Fiddler.exe"), shortcut.path is the display name
+        val target = appDir.resolve(shortcut.title.replace('\\', '/'))
+        val dir = target.parentFile
+
+        logger.info("Opening shortcut: ${target.absolutePath}")
+        ProcessBuilder("cmd", "/c", "start", "", target.absolutePath)
+            .directory(dir)
+            .start()
+    }
+
     private suspend fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
         executeSuspend(
             args,
