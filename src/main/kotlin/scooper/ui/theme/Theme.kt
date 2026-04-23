@@ -9,42 +9,36 @@ import org.jetbrains.skiko.SystemTheme
 import org.jetbrains.skiko.currentSystemTheme
 
 private val darkColorPalette = darkColors(
-    primary = indigoA200,
-    primaryVariant = indigo300,
-    secondary = teal200,
-    onSecondary = gray400,
-    background = gray800,
+    primary = Blue500,
+    primaryVariant = Blue600,
+    onPrimary = Color.White,
+    secondary = Slate400,
+    onSecondary = Color.White,
+    surface = Slate800,
+    onSurface = Slate50,
+    background = Slate900,
+    onBackground = Slate50,
+    error = Red500,
+    onError = Color.White,
 )
 
 private val lightColorPalette = lightColors(
-    primary = LightColors.primaryColor,
-    primaryVariant = LightColors.primaryLightColor,
-    onPrimary = LightColors.primaryTextColor,
-    secondary = LightColors.secondaryColor,
-    secondaryVariant = LightColors.secondaryDarkColor,
-    onSecondary = LightColors.secondaryTextColor,
-    surface = LightColors.surfaceColor,
-    onSurface = LightColors.surfaceTextColor,
-    background = LightColors.backgroupColor,
-    onBackground = LightColors.backgroundTextColor,
-    error = LightColors.errorColor
-
-    /* Other default colors to override
-background = Color.White,
-surface = Color.White,
-onPrimary = Color.White,
-onSecondary = Color.Black,
-onBackground = Color.Black,
-*/
+    primary = Blue600,
+    primaryVariant = Blue700,
+    onPrimary = Color.White,
+    secondary = Slate500,
+    onSecondary = Color.White,
+    surface = Color.White,
+    onSurface = Slate900,
+    background = Slate50,
+    onBackground = Slate900,
+    error = Red500,
+    onError = Color.White,
 )
 
 @Composable
-fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, content: @Composable() () -> Unit) {
-    val colors = if (currentTheme == SystemTheme.DARK) {
-        darkColorPalette
-    } else {
-        lightColorPalette
-    }
+fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, content: @Composable () -> Unit) {
+    val colors = if (currentTheme == SystemTheme.DARK) darkColorPalette else lightColorPalette
 
     MaterialTheme(
         colors = colors,

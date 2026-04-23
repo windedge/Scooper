@@ -43,29 +43,24 @@ import sh.calvin.reorderable.ReorderableColumn
 
 @Suppress("UNCHECKED_CAST")
 @Composable
-fun NavHeader(show: Boolean = true, modifier: Modifier = Modifier) {
+fun ToolbarRow(show: Boolean = true, modifier: Modifier = Modifier) {
     if (!show) return
 
     val currentRoute = (LocalBackStack.current as BackStack<AppRoute>).current.value
 
-    Surface(
-        modifier = modifier.then(Modifier.fillMaxWidth().padding(bottom = 4.dp).height(65.dp)),
-        elevation = 5.dp,
-        shape = MaterialTheme.shapes.large
-    ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom
-            ) {
-                Menu()
-
+    if (currentRoute is AppRoute.Apps) {
+        SearchBar(show = true)
+    } else {
+        Surface(
+            modifier = modifier.then(Modifier.fillMaxWidth().height(48.dp)),
+            elevation = 0.dp,
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
                 Row(
-                    modifier = Modifier.height(35.dp).padding(end = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SearchBar(currentRoute is AppRoute.Apps)
                     RefreshScoopButton()
                     MoreActionsButton()
                 }
@@ -140,7 +135,7 @@ fun RefreshScoopButton() {
     val scoopService: ScoopService = koinInject()
     val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
     val scope = rememberCoroutineScope { Dispatchers.Default }
-    Box(modifier = Modifier.width(30.dp), contentAlignment = Alignment.Center) {
+    Box(modifier = Modifier.width(42.dp), contentAlignment = Alignment.Center) {
         if (runningTask != null) {
             val queuedTasks by taskQueue.pendingTasksFlow.map { tasks -> tasks.filterNot { it is Task.Refresh } }
                 .collectAsState(listOf())
@@ -152,7 +147,7 @@ fun RefreshScoopButton() {
                 onClick = { showQueueTasks = true }, Modifier.then(clickIndicator),
                 rippleRadius = 20.dp, enabled = runningTaskSize > 0,
             ) {
-                Box(Modifier.size(30.dp)) {
+                Box(Modifier.size(42.dp)) {
                     if (runningTask is Task.Refresh) {
                         CircularProgressIndicator(Modifier.size(20.dp).align(Alignment.Center), strokeWidth = 2.dp)
                     } else {
@@ -160,12 +155,8 @@ fun RefreshScoopButton() {
                     }
 
                     if (runningTaskSize > 0) {
-                        val position = if (runningTask is Task.Refresh) {
-                            Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-10).dp)
-                        } else {
-                            Modifier.align(Alignment.Center).offset(y = (-5).dp)
-                        }
-                        Badge(modifier = Modifier.then(position), backgroundColor = colors.primary) {
+                        val position = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = 2.dp)
+                        Badge(modifier = position, backgroundColor = colors.primary) {
                             Text("$runningTaskSize")
                         }
                     }
@@ -268,73 +259,5 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(20.dp), tint = tint)
             }
         }
-    }
-}
-
-
-@Suppress("UNCHECKED_CAST")
-@Composable
-fun Menu(modifier: Modifier = Modifier) {
-    val appsViewModel: AppsViewModel = koinInject()
-    val navigator = LocalBackStack.current as BackStack<AppRoute>
-
-    Row(
-        modifier = modifier.then(Modifier.fillMaxHeight()),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        remember { AppRoute.Apps("") }.MenuItem("All") {
-            appsViewModel.resetFilter()
-            navigator.popupAllAndPush(AppRoute.Apps(scope = ""))
-        }
-
-        remember { AppRoute.Apps("installed") }.MenuItem("Installed") {
-            appsViewModel.resetFilter()
-            navigator.popupAllAndPush(AppRoute.Apps(scope = "installed"))
-        }
-
-        remember { AppRoute.Apps("updates") }.MenuItem("Updates") {
-            appsViewModel.resetFilter()
-            navigator.popupAllAndPush(AppRoute.Apps(scope = "updates"))
-        }
-
-        Divider(
-            modifier = Modifier.height(30.dp).width(1.2.dp).offset(y = (-2).dp)
-        )
-
-        remember { AppRoute.Buckets }.MenuItem("Buckets") {
-            navigator.popupAllAndPush(AppRoute.Buckets)
-        }
-    }
-}
-
-
-@Suppress("UNCHECKED_CAST")
-@Composable
-fun AppRoute.MenuItem(
-    text: String,
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 5.dp, vertical = 8.dp),
-    onClick: () -> Unit = {}
-) {
-    val currentRoute = (LocalBackStack.current as BackStack<AppRoute>).current.value
-    val highlight = currentRoute == this
-    val default = Modifier.clip(shape = RoundedCornerShape(5.dp)).width(90.dp)
-    Box(
-        modifier = modifier
-            .then(default)
-            .background(color = if (highlight) colors.primary else Color.Unspecified)
-            .cursorHand()
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-
-        var style = MaterialTheme.typography.subtitle1
-        val scale = 1.0
-        if (highlight) {
-            style = style.copy(fontSize = style.fontSize * scale, color = colors.onPrimary)
-        }
-
-        Text(text, modifier = Modifier.padding(contentPadding), style = style)
     }
 }

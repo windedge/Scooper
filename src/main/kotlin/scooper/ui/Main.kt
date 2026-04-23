@@ -1,6 +1,8 @@
 package scooper.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.CircularProgressIndicator
@@ -11,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -28,15 +31,18 @@ import scooper.repository.AppsRepository
 import scooper.repository.initDb
 import scooper.ui.components.EnterAnimation
 import scooper.ui.components.SnackbarHost
-import scooper.ui.theme.ScooperTheme
+import scooper.ui.theme.*
 import scooper.util.navigation.Router
 import scooper.viewmodels.AppsSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupSideEffect
 import scooper.viewmodels.CleanupViewModel
 import scooper.viewmodels.SettingsSideEffect
+
 import scooper.viewmodels.SettingsViewModel
 import java.awt.Dimension
+
+val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
 
 @Suppress("unused")
 private val logger by lazy { LoggerFactory.getLogger("Main") }
@@ -56,7 +62,6 @@ fun main() = application {
         return@application
     }
 
-    val scope = rememberCoroutineScope()
     val winState = rememberWindowState(
         width = 960.dp,
         height = 600.dp,
@@ -80,7 +85,7 @@ fun main() = application {
         icon = painterResource("logo.svg"),
     ) {
         with(LocalDensity.current) {
-            window.minimumSize = Dimension(800.dp.roundToPx(), 500.dp.roundToPx())
+            window.minimumSize = Dimension(960.dp.roundToPx(), 560.dp.roundToPx())
         }
 
         val settings by settingsViewModel.container.stateFlow.collectAsState()
@@ -124,49 +129,71 @@ fun main() = application {
             }
         }
 
+        val showFpsState = remember { mutableStateOf(false) }
+
         ScooperTheme(currentTheme = theme) {
-            Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
-                val showTopBar = when (currentRoute.value) {
+            CompositionLocalProvider(LocalShowFps provides showFpsState) {
+                Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
+                val showToolbar = when (currentRoute.value) {
                     is AppRoute.Settings -> false
                     AppRoute.Output -> false
                     else -> true
                 }
 
-                val enableAnimation = when (currentRoute.value) {
-                    !is AppRoute.Settings -> true
-                    else -> this.snapshot.size > 1 && this.previous.value !is AppRoute.Settings
-                }
+                val appsState by appsViewModel.container.stateFlow.collectAsState()
 
                 Scaffold(
                     scaffoldState = scaffoldState,
                     snackbarHost = { hostState -> SnackbarHost(hostState) },
-                    topBar = { NavHeader(showTopBar) },
                     bottomBar = { StatusBar(statusText) }
                 ) { paddingValues ->
-                    Layout(modifier = Modifier.padding(paddingValues)) {
-                        EnterAnimation(enableAnimation) {
-                            when (val route = currentRoute.value) {
-                                AppRoute.Splash -> {}
-                                is AppRoute.Apps -> AppScreen(route.scope)
-                                AppRoute.Buckets -> BucketsScreen()
-                                AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
-                                is AppRoute.Settings -> SettingScreen()
+                    Row(modifier = Modifier.padding(paddingValues)) {
+                        val isSettings = currentRoute.value is AppRoute.Settings
+                        val isOutput = currentRoute.value == AppRoute.Output
+                        if (!isSettings && !isOutput) {
+                            SidebarNav(updateCount = appsState.updateCount)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets)
+                            Layout {
+                                val routeKey = when (val route = currentRoute.value) {
+                                    AppRoute.Splash -> "splash"
+                                    is AppRoute.Apps -> "apps:${route.scope}"
+                                    AppRoute.Buckets -> "buckets"
+                                    AppRoute.Output -> "output"
+                                    is AppRoute.Settings -> "settings:${route.menuText}"
+                                }
+                                val previousRoute = this@Router.snapshot.dropLast(1).lastOrNull()?.value
+                                val bothSettings = currentRoute.value is AppRoute.Settings && previousRoute is AppRoute.Settings
+                                val animateContent = !bothSettings
+                                key(routeKey) {
+                                    EnterAnimation(animateContent) {
+                                        when (val route = currentRoute.value) {
+                                            AppRoute.Splash -> {}
+                                            is AppRoute.Apps -> AppScreen(route.scope)
+                                            AppRoute.Buckets -> BucketsScreen()
+                                            AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
+                                            is AppRoute.Settings -> SettingScreen()
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            }
             }
         }
     }
 }
 
 @Composable
-private fun SplashScreen(onClose: () -> Unit) {
+fun SplashScreen(onClose: () -> Unit) {
     Window(
         onCloseRequest = onClose,
         state = rememberWindowState(
-            width = 480.dp,
-            height = 320.dp,
+            width = 520.dp,
+            height = 360.dp,
             placement = WindowPlacement.Floating,
             position = WindowPosition(Alignment.Center)
         ),
@@ -174,22 +201,60 @@ private fun SplashScreen(onClose: () -> Unit) {
         icon = painterResource("logo.svg"),
         undecorated = true,
         resizable = false,
+        transparent = true,
     ) {
         Box(
-            modifier = Modifier.clip(RoundedCornerShape(12.dp)).fillMaxSize(),
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).fillMaxSize()
+                .background(Slate50)
+                .border(1.dp, Slate200, RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center,
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.Center
             ) {
-                Image(
-                    painter = painterResource("logo.svg"),
-                    contentDescription = "Scooper",
-                    modifier = Modifier.size(64.dp)
+                // Logo with subtle shadow container
+                Box(
+                    modifier = Modifier.size(88.dp)
+                        .background(Color.White, RoundedCornerShape(20.dp))
+                        .border(1.dp, Slate200, RoundedCornerShape(20.dp))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource("logo.svg"),
+                        contentDescription = "Scooper",
+                        modifier = Modifier.size(56.dp)
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                // App name
+                Text(
+                    "Scooper",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate900
                 )
-                Text("Scooper", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+
+                Spacer(Modifier.height(4.dp))
+
+                // Tagline
+                Text(
+                    "Scoop Package Manager GUI",
+                    fontSize = 13.sp,
+                    color = Slate400
+                )
+
+                Spacer(Modifier.height(28.dp))
+
+                // Loading indicator with brand color
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.5.dp,
+                    color = Blue600
+                )
             }
         }
     }

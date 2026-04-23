@@ -2,26 +2,28 @@ package scooper.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.AddCircle
+import androidx.compose.material.icons.twotone.Add
 import androidx.compose.material.icons.twotone.Delete
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import scooper.ui.theme.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogState
 import androidx.compose.ui.window.DialogWindow
 import org.koin.compose.koinInject
@@ -31,7 +33,7 @@ import scooper.ui.components.Tooltip
 import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
 import scooper.util.cursorLink
-import scooper.util.noRippleClickable
+import scooper.util.onHover
 import scooper.util.safeBrowse
 import scooper.viewmodels.AppsViewModel
 
@@ -47,70 +49,99 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
     var bucketUrlError by remember { mutableStateOf(false) }
     val inputFocusRequester = remember { FocusRequester() }
 
-    Surface(elevation = 1.dp, color = colors.background) {
+    Surface(elevation = 0.dp, color = Color.White) {
         Box(modifier = Modifier.fillMaxSize()) {
             val scrollState = rememberScrollState(0)
-            LaunchedEffect(Unit) { scrollState.scrollTo(0) }
-            Column(Modifier.padding(start = 2.dp, end = 14.dp).verticalScroll(scrollState)) {
-                val state by appsViewModel.container.stateFlow.collectAsState()
-                val buckets = state.buckets
-                val bucketNames = buckets.map { it.name }
-
-                for (bucket in buckets) {
-                    BucketCard(bucket, onDelete = {
-                        bucketToDelete = bucket.name
-                        showDeleteDialog = true
-                    })
-                }
-
-                var isHover by remember { mutableStateOf(false) }
-                val stroke = Stroke(width = 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 2f), 0f))
-                Box(
-                    Modifier.fillMaxWidth().height(60.dp).padding(4.dp)
-                        .background(color = if (isHover) colors.primary else Color.Transparent)
-                        .cursorHand()
-                        .onPointerEvent(PointerEventType.Enter) { isHover = true }
-                        .onPointerEvent(PointerEventType.Exit) { isHover = false }
-                        .noRippleClickable {
-                            bucketName = ""; bucketUrl = ""; showAddDialog = true
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val color = if (isHover) colors.onPrimary else colors.onSurface
-                    if (!isHover) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            drawRoundRect(color = color, style = stroke)
+            Column(
+                Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 40.dp, vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Column(Modifier.widthIn(max = 800.dp)) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "Configured Buckets",
+                                style = MaterialTheme.typography.h5.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textTitle
+                                )
+                            )
+                            Text(
+                                "Manage repositories where Scoop looks for packages.",
+                                style = MaterialTheme.typography.body2.copy(color = colors.textBody)
+                            )
+                        }
+                        Button(
+                            onClick = { bucketName = ""; bucketUrl = ""; showAddDialog = true },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                            shape = RoundedCornerShape(8.dp),
+                            elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
+                            modifier = Modifier.cursorHand()
+                        ) {
+                            Icon(Icons.TwoTone.Add, "", modifier = Modifier.size(18.dp), tint = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Add Bucket", color = Color.White, fontWeight = FontWeight.Medium)
                         }
                     }
+
+                    // Configured Buckets List
+                    val state by appsViewModel.container.stateFlow.collectAsState()
+                    val buckets = state.buckets
+                    val bucketNames = buckets.map { it.name }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, colors.borderDefault),
+                        elevation = 0.dp
+                    ) {
+                        Column(Modifier.fillMaxWidth()) {
+                            buckets.forEachIndexed { index, bucket ->
+                                BucketRow(bucket, onDelete = {
+                                    bucketToDelete = bucket.name
+                                    showDeleteDialog = true
+                                })
+                                if (index < buckets.size - 1) {
+                                    Divider(color = colors.divider)
+                                }
+                            }
+                        }
+                    }
+
+                    // Known Buckets Section
                     Text(
-                        textAlign = TextAlign.Center,
-                        text = "Add Bucket...",
-                        color = color,
-                        fontWeight = if (isHover) FontWeight.Bold else FontWeight.Bold,
+                        "KNOWN BUCKETS",
+                        style = MaterialTheme.typography.overline.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textBody,
+                            letterSpacing = 1.sp
+                        ),
+                        modifier = Modifier.padding(bottom = 16.dp)
                     )
+
+                    KnownBucketsGrid(bucketNames, onAdd = { appsViewModel.scheduleAddBucket(it) })
+
+                    Spacer(Modifier.height(40.dp))
                 }
-
-                Text(
-                    "Known Buckets",
-                    style = MaterialTheme.typography.h5,
-                    color = colors.onBackground,
-                    modifier = Modifier.padding(top = 20.dp)
-                )
-
-                KnownBuckets(bucketNames, onAdd = { appsViewModel.scheduleAddBucket(it) })
-
-                Spacer(Modifier.height(10.dp))
             }
+
             VerticalScrollbar(
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().background(color = colors.background),
-                adapter = rememberScrollbarAdapter(scrollState = scrollState /* TextBox height + Spacer height*/)
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                adapter = rememberScrollbarAdapter(scrollState = scrollState)
             )
         }
     }
 
     if (showDeleteDialog) {
         ConfirmDialog(
-            text = "Confirm to delete?",
+            text = "Are you sure you want to delete '$bucketToDelete'?",
+            title = "Delete Bucket",
+            confirmText = "Delete",
             onConfirm = {
                 showDeleteDialog = false
                 appsViewModel.scheduleRemoveBucket(bucketToDelete)
@@ -123,44 +154,162 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
         ConfirmDialog(
             title = "Add Bucket",
             onConfirm = {
-                showAddDialog = false
                 if (bucketName.isBlank()) {
                     bucketNameError = true
-                }
-                if (bucketUrl.isBlank()) {
-                    bucketUrlError = true
-                }
-                if (bucketNameError || bucketUrlError) {
                     return@ConfirmDialog
                 }
-                appsViewModel.scheduleAddBucket(bucketName, bucketUrl)
+                showAddDialog = false
+                appsViewModel.scheduleAddBucket(bucketName, if (bucketUrl.isBlank()) null else bucketUrl)
             },
             onCancel = { showAddDialog = false },
             confirmText = "Add",
-            state = DialogState(size = DpSize(350.dp, 230.dp))
+            state = DialogState(size = DpSize(400.dp, 320.dp))
         ) {
-            CompositionLocalProvider(LocalContentColor provides Color.Black) {
-                Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.Start) {
-                    SideEffect {
-                        inputFocusRequester.requestFocus()
+            Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp)) {
+                SideEffect {
+                    inputFocusRequester.requestFocus()
+                }
+                Text("Bucket Name", style = MaterialTheme.typography.caption, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    bucketName,
+                    onValueChange = { bucketName = it; bucketNameError = false },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(inputFocusRequester),
+                    placeholder = { Text("e.g. extras") }
+                )
+                if (bucketNameError) {
+                    Text("Name is required", color = Color.Red, style = MaterialTheme.typography.caption)
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Text("Repository URL (Optional)", style = MaterialTheme.typography.caption, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    bucketUrl,
+                    onValueChange = { bucketUrl = it; bucketUrlError = false },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("https://github.com/...") }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
+    var isHover by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onHover { isHover = it }
+            .background(if (isHover) colors.backgroundHover else Color.White)
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                bucket.name,
+                style = MaterialTheme.typography.body1.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textTitle
+                )
+            )
+            Text(
+                bucket.url ?: "",
+                style = MaterialTheme.typography.caption.copy(color = colors.textMuted),
+                modifier = Modifier.cursorLink().clickable { safeBrowse(bucket.url) }
+            )
+        }
+        
+        if (isHover) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.dangerBg)
+                    .cursorHand()
+            ) {
+                Icon(
+                    Icons.TwoTone.Delete,
+                    "",
+                    modifier = Modifier.size(18.dp),
+                    tint = colors.dangerDefault
+                )
+            }
+        } else {
+            Spacer(Modifier.size(32.dp))
+        }
+    }
+}
+
+@Composable
+fun KnownBucketsGrid(bucketNames: List<String>, onAdd: (String) -> Unit) {
+    val knownBuckets = KNOWN_BUCKETS - bucketNames.toSet()
+    
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = when {
+            maxWidth > 700.dp -> 3
+            maxWidth > 450.dp -> 2
+            else -> 1
+        }
+        
+        // Custom Grid
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val rows = (knownBuckets.size + columns - 1) / columns
+            for (r in 0 until rows) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    for (c in 0 until columns) {
+                        val idx = r * columns + c
+                        if (idx < knownBuckets.size) {
+                            val name = knownBuckets.elementAt(idx)
+                            KnownBucketCard(name, onAdd = { onAdd(name) }, modifier = Modifier.weight(1f))
+                        } else {
+                            Spacer(Modifier.weight(1f))
+                        }
                     }
-                    OutlinedTextField(
-                        bucketName,
-                        onValueChange = { bucketName = it; bucketNameError = false },
-                        label = { Text("bucket") },
-                        singleLine = true,
-                        modifier = Modifier.height(50.dp).fillMaxWidth().focusRequester(inputFocusRequester)
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        bucketUrl,
-                        onValueChange = { bucketUrl = it; bucketUrlError = false },
-                        label = { Text("url") },
-                        singleLine = true,
-                        modifier = Modifier.height(50.dp).fillMaxWidth()
-                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun KnownBucketCard(name: String, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+    var isHover by remember { mutableStateOf(false) }
+    Surface(
+        modifier = modifier
+            .onHover { isHover = it }
+            .height(54.dp)
+            .cursorHand()
+            .clickable { onAdd() },
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, if (isHover) colors.primary else colors.borderDefault),
+        color = Color.White,
+        elevation = if (isHover) 1.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                name,
+                style = MaterialTheme.typography.body2.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = if (isHover) colors.primary else Slate700
+                )
+            )
+            Icon(
+                Icons.TwoTone.Add,
+                "",
+                modifier = Modifier.size(18.dp),
+                tint = if (isHover) colors.primary else colors.textMuted
+            )
         }
     }
 }
@@ -173,113 +322,43 @@ fun ConfirmDialog(
     onCancel: () -> Unit,
     confirmText: String? = null,
     cancelText: String? = null,
-    state: DialogState = DialogState(size = DpSize(300.dp, 180.dp)),
+    state: DialogState = DialogState(size = DpSize(320.dp, 180.dp)),
     content: @Composable (() -> Unit)? = null
 ) {
-    DialogWindow(onCloseRequest = onCancel, state = state, title = title ?: "Scooper") {
-        BoxWithConstraints {
-            val height = this.maxHeight
+    val colors = MaterialTheme.colors
+    DialogWindow(onCloseRequest = onCancel, state = state, title = title ?: "Scooper", resizable = false) {
+        Surface(color = Color.White) {
             Column(Modifier.fillMaxSize()) {
-                Box(Modifier.fillMaxWidth().height(height - 66.dp)) {
-                    if (content != null) content.invoke() else {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(text ?: "", style = MaterialTheme.typography.h6, color = colors.onSurface)
-                        }
-                    }
-                }
-                Divider(Modifier.height(9.dp).padding(horizontal = 8.dp, vertical = 4.dp))
-                Row(
-                    Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Button(onConfirm, modifier = Modifier.width(80.dp).height(40.dp).cursorLink()) {
-                        Text(confirmText ?: "OK")
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.height(40.dp).cursorLink()) {
-                        Text(cancelText ?: "Cancel")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BucketCard(
-    bucket: Bucket,
-    onDelete: () -> Unit
-) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val maxWidth = this.maxWidth
-        Surface(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Row(Modifier.height(80.dp).padding(10.dp)) {
-                Column(Modifier.width(maxWidth - 80.dp)) {
-                    Text(bucket.name, style = MaterialTheme.typography.h6)
-                    Spacer(Modifier.height(8.dp))
-                    Text(bucket.url ?: "", modifier = Modifier.cursorLink().clickable {
-                        safeBrowse(bucket.url)
-                    })
-                }
-
-                Box(
-                    Modifier.width(60.dp).fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            Icons.TwoTone.Delete,
-                            "",
-                            Modifier.cursorLink(),
-                            tint = colors.onSecondary
+                // Content
+                Box(Modifier.weight(1f).padding(24.dp)) {
+                    if (content != null) content() else {
+                        Text(
+                            text ?: "",
+                            style = MaterialTheme.typography.body1.copy(color = Slate700)
                         )
                     }
                 }
-            }
-        }
-
-    }
-}
-
-@Composable
-fun KnownBuckets(bucketNames: List<String>, onAdd: (bucketName: String) -> Unit) {
-    BoxWithConstraints {
-        val maxWidth = this.maxWidth
-        Column {
-            val columns = (maxWidth.value / 168).toInt()
-            val knownBuckets = KNOWN_BUCKETS - bucketNames.toSet()
-            // val knownBuckets = KNOWN_BUCKETS
-            val rows = knownBuckets.size / columns + 1
-
-            for (i in 0 until rows) {
+                
+                // Footer
                 Row(
-                    Modifier.padding(vertical = 2.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                    Modifier.fillMaxWidth().background(colors.backgroundHover).padding(16.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    for (j in 0 until columns) {
-                        val idx = i * columns + j
-                        if (idx < knownBuckets.size) {
-                            Surface(Modifier.width(150.dp).height(80.dp).padding(2.dp)) {
-                                Column(
-                                    Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.SpaceBetween,
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    val bucketName = knownBuckets.elementAt(idx)
-                                    Text(bucketName, style = MaterialTheme.typography.h6)
-                                    Tooltip("Add Bucket") {
-                                        IconButton(onClick = { onAdd(bucketName) }) {
-                                            Icon(
-                                                Icons.TwoTone.AddCircle,
-                                                "",
-                                                Modifier.cursorLink().size(30.dp),
-                                                tint = colors.primary,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    TextButton(onClick = onCancel, modifier = Modifier.cursorHand()) {
+                        Text(cancelText ?: "Cancel", color = colors.textBody)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onConfirm,
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = if (confirmText == "Delete") colors.dangerDefault else colors.primary
+                        ),
+                        elevation = null,
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.cursorHand()
+                    ) {
+                        Text(confirmText ?: "OK", color = Color.White)
                     }
                 }
             }

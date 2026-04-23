@@ -1,11 +1,19 @@
 package scooper.ui
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.shapes
@@ -26,6 +34,7 @@ import scooper.data.App
 import scooper.data.AppStatus
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
+import scooper.ui.components.IconButton
 import scooper.ui.components.OnBottomReached
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
@@ -35,6 +44,7 @@ import scooper.util.onHover
 import scooper.util.safeBrowse
 import scooper.viewmodels.AppsFilter
 import scooper.viewmodels.AppsViewModel
+import scooper.ui.theme.*
 import java.time.format.DateTimeFormatter
 
 @Suppress("unused")
@@ -46,7 +56,6 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
     val state by appsViewModel.container.stateFlow.collectAsState()
     val apps = state.apps
     val filter = state.filter
-//    val waitingApps = state.waitingApps
     val tasks by taskQueue.pendingTasksFlow.collectAsState(listOf())
     val waitingApps = tasks.map { it.name }.toSet()
     val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
@@ -55,28 +64,44 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
         else -> null
     }
 
-    LaunchedEffect(scope) {
-        appsViewModel.applyFilters(scope = scope)
+    var showOnlyUpdates by remember { mutableStateOf(false) }
+    val effectiveScope = when {
+        scope == "installed" && showOnlyUpdates -> "updates"
+        else -> scope
     }
 
-    Surface(Modifier.fillMaxSize(), elevation = 1.dp, shape = shapes.large) {
+    LaunchedEffect(effectiveScope) {
+        appsViewModel.applyFilters(scope = effectiveScope)
+    }
+
+    Surface(Modifier.fillMaxSize(), elevation = 0.dp, shape = shapes.large) {
         if (apps == null) return@Surface
 
-        if (apps.isNotEmpty()) {
-            AppList(
-                apps,
-                filter,
-                processingApp = processingApp,
-                waitingApps = waitingApps,
-                onInstall = appsViewModel::scheduleInstall,
-                onUpdate = appsViewModel::scheduleUpdate,
-                onDownload = appsViewModel::scheduleDownload,
-                onUninstall = appsViewModel::scheduleUninstall,
-                onCancel = appsViewModel::cancel,
-                onLoadMore = appsViewModel::loadMore
-            )
-        } else {
-            NoResults()
+        Column {
+            if (scope == "installed") {
+                SegmentedControl(
+                    selected = if (showOnlyUpdates) 1 else 0,
+                    onUpdateCount = state.updateCount.toInt(),
+                    onSelected = { showOnlyUpdates = it == 1 },
+                )
+            }
+
+            if (apps.isNotEmpty()) {
+                AppList(
+                    apps,
+                    filter,
+                    processingApp = processingApp,
+                    waitingApps = waitingApps,
+                    onInstall = appsViewModel::scheduleInstall,
+                    onUpdate = appsViewModel::scheduleUpdate,
+                    onDownload = appsViewModel::scheduleDownload,
+                    onUninstall = appsViewModel::scheduleUninstall,
+                    onCancel = appsViewModel::cancel,
+                    onLoadMore = appsViewModel::loadMore,
+                )
+            } else {
+                NoResults()
+            }
         }
     }
 }
@@ -88,11 +113,11 @@ fun AppList(
     processingApp: String? = null,
     waitingApps: Set<String> = setOf(),
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
-    onUpdate: (app: App) -> Unit = {},
-    onDownload: (app: App) -> Unit = {},
-    onUninstall: (app: App) -> Unit = {},
-    onCancel: (app: App?) -> Unit = {},
-    onLoadMore: () -> Unit = {},
+    onUpdate: (app: App) -> Unit = { },
+    onDownload: (app: App) -> Unit = { },
+    onUninstall: (app: App) -> Unit = { },
+    onCancel: (app: App?) -> Unit = { },
+    onLoadMore: () -> Unit = { },
 ) {
     Box(
         modifier = Modifier.fillMaxSize().padding(2.dp)
@@ -102,7 +127,12 @@ fun AppList(
 
         LaunchedEffect(filter.query, filter.scope, filter.selectedBucket) { state.animateScrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
-            itemsIndexed(items = apps) { _, app ->
+            items(
+                count = apps.size,
+                key = { apps[it].uniqueName },
+                contentType = { "app" }
+            ) { index ->
+                val app = apps[index]
                 AppCard(
                     app,
                     installing = app.uniqueName == processingApp,
@@ -131,91 +161,135 @@ fun AppCard(
     installing: Boolean = false,
     waiting: Boolean = false,
     onInstall: (app: App, global: Boolean) -> Unit = { _, _ -> },
-    onUpdate: (app: App) -> Unit = {},
-    onDownload: (app: App) -> Unit = {},
-    onUninstall: (app: App) -> Unit = {},
-    onCancel: (app: App?) -> Unit = {}
+    onUpdate: (app: App) -> Unit = { },
+    onDownload: (app: App) -> Unit = { },
+    onUninstall: (app: App) -> Unit = { },
+    onCancel: (app: App?) -> Unit = { }
 ) {
-    Surface {
+    val colors = MaterialTheme.colors
+    var isHover by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier.fillMaxWidth()
+            .onHover { isHover = it }
+            .background(if (isHover) colors.backgroundHover else Color.Transparent)
+    ) {
         Column {
-            Box(
-                Modifier.height(120.dp).padding(10.dp),
-                contentAlignment = Alignment.Center
+            Row(
+                Modifier.padding(horizontal = 32.dp, vertical = 22.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // Left Content
+                Column(
+                    Modifier.weight(1f).padding(end = 24.dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column(
-                        Modifier.fillMaxHeight().defaultMinSize(400.dp).fillMaxWidth(0.7f),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(app.name, style = typography.h6)
-                            if (app.homepage?.isNotEmpty() == true) {
-                                Tooltip(app.homepage!!, position = TooltipPosition.Top) {
-                                    Icon(
-                                        painter = painterResource("external_link_icon.xml"),
-                                        app.homepage,
-                                        modifier = Modifier.cursorHand().clickable {
-                                            safeBrowse(app.homepage)
-                                        }
-                                    )
-                                }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                        Text(
+                            app.name,
+                            style = AppNameStyle
+                        )
+                        if (app.homepage?.isNotEmpty() == true) {
+                            Spacer(Modifier.width(6.dp))
+                            val homepage = app.homepage!!
+                            Tooltip(homepage, position = TooltipPosition.Top) {
+                                Icon(
+                                    painter = painterResource("external_link_icon.xml"),
+                                    homepage,
+                                    modifier = Modifier.size(14.dp).cursorHand().clickable {
+                                        safeBrowse(homepage)
+                                    },
+                                    tint = colors.textMuted
+                                )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                if (app.global) "*global*" else "",
-                                style = typography.button.copy(color = colors.primary)
-                            )
                         }
-
-                        Text(app.description ?: "", maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-                            Text(app.updateAt?.format(formatter) ?: "", Modifier.widthIn(80.dp, 100.dp))
-                            Spacer(Modifier.width(30.dp))
-                            Text("[${app.bucket?.name ?: ""}]")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // Bucket Tag
+                        Box(
+                            modifier = Modifier
+                                .border(BorderStroke(1.dp, colors.borderDefault), RoundedCornerShape(4.dp))
+                                .background(colors.backgroundHover, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                app.bucket?.name?.uppercase() ?: "",
+                                style = BucketTagStyle
+                            )
                         }
                     }
 
+                    Text(
+                        app.description ?: "No description available.",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = DescStyle
+                    )
+                }
+
+                // Right Version & Actions
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    // Version info
                     Column(
-                        Modifier.fillMaxHeight().width(120.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Text(
-                            app.version ?: app.status.toString(),
-                            maxLines = if (app.updatable) 1 else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            softWrap = true,
-                            color = if (app.status == AppStatus.FAILED) Color.Red else Color.Unspecified,
-                        )
                         if (app.updatable) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    app.version ?: "",
+                                    style = OldVersionStyle
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Icon(
+                                    painterResource("arrow_right.xml"), "",
+                                    modifier = Modifier.size(12.dp),
+                                    tint = colors.textMuted
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    app.latestVersion,
+                                    style = NewVersionStyle
+                                )
+                            }
+                        } else {
                             Text(
-                                "⬇️".padStart(3, ' '),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                softWrap = true
-                            )
-                            Text(
-                                app.latestVersion,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                softWrap = true
+                                app.version ?: "",
+                                style = CurrentVersionStyle
                             )
                         }
+                        Text(
+                            app.updateAt?.format(DateFormatter) ?: "",
+                            style = DateStyle
+                        )
+                    }
 
+                    // Action Button
+                    Box(modifier = Modifier.width(120.dp)) {
                         ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onCancel)
                     }
                 }
-
-                Spacer(modifier = Modifier.height(1.dp))
             }
-            Divider(Modifier.height(1.dp).padding(start = 10.dp, end = 10.dp))
+            Divider(Modifier.padding(horizontal = 32.dp), color = colors.divider)
         }
     }
 }
+private val DateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
+// Pre-computed text styles to avoid copy() on every recomposition
+private val AppNameStyle @Composable get() = typography.body2.copy(fontWeight = FontWeight.SemiBold, color = colors.onSurface)
+private val DescStyle @Composable get() = typography.body2.copy(color = colors.textBody)
+private val BucketTagStyle @Composable get() = typography.overline.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colors.textBody)
+private val OldVersionStyle @Composable get() = typography.body2.copy(color = colors.textMuted, textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+private val NewVersionStyle @Composable get() = typography.body2.copy(fontWeight = FontWeight.Medium, color = colors.updateDefault)
+private val CurrentVersionStyle @Composable get() = typography.body2.copy(fontWeight = FontWeight.Medium, color = Slate700)
+private val DateStyle @Composable get() = typography.caption.copy(fontSize = 13.sp, color = colors.textMuted)
+
+private val UpdateGreen @Composable get() = colors.updateDefault
+private val UninstallRed @Composable get() = colors.dangerDefault
+private val InstallBlue @Composable get() = colors.primary
 
 @Composable
 fun ActionButton(
@@ -228,115 +302,192 @@ fun ActionButton(
     onUninstall: (app: App) -> Unit,
     onCancel: (app: App?) -> Unit
 ) {
+    val colors = MaterialTheme.colors
     var expand by remember { mutableStateOf(false) }
-    DropdownMenu(
-        expand, onDismissRequest = { expand = false },
-        modifier = Modifier.width(IntrinsicSize.Max).padding(vertical = 0.dp).cursorHand(),
-        // offset = DpOffset(x = (-24).dp, y = 1.dp)
-    ) {
-        if (!app.installed) {
-            if (app.status != AppStatus.FAILED) {
-                DropdownMenuItem(
-                    onClick = { expand = false; onInstall(app, true) },
-                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
-                ) {
-                    MenuText("Install Globally")
+    if (expand) {
+        DropdownMenu(
+            expand, onDismissRequest = { expand = false },
+            modifier = Modifier.width(IntrinsicSize.Max).padding(vertical = 0.dp).cursorHand(),
+        ) {
+            if (!app.installed) {
+                if (app.status != AppStatus.FAILED) {
+                    DropdownMenuItem(
+                        onClick = { expand = false; onInstall(app, true) },
+                        modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                    ) {
+                        MenuText("Install Globally")
+                    }
+                    DropdownMenuItem(
+                        onClick = { expand = false; onDownload(app) },
+                        modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                    ) {
+                        MenuText("Download Only")
+                    }
                 }
-                DropdownMenuItem(
-                    onClick = { expand = false; onDownload(app) },
-                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
-                ) {
-                    MenuText("Download Only")
+                if (app.status == AppStatus.FAILED) {
+                    DropdownMenuItem(
+                        onClick = { expand = false; onUninstall(app) },
+                        modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                    ) {
+                        MenuText("Uninstall")
+                    }
                 }
             }
-            if (app.status == AppStatus.FAILED) {
+            if (app.installed) {
                 DropdownMenuItem(
                     onClick = { expand = false; onUninstall(app) },
-                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
+                    modifier = Modifier.sizeIn(maxHeight = 28.dp)
                 ) {
                     MenuText("Uninstall")
                 }
-            }
-        }
-        if (app.installed) {
-            DropdownMenuItem(
-                onClick = { expand = false; onUninstall(app) },
-                modifier = Modifier.sizeIn(maxHeight = 25.dp)
-            ) {
-                MenuText("Uninstall")
-            }
 
-            if (app.updatable) {
-                DropdownMenuItem(
-                    onClick = { expand = false; onDownload(app) },
-                    modifier = Modifier.sizeIn(maxHeight = 25.dp)
-                ) {
-                    MenuText("Download Only")
+                if (app.updatable) {
+                    DropdownMenuItem(
+                        onClick = { expand = false; onDownload(app) },
+                        modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                    ) {
+                        MenuText("Download Only")
+                    }
                 }
             }
         }
     }
 
-    Row(modifier = Modifier.height(30.dp).border(1.dp, color = colors.onBackground, shape = RoundedCornerShape(4.dp))) {
-        var modifier = Modifier.fillMaxHeight().width(90.dp)
-        val text: String
-        var textColor: Color = Color.Unspecified
-        var hover by remember { mutableStateOf(false) }
-        when {
-            installing || (waiting && hover) -> {
-                text = "Cancel"
-                modifier = modifier.cursorLink().background(colors.error).clickable { onCancel(app) }
-                textColor = colors.onError
-            }
+    // Unified split button using a single Box with rounded corners
+    val buttonHeight = 30.dp
+    val shape = RoundedCornerShape(6.dp)
 
-            waiting -> {
-                text = "Waiting"
-                textColor = colors.onSecondary
-            }
-
-            app.updatable -> {
-                text = "Update"
-                modifier = modifier.cursorLink().clickable { onUpdate(app) }
-            }
-
-            app.installed -> {
-                text = "Installed"
-                textColor = colors.onSecondary
-            }
-
-            else -> {
-                text = "Install"
-                modifier = modifier.cursorLink().clickable { onInstall(app, false) }
-            }
-        }
-        Box(contentAlignment = Alignment.Center, modifier = modifier) {
-            Text(
-                text,
-                modifier = Modifier.padding(5.5.dp).onHover { hover = it },
-                fontWeight = FontWeight.Medium,
-                color = textColor
-            )
-        }
-
-        Box(
-            Modifier.height(30.dp).width(1.dp).padding(vertical = 5.dp)
-                .background(color = colors.onBackground)
-        )
-
-        if (installing || waiting) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxHeight().width(25.dp)
+    when {
+        installing || waiting -> {
+            var hovered by remember { mutableStateOf(false) }
+            Button(
+                onClick = { onCancel(app) },
+                modifier = Modifier.height(buttonHeight).width(120.dp).cursorLink().onHover { hovered = it },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(backgroundColor = UninstallRed),
+                shape = shape,
+                elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
             ) {
-                CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
+                if (installing) {
+                    CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp, color = Color.White)
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    if (installing) "Cancel" else if (hovered) "Cancel" else "Waiting",
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium,
+                    style = typography.body2,
+                )
             }
-        } else {
-            Icon(
-                Icons.TwoTone.KeyboardArrowDown,
-                "",
-                tint = colors.onBackground,
-                modifier = Modifier.fillMaxHeight().width(25.dp).cursorLink().clickable { expand = true }
-            )
+        }
+
+        app.updatable -> {
+            // Green split: [Update | ▼]
+            var mainHovered by remember { mutableStateOf(false) }
+            var arrowHovered by remember { mutableStateOf(false) }
+            Surface(
+                shape = shape,
+                color = UpdateGreen,
+                elevation = 1.dp,
+                modifier = Modifier.height(buttonHeight).width(120.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                            .onHover { mainHovered = it }
+                            .background(if (mainHovered) colors.updateHover else Color.Transparent)
+                            .cursorLink()
+                            .clickable { onUpdate(app) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Update", color = Color.White, fontWeight = FontWeight.Medium, style = typography.body2)
+                    }
+                    Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.2f)))
+                    Box(
+                        modifier = Modifier.width(28.dp).fillMaxHeight()
+                            .onHover { arrowHovered = it }
+                            .background(if (arrowHovered) colors.updatePressed else colors.updateHover)
+                            .cursorLink()
+                            .clickable { expand = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
+                    }
+                }
+            }
+        }
+
+        app.installed -> {
+            // Outlined split: [Uninstall | ▼]
+            var mainHovered by remember { mutableStateOf(false) }
+            var arrowHovered by remember { mutableStateOf(false) }
+            Surface(
+                shape = shape,
+                color = Color.White,
+                border = BorderStroke(1.dp, colors.borderDefault),
+                elevation = 1.dp,
+                modifier = Modifier.height(buttonHeight).width(120.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                            .onHover { mainHovered = it }
+                            .background(if (mainHovered) colors.backgroundHover else Color.Transparent)
+                            .cursorLink()
+                            .clickable { onUninstall(app) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Uninstall", color = colors.sidebarTextMedium, fontWeight = FontWeight.Medium, style = typography.body2)
+                    }
+                    Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.borderDefault))
+                    Box(
+                        modifier = Modifier.width(28.dp).fillMaxHeight()
+                            .onHover { arrowHovered = it }
+                            .background(if (arrowHovered) colors.divider else colors.backgroundHover)
+                            .cursorLink()
+                            .clickable { expand = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+                    }
+                }
+            }
+        }
+
+        else -> {
+            // Blue split: [Install | ▼]
+            var mainHovered by remember { mutableStateOf(false) }
+            var arrowHovered by remember { mutableStateOf(false) }
+            Surface(
+                shape = shape,
+                color = InstallBlue,
+                elevation = 1.dp,
+                modifier = Modifier.height(buttonHeight).width(120.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                            .onHover { mainHovered = it }
+                            .background(if (mainHovered) colors.primaryHover else Color.Transparent)
+                            .cursorLink()
+                            .clickable { onInstall(app, false) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Install", color = Color.White, fontWeight = FontWeight.Medium, style = typography.body2)
+                    }
+                    Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.2f)))
+                    Box(
+                        modifier = Modifier.width(28.dp).fillMaxHeight()
+                            .onHover { arrowHovered = it }
+                            .background(if (arrowHovered) colors.primaryPressed else colors.primaryHover)
+                            .cursorLink()
+                            .clickable { expand = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
+                    }
+                }
+            }
         }
     }
 }
@@ -367,5 +518,99 @@ fun NoResults() {
         )
         Spacer(modifier = Modifier.height(20.dp))
         Text("No Results", style = typography.h6, color = colors.primary)
+    }
+}
+
+@Composable
+private fun SegmentedControl(
+    selected: Int,
+    onUpdateCount: Int,
+    onSelected: (Int) -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Pill container
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.borderDefault.copy(alpha = 0.6f))
+                .border(width = 1.dp, color = colors.borderDefault.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SegmentedTab(
+                text = "All Installed",
+                selected = selected == 0,
+                onClick = { onSelected(0) },
+            )
+            Spacer(Modifier.width(2.dp))
+            SegmentedTab(
+                text = "Updates",
+                badge = if (onUpdateCount > 0) onUpdateCount else null,
+                activeColor = colors.primaryHover,
+                selected = selected == 1,
+                onClick = { onSelected(1) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SegmentedTab(
+    text: String,
+    modifier: Modifier = Modifier,
+    badge: Int? = null,
+    activeColor: Color = Slate900,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    val bgColor = if (selected) Color.White else Color.Transparent
+    val textColor = if (selected) activeColor else colors.unselectedTabText
+    val selectedBorderColor = colors.borderDefault.copy(alpha = 0.5f)
+    val badgeBg = if (selected) colors.primaryBadgeBg else colors.unselectedBadgeBg
+    val badgeText = if (selected) colors.primaryHover else colors.sidebarTextMedium
+
+    Row(
+        modifier = modifier
+            .then(if (selected) Modifier.shadow(1.dp, RoundedCornerShape(6.dp)) else Modifier)
+            .clip(RoundedCornerShape(6.dp))
+            .background(bgColor)
+            .then(if (selected) Modifier.border(1.dp, selectedBorderColor, RoundedCornerShape(6.dp)) else Modifier)
+            .cursorHand()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text,
+            style = typography.body2.copy(
+                fontWeight = FontWeight.Medium,
+                color = textColor,
+            ),
+        )
+        if (badge != null) {
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(badgeBg)
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+            ) {
+                Text(
+                    "$badge",
+                    style = typography.caption.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = badgeText,
+                    ),
+                )
+            }
+        }
     }
 }
