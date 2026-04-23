@@ -111,7 +111,7 @@ fun SearchBar(show: Boolean = true) {
                 if (queryText.isEmpty()) {
                     Text(
                         "Search packages...",
-                        style = typography.button.copy(
+                        style = typography.subtitle2.copy(
                             color = colors.textPlaceholder,
                         ),
                     )
@@ -129,7 +129,7 @@ fun SearchBar(show: Boolean = true) {
                             false
                         },
                     singleLine = true,
-                    textStyle = typography.button.copy(
+                    textStyle = typography.subtitle2.copy(
                         color = colors.onSurface,
                     ),
                     interactionSource = interactionSource,
@@ -167,7 +167,7 @@ fun SearchBar(show: Boolean = true) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     bucket.ifBlank { "All Buckets" },
-                    style = typography.body2.copy(color = colors.onSurface),
+                    style = typography.subtitle2.copy(color = colors.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -225,7 +225,7 @@ fun SearchBar(show: Boolean = true) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
-                    style = typography.body2.copy(color = colors.onSurface),
+                    style = typography.subtitle2.copy(color = colors.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
