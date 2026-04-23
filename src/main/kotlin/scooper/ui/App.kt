@@ -125,7 +125,7 @@ fun AppList(
         val state = rememberLazyListState()
         state.OnBottomReached(2, onLoadMore = onLoadMore)
 
-        LaunchedEffect(filter.query, filter.scope, filter.selectedBucket) { state.animateScrollToItem(0) }
+        LaunchedEffect(filter.query, filter.scope, filter.selectedBucket) { state.scrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
             items(
                 count = apps.size,
