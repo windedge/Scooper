@@ -357,7 +357,7 @@ fun ActionButton(
     }
 
     // Unified split button using a single Box with rounded corners
-    val buttonHeight = 30.dp
+    val buttonHeight = 34.dp
     val shape = RoundedCornerShape(6.dp)
 
     when {
