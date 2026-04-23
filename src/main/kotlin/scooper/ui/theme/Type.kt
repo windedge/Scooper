@@ -13,29 +13,42 @@ val Arial = FontFamily(androidx.compose.ui.text.platform.Font(File("$systemRoot\
 // Set of Material typography styles to start with
 val typography = Typography(
     defaultFontFamily = Arial,
+    h5 = TextStyle(
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+    ),
+    h6 = TextStyle(
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+    ),
     body1 = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
+        fontSize = 15.sp,
     ),
     body2 = TextStyle(
         fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
+        fontSize = 15.sp,
     ),
     button = TextStyle(
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
-        letterSpacing = 1.sp,
-    )
-    /* Other default text styles to override
-    button = TextStyle(
-    fontFamily = FontFamily.Default,
-    fontWeight = FontWeight.W500,
-    fontSize = 14.sp
+        letterSpacing = 0.5.sp,
     ),
     caption = TextStyle(
-    fontFamily = FontFamily.Default,
-    fontWeight = FontWeight.Normal,
-    fontSize = 12.sp
-    )
-    */
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+    ),
+    subtitle1 = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 15.sp,
+    ),
+    subtitle2 = TextStyle(
+        fontWeight = FontWeight.Medium,
+        fontSize = 13.sp,
+    ),
+    overline = TextStyle(
+        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        letterSpacing = 1.sp,
+    ),
 )

@@ -30,6 +30,7 @@ data class AppsFilter(
     val page: Int = 1,
     val pageSize: Int = PAGE_SIZE,
     val scope: String = "all",
+    val sort: String = "updated",
 )
 
 data class AppsState(
@@ -38,6 +39,7 @@ data class AppsState(
     val buckets: List<Bucket> = emptyList(),
     val filter: AppsFilter = AppsFilter(),
     val output: String = "",
+    val updateCount: Long = 0L,
 )
 
 
@@ -70,20 +72,35 @@ class AppsViewModel(
         }
     }
 
-    fun applyFilters(query: String? = null, bucket: String? = null, scope: String? = null) = intent {
+    fun applyFilters(
+        query: String? = null,
+        bucket: String? = null,
+        scope: String? = null,
+        sort: String? = null
+    ) = intent {
         val currentQuery = query ?: state.filter.query
         val currentBucket = bucket ?: state.filter.selectedBucket
         val currentScope = scope ?: state.filter.scope
-        val result = appsRepository.getApps(currentQuery, currentBucket, currentScope, limit = state.filter.pageSize)
+        val currentSort = sort ?: state.filter.sort
+        val result = appsRepository.getApps(
+            currentQuery,
+            currentBucket,
+            currentScope,
+            limit = state.filter.pageSize,
+            sort = currentSort
+        )
+        val updateCount = appsRepository.getUpdateCount()
 
         reduce {
             state.copy(
                 apps = result.value,
                 totalCount = result.totalCount,
+                updateCount = updateCount,
                 filter = state.filter.copy(
                     query = currentQuery,
                     selectedBucket = currentBucket,
                     scope = currentScope,
+                    sort = currentSort,
                     page = 1
                 )
             )
@@ -101,7 +118,8 @@ class AppsViewModel(
                 filter.selectedBucket,
                 filter.scope,
                 offset = offset,
-                limit = pageSize
+                limit = pageSize,
+                sort = filter.sort
             )
 
         reduce {

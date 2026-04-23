@@ -34,6 +34,7 @@ class AppsRepository(
         scope: String = "all",
         offset: Long = 0L,
         limit: Int = PAGE_SIZE,
+        sort: String = "updated"
     ): PaginatedResult<App> = transaction {
         val conditions = Apps.leftJoin(Buckets).selectAll()
         if (query.isNotBlank()) {
@@ -54,8 +55,15 @@ class AppsRepository(
 
         val wrapRows = AppEntity.wrapRows(conditions)
         val totalCount = wrapRows.count()
+
+        val order = when (sort) {
+            "name" -> Apps.name to SortOrder.ASC
+            "added" -> Apps.createAt to SortOrder.DESC
+            else -> Apps.updateAt to SortOrder.DESC
+        }
+
         val result = wrapRows
-            .orderBy(Apps.updateAt to SortOrder.DESC)
+            .orderBy(order)
             .limit(limit, offset)
 
         val apps = result.map { row ->
@@ -77,6 +85,12 @@ class AppsRepository(
             value = apps,
             totalCount = totalCount,
         )
+    }
+
+    fun getUpdateCount(): Long = transaction {
+        Apps.selectAll()
+            .where { Apps.status eq AppStatus.INSTALLED and (Apps.version neq Apps.latestVersion) }
+            .count()
     }
 
     fun loadAll() {

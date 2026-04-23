@@ -7,7 +7,7 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 
@@ -19,13 +19,13 @@ fun EnterAnimation(enable: Boolean = true, content: @Composable () -> Unit) {
                 .apply { targetState = true },
             enter = fadeIn(
                 animationSpec = tween(
-                    durationMillis = 300,
+                    durationMillis = 260,
                     delayMillis = 0,
                     easing = FastOutSlowInEasing
                 )
-            ) + slideInVertically(
+            ) + slideInHorizontally(
                 animationSpec = spring(),
-                initialOffsetY = { height -> height / 10 }
+                initialOffsetX = { width -> width / 12 }
             ),
             exit = ExitTransition.None,
         ) {
