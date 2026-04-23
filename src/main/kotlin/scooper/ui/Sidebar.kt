@@ -128,7 +128,7 @@ fun SidebarNav(
             selected = currentRoute is AppRoute.Settings,
             onClick = { navigator.push(AppRoute.Settings.General) },
         ) {
-            Icon(painterResource("sliders-horizontal.svg"), "Settings", modifier = Modifier.size(18.dp))
+            Icon(painterResource("settings-2.svg"), "Settings", modifier = Modifier.size(18.dp))
         }
     }
 }

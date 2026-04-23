@@ -40,4 +40,5 @@ object Configs : IntIdTable(name = "configs") {
     val fontSizeScale = float("font_size_scale").default(1.0f)
     val viewMode = enumeration("view_mode", ViewMode::class).default(ViewMode.List)
     val paginationMode = enumeration("pagination_mode", PaginationMode::class).default(PaginationMode.Waterfall)
+    val pageSize = integer("page_size").default(25)
 }

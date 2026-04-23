@@ -18,6 +18,7 @@ class ConfigRepository {
                     fontSizeScale = this[Configs.fontSizeScale],
                     viewMode = this[Configs.viewMode],
                     paginationMode = this[Configs.paginationMode],
+                    pageSize = this[Configs.pageSize],
                 )
             }
         }
@@ -32,6 +33,7 @@ class ConfigRepository {
                 it[fontSizeScale] = config.fontSizeScale
                 it[viewMode] = config.viewMode
                 it[paginationMode] = config.paginationMode
+                it[pageSize] = config.pageSize
             }
         }
     }

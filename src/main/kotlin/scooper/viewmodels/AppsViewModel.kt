@@ -19,6 +19,7 @@ import scooper.data.Bucket
 import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.repository.AppsRepository
+import scooper.repository.ConfigRepository
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
@@ -53,6 +54,7 @@ data class AppsState(
 class AppsViewModel(
     private val taskQueue: TaskQueue,
     private val appsRepository: AppsRepository,
+    private val configRepository: ConfigRepository,
     private val scoopLogStream: ScoopLogStream,
     private val scoopCli: ScoopCli,
     private val scoopService: ScoopService,
@@ -61,7 +63,11 @@ class AppsViewModel(
 
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.Default + supervisorJob)
-    override val container: Container<AppsState, AppsSideEffect> = coroutineScope.container(AppsState()) {
+    private val initialState = run {
+        val config = configRepository.getConfig()
+        AppsState(viewMode = config.viewMode, filter = AppsFilter(paginationMode = config.paginationMode, pageSize = config.pageSize))
+    }
+    override val container: Container<AppsState, AppsSideEffect> = coroutineScope.container(initialState) {
         applyFilters()
         getBuckets()
         subscribeLogging()
@@ -92,6 +98,9 @@ class AppsViewModel(
         val currentSort = sort ?: state.filter.sort
         val currentPaginationMode = paginationMode ?: state.filter.paginationMode
         val currentPageSize = pageSize ?: state.filter.pageSize
+
+        val paginationModeChanged = paginationMode != null && paginationMode != state.filter.paginationMode
+        val pageSizeChanged = pageSize != null && pageSize != state.filter.pageSize
 
         if (currentPaginationMode == PaginationMode.Pagination) {
             val result = appsRepository.getApps(
@@ -140,6 +149,14 @@ class AppsViewModel(
                     )
                 )
             }
+        }
+
+        // Persist pagination settings when changed
+        if (paginationModeChanged || pageSizeChanged) {
+            configRepository.setConfig(configRepository.getConfig().copy(
+                paginationMode = currentPaginationMode,
+                pageSize = currentPageSize,
+            ))
         }
     }
 
@@ -190,6 +207,7 @@ class AppsViewModel(
 
     fun setViewMode(viewMode: ViewMode) = intent {
         reduce { state.copy(viewMode = viewMode) }
+        configRepository.setConfig(configRepository.getConfig().copy(viewMode = viewMode))
     }
 
     fun getBuckets() = intent {
