@@ -4,8 +4,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -25,19 +28,22 @@ class TaskQueue {
     private val _runningTaskFlow = MutableSharedFlow<Task?>(replay = 1)
     val runningTaskFlow = _runningTaskFlow.asSharedFlow()
 
+    private val _progressFlow = MutableStateFlow<Int?>(null)
+    val progressFlow: StateFlow<Int?> = _progressFlow.asStateFlow()
+
     private val mutex = Mutex()
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
-    /** 通知有新任务加入的信号量 */
+    /** Signal channel to notify when a new task is added. */
     private val _taskSignal = kotlinx.coroutines.channels.Channel<Unit>(Channel.RENDEZVOUS)
 
     init {
         coroutineScope.launch {
             logger.info("Starting task queue ...")
             while (true) {
-                // 等待信号
+                // Wait for signal
                 _taskSignal.receive()
-                // 处理所有可用任务
+                // Process the next available task
                 processNextTask()
             }
         }
@@ -53,6 +59,7 @@ class TaskQueue {
 
         try {
             logger.info("Run task: ${task::class.simpleName}: ${task.name}")
+            _progressFlow.value = null
             _runningTaskFlow.emit(task)
             task.execute()
             _resultFlow.emit(Result.success(task))
@@ -61,8 +68,9 @@ class TaskQueue {
             _resultFlow.emit(Result.failure(e))
         } finally {
             logger.info("Task ended: ${task::class.simpleName}: ${task.name}")
+            _progressFlow.value = null
             _runningTaskFlow.emit(null)
-            // 当前任务完成后，如果还有待处理任务，继续发送信号
+            // After current task finishes, signal if there are pending tasks
             mutex.withLock {
                 if (pendingTasks.isNotEmpty()) {
                     _taskSignal.trySend(Unit)
@@ -73,6 +81,12 @@ class TaskQueue {
 
     fun getTask(name: String): Task? {
         return pendingTasks[name]
+    }
+
+    /** Update progress of the currently running task (0..100). */
+    fun updateProgress(percent: Int) {
+        val clamped = percent.coerceIn(0, 100)
+        _progressFlow.value = clamped
     }
 
     fun containTask(name: String): Boolean {

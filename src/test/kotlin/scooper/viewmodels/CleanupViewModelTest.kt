@@ -6,12 +6,13 @@ import org.koin.core.context.startKoin
 import scooper.repository.CleanupRepository
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
+import scooper.taskqueue.TaskQueue
 import scooper.util.readableSize
 import kotlin.test.assertTrue
 
 class CleanupViewModelTest {
 
-    private val scoopService = ScoopService(ScoopLogStream())
+    private val scoopService = ScoopService(ScoopLogStream(), TaskQueue())
     private val cleanupRepository = CleanupRepository(scoopService)
     private val koinApp = startKoin {
         modules(org.koin.dsl.module {

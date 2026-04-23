@@ -10,6 +10,7 @@ import scooper.repository.db.Apps
 import scooper.repository.db.Buckets
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
+import scooper.taskqueue.TaskQueue
 import java.io.File
 
 
@@ -30,7 +31,7 @@ internal class AppsRepositoryTest {
 
     @Test
     fun loadApps() {
-        val appsRepository = AppsRepository(ScoopService(ScoopLogStream()))
+        val appsRepository = AppsRepository(ScoopService(ScoopLogStream(), TaskQueue()))
         appsRepository.loadAll()
 
         transaction {

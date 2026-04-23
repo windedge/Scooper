@@ -15,7 +15,7 @@ import scooper.viewmodels.SettingsViewModel
 
 val system = module {
     single { ScoopLogStream() }
-    single { ScoopService(get()) } bind ScoopCli::class
+    single { ScoopService(get(), get()) } bind ScoopCli::class
     single { TaskQueue() }
     single { ConfigRepository() }
     single { AppsRepository(get()) }
