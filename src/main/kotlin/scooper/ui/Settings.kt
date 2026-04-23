@@ -34,7 +34,7 @@ fun SettingScreen() {
     val colors = MaterialTheme.colors
     val navigator = LocalBackStack.current as BackStack<AppRoute>
     val currentRoute = navigator.current.value as AppRoute.Settings
-    Surface(modifier = Modifier.fillMaxSize(), color = Color.White) {
+    Surface(modifier = Modifier.fillMaxSize(), color = colors.background) {
         Row {
             NavBar(
                 navItems,
@@ -128,7 +128,9 @@ fun SettingsTitle(title: String, subtitle: String) {
 
 @Composable
 fun SettingsCard(content: @Composable () -> Unit) {
+    val colors = MaterialTheme.colors
     Card(
+        backgroundColor = if (colors.isLight) colors.surface else Slate800,
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, colors.borderDefault),
         elevation = 0.dp,

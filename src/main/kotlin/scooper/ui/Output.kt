@@ -28,6 +28,7 @@ import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.parseAnsiColors
 import scooper.viewmodels.AppsViewModel
+import scooper.ui.theme.*
 
 @Composable
 fun OutputScreen(onBack: () -> Unit = {}) {
@@ -37,6 +38,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val colors = MaterialTheme.colors
 
     Column {
         Surface(
@@ -95,7 +97,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
             }
             Canvas(modifier = Modifier.fillMaxSize()) {
                 drawRoundRect(
-                    color = Color.LightGray,
+                    color = colors.borderDefault,
                     cornerRadius = CornerRadius(5f, 5f),
                     style = Stroke(width = 0.5f)
                 )

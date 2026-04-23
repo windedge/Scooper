@@ -32,6 +32,8 @@ val Emerald700 = Color(0xFF047857)
 // ── Red (danger / delete) ───────────────────────────
 val Red50 = Color(0xFFFEF2F2)
 val Red500 = Color(0xFFEF4444)
+val Red600 = Color(0xFFDC2626)
+val Red700 = Color(0xFFB91C1C)
 
 // ── Amber (warning) ─────────────────────────────────
 val Amber500 = Color(0xFFF59E0B)
@@ -87,6 +89,9 @@ val Colors.updatePressed: Color
 val Colors.dangerDefault: Color
     get() = Red500
 
+val Colors.dangerHover: Color
+    get() = if (isLight) Red600 else Red600
+
 val Colors.dangerBg: Color
     get() = if (isLight) Red50 else Color(0xFF3B1C1C)
 
@@ -99,10 +104,10 @@ val Colors.divider: Color
     get() = if (isLight) Slate100 else Slate700
 
 val Colors.inputBackground: Color
-    get() = if (isLight) Slate50 else Slate800
+    get() = if (isLight) Slate50 else Slate700
 
 val Colors.inputBorder: Color
-    get() = if (isLight) Slate200 else Slate600
+    get() = if (isLight) Slate200 else Slate500
 
 val Colors.sidebarBackground: Color
     get() = if (isLight) Slate50 else Slate900
@@ -111,7 +116,7 @@ val Colors.sidebarBorder: Color
     get() = if (isLight) Slate200 else Slate700
 
 val Colors.sidebarSelectedBg: Color
-    get() = if (isLight) surface else Slate800
+    get() = if (isLight) surface else Slate700
 
 val Colors.sidebarSelectedText: Color
     get() = if (isLight) Blue700 else Blue500
