@@ -2,10 +2,10 @@ package scooper.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.icons.Icons
@@ -28,8 +28,6 @@ import androidx.compose.ui.window.DialogState
 import androidx.compose.ui.window.DialogWindow
 import org.koin.compose.koinInject
 import scooper.data.Bucket
-import scooper.ui.components.OutlinedTextField
-import scooper.ui.components.Tooltip
 import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
 import scooper.util.cursorLink
@@ -46,7 +44,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
     var bucketName by remember { mutableStateOf("") }
     var bucketUrl by remember { mutableStateOf("") }
     var bucketNameError by remember { mutableStateOf(false) }
-    var bucketUrlError by remember { mutableStateOf(false) }
+    var bucketUrlError by remember { mutableStateOf<String?>(null) }
     val inputFocusRequester = remember { FocusRequester() }
 
     Surface(elevation = 0.dp, color = colors.background) {
@@ -77,7 +75,13 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                             )
                         }
                         Button(
-                            onClick = { bucketName = ""; bucketUrl = ""; showAddDialog = true },
+                            onClick = {
+                                bucketName = ""
+                                bucketUrl = ""
+                                bucketNameError = false
+                                bucketUrlError = null
+                                showAddDialog = true
+                            },
                             colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
                             shape = RoundedCornerShape(8.dp),
                             elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
@@ -154,45 +158,89 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
         ConfirmDialog(
             title = "Add Bucket",
             onConfirm = {
-                if (bucketName.isBlank()) {
-                    bucketNameError = true
+                val trimmedBucketName = bucketName.trim()
+                val trimmedBucketUrl = bucketUrl.trim()
+                bucketNameError = trimmedBucketName.isBlank()
+                bucketUrlError = when {
+                    trimmedBucketUrl.isBlank() -> "Repository URL is required"
+                    !isValidBucketUrl(trimmedBucketUrl) -> "URL must start with http:// or https://"
+                    else -> null
+                }
+                if (bucketNameError || bucketUrlError != null) {
                     return@ConfirmDialog
                 }
                 showAddDialog = false
-                appsViewModel.scheduleAddBucket(bucketName, if (bucketUrl.isBlank()) null else bucketUrl)
+                appsViewModel.scheduleAddBucket(trimmedBucketName, trimmedBucketUrl)
             },
-            onCancel = { showAddDialog = false },
+            onCancel = {
+                bucketNameError = false
+                bucketUrlError = null
+                showAddDialog = false
+            },
             confirmText = "Add",
-            state = DialogState(size = DpSize(400.dp, 320.dp))
+            state = DialogState(size = DpSize(520.dp, 400.dp))
         ) {
-            Column(Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp)) {
+            Column(Modifier.fillMaxSize()) {
                 SideEffect {
                     inputFocusRequester.requestFocus()
                 }
-                Text("Bucket Name", style = MaterialTheme.typography.caption, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    bucketName,
-                    onValueChange = { bucketName = it; bucketNameError = false },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().focusRequester(inputFocusRequester),
-                    placeholder = { Text("e.g. extras") }
+
+                Text(
+                    "Add a custom Scoop bucket by name and repository URL.",
+                    style = MaterialTheme.typography.caption.copy(color = colors.textBody)
                 )
-                if (bucketNameError) {
-                    Text("Name is required", color = colors.error, style = MaterialTheme.typography.caption)
-                }
+
+                Spacer(Modifier.height(18.dp))
+
+                Text(
+                    "Bucket Name",
+                    style = MaterialTheme.typography.caption.copy(color = colors.textTitle),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(8.dp))
+                DialogTextField(
+                    value = bucketName,
+                    onValueChange = {
+                        bucketName = it
+                        bucketNameError = false
+                    },
+                    placeholder = "e.g. extras",
+                    isError = bucketNameError,
+                    modifier = Modifier.fillMaxWidth().focusRequester(inputFocusRequester)
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (bucketNameError) "Name is required" else "Used as the local bucket alias in Scoop.",
+                    color = if (bucketNameError) colors.error else colors.textBody,
+                    style = MaterialTheme.typography.caption
+                )
 
                 Spacer(Modifier.height(16.dp))
 
-                Text("Repository URL (Optional)", style = MaterialTheme.typography.caption, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    bucketUrl,
-                    onValueChange = { bucketUrl = it; bucketUrlError = false },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("https://github.com/...") }
+                Text(
+                    "Repository URL",
+                    style = MaterialTheme.typography.caption.copy(color = colors.textTitle),
+                    fontWeight = FontWeight.SemiBold
                 )
+                Spacer(Modifier.height(8.dp))
+                DialogTextField(
+                    value = bucketUrl,
+                    onValueChange = {
+                        bucketUrl = it
+                        bucketUrlError = null
+                    },
+                    placeholder = "https://github.com/...",
+                    isError = bucketUrlError != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (bucketUrlError != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        bucketUrlError!!,
+                        color = colors.error,
+                        style = MaterialTheme.typography.caption
+                    )
+                }
             }
         }
     }
@@ -224,7 +272,7 @@ fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
                 modifier = Modifier.cursorLink().clickable { safeBrowse(bucket.url) }
             )
         }
-        
+
         if (isHover) {
             IconButton(
                 onClick = onDelete,
@@ -250,14 +298,14 @@ fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
 @Composable
 fun KnownBucketsGrid(bucketNames: List<String>, onAdd: (String) -> Unit) {
     val knownBuckets = KNOWN_BUCKETS - bucketNames.toSet()
-    
+
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val columns = when {
             maxWidth > 700.dp -> 3
             maxWidth > 450.dp -> 2
             else -> 1
         }
-        
+
         // Custom Grid
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val rows = (knownBuckets.size + columns - 1) / columns
@@ -314,6 +362,53 @@ fun KnownBucketCard(name: String, onAdd: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
+private fun isValidBucketUrl(url: String): Boolean {
+    return url.startsWith("http://") || url.startsWith("https://")
+}
+
+@Composable
+private fun DialogTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = when {
+        isError -> colors.error
+        isFocused -> colors.primary
+        else -> colors.inputBorder
+    }
+
+    Box(
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.inputBackground)
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        if (value.isEmpty()) {
+            Text(
+                placeholder,
+                style = MaterialTheme.typography.body2.copy(color = colors.textPlaceholder)
+            )
+        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.body2.copy(color = colors.textTitle),
+            interactionSource = interactionSource,
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(if (isError) colors.error else colors.primary)
+        )
+    }
+}
+
 @Composable
 fun ConfirmDialog(
     text: String? = null,
@@ -338,10 +433,10 @@ fun ConfirmDialog(
                         )
                     }
                 }
-                
-                // Footer
+
+                Divider(color = colors.divider)
                 Row(
-                    Modifier.fillMaxWidth().background(colors.backgroundHover).padding(16.dp),
+                    Modifier.fillMaxWidth().background(colors.surface).padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -355,7 +450,7 @@ fun ConfirmDialog(
                             backgroundColor = if (confirmText == "Delete") colors.dangerDefault else colors.primary
                         ),
                         elevation = null,
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.cursorHand()
                     ) {
                         Text(confirmText ?: "OK", color = Color.White)
