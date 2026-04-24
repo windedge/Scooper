@@ -51,6 +51,9 @@
 
 ########### default rules end ##################
 
+-keep class java.net.http.** { *; }
+-dontwarn java.net.http.**
+
 -keep class org.apache.** { *; }
 -keep class org.jetbrains.** { *; }
 -keep class org.sqlite.** { *; }

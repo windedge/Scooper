@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "Scooper"
-version = "0.9.1"
+version = "0.10.0"
 
 repositories {
     google()
@@ -54,7 +54,7 @@ compose.desktop {
         mainClass = "scooper.ui.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
-            modules("java.instrument", "java.sql", "jdk.unsupported", "jdk.accessibility")
+            modules("java.instrument", "java.sql", "jdk.unsupported", "jdk.accessibility", "java.net.http")
             // includeAllModules = true
             packageName = group.toString()
             packageVersion = version.toString()
@@ -70,6 +70,8 @@ compose.desktop {
         buildTypes.release.proguard {
             configurationFiles.from("proguard-rules.pro")
         }
+
+        jvmArgs += listOf("-Xmx256m", "-Xms64m", "-XX:+DisableExplicitGC")
 
     }
 }
