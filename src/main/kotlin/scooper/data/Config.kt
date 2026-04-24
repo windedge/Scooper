@@ -40,6 +40,11 @@ data class UIConfig(
     val viewMode: ViewMode = ViewMode.List,
     val paginationMode: PaginationMode = PaginationMode.Waterfall,
     val pageSize: Int = PAGE_SIZE,
+    val windowX: Int? = null,
+    val windowY: Int? = null,
+    val windowWidth: Int = 960,
+    val windowHeight: Int = 600,
+    val isMaximized: Boolean = false,
 )
 
 fun Theme.toSystemTheme() = when (this) {

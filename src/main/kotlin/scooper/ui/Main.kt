@@ -13,12 +13,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
@@ -26,6 +23,7 @@ import scooper.data.toSystemTheme
 import scooper.di.system
 import scooper.di.viewModels
 import scooper.repository.AppsRepository
+import scooper.repository.ConfigRepository
 import scooper.repository.initDb
 import scooper.ui.components.EnterAnimation
 import scooper.ui.components.SnackbarHost
@@ -39,6 +37,7 @@ import scooper.viewmodels.SettingsSideEffect
 
 import scooper.viewmodels.SettingsViewModel
 import java.awt.Dimension
+import kotlin.math.roundToInt
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
 
@@ -60,12 +59,25 @@ fun main() = application {
         return@application
     }
 
-    val winState = rememberWindowState(
-        width = 960.dp,
-        height = 600.dp,
-        placement = WindowPlacement.Floating,
-        position = WindowPosition(Alignment.Center)
-    )
+    val configRepository: ConfigRepository = koinInject()
+    val savedConfig = remember { configRepository.getConfig() }
+
+    val winState = remember {
+        logger.info("Restoring window: x=${savedConfig.windowX}, y=${savedConfig.windowY}, w=${savedConfig.windowWidth}, h=${savedConfig.windowHeight}, maximized=${savedConfig.isMaximized}")
+        WindowState(
+            width = savedConfig.windowWidth.dp,
+            height = savedConfig.windowHeight.dp,
+            placement = if (savedConfig.isMaximized) WindowPlacement.Maximized else WindowPlacement.Floating,
+            position = if (savedConfig.windowX != null && savedConfig.windowY != null) {
+                WindowPosition(
+                    x = savedConfig.windowX.dp,
+                    y = savedConfig.windowY.dp,
+                )
+            } else {
+                WindowPosition(Alignment.Center)
+            }
+        )
+    }
 
     val appsViewModel: AppsViewModel = koinInject()
     val settingsViewModel: SettingsViewModel = koinInject()
@@ -73,6 +85,17 @@ fun main() = application {
 
     Window(
         onCloseRequest = {
+            val isMaximized = winState.placement == WindowPlacement.Maximized
+            val size = winState.size
+            val pos = winState.position
+            logger.info("Saving window: x=${pos.x.value}, y=${pos.y.value}, w=${size.width.value}, h=${size.height.value}, maximized=$isMaximized")
+            configRepository.setConfig(savedConfig.copy(
+                windowX = pos.x.value.roundToInt(),
+                windowY = pos.y.value.roundToInt(),
+                windowWidth = size.width.value.roundToInt(),
+                windowHeight = size.height.value.roundToInt(),
+                isMaximized = isMaximized,
+            ))
             appsViewModel.close()
             settingsViewModel.close()
             cleanupViewModel.close()
@@ -82,9 +105,7 @@ fun main() = application {
         title = "Scooper",
         icon = painterResource("logo.svg"),
     ) {
-        with(LocalDensity.current) {
-            window.minimumSize = Dimension(960.dp.roundToPx(), 560.dp.roundToPx())
-        }
+        window.minimumSize = Dimension(960, 560)
 
         val settings by settingsViewModel.container.stateFlow.collectAsState()
         val uiConfig = settings.uiConfig
@@ -214,7 +235,6 @@ fun SplashScreen(onClose: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Logo with subtle shadow container
                 Box(
                     modifier = Modifier.size(88.dp)
                         .background(Slate50, RoundedCornerShape(20.dp))
@@ -231,7 +251,6 @@ fun SplashScreen(onClose: () -> Unit) {
 
                 Spacer(Modifier.height(20.dp))
 
-                // App name
                 Text(
                     "Scooper",
                     style = typography().h5,
@@ -240,7 +259,6 @@ fun SplashScreen(onClose: () -> Unit) {
 
                 Spacer(Modifier.height(4.dp))
 
-                // Tagline
                 Text(
                     "Scoop Package Manager GUI",
                     style = typography().caption,
@@ -249,7 +267,6 @@ fun SplashScreen(onClose: () -> Unit) {
 
                 Spacer(Modifier.height(28.dp))
 
-                // Loading indicator with brand color
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.5.dp,

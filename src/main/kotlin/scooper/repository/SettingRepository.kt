@@ -19,6 +19,11 @@ class ConfigRepository {
                     viewMode = this[Configs.viewMode],
                     paginationMode = this[Configs.paginationMode],
                     pageSize = this[Configs.pageSize],
+                    windowX = this[Configs.windowX],
+                    windowY = this[Configs.windowY],
+                    windowWidth = this[Configs.windowWidth],
+                    windowHeight = this[Configs.windowHeight],
+                    isMaximized = this[Configs.isMaximized],
                 )
             }
         }
@@ -34,6 +39,11 @@ class ConfigRepository {
                 it[viewMode] = config.viewMode
                 it[paginationMode] = config.paginationMode
                 it[pageSize] = config.pageSize
+                it[windowX] = config.windowX
+                it[windowY] = config.windowY
+                it[windowWidth] = config.windowWidth
+                it[windowHeight] = config.windowHeight
+                it[isMaximized] = config.isMaximized
             }
         }
     }

@@ -42,4 +42,9 @@ object Configs : IntIdTable(name = "configs") {
     val viewMode = enumeration("view_mode", ViewMode::class).default(ViewMode.List)
     val paginationMode = enumeration("pagination_mode", PaginationMode::class).default(PaginationMode.Waterfall)
     val pageSize = integer("page_size").default(25)
+    val windowX = integer("window_x").nullable()
+    val windowY = integer("window_y").nullable()
+    val windowWidth = integer("window_width").default(960)
+    val windowHeight = integer("window_height").default(600)
+    val isMaximized = bool("is_maximized").default(false)
 }
