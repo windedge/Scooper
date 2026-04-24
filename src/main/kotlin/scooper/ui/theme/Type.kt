@@ -16,11 +16,11 @@ fun typography(scale: Float = 1.0f) = Typography(
     defaultFontFamily = Arial,
     h5 = TextStyle(
         fontWeight = FontWeight.Bold,
-        fontSize = (24 * scale).sp,
+        fontSize = (20 * scale).sp,
     ),
     h6 = TextStyle(
         fontWeight = FontWeight.Bold,
-        fontSize = (20 * scale).sp,
+        fontSize = (18 * scale).sp,
     ),
     body1 = TextStyle(
         fontWeight = FontWeight.Normal,
@@ -40,8 +40,8 @@ fun typography(scale: Float = 1.0f) = Typography(
         fontSize = (14 * scale).sp,
     ),
     subtitle1 = TextStyle(
-        fontWeight = FontWeight.Normal,
-        fontSize = (18 * scale).sp,
+        fontWeight = FontWeight.Medium,
+        fontSize = (16 * scale).sp,
     ),
     subtitle2 = TextStyle(
         fontWeight = FontWeight.Medium,
