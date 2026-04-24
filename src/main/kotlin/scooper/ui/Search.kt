@@ -76,8 +76,8 @@ fun SearchBar(show: Boolean = true) {
 
     var expandBucket by remember { mutableStateOf(false) }
     var expandSort by remember { mutableStateOf(false) }
-    var selectedItem by rememberSaveable(state.filter.scope) { mutableStateOf(-1) }
-    var bucket by rememberSaveable(state.filter.scope) { mutableStateOf("") }
+    var selectedItem by rememberSaveable { mutableStateOf(-1) }
+    var bucket by rememberSaveable { mutableStateOf("") }
     var sortBy by rememberSaveable(state.filter.scope) { mutableStateOf("updated") }
     var sortOrder by rememberSaveable(state.filter.scope) { mutableStateOf("desc") }
     var queryText by rememberSaveable(state.filter.scope) { mutableStateOf("") }
