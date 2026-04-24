@@ -5,6 +5,7 @@ import org.koin.dsl.module
 import scooper.repository.AppsRepository
 import scooper.repository.CleanupRepository
 import scooper.repository.ConfigRepository
+import scooper.service.GitHistoryService
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
@@ -18,12 +19,13 @@ val system = module {
     single { ScoopService(get(), get()) } bind ScoopCli::class
     single { TaskQueue() }
     single { ConfigRepository() }
+    single { GitHistoryService() }
     single { AppsRepository(get()) }
     single { CleanupRepository(get()) }
 }
 
 val viewModels = module {
-    single { AppsViewModel(get(), get(), get(), get(), get(), get()) }
+    single { AppsViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single { SettingsViewModel(get()) }
     single { CleanupViewModel(get()) }
 }

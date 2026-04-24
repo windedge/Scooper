@@ -32,6 +32,7 @@ object Apps : IntIdTable("apps") {
 object Buckets : IntIdTable("buckets") {
     val name = varchar("name", 1000)
     val url = text("url").nullable()
+    val lastIndexedCommit = varchar("last_indexed_commit", 80).nullable()
 }
 
 object Configs : IntIdTable(name = "configs") {

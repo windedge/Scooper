@@ -46,4 +46,5 @@ class BucketEntity(id: EntityID<Int>) : IntEntity(id) {
 
     var name by Buckets.name
     var url by Buckets.url
+    var lastIndexedCommit by Buckets.lastIndexedCommit
 }

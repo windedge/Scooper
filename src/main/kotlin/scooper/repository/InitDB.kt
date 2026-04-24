@@ -15,7 +15,13 @@ import java.io.File
 suspend fun initDb(appsRepository: AppsRepository) = withContext(Dispatchers.IO) {
     val databasePath = File(System.getenv("USERPROFILE")).resolve(".scooper.db")
     Database.connect("jdbc:sqlite:$databasePath", "org.sqlite.JDBC", setupConnection = { connection ->
-        connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
+        connection.createStatement().use { statement ->
+            statement.executeUpdate("PRAGMA foreign_keys = ON")
+            // Allow short write-lock contention instead of failing immediately with SQLITE_BUSY.
+            statement.executeUpdate("PRAGMA busy_timeout = 10000")
+            // Readers and a writer can coexist better; SQLite still serializes writers.
+            statement.execute("PRAGMA journal_mode = WAL")
+        }
     })
 
     transaction {

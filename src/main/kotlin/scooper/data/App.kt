@@ -59,3 +59,16 @@ data class Bucket(
     val name: String,
     val url: String? = null
 )
+
+enum class AppVersionSource {
+    ScoopDb,
+    Git,
+}
+
+data class AppVersion(
+    val version: String,
+    val source: AppVersionSource,
+    val commit: String? = null,
+    val commitTime: LocalDateTime? = null,
+    val message: String? = null,
+)
