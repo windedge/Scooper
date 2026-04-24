@@ -22,6 +22,9 @@ sealed class Task(val name: String, val id: UUID, val execute: suspend () -> Uni
     class Uninstall(val app: App, id: UUID = UUID.randomUUID(), execute: suspend () -> Unit) :
         Task(app.uniqueName, id, execute)
 
+    class InstallVersion(val app: App, val version: String, id: UUID = UUID.randomUUID(), execute: suspend () -> Unit) :
+        Task("${app.uniqueName}@$version", id, execute)
+
     class AddBucket(name: String, id: UUID = UUID.randomUUID(), execute: suspend () -> Unit) : Task(name, id, execute)
 
     class RemoveBucket(name: String, id: UUID = UUID.randomUUID(), execute: suspend () -> Unit) :
@@ -50,6 +53,7 @@ sealed class Task(val name: String, val id: UUID, val execute: suspend () -> Uni
             is RemoveBucket -> "Remove Bucket: $name"
             is Download -> "Download: ${app.name}"
             is Install -> "Install: ${app.name}"
+            is InstallVersion -> "Install: ${app.name}@$version"
             is Uninstall -> "Uninstall: ${app.name}"
             is Update -> "Update: ${app.name}"
         }
@@ -89,6 +93,13 @@ fun Task.toTitle(): AnnotatedString {
                 append("Install: ")
                 withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
                     append(this@toTitle.app.name)
+                }
+            }
+
+            is Task.InstallVersion -> {
+                append("Install: ")
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append("${this@toTitle.app.name}@${this@toTitle.version}")
                 }
             }
 

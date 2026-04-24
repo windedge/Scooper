@@ -12,6 +12,8 @@ import scooper.repository.db.AppEntity
 import scooper.repository.db.Apps
 import scooper.repository.db.BucketEntity
 import scooper.repository.db.Buckets
+import scooper.service.GitHistoryService
+import scooper.service.GitHistoryService.ManifestTimes
 import scooper.service.ScoopService
 import scooper.util.PAGE_SIZE
 import scooper.util.ScooperException
@@ -21,9 +23,17 @@ data class PaginatedResult<T>(
     val totalCount: Long
 )
 
+data class BucketIndexState(
+    val name: String,
+    val lastIndexedCommit: String?,
+)
+
 class AppsRepository(
     private val scoopService: ScoopService,
 ) {
+    /** SQLite allows only one writer at a time; serialize repository write transactions. */
+    private val writeLock = Any()
+
     fun getBuckets(): List<Bucket> = transaction {
         BucketEntity.all().map { Bucket(name = it.name, url = it.url) }
     }
@@ -103,29 +113,43 @@ class AppsRepository(
         loadApps()
     }
 
-    fun loadApps() = transaction {
+    fun loadApps() {
+        // IO outside transaction: read manifests from filesystem
         val apps = scoopService.apps
-        for (app in apps) {
-            val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
-            val rows = AppEntity.wrapRows(query).toList()
-            val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
-            when {
-                rows.isEmpty() -> {
-                    AppEntity.new { update(app, bkt) }
-                }
-                rows.size == 1 -> {
-                    rows.first().update(app, bkt)
-                }
-                else -> {
-                    throw ScooperException("Found more than one app with same name and bucket.")
+
+        synchronized(writeLock) {
+            transaction {
+                for (app in apps) {
+                val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
+                val rows = AppEntity.wrapRows(query).toList()
+                val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
+                when {
+                    rows.isEmpty() -> {
+                        AppEntity.new { update(app, bkt) }
+                    }
+                    rows.size == 1 -> {
+                        val existing = rows.first()
+                        // Preserve existing createAt/updateAt from DB (will be overwritten later by Git indexer)
+                        existing.update(
+                            app.copy(
+                                createAt = existing.createAt,
+                                updateAt = existing.updateAt,
+                            ),
+                            bkt,
+                        )
+                    }
+                    else -> {
+                        throw ScooperException("Found more than one app with same name and bucket.")
+                    }
                 }
             }
+                val appNames = apps.map { it.name }
+                Apps.deleteWhere { name notInList appNames and (status neq AppStatus.INSTALLED.name.lowercase()) }
+            }
         }
-        val appNames = apps.map { it.name }
-        Apps.deleteWhere { name notInList appNames and (status neq AppStatus.INSTALLED.name.lowercase()) }
     }
 
-    fun loadBuckets() = transaction {
+    fun loadBuckets() = synchronized(writeLock) { transaction {
         for (bucketDir in scoopService.bucketDirs) {
             val bucket = bucketDir.name
             if (Buckets.selectAll().where { Buckets.name eq bucket }.count() <= 0) {
@@ -136,9 +160,9 @@ class AppsRepository(
             }
         }
         Buckets.deleteWhere { name notInList scoopService.bucketNames }
-    }
+    } }
 
-    fun updateApp(app: App) = transaction {
+    fun updateApp(app: App) = synchronized(writeLock) { transaction {
         val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
         if (app.bucket != null) {
             query.andWhere { Buckets.name eq app.bucket!!.name }
@@ -151,7 +175,7 @@ class AppsRepository(
             ),
             appEntity.bucket
         )
-    }
+    } }
 
     private fun AppEntity.update(
         app: App,
@@ -169,5 +193,37 @@ class AppsRepository(
         updateAt = app.updateAt ?: LocalDateTime.now()
         bucket = bkt
         shortcuts = app.shortcuts
+    }
+
+    /** Batch update manifest times from Git indexer and record bucket HEAD. */
+    fun updateManifestTimes(
+        bucketName: String,
+        manifestTimes: Map<String, ManifestTimes>,
+        headCommit: String,
+    ) = synchronized(writeLock) { transaction {
+        val bkt = BucketEntity.find { Buckets.name eq bucketName }.firstOrNull() ?: return@transaction
+
+        for ((fileName, times) in manifestTimes) {
+            val appName = fileName.removeSuffix(".json")
+            val appEntity = AppEntity.find {
+                Apps.name eq appName and (Apps.bucketId eq bkt.id)
+            }.firstOrNull() ?: continue
+
+            if (times.createAt != null) {
+                appEntity.createAt = times.createAt
+            }
+            if (times.updateAt != null) {
+                appEntity.updateAt = times.updateAt
+            }
+        }
+
+        bkt.lastIndexedCommit = headCommit
+    } }
+
+    /** Read all bucket index states for background indexing. */
+    fun getBucketIndexStates(): List<BucketIndexState> = transaction {
+        BucketEntity.all().map {
+            BucketIndexState(name = it.name, lastIndexedCommit = it.lastIndexedCommit)
+        }
     }
 }

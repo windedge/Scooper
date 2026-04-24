@@ -66,13 +66,29 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
     val waitingApps = tasks.map { it.name }.toSet()
     val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
     val processingApp = when (runningTask) {
-        is Task.Install, is Task.Update, is Task.Uninstall, is Task.Download -> runningTask!!.name
+        is Task.Install, is Task.Update, is Task.Uninstall, is Task.Download, is Task.InstallVersion -> runningTask!!.name
         else -> null
     }
 
 
     LaunchedEffect(scope) {
         appsViewModel.applyFilters(scope = scope)
+    }
+
+    // Version picker dialog
+    if (state.versionPickerApp != null) {
+        val pickerApp = state.versionPickerApp!!
+        VersionPickerDialog(
+            app = pickerApp,
+            versions = state.versionPickerVersions,
+            loading = state.versionPickerLoading,
+            error = state.versionPickerError,
+            onInstall = { version, global ->
+                appsViewModel.scheduleInstallVersion(pickerApp, version, global)
+                appsViewModel.dismissVersionPicker()
+            },
+            onDismiss = { appsViewModel.dismissVersionPicker() },
+        )
     }
 
     Surface(Modifier.fillMaxSize(), elevation = 0.dp, shape = shapes.large) {
@@ -95,6 +111,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
                                 onOpen = appsViewModel::openApp,
                                 onCancel = appsViewModel::cancel,
                                 onLoadMore = appsViewModel::loadMore,
+                                onInstallVersion = appsViewModel::showVersionPicker,
                             )
                             else -> AppList(
                                 apps,
@@ -108,6 +125,7 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
                                 onOpen = appsViewModel::openApp,
                                 onCancel = appsViewModel::cancel,
                                 onLoadMore = appsViewModel::loadMore,
+                                onInstallVersion = appsViewModel::showVersionPicker,
                             )
                         }
                     }
@@ -141,6 +159,7 @@ fun AppList(
     onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
     onCancel: (app: App?) -> Unit = { },
     onLoadMore: () -> Unit = { },
+    onInstallVersion: (app: App) -> Unit = { },
 ) {
     Box(
         modifier = Modifier.fillMaxSize().padding(2.dp)
@@ -175,7 +194,8 @@ fun AppList(
                     onDownload = onDownload,
                     onUninstall = onUninstall,
                     onOpen = onOpen,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    onInstallVersion = onInstallVersion,
                 )
             }
             item {
@@ -199,7 +219,8 @@ fun AppCard(
     onDownload: (app: App) -> Unit = { },
     onUninstall: (app: App) -> Unit = { },
     onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
-    onCancel: (app: App?) -> Unit = { }
+    onCancel: (app: App?) -> Unit = { },
+    onInstallVersion: (app: App) -> Unit = { },
 ) {
     val colors = MaterialTheme.colors
     var isHover by remember { mutableStateOf(false) }
@@ -304,7 +325,7 @@ fun AppCard(
 
                     // Action Button
                     Box(modifier = Modifier.width(120.dp)) {
-                        ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel)
+                        ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel, onInstallVersion)
                     }
                 }
             }
@@ -327,6 +348,7 @@ fun AppGrid(
     onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
     onCancel: (app: App?) -> Unit = { },
     onLoadMore: () -> Unit = { },
+    onInstallVersion: (app: App) -> Unit = { },
 ) {
     val colors = MaterialTheme.colors
     Box(
@@ -390,7 +412,8 @@ fun AppGridCard(
     onDownload: (app: App) -> Unit = { },
     onUninstall: (app: App) -> Unit = { },
     onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
-    onCancel: (app: App?) -> Unit = { }
+    onCancel: (app: App?) -> Unit = { },
+    onInstallVersion: (app: App) -> Unit = { },
 ) {
     val colors = MaterialTheme.colors
     var isHover by remember { mutableStateOf(false) }
@@ -467,7 +490,7 @@ fun AppGridCard(
                     Text(app.updateAt?.format(DateFormatter) ?: "", style = GridDateStyle)
                 }
 
-                ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel)
+                ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel, onInstallVersion)
             }
         }
     }
@@ -504,7 +527,8 @@ fun ActionButton(
     onDownload: (app: App) -> Unit,
     onUninstall: (app: App) -> Unit,
     onOpen: (app: App, shortcutIndex: Int) -> Unit,
-    onCancel: (app: App?) -> Unit
+    onCancel: (app: App?) -> Unit,
+    onInstallVersion: (app: App) -> Unit = { },
 ) {
     val colors = MaterialTheme.colors
     var expand by remember { mutableStateOf(false) }
@@ -702,6 +726,13 @@ fun ActionButton(
                     ) {
                         MenuText("Download Only")
                     }
+                    Divider()
+                    DropdownMenuItem(
+                        onClick = { expand = false; onInstallVersion(app) },
+                        modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                    ) {
+                        MenuText("Install Version...")
+                    }
                 }
                 if (app.status == AppStatus.FAILED) {
                     DropdownMenuItem(
@@ -739,6 +770,14 @@ fun ActionButton(
                     ) {
                         MenuText("Download Only")
                     }
+                }
+
+                Divider()
+                DropdownMenuItem(
+                    onClick = { expand = false; onInstallVersion(app) },
+                    modifier = Modifier.sizeIn(maxHeight = 28.dp)
+                ) {
+                    MenuText("Install Version...")
                 }
             }
         }

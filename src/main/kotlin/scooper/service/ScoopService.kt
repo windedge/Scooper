@@ -174,6 +174,15 @@ class ScoopService(
         return cacheDir.dirSize()
     }
 
+    /** Collect manifest file names (e.g. "7zip.json") for a given bucket directory. */
+    fun bucketDirManifestNames(bucketDir: File): Set<String> {
+        return bucketDir.resolve("bucket").listFiles()
+            ?.filter { !it.isDirectory && it.extension == "json" }
+            ?.map { it.name }
+            ?.toSet()
+            ?: emptySet()
+    }
+
     // ==================== CLI Commands ====================
 
     override suspend fun refresh(onFinish: suspend (exitValue: Int) -> Unit) {
@@ -250,6 +259,35 @@ class ScoopService(
         logger.warn("stopping all processes...")
         killAllSubProcesses()
         logger.warn("all processes stopped")
+    }
+
+    override suspend fun installVersion(app: App, manifestFile: File, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+        val currentlyInstalledInTargetScope = if (global) {
+            globalInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
+        } else {
+            localInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
+        }
+
+        if (currentlyInstalledInTargetScope) {
+            val uninstallArgs = if (global) {
+                mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
+            } else {
+                mutableListOf("scoop", "uninstall", app.name)
+            }
+            logStream.emit("Uninstalling current ${app.name} before installing version from manifest...")
+            val uninstallExit = executeAndLog(uninstallArgs)
+            if (uninstallExit != 0) {
+                onFinish(uninstallExit)
+                return
+            }
+        }
+
+        val installArgs = if (global) {
+            mutableListOf("sudo", "scoop", "install", "-g", manifestFile.absolutePath)
+        } else {
+            mutableListOf("scoop", "install", manifestFile.absolutePath)
+        }
+        executeAndLog(installArgs, onFinish = onFinish)
     }
 
     // ==================== Internal Methods ====================
@@ -414,15 +452,20 @@ class ScoopService(
             .start()
     }
 
-    private suspend fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
-        executeSuspend(
+    private suspend fun executeAndLog(args: List<String>): Int {
+        val result = executeSuspend(
             args,
             consumer = { line ->
                 logStream.emit(line)
                 logger.info(line)
                 ProgressParser.parseProgress(line)?.let { taskQueue.updateProgress(it) }
             },
-            onFinish = onFinish,
+            onFinish = {},
         )
+        return result.resultCode
+    }
+
+    private suspend fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
+        onFinish(executeAndLog(args))
     }
 }

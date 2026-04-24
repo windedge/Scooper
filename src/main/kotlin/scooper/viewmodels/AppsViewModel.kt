@@ -15,11 +15,15 @@ import org.orbitmvi.orbit.syntax.simple.postSideEffect
 import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.AppStatus
+import scooper.data.AppVersion
+import scooper.data.AppVersionSource
 import scooper.data.Bucket
 import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.repository.AppsRepository
 import scooper.repository.ConfigRepository
+import scooper.repository.ScoopDbRepository
+import scooper.service.GitHistoryService
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
@@ -27,6 +31,8 @@ import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
 import scooper.util.logger
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class AppsFilter(
     val query: String = "",
@@ -47,6 +53,10 @@ data class AppsState(
     val output: String = "",
     val updateCount: Long = 0L,
     val viewMode: ViewMode = ViewMode.List,
+    val versionPickerApp: App? = null,
+    val versionPickerVersions: List<AppVersion> = emptyList(),
+    val versionPickerLoading: Boolean = false,
+    val versionPickerError: String? = null,
 )
 
 
@@ -59,11 +69,13 @@ class AppsViewModel(
     private val scoopLogStream: ScoopLogStream,
     private val scoopCli: ScoopCli,
     private val scoopService: ScoopService,
+    private val gitHistoryService: GitHistoryService,
 ) : ContainerHost<AppsState, AppsSideEffect>, AutoCloseable {
     private val logger by logger()
 
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.Default + supervisorJob)
+    private val gitHistoryIndexing = AtomicBoolean(false)
     private val initialState = run {
         val config = configRepository.getConfig()
         AppsState(viewMode = config.viewMode, filter = AppsFilter(paginationMode = config.paginationMode, pageSize = config.pageSize))
@@ -72,6 +84,7 @@ class AppsViewModel(
         applyFilters()
         getBuckets()
         subscribeLogging()
+        scheduleIndexGitHistoryIfNeeded()
     }
 
     fun subscribeLogging() = intent {
@@ -233,6 +246,7 @@ class AppsViewModel(
     fun reloadApps() = blockingIntent {
         appsRepository.loadApps()
         applyFilters()
+        scheduleIndexGitHistoryIfNeeded()
     }
 
     fun resetFilter() = intent {
@@ -360,6 +374,155 @@ class AppsViewModel(
                 logger.info("cancelling app = ${app.uniqueName}")
                 appsRepository.updateApp(app.copy(status = AppStatus.FAILED))
                 applyFilters()
+            }
+        }
+    }
+
+    // ==================== Version History (P2) ====================
+
+    private val scoopDbRepository by lazy {
+        ScoopDbRepository(scoopService.rootDir.resolve("scoop.db"))
+    }
+
+    fun showVersionPicker(app: App) = intent {
+        reduce { state.copy(versionPickerApp = app, versionPickerLoading = true, versionPickerError = null, versionPickerVersions = emptyList()) }
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val versions = loadVersions(app)
+                intent {
+                    reduce { state.copy(versionPickerVersions = versions, versionPickerLoading = false) }
+                }
+            } catch (e: Exception) {
+                intent {
+                    reduce { state.copy(versionPickerLoading = false, versionPickerError = e.message) }
+                }
+            }
+        }
+    }
+
+    fun dismissVersionPicker() = intent {
+        reduce { state.copy(versionPickerApp = null, versionPickerVersions = emptyList(), versionPickerLoading = false, versionPickerError = null) }
+    }
+
+    fun loadVersions(app: App): List<AppVersion> {
+        val versions = mutableListOf<AppVersion>()
+
+        // Priority 1: Scoop DB. It has the least IO but no date field.
+        if (scoopDbRepository.isAvailable()) {
+            versions.addAll(scoopDbRepository.getVersions(app))
+        }
+
+        // Priority 2: Git fallback only when Scoop DB has no data.
+        if (versions.isEmpty() && app.bucket != null) {
+            val bucketDir = scoopService.bucketsBaseDir.resolve(app.bucket!!.name)
+            val manifestPath = "bucket/${app.name}.json"
+            val gitVersions = gitHistoryService.loadManifestVersions(bucketDir, manifestPath)
+            val seenVersions = mutableSetOf<String>()
+            for (gv in gitVersions) {
+                val content = gv.commit?.let {
+                    gitHistoryService.readManifestAtCommit(bucketDir, it, manifestPath)
+                }
+                val version = content?.let { parseVersionFromManifest(it) } ?: continue
+                if (seenVersions.add(version)) {
+                    versions.add(gv.copy(version = version))
+                }
+            }
+        }
+
+        return versions
+    }
+
+    private fun parseVersionFromManifest(manifestText: String): String? {
+        val regex = """"version"\s*:\s*"([^"]+)"""".toRegex()
+        return regex.find(manifestText)?.groupValues?.get(1)
+    }
+
+    fun scheduleInstallVersion(app: App, version: AppVersion, global: Boolean = false) = intent {
+        taskQueue.addTask(Task.InstallVersion(app, version.version) { blockingIntent {
+            // Write manifest to temp file
+            val manifestText = when (version.source) {
+                AppVersionSource.ScoopDb -> scoopDbRepository.getManifest(app, version.version)
+                AppVersionSource.Git -> {
+                    val bucketDir = app.bucket?.name?.let { scoopService.bucketsBaseDir.resolve(it) }
+                    val commit = version.commit ?: return@blockingIntent
+                    bucketDir?.let {
+                        gitHistoryService.readManifestAtCommit(it, commit, "bucket/${app.name}.json")
+                    }
+                }
+            }
+
+            if (manifestText == null) {
+                postSideEffect(AppsSideEffect.Toast("Failed to get manifest for ${app.name}@${version.version}"))
+                return@blockingIntent
+            }
+
+            val tempDir = File(System.getenv("TEMP"), "scooper-manifests/${app.name}/${version.version}")
+            tempDir.mkdirs()
+            val tempFile = File(tempDir, "${app.name}.json")
+            tempFile.writeText(manifestText)
+
+            scoopCli.installVersion(app, tempFile, global) { exitValue ->
+                tempFile.delete()
+                tempDir.deleteRecursively()
+                if (exitValue != 0) {
+                    postSideEffect(AppsSideEffect.Toast("Install ${app.name}@${version.version} error!"))
+                    return@installVersion
+                }
+                postSideEffect(AppsSideEffect.Toast("Installed ${app.name}@${version.version} successfully!"))
+                appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED, version = version.version))
+                applyFilters()
+            }
+        }})
+    }
+
+    // ==================== Git History Indexing ====================
+
+    fun scheduleIndexGitHistoryIfNeeded() = intent {
+        if (!gitHistoryIndexing.compareAndSet(false, true)) {
+            logger.info("Git history indexing is already running, skip scheduling")
+            return@intent
+        }
+
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val bucketStates = appsRepository.getBucketIndexStates()
+                for (bucketState in bucketStates) {
+                    val bucketDir = scoopService.bucketsBaseDir.resolve(bucketState.name)
+                    if (!gitHistoryService.isGitBucket(bucketDir)) continue
+
+                    val headCommit = gitHistoryService.getHeadCommit(bucketDir) ?: continue
+                    if (GitHistoryService.isCurrentIndexState(bucketState.lastIndexedCommit, headCommit)) continue
+
+                    // Collect known manifest names for this bucket
+                    val knownNames = scoopService.bucketDirManifestNames(bucketDir)
+                    val lastIndexedCommit = if (bucketState.lastIndexedCommit?.startsWith("v") == true) {
+                        GitHistoryService.commitFromIndexState(bucketState.lastIndexedCommit)
+                    } else {
+                        // Legacy index state did not include parser/index version; force full rebuild once.
+                        null
+                    }
+
+                    val result = gitHistoryService.indexBucketManifestTimes(
+                        bucketDir = bucketDir,
+                        knownManifestNames = knownNames,
+                        lastIndexedCommit = lastIndexedCommit,
+                    ) ?: continue
+
+                    appsRepository.updateManifestTimes(
+                        bucketName = bucketState.name,
+                        manifestTimes = result.manifestTimes,
+                        headCommit = GitHistoryService.indexStateFor(result.headCommit),
+                    )
+
+                    logger.info("Indexed ${bucketState.name}: ${result.manifestTimes.size} manifests, full=${result.fullIndex}")
+                }
+
+                // Refresh UI after indexing completes
+                applyFilters()
+            } catch (e: Exception) {
+                logger.error("Git history indexing failed: ${e.message}", e)
+            } finally {
+                gitHistoryIndexing.set(false)
             }
         }
     }

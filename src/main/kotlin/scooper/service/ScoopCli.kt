@@ -1,6 +1,7 @@
 package scooper.service
 
 import scooper.data.App
+import java.io.File
 
 /**
  * Interface for Scoop CLI operations, decoupled from implementation to support test mocking.
@@ -15,5 +16,6 @@ interface ScoopCli {
     suspend fun removeBucket(bucket: String, onFinish: suspend (exitValue: Int) -> Unit)
     suspend fun cleanup(vararg apps: String, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit)
     suspend fun removeCache(vararg apps: String, onFinish: suspend (exitValue: Int) -> Unit)
+    suspend fun installVersion(app: App, manifestFile: File, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit)
     fun stop()
 }
