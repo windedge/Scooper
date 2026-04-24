@@ -233,7 +233,7 @@ fun SearchBar(show: Boolean = true) {
         // Bucket filter dropdown
         Box {
             Row(
-                modifier = Modifier.height(36.dp)
+                modifier = Modifier.height(36.dp).width(140.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.inputBackground)
                     .border(width = 1.dp, color = colors.inputBorder, RoundedCornerShape(8.dp))
@@ -242,16 +242,17 @@ fun SearchBar(show: Boolean = true) {
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource("filter.xml"), "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
+                Icon(painterResource("filter.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
                 Spacer(Modifier.width(6.dp))
                 Text(
                     bucket.ifBlank { "All Buckets" },
                     style = typography.subtitle2.copy(color = colors.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(4.dp))
-                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.requiredSize(16.dp), tint = colors.textMuted)
             }
 
             DropdownMenu(
@@ -317,7 +318,7 @@ fun SearchBar(show: Boolean = true) {
         // Sort filter dropdown
         Box {
             Row(
-                modifier = Modifier.height(36.dp)
+                modifier = Modifier.height(36.dp).width(180.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.inputBackground)
                     .border(width = 1.dp, color = colors.inputBorder, RoundedCornerShape(8.dp))
@@ -326,29 +327,30 @@ fun SearchBar(show: Boolean = true) {
                     .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource("sort.xml"), "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
+                Icon(painterResource("sort.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
                 Spacer(Modifier.width(6.dp))
                 Text(
                     sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
                     style = typography.subtitle2.copy(color = colors.onSurface),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     painterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
                     "",
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.requiredSize(14.dp),
                     tint = colors.textMuted
                 )
                 Spacer(Modifier.width(4.dp))
-                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+                Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.requiredSize(16.dp), tint = colors.textMuted)
             }
 
             DropdownMenu(
                 expandSort,
                 onDismissRequest = { expandSort = false },
-                modifier = Modifier.width(200.dp).cursorHand(),
+                modifier = Modifier.width(180.dp).cursorHand(),
                 offset = DpOffset(x = 0.dp, y = 4.dp),
             ) {
                 sortOptions.forEach { (key, label) ->
@@ -367,6 +369,7 @@ fun SearchBar(show: Boolean = true) {
                         }
                         DropdownMenuItem(
                             onClick = {
+                                expandSort = false
                                 val nextSortOrder = when {
                                     key == sortBy -> sortOrder
                                     key == "name" -> "asc"
