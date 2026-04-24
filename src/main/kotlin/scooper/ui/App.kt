@@ -148,7 +148,17 @@ fun AppList(
         val state = rememberLazyListState()
         state.OnBottomReached(2, onLoadMore = onLoadMore)
 
-        LaunchedEffect(filter.query, filter.scope, filter.selectedBucket, filter.paginationMode, filter.pageSize, filter.page) { state.scrollToItem(0) }
+        val scrollResetPage = if (filter.paginationMode == PaginationMode.Pagination) filter.page else 1
+        LaunchedEffect(
+            filter.query,
+            filter.scope,
+            filter.selectedBucket,
+            filter.sort,
+            filter.sortOrder,
+            filter.paginationMode,
+            filter.pageSize,
+            scrollResetPage,
+        ) { state.scrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize().padding(end = 8.dp), state) {
             items(
                 count = apps.size,

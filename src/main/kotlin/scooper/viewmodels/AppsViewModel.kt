@@ -35,6 +35,7 @@ data class AppsFilter(
     val pageSize: Int = PAGE_SIZE,
     val scope: String = "all",
     val sort: String = "updated",
+    val sortOrder: String = "desc",
     val paginationMode: PaginationMode = PaginationMode.Waterfall,
 )
 
@@ -89,6 +90,7 @@ class AppsViewModel(
         bucket: String? = null,
         scope: String? = null,
         sort: String? = null,
+        sortOrder: String? = null,
         paginationMode: PaginationMode? = null,
         pageSize: Int? = null,
     ) = intent {
@@ -96,6 +98,7 @@ class AppsViewModel(
         val currentBucket = bucket ?: state.filter.selectedBucket
         val currentScope = scope ?: state.filter.scope
         val currentSort = sort ?: state.filter.sort
+        val currentSortOrder = sortOrder ?: state.filter.sortOrder
         val currentPaginationMode = paginationMode ?: state.filter.paginationMode
         val currentPageSize = pageSize ?: state.filter.pageSize
 
@@ -107,7 +110,8 @@ class AppsViewModel(
                 currentQuery, currentBucket, currentScope,
                 offset = 0,
                 limit = currentPageSize,
-                sort = currentSort
+                sort = currentSort,
+                sortOrder = currentSortOrder
             )
             val updateCount = appsRepository.getUpdateCount()
             reduce {
@@ -120,6 +124,7 @@ class AppsViewModel(
                         selectedBucket = currentBucket,
                         scope = currentScope,
                         sort = currentSort,
+                        sortOrder = currentSortOrder,
                         page = 1,
                         paginationMode = currentPaginationMode,
                         pageSize = currentPageSize,
@@ -130,7 +135,8 @@ class AppsViewModel(
             val result = appsRepository.getApps(
                 currentQuery, currentBucket, currentScope,
                 limit = currentPageSize,
-                sort = currentSort
+                sort = currentSort,
+                sortOrder = currentSortOrder
             )
             val updateCount = appsRepository.getUpdateCount()
             reduce {
@@ -143,6 +149,7 @@ class AppsViewModel(
                         selectedBucket = currentBucket,
                         scope = currentScope,
                         sort = currentSort,
+                        sortOrder = currentSortOrder,
                         page = 1,
                         paginationMode = currentPaginationMode,
                         pageSize = currentPageSize,
@@ -163,6 +170,9 @@ class AppsViewModel(
     fun loadMore() = intent {
         if (state.filter.paginationMode != PaginationMode.Waterfall) return@intent
         val filter = state.filter
+        // No more data to load
+        val currentApps = state.apps ?: emptyList()
+        if (currentApps.size >= state.totalCount) return@intent
         val nextPage = filter.page + 1
         val offset = (nextPage - 1) * filter.pageSize.toLong()
         val pageSize = filter.pageSize
@@ -173,12 +183,15 @@ class AppsViewModel(
                 filter.scope,
                 offset = offset,
                 limit = pageSize,
-                sort = filter.sort
+                sort = filter.sort,
+                sortOrder = filter.sortOrder
             )
+
+        if (result.value.isEmpty()) return@intent
 
         reduce {
             state.copy(
-                apps = state.apps?.plus(result.value) ?: result.value,
+                apps = currentApps.plus(result.value),
                 filter = state.filter.copy(page = nextPage)
             )
         }
@@ -194,7 +207,8 @@ class AppsViewModel(
             filter.scope,
             offset = offset,
             limit = filter.pageSize,
-            sort = filter.sort
+            sort = filter.sort,
+            sortOrder = filter.sortOrder
         )
         reduce {
             state.copy(
