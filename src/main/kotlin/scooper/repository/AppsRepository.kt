@@ -34,7 +34,8 @@ class AppsRepository(
         scope: String = "all",
         offset: Long = 0L,
         limit: Int = PAGE_SIZE,
-        sort: String = "updated"
+        sort: String = "updated",
+        sortOrder: String = "desc"
     ): PaginatedResult<App> = transaction {
         val conditions = Apps.leftJoin(Buckets).selectAll()
         if (query.isNotBlank()) {
@@ -58,11 +59,12 @@ class AppsRepository(
         val wrapRows = AppEntity.wrapRows(conditions)
         val totalCount = wrapRows.count()
 
-        val order = when (sort) {
-            "name" -> Apps.name to SortOrder.ASC
-            "added" -> Apps.createAt to SortOrder.DESC
-            else -> Apps.updateAt to SortOrder.DESC
+        val column = when (sort) {
+            "name" -> Apps.name
+            "added" -> Apps.createAt
+            else -> Apps.updateAt
         }
+        val order = column to if (sortOrder == "asc") SortOrder.ASC else SortOrder.DESC
 
         val result = wrapRows
             .orderBy(order)

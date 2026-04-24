@@ -17,6 +17,7 @@ import androidx.compose.material.icons.twotone.KeyboardArrowDown
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,7 +71,7 @@ fun SearchBar(show: Boolean = true) {
     val sortOptions = listOf(
         "updated" to "Recently Updated",
         "added" to "Recently Added",
-        "name" to "Name (A-Z)"
+        "name" to "Name"
     )
 
     var expandBucket by remember { mutableStateOf(false) }
@@ -78,7 +79,16 @@ fun SearchBar(show: Boolean = true) {
     var selectedItem by rememberSaveable(state.filter.scope) { mutableStateOf(-1) }
     var bucket by rememberSaveable(state.filter.scope) { mutableStateOf("") }
     var sortBy by rememberSaveable(state.filter.scope) { mutableStateOf("updated") }
+    var sortOrder by rememberSaveable(state.filter.scope) { mutableStateOf("desc") }
     var queryText by rememberSaveable(state.filter.scope) { mutableStateOf("") }
+
+    LaunchedEffect(state.filter.selectedBucket, state.filter.sort, state.filter.sortOrder, state.filter.query, buckets.size) {
+        bucket = state.filter.selectedBucket
+        sortBy = state.filter.sort
+        sortOrder = state.filter.sortOrder
+        queryText = state.filter.query
+        selectedItem = buckets.indexOf(state.filter.selectedBucket)
+    }
 
     LaunchedEffect(queryText) {
         snapshotFlow { queryText }
@@ -103,7 +113,7 @@ fun SearchBar(show: Boolean = true) {
         val inputFocusRequester = remember { FocusRequester() }
 
         Row(
-            modifier = Modifier.weight(1f).height(36.dp)
+            modifier = Modifier.widthIn(min = 120.dp, max = 300.dp).height(36.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.inputBackground)
                 .border(width = 1.dp, color = borderColor, RoundedCornerShape(8.dp))
@@ -251,26 +261,52 @@ fun SearchBar(show: Boolean = true) {
                 offset = DpOffset(x = 0.dp, y = 4.dp),
             ) {
                 buckets.forEachIndexed { idx, title ->
+                    val isSelected = idx == selectedItem
                     var hover by remember { mutableStateOf(false) }
-                    DropdownMenuItem(
-                        onClick = {
-                            expandBucket = false
-                            selectedItem = idx
-                            bucket = title
-                            appsViewModel.applyFilters(bucket = bucket)
-                        },
-                        modifier = Modifier.sizeIn(maxHeight = 36.dp)
-                            .background(color = if (hover) colors.primarySubtle else colors.surface)
-                            .onHover { hover = it },
-                    ) {
-                        Text(
-                            title.ifBlank { "All Buckets" },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = typography.button.copy(
-                                color = if (hover) colors.primary else colors.onSurface,
-                            ),
-                        )
+                    Box {
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .width(3.dp)
+                                    .height(24.dp)
+                                    .background(colors.primary, RoundedCornerShape(999.dp))
+                                    .zIndex(1f)
+                            )
+                        }
+                        DropdownMenuItem(
+                            onClick = {
+                                expandBucket = false
+                                selectedItem = idx
+                                bucket = title
+                                appsViewModel.applyFilters(bucket = bucket)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .sizeIn(minHeight = 44.dp)
+                                .background(
+                                    color = when {
+                                        isSelected -> colors.primarySubtle
+                                        hover -> colors.primarySubtle.copy(alpha = 0.55f)
+                                        else -> colors.surface
+                                    }
+                                )
+                                .onHover { hover = it },
+                        ) {
+                            Text(
+                                title.ifBlank { "All Buckets" },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = typography.button.copy(
+                                    color = when {
+                                        isSelected -> colors.primary
+                                        hover -> colors.primary
+                                        else -> colors.onSurface
+                                    },
+                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -299,35 +335,105 @@ fun SearchBar(show: Boolean = true) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(4.dp))
+                Icon(
+                    painterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
+                    "",
+                    modifier = Modifier.size(14.dp),
+                    tint = colors.textMuted
+                )
+                Spacer(Modifier.width(4.dp))
                 Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
             }
 
             DropdownMenu(
                 expandSort,
                 onDismissRequest = { expandSort = false },
-                modifier = Modifier.width(160.dp).cursorHand(),
+                modifier = Modifier.width(200.dp).cursorHand(),
                 offset = DpOffset(x = 0.dp, y = 4.dp),
             ) {
                 sortOptions.forEach { (key, label) ->
+                    val isSelected = key == sortBy
                     var hover by remember { mutableStateOf(false) }
-                    DropdownMenuItem(
-                        onClick = {
-                            expandSort = false
-                            sortBy = key
-                            appsViewModel.applyFilters(sort = sortBy)
-                        },
-                        modifier = Modifier.sizeIn(maxHeight = 36.dp)
-                            .background(color = if (hover) colors.primarySubtle else colors.surface)
-                            .onHover { hover = it },
-                    ) {
-                        Text(
-                            label,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = typography.button.copy(
-                                color = if (hover) colors.primary else colors.onSurface,
-                            ),
-                        )
+                    Box {
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .width(3.dp)
+                                    .height(24.dp)
+                                    .background(colors.primary, RoundedCornerShape(999.dp))
+                                    .zIndex(1f)
+                            )
+                        }
+                        DropdownMenuItem(
+                            onClick = {
+                                val nextSortOrder = when {
+                                    key == sortBy -> sortOrder
+                                    key == "name" -> "asc"
+                                    else -> "desc"
+                                }
+                                sortBy = key
+                                sortOrder = nextSortOrder
+                                appsViewModel.applyFilters(sort = sortBy, sortOrder = nextSortOrder)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .sizeIn(minHeight = 44.dp)
+                                .background(
+                                    color = when {
+                                        isSelected -> colors.primarySubtle
+                                        hover -> colors.primarySubtle.copy(alpha = 0.55f)
+                                        else -> colors.surface
+                                    }
+                                )
+                                .onHover { hover = it },
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                    style = typography.button.copy(
+                                        color = when {
+                                            isSelected -> colors.primary
+                                            hover -> colors.primary
+                                            else -> colors.onSurface
+                                        },
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    ),
+                                )
+                                if (isSelected) {
+                                    Spacer(Modifier.width(8.dp))
+                                    var sortOrderHover by remember { mutableStateOf(false) }
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = 8.dp)
+                                            .size(28.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (sortOrderHover) colors.primarySubtle else Color.Transparent)
+                                            .cursorHand()
+                                            .onHover { sortOrderHover = it }
+                                            .clickable {
+                                                val newOrder = if (sortOrder == "asc") "desc" else "asc"
+                                                sortOrder = newOrder
+                                                appsViewModel.applyFilters(sort = sortBy, sortOrder = newOrder)
+                                            },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            painterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
+                                            if (sortOrder == "asc") "Ascending" else "Descending",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = colors.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -410,7 +516,7 @@ fun SearchBar(show: Boolean = true) {
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.weight(1f))
         RefreshScoopButton()
     }
 }
