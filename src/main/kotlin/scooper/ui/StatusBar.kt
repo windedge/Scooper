@@ -84,24 +84,6 @@ fun StatusBar(statusText: String) {
 
             // Right: Logs toggle & Clock
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Last Update
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        painterResource("clock.xml"), "",
-                        modifier = Modifier.size(14.dp),
-                        tint = colors.textMuted
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Updated just now",
-                        style = MaterialTheme.typography.caption.copy(
-                            color = colors.textBody
-                        )
-                    )
-                }
-
-                Spacer(Modifier.width(16.dp))
-
                 // Console Toggle
                 Tooltip("Show Console Logs", position = TooltipPosition.Top) {
                     Box(
