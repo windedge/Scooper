@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.LinearProgressIndicator
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.rememberScaffoldState
@@ -16,9 +16,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
+import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
+import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
+import scooper.data.MIN_WINDOW_HEIGHT
+import scooper.data.MIN_WINDOW_WIDTH
 import scooper.data.toSystemTheme
 import scooper.di.system
 import scooper.di.viewModels
@@ -37,6 +41,7 @@ import scooper.viewmodels.SettingsSideEffect
 
 import scooper.viewmodels.SettingsViewModel
 import java.awt.Dimension
+import java.io.File
 import kotlin.math.roundToInt
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
@@ -44,22 +49,32 @@ val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
 @Suppress("unused")
 private val logger by lazy { LoggerFactory.getLogger("Main") }
 
-fun main() = application {
-    remember { startKoin { modules(system, viewModels) } }
+fun main() {
+    startKoin { modules(system, viewModels) }
 
-    var dbReady by remember { mutableStateOf(false) }
-    val appsRepository: AppsRepository = koinInject()
-    LaunchedEffect(Unit) {
-        initDb(appsRepository)
-        dbReady = true
+    val dbFile = File(System.getenv("USERPROFILE")).resolve(".scooper.db")
+    val needsDbInit = !dbFile.exists()
+
+    // For existing databases, init synchronously (very fast) to avoid showing any splash
+    if (!needsDbInit) {
+        val appsRepository: AppsRepository = GlobalContext.get().get()
+        runBlocking { initDb(appsRepository) }
     }
 
-    if (!dbReady) {
-        SplashScreen(onClose = ::exitApplication)
-        return@application
-    }
+    application {
+        var dbReady by remember { mutableStateOf(!needsDbInit) }
+        var initProgress by remember { mutableStateOf(0f) }
+        if (!dbReady) {
+            val appsRepository: AppsRepository = koinInject()
+            LaunchedEffect(Unit) {
+                initDb(appsRepository) { progress -> initProgress = progress }
+                dbReady = true
+            }
+            SplashScreen(onClose = ::exitApplication, progress = initProgress)
+            return@application
+        }
 
-    val configRepository: ConfigRepository = koinInject()
+        val configRepository: ConfigRepository = koinInject()
     val savedConfig = remember { configRepository.getConfig() }
 
     val winState = remember {
@@ -105,7 +120,7 @@ fun main() = application {
         title = "Scooper",
         icon = painterResource("logo.svg"),
     ) {
-        window.minimumSize = Dimension(960, 560)
+        window.minimumSize = Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
         val settings by settingsViewModel.container.stateFlow.collectAsState()
         val uiConfig = settings.uiConfig
@@ -207,10 +222,11 @@ fun main() = application {
             }
         }
     }
+    }
 }
 
 @Composable
-fun SplashScreen(onClose: () -> Unit) {
+fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
     Window(
         onCloseRequest = onClose,
         state = rememberWindowState(
@@ -267,10 +283,12 @@ fun SplashScreen(onClose: () -> Unit) {
 
                 Spacer(Modifier.height(28.dp))
 
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.5.dp,
-                    color = Blue600
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier.width(180.dp).height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = Blue600,
+                    backgroundColor = Slate200,
                 )
             }
         }

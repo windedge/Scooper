@@ -33,6 +33,11 @@ enum class Theme() {
 enum class ViewMode { List, Grid }
 enum class PaginationMode { Waterfall, Pagination }
 
+const val DEFAULT_WINDOW_WIDTH = 1280
+const val DEFAULT_WINDOW_HEIGHT = 800
+const val MIN_WINDOW_WIDTH = 1080
+const val MIN_WINDOW_HEIGHT = 680
+
 data class UIConfig(
     val refreshOnStartup: Boolean = false,
     val theme: Theme = Theme.Auto,
@@ -42,8 +47,8 @@ data class UIConfig(
     val pageSize: Int = PAGE_SIZE,
     val windowX: Int? = null,
     val windowY: Int? = null,
-    val windowWidth: Int = 960,
-    val windowHeight: Int = 600,
+    val windowWidth: Int = DEFAULT_WINDOW_WIDTH,
+    val windowHeight: Int = DEFAULT_WINDOW_HEIGHT,
     val isMaximized: Boolean = false,
 )
 
