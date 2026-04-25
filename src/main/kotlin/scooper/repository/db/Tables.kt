@@ -3,6 +3,8 @@ package scooper.repository.db
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.datetime
+import scooper.data.DEFAULT_WINDOW_WIDTH
+import scooper.data.DEFAULT_WINDOW_HEIGHT
 import scooper.data.AppStatus
 import scooper.data.PaginationMode
 import scooper.data.Theme
@@ -44,7 +46,7 @@ object Configs : IntIdTable(name = "configs") {
     val pageSize = integer("page_size").default(25)
     val windowX = integer("window_x").nullable()
     val windowY = integer("window_y").nullable()
-    val windowWidth = integer("window_width").default(960)
-    val windowHeight = integer("window_height").default(600)
+    val windowWidth = integer("window_width").default(DEFAULT_WINDOW_WIDTH)
+    val windowHeight = integer("window_height").default(DEFAULT_WINDOW_HEIGHT)
     val isMaximized = bool("is_maximized").default(false)
 }

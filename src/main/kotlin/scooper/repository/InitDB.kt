@@ -12,7 +12,9 @@ import scooper.repository.db.Configs
 import java.io.File
 
 
-suspend fun initDb(appsRepository: AppsRepository) = withContext(Dispatchers.IO) {
+suspend fun initDb(appsRepository: AppsRepository, onProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
+    onProgress(0f)
+
     val databasePath = File(System.getenv("USERPROFILE")).resolve(".scooper.db")
     Database.connect("jdbc:sqlite:$databasePath", "org.sqlite.JDBC", setupConnection = { connection ->
         connection.createStatement().use { statement ->
@@ -23,13 +25,19 @@ suspend fun initDb(appsRepository: AppsRepository) = withContext(Dispatchers.IO)
             statement.execute("PRAGMA journal_mode = WAL")
         }
     })
+    onProgress(0.1f)
 
     transaction {
         SchemaUtils.createMissingTablesAndColumns(Apps, Buckets, Configs)
     }
+    onProgress(0.2f)
 
     val appCount = transaction { Apps.selectAll().count() }
     if (appCount == 0L) {
-        appsRepository.loadAll()
+        appsRepository.loadBuckets()
+        onProgress(0.3f)
+        appsRepository.loadApps()
+        onProgress(0.9f)
     }
+    onProgress(1f)
 }
