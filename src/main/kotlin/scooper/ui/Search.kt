@@ -22,6 +22,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -56,7 +57,7 @@ private val logger = LoggerFactory.getLogger("scooper.ui.Search")
 
 @OptIn(ExperimentalComposeUiApi::class, FlowPreview::class)
 @Composable
-fun SearchBar(show: Boolean = true) {
+fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequester: () -> Unit = {}) {
     val colors = MaterialTheme.colors
     if (!show) return
 
@@ -99,6 +100,23 @@ fun SearchBar(show: Boolean = true) {
             }
     }
 
+    // Search input with icon
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = if (isFocused) colors.primary else colors.inputBorder
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val inputFocusRequester = remember { FocusRequester() }
+
+    // External focus trigger via focusRequester counter
+    // Consume and reset: after focusing, set counter back to 0 so that
+    // re-composition (page navigation) won't re-trigger.
+    LaunchedEffect(focusRequester) {
+        if (focusRequester > 0) {
+            inputFocusRequester.requestFocus()
+            onResetFocusRequester()
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth().height(56.dp)
             .background(colors.surface)
@@ -107,11 +125,6 @@ fun SearchBar(show: Boolean = true) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Search input with icon
-        val interactionSource = remember { MutableInteractionSource() }
-        val isFocused by interactionSource.collectIsFocusedAsState()
-        val borderColor = if (isFocused) colors.primary else colors.inputBorder
-        val inputFocusRequester = remember { FocusRequester() }
-
         Row(
             modifier = Modifier.widthIn(min = 120.dp, max = 300.dp).height(36.dp)
                 .clip(RoundedCornerShape(8.dp))
@@ -144,6 +157,10 @@ fun SearchBar(show: Boolean = true) {
                         .onPreviewKeyEvent {
                             if (it.key == Key.Enter) {
                                 appsViewModel.applyFilters(queryText, bucket = bucket)
+                                return@onPreviewKeyEvent true
+                            }
+                            if (it.key == Key.Escape) {
+                                focusManager.clearFocus()
                                 return@onPreviewKeyEvent true
                             }
                             false

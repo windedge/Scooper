@@ -32,6 +32,8 @@ import scooper.repository.initDb
 import scooper.ui.components.EnterAnimation
 import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.*
+import scooper.util.navigation.LocalBackStack
+import scooper.util.navigation.core.BackStack
 import scooper.util.navigation.Router
 import scooper.viewmodels.AppsSideEffect
 import scooper.viewmodels.AppsViewModel
@@ -45,6 +47,7 @@ import java.io.File
 import kotlin.math.roundToInt
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
+val LocalFocusSearch = compositionLocalOf<() -> Unit> { {} }
 
 @Suppress("unused")
 private val logger by lazy { LoggerFactory.getLogger("Main") }
@@ -98,6 +101,10 @@ fun main() {
     val settingsViewModel: SettingsViewModel = koinInject()
     val cleanupViewModel: CleanupViewModel = koinInject()
 
+    // Window-level mutable state shared between Window onPreviewKeyEvent and content
+    val focusSearchRequester = mutableStateOf(0)
+    val navigatorRef = mutableStateOf<BackStack<AppRoute>?>(null)
+
     Window(
         onCloseRequest = {
             val isMaximized = winState.placement == WindowPlacement.Maximized
@@ -119,6 +126,15 @@ fun main() {
         winState,
         title = "Scooper",
         icon = painterResource("logo.svg"),
+        // Window-level key event interception — handled at AWT level, independent of Compose focus.
+        onPreviewKeyEvent = { keyEvent ->
+            handleWindowShortcut(
+                keyEvent = keyEvent,
+                navigator = navigatorRef.value,
+                appsViewModel = appsViewModel,
+                onFocusSearch = { focusSearchRequester.value++ },
+            )
+        }
     ) {
         window.minimumSize = Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
@@ -168,6 +184,12 @@ fun main() {
         ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
             CompositionLocalProvider(LocalShowFps provides showFpsState) {
                 Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
+                @Suppress("UNCHECKED_CAST")
+                val navigator = LocalBackStack.current as BackStack<AppRoute>
+                // Expose navigator to Window-level onPreviewKeyEvent
+                navigatorRef.value = navigator
+                val provideFocusSearch: () -> Unit = { focusSearchRequester.value++ }
+
                 val showToolbar = when (currentRoute.value) {
                     is AppRoute.Settings -> false
                     AppRoute.Output -> false
@@ -177,6 +199,7 @@ fun main() {
 
                 val appsState by appsViewModel.container.stateFlow.collectAsState()
 
+                CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
                 Scaffold(
                     scaffoldState = scaffoldState,
                     snackbarHost = { hostState -> SnackbarHost(hostState) },
@@ -189,7 +212,15 @@ fun main() {
                             SidebarNav(updateCount = appsState.updateCount)
                         }
                         Column(Modifier.weight(1f)) {
-                            ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets && currentRoute.value != AppRoute.Cleanup)
+                            if (currentRoute.value is AppRoute.Apps) {
+                                SearchBar(
+                                    show = showToolbar,
+                                    focusRequester = focusSearchRequester.value,
+                                    onResetFocusRequester = { focusSearchRequester.value = 0 },
+                                )
+                            } else {
+                                ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets && currentRoute.value != AppRoute.Cleanup)
+                            }
                             Layout {
                                 val routeKey = when (val route = currentRoute.value) {
                                     AppRoute.Splash -> "splash"
@@ -209,7 +240,7 @@ fun main() {
                                             is AppRoute.Apps -> AppScreen(route.scope)
                                             AppRoute.Buckets -> BucketsScreen()
                                             AppRoute.Cleanup -> CleanupScreen()
-                                            AppRoute.Output -> OutputScreen(onBack = { this@Router.pop() })
+                                            AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
                                             is AppRoute.Settings -> SettingScreen()
                                         }
                                     }
@@ -218,8 +249,10 @@ fun main() {
                         }
                     }
                 }
-            }
-            }
+                } // CompositionLocalProvider LocalFocusSearch
+
+            } // Router
+            } // CompositionLocalProvider LocalShowFps
         }
     }
     }
@@ -294,3 +327,4 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
         }
     }
 }
+

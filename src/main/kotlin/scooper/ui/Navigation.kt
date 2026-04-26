@@ -46,24 +46,18 @@ import sh.calvin.reorderable.ReorderableColumn
 fun ToolbarRow(show: Boolean = true, modifier: Modifier = Modifier) {
     if (!show) return
 
-    val currentRoute = (LocalBackStack.current as BackStack<AppRoute>).current.value
-
-    if (currentRoute is AppRoute.Apps) {
-        SearchBar(show = true)
-    } else {
-        Surface(
-            modifier = modifier.then(Modifier.fillMaxWidth().height(48.dp)),
-            elevation = 0.dp,
-        ) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
-                Row(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RefreshScoopButton()
-                    MoreActionsButton()
-                }
+    Surface(
+        modifier = modifier.then(Modifier.fillMaxWidth().height(48.dp)),
+        elevation = 0.dp,
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RefreshScoopButton()
+                MoreActionsButton()
             }
         }
     }
