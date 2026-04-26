@@ -47,7 +47,11 @@ class AppsRepository(
         sort: String = "updated",
         sortOrder: String = "desc"
     ): PaginatedResult<App> = transaction {
+        // Deduplicate: only include one row per (name, bucket_id)
+        val dedupIds = Apps.select(Apps.id.max()).groupBy(Apps.name, Apps.bucketId)
+
         val conditions = Apps.leftJoin(Buckets).selectAll()
+        conditions.andWhere { Apps.id inSubQuery dedupIds }
         if (query.isNotBlank()) {
             val words = query.trim().split(" ")
             for (word in words) {
@@ -127,9 +131,12 @@ class AppsRepository(
                     rows.isEmpty() -> {
                         AppEntity.new { update(app, bkt) }
                     }
-                    rows.size == 1 -> {
-                        val existing = rows.first()
-                        // Preserve existing createAt/updateAt from DB (will be overwritten later by Git indexer)
+                    rows.size >= 1 -> {
+                        // Pick max-id row, delete stale duplicates if any
+                        val existing = rows.maxBy { it.id.value }
+                        for (row in rows) {
+                            if (row.id != existing.id) row.delete()
+                        }
                         existing.update(
                             app.copy(
                                 createAt = existing.createAt,
@@ -137,9 +144,6 @@ class AppsRepository(
                             ),
                             bkt,
                         )
-                    }
-                    else -> {
-                        throw ScooperException("Found more than one app with same name and bucket.")
                     }
                 }
             }
@@ -167,7 +171,13 @@ class AppsRepository(
         if (app.bucket != null) {
             query.andWhere { Buckets.name eq app.bucket!!.name }
         }
-        val appEntity = AppEntity.wrapRows(query).firstOrNull() ?: return@transaction
+        // Pick max-id row to handle stale duplicates
+        val appEntities = AppEntity.wrapRows(query).toList()
+        val appEntity = appEntities.maxByOrNull { it.id.value } ?: return@transaction
+        // Delete stale duplicates if any
+        for (entity in appEntities) {
+            if (entity.id != appEntity.id) entity.delete()
+        }
         appEntity.update(
             app.copy(
                 createAt = appEntity.createAt,

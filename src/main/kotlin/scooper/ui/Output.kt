@@ -21,8 +21,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import org.orbitmvi.orbit.syntax.simple.intent
-import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.parseAnsiColors
@@ -68,7 +66,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
                     }
 
                     Button(
-                        onClick = { appsViewModel.intent { reduce { state.copy(output = "") } } },
+                        onClick = { appsViewModel.clearOutput() },
                         modifier = Modifier.cursorHand()
                     ) {
                         Text("Clear")

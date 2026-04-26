@@ -29,6 +29,7 @@ import scooper.repository.OldVersion
 import scooper.ui.components.IconButton
 import scooper.ui.components.Link
 import scooper.ui.components.Tooltip
+import scooper.ui.components.SectionCard
 import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.cursorLink
@@ -80,7 +81,7 @@ fun CleanupScreen(
             Spacer(Modifier.height(32.dp))
 
             // Download Cache Card
-            CleanupCard {
+            SectionCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -132,7 +133,7 @@ fun CleanupScreen(
             Spacer(Modifier.height(24.dp))
 
             // Old Versions Card
-            CleanupCard {
+            SectionCard {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -179,21 +180,7 @@ fun CleanupScreen(
 }
 
 
-@Composable
-private fun CleanupCard(content: @Composable () -> Unit) {
-    val cardBg = if (colors.isLight) colors.surface else Slate800
-    Card(
-        backgroundColor = cardBg,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, colors.borderDefault),
-        elevation = 0.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            content()
-        }
-    }
-}
+// CleanupCard has been unified into SectionCard in components/
 
 
 @Composable
