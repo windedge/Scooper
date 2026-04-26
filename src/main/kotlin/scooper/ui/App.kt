@@ -496,13 +496,13 @@ fun AppGridCard(
     }
 }
 
-private val GridAppNameStyle @Composable get() = typography.h6.copy(color = colors.onSurface)
-private val GridBucketTagStyle @Composable get() = typography.overline.copy(fontWeight = FontWeight.Bold, color = colors.textBody, fontSize = typography.overline.fontSize * (10f / 12f))
-private val GridDescStyle @Composable get() = typography.caption.copy(color = colors.textBody)
-private val GridOldVersionStyle @Composable get() = typography.caption.copy(color = colors.textMuted, textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough, fontSize = typography.caption.fontSize * (11f / 14f))
-private val GridNewVersionStyle @Composable get() = typography.overline.copy(fontWeight = FontWeight.Medium, color = colors.updateDefault)
-private val GridCurrentVersionStyle @Composable get() = typography.overline.copy(fontWeight = FontWeight.Medium, color = Slate700)
-private val GridDateStyle @Composable get() = typography.overline.copy(color = colors.textMuted, fontSize = typography.overline.fontSize * (10f / 12f))
+private val GridAppNameStyle @Composable get() = AppNameStyle
+private val GridBucketTagStyle @Composable get() = BucketTagStyle
+private val GridDescStyle @Composable get() = DescStyle
+private val GridOldVersionStyle @Composable get() = OldVersionStyle
+private val GridNewVersionStyle @Composable get() = NewVersionStyle
+private val GridCurrentVersionStyle @Composable get() = CurrentVersionStyle
+private val GridDateStyle @Composable get() = DateStyle
 
 // Pre-computed text styles to avoid copy() on every recomposition
 private val AppNameStyle @Composable get() = typography.h6.copy(color = colors.onSurface)
