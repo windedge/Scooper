@@ -362,6 +362,10 @@ class AppsViewModel(
         }
     }
 
+    fun clearOutput() = intent {
+        reduce { state.copy(output = "") }
+    }
+
     fun cancel(app: App? = null) = intent {
         logger.info("cancelling")
         if (app != null && taskQueue.containTask(app.uniqueName)) {

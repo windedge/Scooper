@@ -21,6 +21,7 @@ import scooper.data.UIConfig
 import scooper.data.ViewMode
 import scooper.ui.components.*
 import scooper.util.*
+import scooper.ui.components.SectionCard
 import scooper.ui.theme.*
 import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
@@ -129,21 +130,7 @@ fun SettingsTitle(title: String, subtitle: String) {
     }
 }
 
-@Composable
-fun SettingsCard(content: @Composable () -> Unit) {
-    val colors = MaterialTheme.colors
-    Card(
-        backgroundColor = if (colors.isLight) colors.surface else Slate800,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, colors.borderDefault),
-        elevation = 0.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            content()
-        }
-    }
-}
+// SettingsCard has been unified into SectionCard in components/
 
 @Composable
 fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
@@ -173,7 +160,7 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     }, applyEnabled = hasChanged) {
         SettingsTitle("General Settings", "Manage core configuration for Scoop.")
 
-        SettingsCard {
+        SectionCard {
             PrefRow(
                 "Proxy",
                 subtitle = "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication.",
@@ -261,7 +248,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     }, applyEnabled = formChanged) {
         SettingsTitle("UI Settings", "Customize the application appearance.")
 
-        SettingsCard {
+        SectionCard {
             PrefRow("Reload apps after startup",
                 subtitle = "Run \"scoop update\" after startup.",
                 modifier = Modifier.cursorHand(),
@@ -359,7 +346,7 @@ fun AboutSection() {
     SettingContainer {
         SettingsTitle("About", "Information about this application.")
 
-        SettingsCard {
+        SectionCard {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                 Icon(
                     painterResource("logo.svg"),

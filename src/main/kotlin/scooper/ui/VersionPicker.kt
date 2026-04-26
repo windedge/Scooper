@@ -27,7 +27,7 @@ import scooper.util.cursorHand
 import scooper.util.onHover
 import java.time.format.DateTimeFormatter
 
-private val DateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+private val VersionDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
 @Composable
 fun VersionPickerDialog(
@@ -187,7 +187,7 @@ private fun VersionRow(
                         }
                         version.commitTime?.let {
                             Text(
-                                it.format(DateFormatter),
+                                it.format(VersionDateFormatter),
                                 style = typography.caption.copy(color = colors.textMuted),
                             )
                         }

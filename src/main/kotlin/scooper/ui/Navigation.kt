@@ -29,7 +29,11 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
-import scooper.taskqueue.toTitle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
 import scooper.service.ScoopService
@@ -206,6 +210,40 @@ fun RefreshScoopButton() {
 }
 
 
+private fun Task.toAnnotatedTitle(): AnnotatedString = buildAnnotatedString {
+    when (this@toAnnotatedTitle) {
+        is Task.Refresh -> append("Refreshing")
+        is Task.AddBucket -> {
+            append("Add Bucket: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.name) }
+        }
+        is Task.RemoveBucket -> {
+            append("Remove Bucket: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.name) }
+        }
+        is Task.Download -> {
+            append("Download: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
+        }
+        is Task.Install -> {
+            append("Install: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
+        }
+        is Task.InstallVersion -> {
+            append("Install: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("${this@toAnnotatedTitle.app.name}@${this@toAnnotatedTitle.version}") }
+        }
+        is Task.Uninstall -> {
+            append("Uninstall: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
+        }
+        is Task.Update -> {
+            append("Update: ")
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
+        }
+    }
+}
+
 @Composable
 private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? = null, onCancel: () -> Unit) {
     Row(
@@ -225,7 +263,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
             )
         }
         Text(
-            text = task.toTitle(),
+            text = task.toAnnotatedTitle(),
             modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
