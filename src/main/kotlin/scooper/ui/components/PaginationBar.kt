@@ -36,13 +36,13 @@ fun PaginationBar(
         modifier = Modifier.fillMaxWidth()
             .background(colors.surface)
             .border(width = 1.dp, color = colors.borderDefault)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         // Page size selector
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Rows per page:", style = typography.body2.copy(color = colors.textBody))
+            Text("Rows per page:", style = typography.caption.copy(color = colors.textBody))
             Spacer(Modifier.width(8.dp))
             val pageSizeOptions = listOf(10, 25, 50, 100)
             var expanded by remember { mutableStateOf(false) }
@@ -57,7 +57,7 @@ fun PaginationBar(
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("$pageSize", style = typography.body2.copy(color = colors.onSurface))
+                    Text("$pageSize", style = typography.caption.copy(color = colors.onSurface))
                     Spacer(Modifier.width(4.dp))
                     Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
                 }
@@ -70,7 +70,7 @@ fun PaginationBar(
                                 .background(if (hover) colors.primarySubtle else colors.surface)
                                 .onHover { hover = it }
                         ) {
-                            Text("$size", style = typography.button.copy(color = if (hover) colors.primary else colors.onSurface))
+                            Text("$size", style = typography.caption.copy(color = if (hover) colors.primary else colors.onSurface))
                         }
                     }
                 }
@@ -123,12 +123,12 @@ fun PaginationBar(
                         shape = RoundedCornerShape(6.dp),
                         color = if (isSelected) colors.primary else colors.surface,
                         border = BorderStroke(1.dp, if (isSelected) colors.primary else colors.borderDefault),
-                        modifier = Modifier.size(30.dp).cursorHand().clickable { onGoToPage(page) }
+                        modifier = Modifier.size(26.dp).cursorHand().clickable { onGoToPage(page) }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 "$page",
-                                style = typography.body2.copy(
+                                style = typography.caption.copy(
                                     fontWeight = FontWeight.Medium,
                                     color = if (isSelected) Color.White else colors.textBody
                                 )
@@ -137,7 +137,7 @@ fun PaginationBar(
                     }
                     Spacer(Modifier.width(6.dp))
                 } else {
-                    Text("...", style = typography.body2.copy(color = colors.textMuted), modifier = Modifier.padding(horizontal = 4.dp))
+                    Text("...", style = typography.caption.copy(color = colors.textMuted), modifier = Modifier.padding(horizontal = 4.dp))
                 }
             }
 
