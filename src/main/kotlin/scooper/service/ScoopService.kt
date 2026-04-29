@@ -114,6 +114,22 @@ class ScoopService(
             return allApps
         }
 
+    /** Build apps only from the specified manifest file names in a single bucket. */
+    fun buildAppsFromManifestNames(
+        bucketDir: File,
+        manifestNames: Set<String>,
+        bucket: Bucket,
+    ): List<App> {
+        val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
+        val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
+
+        return manifestNames.mapNotNull { fileName ->
+            val file = bucketDir.resolve("bucket/$fileName")
+            if (!file.exists()) return@mapNotNull null
+            buildAppFromManifest(file, bucket, localInstallApps, globalInstalledApps)
+        }
+    }
+
     private fun buildAppFromManifest(
         file: File,
         bucket: Bucket,

@@ -20,7 +20,7 @@ val system = module {
     single { TaskQueue() }
     single { ConfigRepository() }
     single { GitHistoryService() }
-    single { AppsRepository(get()) }
+    single { AppsRepository(get(), get()) }
     single { CleanupRepository(get()) }
 }
 
