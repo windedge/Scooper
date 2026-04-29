@@ -85,7 +85,8 @@ fun AppGrid(
                     onDownload = onDownload,
                     onUninstall = onUninstall,
                     onOpen = onOpen,
-                    onCancel = onCancel
+                    onCancel = onCancel,
+                    onInstallVersion = onInstallVersion,
                 )
             }
         }
