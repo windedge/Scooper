@@ -1,6 +1,8 @@
 package scooper.repository
 
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.neq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.notInList
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -16,7 +18,6 @@ import scooper.service.GitHistoryService
 import scooper.service.GitHistoryService.ManifestTimes
 import scooper.service.ScoopService
 import scooper.util.PAGE_SIZE
-import scooper.util.ScooperException
 
 data class PaginatedResult<T>(
     val value: List<T>,
@@ -30,8 +31,8 @@ data class BucketIndexState(
 
 class AppsRepository(
     private val scoopService: ScoopService,
+    private val gitHistoryService: GitHistoryService,
 ) {
-    /** SQLite allows only one writer at a time; serialize repository write transactions. */
     private val writeLock = Any()
 
     fun getBuckets(): List<Bucket> = transaction {
@@ -114,41 +115,96 @@ class AppsRepository(
 
     fun loadAll() {
         loadBuckets()
-        loadApps()
+        loadApps(incremental = false)
     }
 
-    fun loadApps() {
-        // IO outside transaction: read manifests from filesystem
-        val apps = scoopService.apps
+    fun loadApps(incremental: Boolean = true) {
+        val bucketStates = getBucketIndexStates()
+        val bucketDirsByName = scoopService.bucketDirs.associateBy { it.name }
+
+        val allChangedApps = mutableListOf<App>()
+        val deletedAppNames = mutableListOf<Pair<String, String>>() // (appName, bucketName)
+        val bucketsNeedingFullLoad = mutableSetOf<String>()
+
+        for (state in bucketStates) {
+            if (!incremental) {
+                bucketsNeedingFullLoad.add(state.name)
+                continue
+            }
+
+            val bucketDir = bucketDirsByName[state.name] ?: continue
+            val lastCommit = GitHistoryService.commitFromIndexState(state.lastIndexedCommit)
+            if (lastCommit == null) {
+                bucketsNeedingFullLoad.add(state.name)
+                continue
+            }
+
+            val changes = gitHistoryService.getManifestChanges(bucketDir, lastCommit)
+            if (changes == null) {
+                bucketsNeedingFullLoad.add(state.name)
+                continue
+            }
+            if (changes.addedOrModified.isEmpty() && changes.deleted.isEmpty()) continue
+
+            val bucket = Bucket(name = state.name, url = "")
+            allChangedApps.addAll(
+                scoopService.buildAppsFromManifestNames(bucketDir, changes.addedOrModified, bucket)
+            )
+            for (fileName in changes.deleted) {
+                deletedAppNames.add(fileName.removeSuffix(".json") to state.name)
+            }
+        }
+
+        val fullLoadApps = if (bucketsNeedingFullLoad.isNotEmpty()) {
+            scoopService.apps.filter { it.bucket?.name in bucketsNeedingFullLoad }
+        } else {
+            emptyList()
+        }
 
         synchronized(writeLock) {
             transaction {
-                for (app in apps) {
-                val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
-                val rows = AppEntity.wrapRows(query).toList()
-                val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
-                when {
-                    rows.isEmpty() -> {
-                        AppEntity.new { update(app, bkt) }
+                upsertApps(allChangedApps)
+
+                if (fullLoadApps.isNotEmpty()) {
+                    upsertApps(fullLoadApps)
+                    // Delete uninstalled apps that no longer exist in these buckets
+                    val fullLoadAppNames = fullLoadApps.map { it.name }.toSet()
+                    val fullLoadBucketIds = BucketEntity.find {
+                        Buckets.name inList bucketsNeedingFullLoad.toList()
+                    }.map { it.id }.toSet()
+                    Apps.deleteWhere {
+                        (name notInList fullLoadAppNames) and
+                                (bucketId inList fullLoadBucketIds) and
+                                (status neq AppStatus.INSTALLED.name.lowercase())
                     }
-                    rows.size >= 1 -> {
-                        // Pick max-id row, delete stale duplicates if any
-                        val existing = rows.maxBy { it.id.value }
-                        for (row in rows) {
-                            if (row.id != existing.id) row.delete()
-                        }
-                        existing.update(
-                            app.copy(
-                                createAt = existing.createAt,
-                                updateAt = existing.updateAt,
-                            ),
-                            bkt,
-                        )
+                }
+
+                for ((appName, bucketName) in deletedAppNames) {
+                    val bkt = BucketEntity.find { Buckets.name eq bucketName }.firstOrNull() ?: continue
+                    Apps.deleteWhere {
+                        (Apps.name eq appName) and
+                                (Apps.bucketId eq bkt.id) and
+                                (Apps.status neq AppStatus.INSTALLED.name.lowercase())
                     }
                 }
             }
-                val appNames = apps.map { it.name }
-                Apps.deleteWhere { name notInList appNames and (status neq AppStatus.INSTALLED.name.lowercase()) }
+        }
+    }
+
+    private fun upsertApps(apps: List<App>) {
+        for (app in apps) {
+            val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
+            val rows = AppEntity.wrapRows(query).toList()
+            val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
+            if (rows.isEmpty()) {
+                AppEntity.new { update(app, bkt) }
+            } else {
+                val existing = rows.maxBy { it.id.value }
+                rows.filter { it.id != existing.id }.forEach { it.delete() }
+                existing.update(
+                    app.copy(createAt = existing.createAt, updateAt = existing.updateAt),
+                    bkt,
+                )
             }
         }
     }

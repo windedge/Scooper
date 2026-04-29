@@ -32,6 +32,14 @@ class GitHistoryService {
         }
     }
 
+    data class ManifestChanges(
+        val headCommit: String,
+        /** Manifest file names (e.g. "7zip.json") that were added or modified. */
+        val addedOrModified: Set<String>,
+        /** Manifest file names (e.g. "7zip.json") that were deleted. */
+        val deleted: Set<String>,
+    )
+
     data class ManifestTimes(
         val createAt: LocalDateTime? = null,
         val updateAt: LocalDateTime? = null,
@@ -63,6 +71,66 @@ class GitHistoryService {
             } else null
         } catch (e: Exception) {
             logger.warn("Failed to get HEAD commit for ${bucketDir.name}: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Get the set of manifest files that changed between [lastAppLoadCommit] and HEAD.
+     *
+     * Uses `git diff --name-status --no-renames` so renames appear as separate D + A.
+     *
+     * @return null if HEAD unchanged, git failure, or [lastAppLoadCommit] not found.
+     */
+    fun getManifestChanges(
+        bucketDir: File,
+        lastAppLoadCommit: String,
+    ): ManifestChanges? {
+        if (!isGitBucket(bucketDir)) return null
+
+        val currentHead = getHeadCommit(bucketDir) ?: return null
+        if (currentHead == lastAppLoadCommit) return null
+        if (!commitExists(bucketDir, lastAppLoadCommit)) return null
+
+        return try {
+            val result = execute(
+                "git", "-c", "core.quotepath=false",
+                "diff", "--name-status", "--no-renames",
+                "$lastAppLoadCommit..$currentHead", "--", "bucket/",
+                asShell = false,
+                workingDir = bucketDir,
+            )
+            if (result.resultCode != 0) {
+                logger.warn("git diff failed for ${bucketDir.name}: ${result.output.joinToString("\n")}")
+                return null
+            }
+
+            val addedOrModified = mutableSetOf<String>()
+            val deleted = mutableSetOf<String>()
+
+            for (line in result.output) {
+                val trimmed = line.trim()
+                if (trimmed.isBlank()) continue
+                val parts = trimmed.split('\t')
+                if (parts.size < 2) continue
+
+                val status = parts[0].trim()
+                val filePath = parts[1].trim()
+                val fileName = filePath.removePrefix("bucket/")
+                if (fileName == filePath) continue
+                if (!fileName.endsWith(".json")) continue
+
+                if (status == "D") deleted.add(fileName)
+                else if (status == "A" || status == "M") addedOrModified.add(fileName)
+            }
+
+            ManifestChanges(
+                headCommit = currentHead,
+                addedOrModified = addedOrModified,
+                deleted = deleted,
+            )
+        } catch (e: Exception) {
+            logger.warn("Failed to get manifest changes for ${bucketDir.name}: ${e.message}")
             null
         }
     }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import scooper.repository.db.Apps
 import scooper.repository.db.Buckets
+import scooper.service.GitHistoryService
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
 import scooper.taskqueue.TaskQueue
@@ -31,7 +32,7 @@ internal class AppsRepositoryTest {
 
     @Test
     fun loadApps() {
-        val appsRepository = AppsRepository(ScoopService(ScoopLogStream(), TaskQueue()))
+        val appsRepository = AppsRepository(ScoopService(ScoopLogStream(), TaskQueue()), GitHistoryService())
         appsRepository.loadAll()
 
         transaction {

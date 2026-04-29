@@ -77,9 +77,9 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     var expandSort by remember { mutableStateOf(false) }
     var selectedItem by rememberSaveable { mutableStateOf(-1) }
     var bucket by rememberSaveable { mutableStateOf("") }
-    var sortBy by rememberSaveable(state.filter.scope) { mutableStateOf("updated") }
-    var sortOrder by rememberSaveable(state.filter.scope) { mutableStateOf("desc") }
-    var queryText by rememberSaveable(state.filter.scope) { mutableStateOf("") }
+    var sortBy by rememberSaveable { mutableStateOf("updated") }
+    var sortOrder by rememberSaveable { mutableStateOf("desc") }
+    var queryText by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(state.filter.selectedBucket, state.filter.sort, state.filter.sortOrder, state.filter.query, buckets.size) {
         bucket = state.filter.selectedBucket
