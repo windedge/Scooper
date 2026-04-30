@@ -1,5 +1,19 @@
 # Release Notes
 
+## v1.0.2
+
+### Bug Fixes
+
+- **Fix IllegalArgumentException on Apply Changes in Settings**: The form builder's `getData()` now skips constructor parameters not present in the form, letting data class defaults apply instead of passing null for non-nullable fields.
+- **Fix config overwritten on window close**: `onCloseRequest` now reads the latest config from DB instead of using a stale startup snapshot (`savedConfig`), preventing all session changes (view mode, pagination mode, theme, font size, etc.) from being reverted on exit.
+- **Fix missing version install callback in grid view**: The `onInstallVersion` callback was missing in the Grid view card, causing version history installs to fail silently.
+
+### Improvements
+
+- **Reduce pagination bar font size**: Slightly smaller font in the page navigation bar for a cleaner look.
+
+---
+
 ## v1.0.1
 
 ### Performance
