@@ -208,6 +208,12 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
 fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val colors = MaterialTheme.colors
     val formState = settingsViewModel.uiFormState
+
+    // Reload latest config from DB when entering the screen
+    LaunchedEffect(Unit) {
+        settingsViewModel.reloadUIConfig()
+    }
+
     val refreshState: SwitchState = formState.getState("refreshOnStartup")
     val themeState: ChoiceState = formState.getState("theme")
     val viewModeState: ChoiceState = formState.getState("viewMode")
@@ -240,7 +246,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
 
     SettingContainer(onApply = {
         if (formState.validate()) {
-            settingsViewModel.writeUIConfig()
+            settingsViewModel.writeUIConfig(fontSizeScale = fontSizeScale)
             formChangedState.markSaved()
         }
     }, onDiscard = {

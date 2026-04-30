@@ -107,14 +107,23 @@ class SettingsViewModel(
         ScoopConfigManager.writeScoopConfig(config)
     }
 
-    fun writeUIConfig() {
+    fun writeUIConfig(fontSizeScale: Float? = null) {
         val formConfig = uiFormState.getData(UIConfig::class)
-        val currentConfig = container.stateFlow.value.uiConfig
+        val currentConfig = configRepository.getConfig()
         val config = currentConfig.copy(
             refreshOnStartup = formConfig.refreshOnStartup,
             theme = formConfig.theme,
+            viewMode = formConfig.viewMode,
+            paginationMode = formConfig.paginationMode,
+            fontSizeScale = fontSizeScale ?: currentConfig.fontSizeScale,
         )
         configRepository.setConfig(config)
+    }
+
+    fun reloadUIConfig() {
+        val config = configRepository.getConfig()
+        uiFormState.setData(config)
+        intent { reduce { state.copy(uiConfig = config) } }
     }
 
     override fun close() {
