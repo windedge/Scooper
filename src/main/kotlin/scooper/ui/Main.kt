@@ -111,7 +111,7 @@ fun main() {
             val size = winState.size
             val pos = winState.position
             logger.info("Saving window: x=${pos.x.value}, y=${pos.y.value}, w=${size.width.value}, h=${size.height.value}, maximized=$isMaximized")
-            configRepository.setConfig(savedConfig.copy(
+            configRepository.setConfig(configRepository.getConfig().copy(
                 windowX = pos.x.value.roundToInt(),
                 windowY = pos.y.value.roundToInt(),
                 windowWidth = size.width.value.roundToInt(),

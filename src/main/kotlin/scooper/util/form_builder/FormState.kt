@@ -40,7 +40,12 @@ open class FormState<T : BaseState<*>>(val fields: List<T>) {
     fun <T : Any> getData(dataClass: KClass<T>): T {
         val map = fields.associate { it.name to it.getData() }
         val constructor = dataClass.constructors.last()
-        val args: Map<KParameter, Any?> = constructor.parameters.associateWith { kParameter ->
+        val args: MutableMap<KParameter, Any?> = mutableMapOf()
+        for (kParameter in constructor.parameters) {
+            if (!map.containsKey(kParameter.name)) {
+                // Skip parameters not present in the form; let defaults apply
+                continue
+            }
             @Suppress("UNCHECKED_CAST")
             val value = if ((kParameter.type.classifier as KClass<Any>).java.isEnum) {
                 (kParameter.type.classifier as KClass<Any>).java.enumConstants.filter {
@@ -49,7 +54,7 @@ open class FormState<T : BaseState<*>>(val fields: List<T>) {
             } else {
                 map[kParameter.name]
             }
-            value
+            args[kParameter] = value
         }
         return constructor.callBy(args)
     }
