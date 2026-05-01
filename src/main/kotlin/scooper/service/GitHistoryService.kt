@@ -90,7 +90,10 @@ class GitHistoryService {
 
         val currentHead = getHeadCommit(bucketDir) ?: return null
         if (currentHead == lastAppLoadCommit) return null
-        if (!commitExists(bucketDir, lastAppLoadCommit)) return null
+        if (!commitExists(bucketDir, lastAppLoadCommit)) {
+            logger.debug("commit $lastAppLoadCommit not found in ${bucketDir.name}, current HEAD=$currentHead")
+            return null
+        }
 
         return try {
             val result = execute(
