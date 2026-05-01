@@ -254,7 +254,8 @@ class AppsViewModel(
     }
 
     fun refresh() = blockingIntent {
-        scoopCli.refresh { reloadApps() }
+        scoopCli.refresh()
+        reloadApps()
     }
 
     // ==================== Task Queue ====================
@@ -273,12 +274,12 @@ class AppsViewModel(
 
     fun scheduleInstall(app: App, global: Boolean = false) = intent {
         taskQueue.addTask(Task.Install(app) { blockingIntent {
-            scoopCli.install(app, global) { exitValue ->
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Install app, ${app.uniqueName} error!"))
-                    return@install
-                }
-                postSideEffect(AppsSideEffect.Toast("Install app, ${app.uniqueName} successfully!"))
+            val result = scoopCli.install(app, global)
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Install app: ${app.uniqueName} error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
+                postSideEffect(AppsSideEffect.Toast("Install app: ${app.uniqueName} successfully!"))
                 appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED))
                 applyFilters()
             }
@@ -287,12 +288,12 @@ class AppsViewModel(
 
     fun scheduleUninstall(app: App) = intent {
         taskQueue.addTask(Task.Uninstall(app) { blockingIntent {
-            scoopCli.uninstall(app, app.global) { exitValue ->
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} error!"))
-                    return@uninstall
-                }
-                postSideEffect(AppsSideEffect.Toast("Uninstall app, ${app.uniqueName} successfully!"))
+            val result = scoopCli.uninstall(app, app.global)
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Uninstall app: ${app.uniqueName} error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
+                postSideEffect(AppsSideEffect.Toast("Uninstall app: ${app.uniqueName} successfully!"))
                 appsRepository.updateApp(app.copy(status = AppStatus.UNINSTALL, global = false))
                 applyFilters()
             }
@@ -301,12 +302,12 @@ class AppsViewModel(
 
     fun scheduleUpdate(app: App) = intent {
         taskQueue.addTask(Task.Update(app) { blockingIntent {
-            scoopCli.update(app, app.global) { exitValue ->
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Update app, ${app.uniqueName} error!"))
-                    return@update
-                }
-                postSideEffect(AppsSideEffect.Toast("Update app, ${app.uniqueName} successfully!"))
+            val result = scoopCli.update(app, app.global)
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Update app: ${app.uniqueName} error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
+                postSideEffect(AppsSideEffect.Toast("Update app: ${app.uniqueName} successfully!"))
                 appsRepository.updateApp(app.copy(version = app.latestVersion))
                 applyFilters()
             }
@@ -315,11 +316,11 @@ class AppsViewModel(
 
     fun scheduleDownload(app: App) = intent {
         taskQueue.addTask(Task.Download(app) { blockingIntent {
-            scoopCli.download(app) { exitValue ->
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} error!"))
-                    return@download
-                }
+            val result = scoopCli.download(app)
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Download app: ${app.uniqueName} error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
                 postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} successfully!"))
                 applyFilters()
             }
@@ -328,11 +329,11 @@ class AppsViewModel(
 
     fun scheduleAddBucket(bucket: String, url: String? = null) = intent {
         taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
-            scoopCli.addBucket(bucket, url) { exitValue ->
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket error!"))
-                    return@addBucket
-                }
+            val result = scoopCli.addBucket(bucket, url)
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Add bucket: $bucket error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
                 postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket successfully!"))
                 getBuckets()
                 reloadApps()
@@ -342,11 +343,11 @@ class AppsViewModel(
 
     fun scheduleRemoveBucket(bucket: String) = intent {
         taskQueue.addTask(Task.RemoveBucket(bucket) { blockingIntent {
-            scoopCli.removeBucket(bucket) { exitValue ->
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket error!"))
-                    return@removeBucket
-                }
+            val result = scoopCli.removeBucket(bucket)
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Remove bucket: $bucket error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
                 postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket successfully!"))
                 getBuckets()
                 reloadApps()
@@ -465,14 +466,14 @@ class AppsViewModel(
             val tempFile = File(tempDir, "${app.name}.json")
             tempFile.writeText(manifestText)
 
-            scoopCli.installVersion(app, tempFile, global) { exitValue ->
-                tempFile.delete()
-                tempDir.deleteRecursively()
-                if (exitValue != 0) {
-                    postSideEffect(AppsSideEffect.Toast("Install ${app.name}@${version.version} error!"))
-                    return@installVersion
-                }
-                postSideEffect(AppsSideEffect.Toast("Installed ${app.name}@${version.version} successfully!"))
+            val result = scoopCli.installVersion(app, tempFile, global)
+            tempFile.delete()
+            tempDir.deleteRecursively()
+            if (result.exitCode != 0) {
+                val msg = result.errorMessage ?: "Install version: ${app.name}@${version.version} error!"
+                postSideEffect(AppsSideEffect.Toast(msg))
+            } else {
+                postSideEffect(AppsSideEffect.Toast("Installed version: ${app.name}@${version.version} successfully!"))
                 appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED, version = version.version))
                 applyFilters()
             }

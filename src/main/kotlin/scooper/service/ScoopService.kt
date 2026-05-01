@@ -201,74 +201,74 @@ class ScoopService(
 
     // ==================== CLI Commands ====================
 
-    override suspend fun refresh(onFinish: suspend (exitValue: Int) -> Unit) {
-        executeAndLog(mutableListOf("scoop", "update"), onFinish = onFinish)
+    override suspend fun refresh(): CommandResult {
+        return executeAndLog(mutableListOf("scoop", "update"))
     }
 
-    override suspend fun install(app: App, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun install(app: App, global: Boolean): CommandResult {
         preDownloadIfNeeded(app)
         val commandArgs = if (global) mutableListOf(
             "sudo", "scoop", "install", "-g", "${app.bucket!!.name}/${app.name}"
         ) else {
             mutableListOf("scoop", "install", "${app.bucket!!.name}/${app.name}")
         }
-        executeAndLog(commandArgs, onFinish = onFinish)
+        return executeAndLog(commandArgs)
     }
 
-    override suspend fun uninstall(app: App, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun uninstall(app: App, global: Boolean): CommandResult {
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
         } else {
             mutableListOf("scoop", "uninstall", app.name)
         }
-        executeAndLog(commandArgs, onFinish = onFinish)
+        return executeAndLog(commandArgs)
     }
 
-    override suspend fun update(app: App, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun update(app: App, global: Boolean): CommandResult {
         preDownloadIfNeeded(app)
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "update", "-g", app.name)
         } else {
             mutableListOf("scoop", "update", app.name)
         }
-        executeAndLog(commandArgs, onFinish = onFinish)
+        return executeAndLog(commandArgs)
     }
 
-    override suspend fun download(app: App, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun download(app: App): CommandResult {
         val config = ScoopConfigManager.readScoopConfig()
-        if (config.aria2Enabled) {
+        return if (config.aria2Enabled) {
             // aria2 mode: use scoop download command, parse progress from output
-            executeAndLog(mutableListOf("scoop", "download", app.uniqueName), onFinish = onFinish)
+            executeAndLog(mutableListOf("scoop", "download", app.uniqueName))
         } else {
             // Non-aria2 mode: use JVM HttpClient for precise progress
-            downloadWithJvm(app, onFinish)
+            downloadWithJvm(app)
         }
     }
 
-    override suspend fun addBucket(bucket: String, url: String?, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun addBucket(bucket: String, url: String?): CommandResult {
         val commandArgs = mutableListOf("scoop", "bucket", "add", bucket)
         if (url != null) commandArgs.add(url)
-        executeAndLog(commandArgs, onFinish = onFinish)
+        return executeAndLog(commandArgs)
     }
 
-    override suspend fun removeBucket(bucket: String, onFinish: suspend (exitValue: Int) -> Unit) {
-        executeAndLog(mutableListOf("scoop", "bucket", "rm", bucket), onFinish = onFinish)
+    override suspend fun removeBucket(bucket: String): CommandResult {
+        return executeAndLog(mutableListOf("scoop", "bucket", "rm", bucket))
     }
 
-    override suspend fun cleanup(vararg apps: String, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult {
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "cleanup", "-g", *apps)
         } else {
             mutableListOf("scoop", "cleanup", *apps)
         }
-        executeAndLog(commandArgs, onFinish = onFinish)
+        return executeAndLog(commandArgs)
     }
 
-    override suspend fun removeCache(vararg apps: String, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun removeCache(vararg apps: String): CommandResult {
         val targets = if (apps.isEmpty()) arrayOf("-a") else apps
         val commandArgs = mutableListOf("scoop", "cache", "rm", *targets)
         logger.info("remove cache, commandArgs = $commandArgs")
-        executeAndLog(commandArgs, onFinish = onFinish)
+        return executeAndLog(commandArgs)
     }
 
     override fun stop() {
@@ -277,7 +277,7 @@ class ScoopService(
         logger.warn("all processes stopped")
     }
 
-    override suspend fun installVersion(app: App, manifestFile: File, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
+    override suspend fun installVersion(app: App, manifestFile: File, global: Boolean): CommandResult {
         val currentlyInstalledInTargetScope = if (global) {
             globalInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
         } else {
@@ -291,11 +291,8 @@ class ScoopService(
                 mutableListOf("scoop", "uninstall", app.name)
             }
             logStream.emit("Uninstalling current ${app.name} before installing version from manifest...")
-            val uninstallExit = executeAndLog(uninstallArgs)
-            if (uninstallExit != 0) {
-                onFinish(uninstallExit)
-                return
-            }
+            val uninstallResult = executeAndLog(uninstallArgs)
+            if (uninstallResult.exitCode != 0) return uninstallResult
         }
 
         val installArgs = if (global) {
@@ -303,7 +300,7 @@ class ScoopService(
         } else {
             mutableListOf("scoop", "install", manifestFile.absolutePath)
         }
-        executeAndLog(installArgs, onFinish = onFinish)
+        return executeAndLog(installArgs)
     }
 
     // ==================== Internal Methods ====================
@@ -338,32 +335,29 @@ class ScoopService(
         }
     }
 
-    private suspend fun downloadWithJvm(app: App, onFinish: suspend (exitValue: Int) -> Unit) {
+    private suspend fun downloadWithJvm(app: App): CommandResult {
         val manifestFile = findManifest(app)
         if (manifestFile == null) {
             logStream.emit("Manifest not found for ${app.uniqueName}")
-            onFinish(1)
-            return
+            return CommandResult(1)
         }
 
         val json = try {
             Json.parseToJsonElement(manifestFile.readText()).jsonObject
         } catch (e: Exception) {
             logStream.emit("Failed to parse manifest: ${e.message}")
-            onFinish(1)
-            return
+            return CommandResult(1)
         }
 
         val info = manifestDownloader.parseDownloadInfo(json)
         if (info == null) {
             logStream.emit("No download URL found in manifest for ${app.uniqueName}")
-            onFinish(1)
-            return
+            return CommandResult(1)
         }
 
         val version = json.getString("version")
         val ok = downloadManifestItemsToCache(app, version, info, logPrefix = "Download")
-        onFinish(if (ok) 0 else 1)
+        return CommandResult(if (ok) 0 else 1)
     }
 
     private suspend fun downloadManifestItemsToCache(
@@ -468,20 +462,20 @@ class ScoopService(
             .start()
     }
 
-    private suspend fun executeAndLog(args: List<String>): Int {
+    private suspend fun executeAndLog(args: List<String>): CommandResult {
+        val outputLines = mutableListOf<String>()
         val result = executeSuspend(
             args,
             consumer = { line ->
+                outputLines.add(line)
                 logStream.emit(line)
                 logger.info(line)
                 ProgressParser.parseProgress(line)?.let { taskQueue.updateProgress(it) }
             },
             onFinish = {},
         )
-        return result.resultCode
-    }
-
-    private suspend fun executeAndLog(args: List<String>, onFinish: suspend (exitValue: Int) -> Unit) {
-        onFinish(executeAndLog(args))
+        val errorMessage = outputLines.find { it.trimStart().startsWith("ERROR ") }
+        val exitCode = if (errorMessage != null && result.resultCode == 0) 1 else result.resultCode
+        return CommandResult(exitCode, errorMessage)
     }
 }

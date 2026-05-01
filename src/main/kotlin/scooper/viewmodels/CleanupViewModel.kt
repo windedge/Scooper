@@ -51,20 +51,18 @@ class CleanupViewModel(
 
     fun clearCache() = intent {
         reduce { state.copy(cleaningCache = true) }
-        cleanupRepository.removeCache { result ->
-            logger.info("Cache removed, result = $result")
-            reduce { state.copy(cleaningCache = false) }
-            this@CleanupViewModel.computeCacheSize()
-        }
+        val result = cleanupRepository.removeCache()
+        logger.info("Cache removed, result = ${result.exitCode}")
+        reduce { state.copy(cleaningCache = false) }
+        computeCacheSize()
     }
 
     fun cleanup(vararg oldVersions: OldVersion) = intent {
         val cleanupApps: suspend (List<OldVersion>, Boolean) -> Unit = { versions, global ->
             if (versions.isNotEmpty()) {
                 val apps = versions.map { it.app }.toTypedArray()
-                cleanupRepository.cleanup(*apps, global = global) {
-                    reduce { state.copy(oldVersions = state.oldVersions?.filter { it.app !in apps }) }
-                }
+                cleanupRepository.cleanup(*apps, global = global)
+                reduce { state.copy(oldVersions = state.oldVersions?.filter { it.app !in apps }) }
             }
         }
         reduce { state.copy(cleaningOldVersions = true) }

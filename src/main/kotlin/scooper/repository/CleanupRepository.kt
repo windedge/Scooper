@@ -1,5 +1,6 @@
 package scooper.repository
 
+import scooper.service.CommandResult
 import scooper.service.ScoopService
 import scooper.util.dirSize
 import java.io.File
@@ -43,11 +44,7 @@ class CleanupRepository(
             }
     }
 
-    suspend fun removeCache(onFinish: suspend (exitValue: Int) -> Unit) {
-        scoopService.removeCache(onFinish = onFinish)
-    }
+    suspend fun removeCache(vararg apps: String): CommandResult = scoopService.removeCache(*apps)
 
-    suspend fun cleanup(vararg apps: String, global: Boolean, onFinish: suspend (exitValue: Int) -> Unit) {
-        scoopService.cleanup(*apps, global = global, onFinish = onFinish)
-    }
+    suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult = scoopService.cleanup(*apps, global = global)
 }
