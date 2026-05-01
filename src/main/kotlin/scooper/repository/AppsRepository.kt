@@ -139,6 +139,9 @@ class AppsRepository(
                 continue
             }
 
+            val headCommit = gitHistoryService.getHeadCommit(bucketDir)
+            if (headCommit == lastCommit) continue
+
             val changes = gitHistoryService.getManifestChanges(bucketDir, lastCommit)
             if (changes == null) {
                 bucketsNeedingFullLoad.add(state.name)
@@ -167,7 +170,6 @@ class AppsRepository(
 
                 if (fullLoadApps.isNotEmpty()) {
                     upsertApps(fullLoadApps)
-                    // Delete uninstalled apps that no longer exist in these buckets
                     val fullLoadAppNames = fullLoadApps.map { it.name }.toSet()
                     val fullLoadBucketIds = BucketEntity.find {
                         Buckets.name inList bucketsNeedingFullLoad.toList()
@@ -186,6 +188,14 @@ class AppsRepository(
                                 (Apps.bucketId eq bkt.id) and
                                 (Apps.status neq AppStatus.INSTALLED.name.lowercase())
                     }
+                }
+
+                // Record HEAD for every processed bucket so next loadApps can be incremental.
+                for (state in bucketStates) {
+                    val bucketDir = bucketDirsByName[state.name] ?: continue
+                    val head = gitHistoryService.getHeadCommit(bucketDir) ?: continue
+                    val bkt = BucketEntity.find { Buckets.name eq state.name }.firstOrNull() ?: continue
+                    bkt.lastIndexedCommit = GitHistoryService.indexStateFor(head)
                 }
             }
         }
