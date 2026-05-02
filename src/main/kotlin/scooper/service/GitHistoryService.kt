@@ -17,7 +17,7 @@ import java.time.ZoneId
 class GitHistoryService {
 
     companion object {
-        private const val CURRENT_INDEX_VERSION = 1
+        private const val CURRENT_INDEX_VERSION = 2
         private val logger = LoggerFactory.getLogger(GitHistoryService::class.java)
 
         fun indexStateFor(headCommit: String): String = "v$CURRENT_INDEX_VERSION:$headCommit"
