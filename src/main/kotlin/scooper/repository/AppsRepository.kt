@@ -166,10 +166,10 @@ class AppsRepository(
 
         synchronized(writeLock) {
             transaction {
-                upsertApps(allChangedApps)
+                upsertApps(allChangedApps, preserveUpdateAt = false)
 
                 if (fullLoadApps.isNotEmpty()) {
-                    upsertApps(fullLoadApps)
+                    upsertApps(fullLoadApps, preserveUpdateAt = true)
                     val fullLoadAppNames = fullLoadApps.map { it.name }.toSet()
                     val fullLoadBucketIds = BucketEntity.find {
                         Buckets.name inList bucketsNeedingFullLoad.toList()
@@ -189,19 +189,11 @@ class AppsRepository(
                                 (Apps.status neq AppStatus.INSTALLED.name.lowercase())
                     }
                 }
-
-                // Record HEAD for every processed bucket so next loadApps can be incremental.
-                for (state in bucketStates) {
-                    val bucketDir = bucketDirsByName[state.name] ?: continue
-                    val head = gitHistoryService.getHeadCommit(bucketDir) ?: continue
-                    val bkt = BucketEntity.find { Buckets.name eq state.name }.firstOrNull() ?: continue
-                    bkt.lastIndexedCommit = GitHistoryService.indexStateFor(head)
-                }
             }
         }
     }
 
-    private fun upsertApps(apps: List<App>) {
+    private fun upsertApps(apps: List<App>, preserveUpdateAt: Boolean) {
         for (app in apps) {
             val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
             val rows = AppEntity.wrapRows(query).toList()
@@ -211,10 +203,12 @@ class AppsRepository(
             } else {
                 val existing = rows.maxBy { it.id.value }
                 rows.filter { it.id != existing.id }.forEach { it.delete() }
-                existing.update(
-                    app.copy(createAt = existing.createAt, updateAt = existing.updateAt),
-                    bkt,
-                )
+                val updatedApp = if (preserveUpdateAt) {
+                    app.copy(createAt = existing.createAt, updateAt = existing.updateAt)
+                } else {
+                    app.copy(createAt = existing.createAt)
+                }
+                existing.update(updatedApp, bkt)
             }
         }
     }
