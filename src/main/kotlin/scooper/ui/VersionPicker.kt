@@ -100,7 +100,7 @@ fun VersionPickerDialog(
                                 items(versions) { version ->
                                     VersionRow(
                                         version = version,
-                                        isCurrentVersion = version.version == app.version,
+                                        isCurrentVersion = app.installed && version.version == app.version,
                                         onInstall = { global -> onInstall(version, global) },
                                     )
                                 }
