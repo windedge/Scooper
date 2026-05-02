@@ -254,6 +254,12 @@ class AppsViewModel(
         reduce { state.copy(filter = AppsFilter()) }
     }
 
+    fun reloadAll() = blockingIntent {
+        appsRepository.loadAll()
+        applyFilters()
+        scheduleIndexGitHistoryIfNeeded()
+    }
+
     fun refresh() = blockingIntent {
         scoopCli.refresh()
         reloadApps()
@@ -263,6 +269,10 @@ class AppsViewModel(
 
     fun scheduleReloadApps() = intent {
         taskQueue.addTask(Task.Refresh { reloadApps() })
+    }
+
+    fun scheduleReloadAll() = intent {
+        taskQueue.addTask(Task.Refresh { reloadAll() })
     }
 
     fun scheduleUpdateApps() = intent {

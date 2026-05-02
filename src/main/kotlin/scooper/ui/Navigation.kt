@@ -182,11 +182,11 @@ fun RefreshScoopButton() {
             }
         } else {
             var isCtrlPressed by remember { mutableStateOf(false) }
-            Tooltip("Refreshing Scoop") {
+            Tooltip("Refreshing Scoop (Ctrl+Click: Full Reload)") {
                 IconButton(
                     onClick = {
                         if (isCtrlPressed) {
-                            appsViewModel.scheduleReloadApps()
+                            appsViewModel.scheduleReloadAll()
                         } else {
                             appsViewModel.scheduleUpdateApps()
                         }
