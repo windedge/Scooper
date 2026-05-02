@@ -28,7 +28,7 @@ class ScoopDbRepository(
         return try {
             useConnection { conn ->
                 conn.prepareStatement(
-                    "SELECT version FROM app WHERE name = ? AND bucket = ? ORDER BY version DESC"
+                    "SELECT version FROM app WHERE name = ? AND bucket = ?"
                 ).use { stmt ->
                     stmt.setString(1, app.name)
                     stmt.setString(2, app.bucket!!.name)
