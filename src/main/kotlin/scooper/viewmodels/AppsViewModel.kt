@@ -31,6 +31,7 @@ import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
 import scooper.util.logger
+import scooper.util.VersionComparator
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -434,7 +435,15 @@ class AppsViewModel(
             }
         }
 
-        return versions
+        return sortVersions(versions, app.latestVersion)
+    }
+
+    /** Sort versions: latestVersion pinned at top, rest by natural descending order. */
+    private fun sortVersions(versions: List<AppVersion>, latestVersion: String): List<AppVersion> {
+        val pinned = versions.filter { it.version == latestVersion }
+        val rest = versions.filter { it.version != latestVersion }
+            .sortedWith { a, b -> VersionComparator.compare(b.version, a.version) }
+        return pinned + rest
     }
 
     private fun parseVersionFromManifest(manifestText: String): String? {
