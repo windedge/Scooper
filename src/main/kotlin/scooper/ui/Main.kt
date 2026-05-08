@@ -39,6 +39,8 @@ import scooper.viewmodels.AppsSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupSideEffect
 import scooper.viewmodels.CleanupViewModel
+import scooper.viewmodels.ScoopSearchSideEffect
+import scooper.viewmodels.ScoopSearchViewModel
 import scooper.viewmodels.SettingsSideEffect
 
 import scooper.viewmodels.SettingsViewModel
@@ -100,6 +102,7 @@ fun main() {
     val appsViewModel: AppsViewModel = koinInject()
     val settingsViewModel: SettingsViewModel = koinInject()
     val cleanupViewModel: CleanupViewModel = koinInject()
+    val scoopSearchViewModel: ScoopSearchViewModel = koinInject()
 
     // Window-level mutable state shared between Window onPreviewKeyEvent and content
     val focusSearchRequester = mutableStateOf(0)
@@ -121,6 +124,7 @@ fun main() {
             appsViewModel.close()
             settingsViewModel.close()
             cleanupViewModel.close()
+            scoopSearchViewModel.close()
             exitApplication()
         },
         winState,
@@ -179,6 +183,15 @@ fun main() {
             }
         }
 
+        // Collect ScoopSearch side effects
+        LaunchedEffect(scoopSearchViewModel) {
+            scoopSearchViewModel.container.sideEffectFlow.collect { sideEffect ->
+                when (sideEffect) {
+                    is ScoopSearchSideEffect.Toast -> scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
+                }
+            }
+        }
+
         val showFpsState = remember { mutableStateOf(false) }
 
         ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
@@ -194,6 +207,7 @@ fun main() {
                     is AppRoute.Settings -> false
                     AppRoute.Output -> false
                     AppRoute.Cleanup -> false
+                    AppRoute.ScoopSearch -> false
                     else -> true
                 }
 
@@ -219,7 +233,7 @@ fun main() {
                                     onResetFocusRequester = { focusSearchRequester.value = 0 },
                                 )
                             } else {
-                                ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets && currentRoute.value != AppRoute.Cleanup)
+                                ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets && currentRoute.value != AppRoute.Cleanup && currentRoute.value != AppRoute.ScoopSearch)
                             }
                             Layout {
                                 val routeKey = when (val route = currentRoute.value) {
@@ -227,6 +241,7 @@ fun main() {
                                     is AppRoute.Apps -> "apps:${route.scope}"
                                     AppRoute.Buckets -> "buckets"
                                     AppRoute.Cleanup -> "cleanup"
+                                    AppRoute.ScoopSearch -> "scoopSearch"
                                     AppRoute.Output -> "output"
                                     is AppRoute.Settings -> "settings:${route.menuText}"
                                 }
@@ -240,6 +255,7 @@ fun main() {
                                             is AppRoute.Apps -> AppScreen(route.scope)
                                             AppRoute.Buckets -> BucketsScreen()
                                             AppRoute.Cleanup -> CleanupScreen()
+                                            AppRoute.ScoopSearch -> ScoopSearchScreen()
                                             AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
                                             is AppRoute.Settings -> SettingScreen()
                                         }

@@ -207,6 +207,14 @@ fun SidebarNav(
         ) {
             Icon(painterResource("brush-cleaning.svg"), "Cleanup", modifier = Modifier.size(18.dp))
         }
+        Spacer(Modifier.height(8.dp))
+        SidebarNavItem(
+            label = "Search Online",
+            selected = currentRoute is AppRoute.ScoopSearch,
+            onClick = { navigator.popupAllAndPush(AppRoute.ScoopSearch) },
+        ) {
+            Icon(painterResource("search_for.svg"), "Search Online", modifier = Modifier.size(18.dp))
+        }
 
         Spacer(Modifier.weight(1f))
 

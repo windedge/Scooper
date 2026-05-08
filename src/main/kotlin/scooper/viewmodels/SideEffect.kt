@@ -12,3 +12,7 @@ sealed class SettingsSideEffect {
 sealed class CleanupSideEffect {
     data class Toast(val text: String) : CleanupSideEffect()
 }
+
+sealed class ScoopSearchSideEffect {
+    data class Toast(val text: String) : ScoopSearchSideEffect()
+}
