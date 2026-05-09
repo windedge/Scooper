@@ -1,5 +1,22 @@
 # Release Notes
 
+## v1.1.0 (2026-05-09)
+
+### ✨ New Feature
+
+- **Online package search**: Search packages indexed by rasa/scoop-directory with support for keyword, AND/OR, exact phrase, exclude, and bucket filter syntax. Sort by relevance, name, or newest. (a2f4274)
+- **Ctrl+Click refresh for full reload**: Hold Ctrl while clicking refresh to force a complete re-index instead of incremental update. (9c312c1)
+
+### 🐛 Fix
+
+- **Version picker sorting**: Versions are now sorted numerically (e.g. 10.x appears before 9.x). (481230e)
+- **Recently updated list**: All entries now show correctly in the recently updated view. (a9e7342)
+- **Version history install status**: Only versions actually installed are marked as installed in the version picker. (d17fd5b)
+- **Incremental manifest update**: Manifest changes after `scoop refresh` are now properly detected. (f2f10ea)
+- **Scoop error detection**: ERROR output from scoop CLI is now correctly detected, preventing false success reports on install/update operations. (90a5502)
+
+---
+
 ## v1.0.2
 
 ### Bug Fixes
