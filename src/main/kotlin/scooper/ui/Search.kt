@@ -122,7 +122,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     ) {
         // Search input with icon
         Row(
-            modifier = Modifier.widthIn(min = 120.dp, max = 300.dp).height(36.dp)
+            modifier = Modifier.widthIn(min = 140.dp, max = 320.dp).height(36.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.inputBackground)
                 .border(width = 1.dp, color = borderColor, RoundedCornerShape(8.dp))
@@ -139,7 +139,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             Box(modifier = Modifier.weight(1f)) {
                 if (queryText.isEmpty()) {
                     Text(
-                        "Search packages...",
+                        "Search packages... (supports OR, -exclude)",
                         style = typography.subtitle2.copy(
                             color = colors.textPlaceholder,
                         ),
