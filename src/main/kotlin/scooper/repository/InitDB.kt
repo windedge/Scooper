@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.Transaction
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import scooper.repository.db.Apps
@@ -29,6 +30,7 @@ suspend fun initDb(appsRepository: AppsRepository, onProgress: (Float) -> Unit =
 
     transaction {
         SchemaUtils.createMissingTablesAndColumns(Apps, Buckets, Configs)
+        createFtsTable()
     }
     onProgress(0.2f)
 
@@ -39,5 +41,44 @@ suspend fun initDb(appsRepository: AppsRepository, onProgress: (Float) -> Unit =
         appsRepository.loadApps()
         onProgress(0.9f)
     }
+
+    // Create FTS triggers and rebuild index after all data is loaded.
+    // This avoids per-row trigger overhead during initial bulk INSERT.
+    transaction {
+        createFtsTriggers()
+        rebuildFts()
+    }
     onProgress(1f)
+}
+
+/** Create the FTS5 virtual table (no triggers, safe to call before bulk data load). */
+private fun Transaction.createFtsTable() {
+    exec("CREATE VIRTUAL TABLE IF NOT EXISTS apps_fts USING fts5(name, description, content='apps', content_rowid='id')")
+}
+
+/** Create triggers that keep FTS index in sync with the apps table. */
+private fun Transaction.createFtsTriggers() {
+    exec("""
+        CREATE TRIGGER IF NOT EXISTS apps_fts_ai AFTER INSERT ON apps BEGIN
+            INSERT INTO apps_fts(rowid, name, description) VALUES (new.id, new.name, new.description);
+        END
+    """)
+
+    exec("""
+        CREATE TRIGGER IF NOT EXISTS apps_fts_ad AFTER DELETE ON apps BEGIN
+            INSERT INTO apps_fts(apps_fts, rowid, name, description) VALUES ('delete', old.id, old.name, old.description);
+        END
+    """)
+
+    exec("""
+        CREATE TRIGGER IF NOT EXISTS apps_fts_au AFTER UPDATE ON apps BEGIN
+            INSERT INTO apps_fts(apps_fts, rowid, name, description) VALUES ('delete', old.id, old.name, old.description);
+            INSERT INTO apps_fts(rowid, name, description) VALUES (new.id, new.name, new.description);
+        END
+    """)
+}
+
+/** Rebuild the FTS index from the apps table. */
+private fun Transaction.rebuildFts() {
+    exec("INSERT INTO apps_fts(apps_fts) VALUES ('rebuild')")
 }

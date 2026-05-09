@@ -18,6 +18,7 @@ import scooper.service.GitHistoryService
 import scooper.service.GitHistoryService.ManifestTimes
 import scooper.service.ScoopService
 import scooper.util.PAGE_SIZE
+import scooper.util.logger
 
 data class PaginatedResult<T>(
     val value: List<T>,
@@ -33,6 +34,7 @@ class AppsRepository(
     private val scoopService: ScoopService,
     private val gitHistoryService: GitHistoryService,
 ) {
+    private val logger by logger()
     private val writeLock = Any()
 
     fun getBuckets(): List<Bucket> = transaction {
@@ -53,17 +55,28 @@ class AppsRepository(
 
         val conditions = Apps.leftJoin(Buckets).selectAll()
         conditions.andWhere { Apps.id inSubQuery dedupIds }
+
+        // FTS + LIKE combined search: FTS results ranked first, LIKE fills gaps
+        val ftsIds = if (query.isNotBlank()) searchFts(query) else null
         if (query.isNotBlank()) {
-            val words = query.trim().split(" ")
-            for (word in words) {
-                val escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                conditions.andWhere { Apps.name like "%$escaped%" or (Apps.description match "%$escaped%") }
+            val likeOps = buildLikeOps(query)
+            if (likeOps.isNotEmpty()) {
+                val likeCondition = likeOps.reduce { acc, op -> acc or op }
+                if (ftsIds != null && ftsIds.isNotEmpty()) {
+                    conditions.andWhere { (Apps.id inList ftsIds) or likeCondition }
+                } else {
+                    conditions.andWhere { likeCondition }
+                }
+            } else if (ftsIds != null && ftsIds.isNotEmpty()) {
+                conditions.andWhere { Apps.id inList ftsIds }
+            } else {
+                conditions.andWhere { Apps.id eq -1 }
             }
         }
         if (bucket.isNotBlank()) {
             conditions.andWhere { Buckets.name eq bucket }
         }
-        
+
         val installedStr = AppStatus.INSTALLED.name.lowercase()
         if (scope == installedStr) {
             conditions.andWhere { Apps.status eq installedStr }
@@ -81,9 +94,15 @@ class AppsRepository(
         }
         val order = column to if (sortOrder == "asc") SortOrder.ASC else SortOrder.DESC
 
-        val result = wrapRows
-            .orderBy(order)
-            .limit(limit, offset)
+        // When FTS results exist, prioritize them over LIKE-only matches
+        val result = if (ftsIds != null && ftsIds.isNotEmpty()) {
+            val ftsPriority = Case()
+                .When(Apps.id inList ftsIds, intLiteral(0))
+                .Else(intLiteral(1))
+            wrapRows.orderBy(ftsPriority to SortOrder.ASC, order)
+        } else {
+            wrapRows.orderBy(order)
+        }.limit(limit, offset)
 
         val apps = result.map { row ->
             App(
@@ -116,6 +135,7 @@ class AppsRepository(
     fun loadAll() {
         loadBuckets()
         loadApps(incremental = false)
+        rebuildFtsIndex()
     }
 
     fun loadApps(incremental: Boolean = true) {
@@ -191,6 +211,7 @@ class AppsRepository(
                 }
             }
         }
+
     }
 
     private fun upsertApps(apps: List<App>, preserveUpdateAt: Boolean) {
@@ -289,6 +310,70 @@ class AppsRepository(
 
         bkt.lastIndexedCommit = headCommit
     } }
+
+    // ==================== Full-Text Search ====================
+
+    /** Rebuild the FTS index from scratch. Call after bulk data changes. */
+    fun rebuildFtsIndex() = transaction {
+        exec("INSERT INTO apps_fts(apps_fts) VALUES ('rebuild')")
+    }
+
+    /** Search using FTS5 full-text index. Returns null if FTS is unavailable. */
+    private fun Transaction.searchFts(query: String): List<Int>? {
+        val ftsQuery = buildFtsQuery(query) ?: return emptyList()
+        return try {
+            exec(
+                "SELECT rowid FROM apps_fts WHERE apps_fts MATCH ?",
+                args = listOf(VarCharColumnType() to ftsQuery)
+            ) { rs ->
+                val ids = mutableListOf<Int>()
+                while (rs.next()) ids.add(rs.getInt(1))
+                ids
+            }
+        } catch (e: Exception) {
+            logger.warn("FTS search failed, falling back to LIKE: ${e.message}")
+            null
+        }
+    }
+
+    /** Build FTS5 query from user input.
+     *  Supports: `firefox chrome` (AND), `firefox OR chrome`, `firefox -esr` (exclude). */
+    private fun buildFtsQuery(query: String): String? {
+        val tokens = query.trim().split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return null
+
+        val parts = mutableListOf<String>()
+        for (token in tokens) {
+            when {
+                token.equals("OR", ignoreCase = true) -> parts.add("OR")
+                token.startsWith("-") && token.length > 1 -> {
+                    val word = token.removePrefix("-")
+                    if (word.any { it.isLetterOrDigit() }) {
+                        parts.add("NOT")
+                        parts.add("\"${word.replace("\"", "")}\"*")
+                    }
+                }
+                token.any { it.isLetterOrDigit() } -> {
+                    parts.add("\"${token.replace("\"", "")}\"*")
+                }
+            }
+        }
+        if (parts.isEmpty()) return null
+        return parts.joinToString(" ")
+    }
+
+    /** Build LIKE match ops from search query, filtering out OR/- syntax tokens.
+     *  Each word produces (name LIKE OR description LIKE), words are ANDed together. */
+    private fun buildLikeOps(query: String): List<Op<Boolean>> {
+        val words = query.trim().split(Regex("\\s+"))
+            .filter { it.isNotBlank() && !it.equals("OR", ignoreCase = true) && !it.startsWith("-") }
+        if (words.isEmpty()) return emptyList()
+        return words.map { word ->
+            val escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            Op.build { Apps.name like "%$escaped%" or (Apps.description like "%$escaped%") }
+        }
+    }
 
     /** Read all bucket index states for background indexing. */
     fun getBucketIndexStates(): List<BucketIndexState> = transaction {
