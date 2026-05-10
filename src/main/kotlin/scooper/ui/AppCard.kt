@@ -167,7 +167,7 @@ fun AppCard(
                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                app.bucket?.name?.uppercase() ?: "",
+                                app.bucket?.name ?: "",
                                 style = BucketTagStyle
                             )
                         }

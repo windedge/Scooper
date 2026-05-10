@@ -147,7 +147,7 @@ fun AppGridCard(
                         .background(colors.backgroundHover, RoundedCornerShape(3.dp))
                         .padding(horizontal = 6.dp, vertical = 1.dp)
                 ) {
-                    Text(app.bucket?.name?.uppercase() ?: "", style = BucketTagStyle)
+                    Text(app.bucket?.name ?: "", style = BucketTagStyle)
                 }
             }
 
