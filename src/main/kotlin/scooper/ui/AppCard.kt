@@ -59,6 +59,8 @@ fun AppList(
     onCancel: (app: App?) -> Unit = { },
     onLoadMore: () -> Unit = { },
     onInstallVersion: (app: App) -> Unit = { },
+    onAppClick: (app: App) -> Unit = { },
+    selectedApp: App? = null,
 ) {
     Box(
         modifier = Modifier.fillMaxSize().padding(2.dp)
@@ -95,6 +97,8 @@ fun AppList(
                     onOpen = onOpen,
                     onCancel = onCancel,
                     onInstallVersion = onInstallVersion,
+                    onClick = onAppClick,
+                    selected = app.uniqueName == selectedApp?.uniqueName,
                 )
             }
             item {
@@ -120,13 +124,22 @@ fun AppCard(
     onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
     onCancel: (app: App?) -> Unit = { },
     onInstallVersion: (app: App) -> Unit = { },
+    onClick: (app: App) -> Unit = { },
+    selected: Boolean = false,
 ) {
     val colors = MaterialTheme.colors
     var isHover by remember { mutableStateOf(false) }
+    val bgColor = when {
+        selected -> colors.primarySubtle
+        isHover -> colors.backgroundHover
+        else -> Color.Transparent
+    }
     Box(
         modifier = Modifier.fillMaxWidth()
             .onHover { isHover = it }
-            .background(if (isHover) colors.backgroundHover else Color.Transparent)
+            .background(bgColor)
+            .cursorHand()
+            .clickable { onClick(app) }
     ) {
         Column {
             Row(
@@ -228,7 +241,9 @@ fun AppCard(
                     }
                 }
             }
-            Divider(Modifier.padding(horizontal = 32.dp), color = colors.divider)
+            if (!selected) {
+                Divider(Modifier.padding(horizontal = 32.dp), color = colors.divider)
+            }
         }
     }
 }

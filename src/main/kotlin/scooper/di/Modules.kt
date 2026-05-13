@@ -6,6 +6,7 @@ import scooper.repository.AppsRepository
 import scooper.repository.CleanupRepository
 import scooper.repository.ConfigRepository
 import scooper.service.GitHistoryService
+import scooper.service.GitHubService
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopSearchService
@@ -22,6 +23,7 @@ val system = module {
     single { TaskQueue() }
     single { ConfigRepository() }
     single { GitHistoryService() }
+    single { GitHubService() }
     single { ScoopSearchService() }
     single { AppsRepository(get(), get()) }
     single { CleanupRepository(get()) }

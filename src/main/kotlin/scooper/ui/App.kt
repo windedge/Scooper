@@ -1,5 +1,8 @@
 package scooper.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
@@ -12,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
+import scooper.data.App
 import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.taskqueue.Task
@@ -33,6 +37,8 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
         else -> null
     }
 
+
+    var selectedApp by remember { mutableStateOf<App?>(null) }
 
     LaunchedEffect(scope) {
         appsViewModel.applyFilters(scope = scope)
@@ -59,36 +65,56 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
 
         Column {
             if (apps.isNotEmpty()) {
-                Box(Modifier.weight(1f)) {
-                    key(state.viewMode, filter.paginationMode) {
-                        when (state.viewMode) {
-                            ViewMode.Grid -> AppGrid(
-                                apps,
-                                filter,
-                                processingApp = processingApp,
-                                waitingApps = waitingApps,
-                                onInstall = appsViewModel::scheduleInstall,
-                                onUpdate = appsViewModel::scheduleUpdate,
-                                onDownload = appsViewModel::scheduleDownload,
-                                onUninstall = appsViewModel::scheduleUninstall,
-                                onOpen = appsViewModel::openApp,
-                                onCancel = appsViewModel::cancel,
-                                onLoadMore = appsViewModel::loadMore,
-                                onInstallVersion = appsViewModel::showVersionPicker,
-                            )
-                            else -> AppList(
-                                apps,
-                                filter,
-                                processingApp = processingApp,
-                                waitingApps = waitingApps,
-                                onInstall = appsViewModel::scheduleInstall,
-                                onUpdate = appsViewModel::scheduleUpdate,
-                                onDownload = appsViewModel::scheduleDownload,
-                                onUninstall = appsViewModel::scheduleUninstall,
-                                onOpen = appsViewModel::openApp,
-                                onCancel = appsViewModel::cancel,
-                                onLoadMore = appsViewModel::loadMore,
-                                onInstallVersion = appsViewModel::showVersionPicker,
+                Row(Modifier.weight(1f)) {
+                    Box(Modifier.weight(1f)) {
+                        key(state.viewMode, filter.paginationMode) {
+                            when (state.viewMode) {
+                                ViewMode.Grid -> AppGrid(
+                                    apps,
+                                    filter,
+                                    processingApp = processingApp,
+                                    waitingApps = waitingApps,
+                                    onInstall = appsViewModel::scheduleInstall,
+                                    onUpdate = appsViewModel::scheduleUpdate,
+                                    onDownload = appsViewModel::scheduleDownload,
+                                    onUninstall = appsViewModel::scheduleUninstall,
+                                    onOpen = appsViewModel::openApp,
+                                    onCancel = appsViewModel::cancel,
+                                    onLoadMore = appsViewModel::loadMore,
+                                    onInstallVersion = appsViewModel::showVersionPicker,
+                                    onAppClick = { selectedApp = it },
+                                    selectedApp = selectedApp,
+                                )
+                                else -> AppList(
+                                    apps,
+                                    filter,
+                                    processingApp = processingApp,
+                                    waitingApps = waitingApps,
+                                    onInstall = appsViewModel::scheduleInstall,
+                                    onUpdate = appsViewModel::scheduleUpdate,
+                                    onDownload = appsViewModel::scheduleDownload,
+                                    onUninstall = appsViewModel::scheduleUninstall,
+                                    onOpen = appsViewModel::openApp,
+                                    onCancel = appsViewModel::cancel,
+                                    onLoadMore = appsViewModel::loadMore,
+                                    onInstallVersion = appsViewModel::showVersionPicker,
+                                    onAppClick = { selectedApp = it },
+                                    selectedApp = selectedApp,
+                                )
+                            }
+                        }
+                    }
+                    // Detail side panel
+                    val currentApp = selectedApp
+                    AnimatedVisibility(
+                        visible = currentApp != null,
+                        enter = slideInHorizontally(initialOffsetX = { it }),
+                        exit = slideOutHorizontally(targetOffsetX = { it }),
+                    ) {
+                        if (currentApp != null) {
+                            AppDetailPanel(
+                                app = currentApp,
+                                onClose = { selectedApp = null },
                             )
                         }
                     }

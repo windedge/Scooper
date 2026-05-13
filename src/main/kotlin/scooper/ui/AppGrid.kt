@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,10 +45,12 @@ fun AppGrid(
     onCancel: (app: App?) -> Unit = { },
     onLoadMore: () -> Unit = { },
     onInstallVersion: (app: App) -> Unit = { },
+    onAppClick: (app: App) -> Unit = { },
+    selectedApp: App? = null,
 ) {
     val colors = MaterialTheme.colors
     Box(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp)
+        modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
     ) {
         val gridState = rememberLazyGridState()
         // Waterfall mode: load more when near bottom
@@ -67,7 +70,7 @@ fun AppGrid(
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize().padding(end = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(end = 4.dp),
             state = gridState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -87,6 +90,8 @@ fun AppGrid(
                     onOpen = onOpen,
                     onCancel = onCancel,
                     onInstallVersion = onInstallVersion,
+                    onClick = onAppClick,
+                    selected = app.uniqueName == selectedApp?.uniqueName,
                 )
             }
         }
@@ -110,15 +115,29 @@ fun AppGridCard(
     onOpen: (app: App, shortcutIndex: Int) -> Unit = { _, _ -> },
     onCancel: (app: App?) -> Unit = { },
     onInstallVersion: (app: App) -> Unit = { },
+    onClick: (app: App) -> Unit = { },
+    selected: Boolean = false,
 ) {
     val colors = MaterialTheme.colors
     var isHover by remember { mutableStateOf(false) }
 
+    val borderColor = when {
+        selected -> colors.primary.copy(alpha = 0.5f)
+        isHover -> colors.borderHover
+        else -> colors.borderDefault
+    }
+    val bgColor = when {
+        selected -> colors.primarySubtle
+        isHover -> colors.backgroundHover
+        else -> colors.surface
+    }
+
     Surface(
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, colors.borderDefault),
-        elevation = if (isHover) 2.dp else 0.dp,
-        modifier = Modifier.onHover { isHover = it },
+        border = BorderStroke(1.dp, borderColor),
+        elevation = if (isHover || selected) 2.dp else 0.dp,
+        color = bgColor,
+        modifier = Modifier.onHover { isHover = it }.clip(RoundedCornerShape(12.dp)).cursorHand().clickable { onClick(app) },
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
             // Header: name + bucket tag
