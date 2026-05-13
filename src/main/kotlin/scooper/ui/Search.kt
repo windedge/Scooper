@@ -332,7 +332,7 @@ private fun InstalledUpdatesToggle(
             color = if (!showOnlyUpdates) colors.surface else Color.Transparent,
             border = BorderStroke(1.dp, if (!showOnlyUpdates) colors.borderDefault else Color.Transparent),
             elevation = if (!showOnlyUpdates) 1.dp else 0.dp,
-            modifier = Modifier.fillMaxHeight().cursorHand().clickable { onScopeChange("installed") }
+            modifier = Modifier.fillMaxHeight().clip(RoundedCornerShape(6.dp)).cursorHand().clickable { onScopeChange("installed") }
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp)) {
                 Text("All Installed", style = typography.subtitle2.copy(fontWeight = FontWeight.Medium, color = if (!showOnlyUpdates) colors.textTitle else colors.textMuted))
@@ -345,7 +345,7 @@ private fun InstalledUpdatesToggle(
             color = if (showOnlyUpdates) colors.surface else Color.Transparent,
             border = BorderStroke(1.dp, if (showOnlyUpdates) colors.primary.copy(alpha = 0.3f) else Color.Transparent),
             elevation = if (showOnlyUpdates) 1.dp else 0.dp,
-            modifier = Modifier.fillMaxHeight().cursorHand().clickable { onScopeChange("updates") }
+            modifier = Modifier.fillMaxHeight().clip(RoundedCornerShape(6.dp)).cursorHand().clickable { onScopeChange("updates") }
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

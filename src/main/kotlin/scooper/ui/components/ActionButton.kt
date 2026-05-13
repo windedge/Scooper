@@ -113,7 +113,7 @@ fun ActionButton(
                 var arrowHovered by remember { mutableStateOf(false) }
                 Surface(
                     shape = shape,
-                    color = Color.White,
+                    color = colors.surface,
                     border = BorderStroke(1.dp, colors.borderDefault),
                     elevation = 1.dp,
                     modifier = Modifier.height(buttonHeight).width(120.dp)
@@ -149,7 +149,7 @@ fun ActionButton(
                 var arrowHovered by remember { mutableStateOf(false) }
                 Surface(
                     shape = shape,
-                    color = Color.White,
+                    color = colors.surface,
                     border = BorderStroke(1.dp, colors.borderDefault),
                     elevation = 1.dp,
                     modifier = Modifier.height(buttonHeight).width(120.dp)

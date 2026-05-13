@@ -156,7 +156,7 @@ class ScoopService(
             version = json.getString("version"),
             homepage = json.getString("homepage"),
             description = json.getString("description"),
-            url = json.getString("url"),
+            url = resolveManifestUrl(json),
             license = json.getString("license"),
             bucket = bucket,
             shortcuts = shortcuts,
@@ -437,10 +437,57 @@ class ScoopService(
      * Does not strip query/fragment, to stay consistent with scoop.
      */
     private fun scoopCacheExtension(url: String): String {
-        val normalized = url.replace('/', '\\')
+        val normalized = url.replace('\\', '/')
         val ext = File(normalized).extension
         return if (ext.isNotEmpty()) ".${ext}" else ""
     }
+
+    /** Resolve the first download URL from manifest, checking architecture sub-objects.
+     *  Also falls back to checkver.github for GitHub repo detection.
+     */
+    private fun resolveManifestUrl(json: JsonObject): String? {
+        // Top-level url
+        val topLevel = json.getString("url")
+        if (topLevel.isNotBlank()) return topLevel
+
+        // Architecture sub-object
+        val arch = detectArch()
+        val archObj = json["architecture"]?.jsonObject
+        if (archObj != null) {
+            val archBlock = archObj[arch]?.jsonObject ?: archObj["64bit"]?.jsonObject
+            if (archBlock != null) {
+                val urlElement = archBlock["url"]
+                val url = when (urlElement) {
+                    is JsonArray -> urlElement.firstOrNull()?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
+                    else -> urlElement?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
+                }
+                if (!url.isNullOrBlank()) return url
+            }
+        }
+
+        // Fallback: checkver.github (e.g. "https://github.com/owner/repo")
+        val checkverGithub = (json["checkver"] as? JsonObject)?.let { cv ->
+            cv["github"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
+        }
+        if (!checkverGithub.isNullOrBlank()) return checkverGithub
+
+        return null
+    }
+
+    private fun detectArch(): String {
+        val arch = System.getProperty("os.arch", "").lowercase()
+        return when {
+            arch.contains("aarch64") || arch.contains("arm64") -> "arm64"
+            arch.contains("64") -> "64bit"
+            else -> "32bit"
+        }
+    }
+
+    /** Get the manifest file for an app. */
+    fun getManifestFile(app: App): File? = findManifest(app)
+
+    /** Read the manifest JSON content for an app. */
+    fun getManifestContent(app: App): String? = findManifest(app)?.readText()
 
     /** Open a shortcut of an installed app. */
     fun openShortcut(app: App, shortcutIndex: Int = 0) {

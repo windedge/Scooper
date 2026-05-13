@@ -1,5 +1,8 @@
 package scooper.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -56,17 +59,29 @@ fun ScoopSearchScreen(
 ) {
     val state by viewModel.container.stateFlow.collectAsState()
     var queryText by remember { mutableStateOf(state.query) }
+    var selectedApp by remember { mutableStateOf<ScoopSearchApp?>(null) }
 
     LaunchedEffect(Unit) {
         snapshotFlow { queryText }
             .debounce(400)
-            .collect { viewModel.onSearch(it) }
+            .collect {
+                selectedApp = null
+                viewModel.onSearch(it)
+            }
+    }
+
+    LaunchedEffect(state.results, selectedApp) {
+        if (selectedApp == null) return@LaunchedEffect
+        val exists = state.results.any {
+            it.Name == selectedApp!!.Name && it.Metadata.Repository == selectedApp!!.Metadata.Repository
+        }
+        if (!exists) selectedApp = null
     }
 
     Column(
         modifier = Modifier.fillMaxSize()
             .background(colors.surface)
-            .padding(horizontal = 48.dp, vertical = 32.dp),
+            .padding(start = 48.dp, end = 48.dp, top = 32.dp, bottom = 0.dp),
     ) {
         // Page title
         Text(
@@ -76,21 +91,6 @@ fun ScoopSearchScreen(
                 color = colors.textTitle,
             )
         )
-        Spacer(Modifier.height(4.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                "Search packages curated by",
-                style = typography.body2.copy(color = colors.textBody),
-            )
-            Link(
-                text = "rasa/scoop-directory",
-                onClicked = { safeBrowse("https://github.com/rasa/scoop-directory") },
-            )
-        }
-
         Spacer(Modifier.height(24.dp))
 
         // Search input
@@ -143,7 +143,7 @@ fun ScoopSearchScreen(
                     }
                 }
                 else -> {
-                    // Results list
+                    val currentApp = selectedApp
                     SearchResultsList(
                         results = state.results,
                         totalCount = state.totalCount,
@@ -158,6 +158,25 @@ fun ScoopSearchScreen(
                         onDistinctOnlyChange = viewModel::setDistinctOnly,
                         onShowBucketNameChange = viewModel::setShowBucketName,
                         onLoadMore = { viewModel.loadMore() },
+                        selectedApp = selectedApp,
+                        onAppClick = { selectedApp = it },
+                        detailPanel = {
+                            Box {
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = currentApp != null,
+                                    enter = slideInHorizontally(initialOffsetX = { it }),
+                                    exit = slideOutHorizontally(targetOffsetX = { it }),
+                                ) {
+                                    if (currentApp != null) {
+                                        ScoopSearchDetailPanel(
+                                            app = currentApp,
+                                            onClose = { selectedApp = null },
+                                            modifier = Modifier.padding(start = 4.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        },
                     )
                 }
             }
@@ -368,6 +387,9 @@ private fun SearchResultsList(
     onDistinctOnlyChange: (Boolean) -> Unit,
     onShowBucketNameChange: (Boolean) -> Unit,
     onLoadMore: () -> Unit,
+    selectedApp: ScoopSearchApp? = null,
+    onAppClick: (ScoopSearchApp) -> Unit = { },
+    detailPanel: @Composable () -> Unit = {},
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Status line + filter button on same row
@@ -393,16 +415,23 @@ private fun SearchResultsList(
         }
         Spacer(Modifier.height(12.dp))
 
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            val listState = rememberLazyListState()
-            listState.OnBottomReached(3, onLoadMore = onLoadMore)
+        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            Box(modifier = Modifier.weight(1f)) {
+                val listState = rememberLazyListState()
+                listState.OnBottomReached(3, onLoadMore = onLoadMore)
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(end = 8.dp),
-                state = listState,
-            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(end = 16.dp),
+                    state = listState,
+                ) {
                 items(count = results.size, key = { results[it].Name + it }) { index ->
-                    SearchResultCard(results[index], showBucketName)
+                    val app = results[index]
+                    SearchResultCard(
+                        app = app,
+                        showBucketName = showBucketName,
+                        selected = app.Name == selectedApp?.Name && app.Metadata.Repository == selectedApp?.Metadata?.Repository,
+                        onClick = onAppClick,
+                    )
                 }
                 if (loadingMore && results.isNotEmpty()) {
                     item {
@@ -417,25 +446,40 @@ private fun SearchResultsList(
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
 
-            VerticalScrollbar(
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().background(color = colors.surface),
-                adapter = rememberScrollbarAdapter(scrollState = listState),
-            )
+                VerticalScrollbar(
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+                        .background(color = colors.surface),
+                    adapter = rememberScrollbarAdapter(scrollState = listState),
+                )
+            }
+
+            detailPanel()
         }
     }
 }
 
 @Composable
-private fun SearchResultCard(app: ScoopSearchApp, showBucketName: Boolean) {
+private fun SearchResultCard(
+    app: ScoopSearchApp,
+    showBucketName: Boolean,
+    selected: Boolean = false,
+    onClick: (ScoopSearchApp) -> Unit = { },
+) {
     val colors = MaterialTheme.colors
     var isHover by remember { mutableStateOf(false) }
+    val bgColor = when {
+        selected -> colors.primarySubtle
+        isHover -> colors.backgroundHover
+        else -> Color.Transparent
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth()
-            .padding(end = 12.dp)
             .onHover { isHover = it }
-            .background(if (isHover) colors.backgroundHover else Color.Transparent)
-            .padding(start = 12.dp, end = 12.dp)
+            .background(bgColor)
+            .cursorHand()
+            .clickable { onClick(app) }
+            .padding(start = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth()
@@ -599,14 +643,28 @@ private fun SearchSyntaxGuide(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier.widthIn(max = 480.dp).padding(horizontal = 24.dp),
+            modifier = Modifier.widthIn(max = 600.dp).padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Text(
-                "Supported search syntax:",
-                style = typography.caption.copy(color = colors.textMuted),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "Search packages curated by",
+                    style = typography.body2.copy(color = colors.textBody),
+                )
+                Link(
+                    text = "rasa/scoop-directory",
+                    painter = null,
+                    onClicked = { safeBrowse("https://github.com/rasa/scoop-directory") },
+                )
+                Text(
+                    "· Supported search syntax:",
+                    style = typography.body2.copy(color = colors.textBody),
+                )
+            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SyntaxRow("firefox", "Search name and description")
                 SyntaxRow("firefox portable", "Both terms required")
