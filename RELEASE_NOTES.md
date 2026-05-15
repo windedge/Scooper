@@ -1,5 +1,26 @@
 # Release Notes
 
+## v1.2.0 (2026-05-15)
+
+### ✨ New Feature
+
+- **Install from Search Online**: Install apps directly from search results with a one-click install button. Auto-adds the required bucket if not present locally. Includes a confirm dialog with bucket name editing and command preview. (d213393)
+- **Detail side panel**: Add a detail side panel with changelog and manifest viewer for both Discover and Search Online pages. (e301184)
+- **Local full-text search**: Added full-text search support for local packages, providing faster and more flexible search. (e74d55d)
+
+### 🛠 Improvement
+
+- **Architecture refactor**: Extract a ScoopService application layer with event-driven state sync (SharedFlow), separating workflow orchestration from CLI adapter concerns. (8ca6c44)
+- **Scoop error detection**: Fix inline `ERROR` pattern detection in scoop CLI output, preventing false success reports on hash check failures. (8ca6c44)
+- **Typography**: Reduce all font sizes by 1sp for a more compact layout. (ed2fa6f)
+- **Bucket tags**: Remove unnecessary uppercase conversion on bucket name tags. (2a4681b)
+
+### 🐛 Fix
+
+- **EOFException on resource loading**: Fix crash caused by concurrent classpath resource reads (ZipFile race) by wrapping resource access with synchronization. (ac55a1e)
+
+---
+
 ## v1.1.0 (2026-05-09)
 
 ### ✨ New Feature
