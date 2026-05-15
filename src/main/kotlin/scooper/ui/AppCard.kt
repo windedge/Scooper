@@ -173,16 +173,15 @@ fun AppCard(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         // Bucket Tag
-                        Box(
-                            modifier = Modifier
-                                .border(BorderStroke(1.dp, colors.borderDefault), RoundedCornerShape(4.dp))
-                                .background(colors.backgroundHover, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                app.bucket?.name ?: "",
-                                style = BucketTagStyle
-                            )
+                        app.bucket?.name?.let { bucketName ->
+                            Box(
+                                modifier = Modifier
+                                    .border(BorderStroke(1.dp, colors.borderDefault), RoundedCornerShape(4.dp))
+                                    .background(colors.backgroundHover, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(bucketName, style = BucketTagStyle)
+                            }
                         }
                     }
 

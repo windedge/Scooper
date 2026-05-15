@@ -160,13 +160,15 @@ fun AppGridCard(
                     }
                 }
                 Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .border(BorderStroke(1.dp, colors.borderDefault), RoundedCornerShape(3.dp))
-                        .background(colors.backgroundHover, RoundedCornerShape(3.dp))
-                        .padding(horizontal = 6.dp, vertical = 1.dp)
-                ) {
-                    Text(app.bucket?.name ?: "", style = BucketTagStyle)
+                app.bucket?.name?.let { bucketName ->
+                    Box(
+                        modifier = Modifier
+                            .border(BorderStroke(1.dp, colors.borderDefault), RoundedCornerShape(3.dp))
+                            .background(colors.backgroundHover, RoundedCornerShape(3.dp))
+                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                    ) {
+                        Text(bucketName, style = BucketTagStyle)
+                    }
                 }
             }
 
