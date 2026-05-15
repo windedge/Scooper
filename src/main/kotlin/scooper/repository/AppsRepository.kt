@@ -16,7 +16,7 @@ import scooper.repository.db.BucketEntity
 import scooper.repository.db.Buckets
 import scooper.service.GitHistoryService
 import scooper.service.GitHistoryService.ManifestTimes
-import scooper.service.ScoopService
+import scooper.service.ScoopClient
 import scooper.util.PAGE_SIZE
 import scooper.util.logger
 
@@ -31,7 +31,7 @@ data class BucketIndexState(
 )
 
 class AppsRepository(
-    private val scoopService: ScoopService,
+    private val scoopClient: ScoopClient,
     private val gitHistoryService: GitHistoryService,
 ) {
     private val logger by logger()
@@ -134,13 +134,15 @@ class AppsRepository(
 
     fun loadAll() {
         loadBuckets()
+        val bucketDirs = scoopClient.bucketDirs
+        val allApps = scoopClient.apps
         loadApps(incremental = false)
         rebuildFtsIndex()
     }
 
     fun loadApps(incremental: Boolean = true) {
         val bucketStates = getBucketIndexStates()
-        val bucketDirsByName = scoopService.bucketDirs.associateBy { it.name }
+        val bucketDirsByName = scoopClient.bucketDirs.associateBy { it.name }
 
         val allChangedApps = mutableListOf<App>()
         val deletedAppNames = mutableListOf<Pair<String, String>>() // (appName, bucketName)
@@ -171,7 +173,7 @@ class AppsRepository(
 
             val bucket = Bucket(name = state.name, url = "")
             allChangedApps.addAll(
-                scoopService.buildAppsFromManifestNames(bucketDir, changes.addedOrModified, bucket)
+                scoopClient.buildAppsFromManifestNames(bucketDir, changes.addedOrModified, bucket)
             )
             for (fileName in changes.deleted) {
                 deletedAppNames.add(fileName.removeSuffix(".json") to state.name)
@@ -179,7 +181,7 @@ class AppsRepository(
         }
 
         val fullLoadApps = if (bucketsNeedingFullLoad.isNotEmpty()) {
-            scoopService.apps.filter { it.bucket?.name in bucketsNeedingFullLoad }
+            scoopClient.apps.filter { it.bucket?.name in bucketsNeedingFullLoad }
         } else {
             emptyList()
         }
@@ -201,13 +203,9 @@ class AppsRepository(
                     }
                 }
 
-                for ((appName, bucketName) in deletedAppNames) {
-                    val bkt = BucketEntity.find { Buckets.name eq bucketName }.firstOrNull() ?: continue
-                    Apps.deleteWhere {
-                        (Apps.name eq appName) and
-                                (Apps.bucketId eq bkt.id) and
-                                (Apps.status neq AppStatus.INSTALLED.name.lowercase())
-                    }
+                // Also clean up orphan apps (bucketId is null) that are not installed
+                Apps.deleteWhere {
+                    (Apps.bucketId eq null) and (Apps.status neq AppStatus.INSTALLED.name.lowercase())
                 }
             }
         }
@@ -235,16 +233,26 @@ class AppsRepository(
     }
 
     fun loadBuckets() = synchronized(writeLock) { transaction {
-        for (bucketDir in scoopService.bucketDirs) {
+        for (bucketDir in scoopClient.bucketDirs) {
             val bucket = bucketDir.name
             if (Buckets.selectAll().where { Buckets.name eq bucket }.count() <= 0) {
                 BucketEntity.new {
                     name = bucket
-                    url = scoopService.getRepoUrl(bucketDir)
+                    url = scoopClient.getRepoUrl(bucketDir)
                 }
             }
         }
-        Buckets.deleteWhere { name notInList scoopService.bucketNames }
+        val removedBuckets = BucketEntity.find { Buckets.name notInList scoopClient.bucketNames }.toList()
+        if (removedBuckets.isNotEmpty()) {
+            val removedBucketIds = removedBuckets.map { it.id }.toSet()
+            // Delete non-installed apps belonging to removed buckets
+            Apps.deleteWhere {
+                (Apps.bucketId inList removedBucketIds) and
+                        (Apps.status neq AppStatus.INSTALLED.name.lowercase())
+            }
+            // Keep installed apps but their bucketId will become null via SET_NULL
+            removedBuckets.forEach { it.delete() }
+        }
     } }
 
     fun updateApp(app: App) = synchronized(writeLock) { transaction {
@@ -266,6 +274,34 @@ class AppsRepository(
             ),
             appEntity.bucket
         )
+    } }
+
+    /** Delete a single app by name (optionally scoped to bucket). */
+    fun deleteApp(appName: String, bucketName: String? = null) = synchronized(writeLock) { transaction {
+        val bkt = bucketName?.let { BucketEntity.find { Buckets.name eq it }.firstOrNull() }
+        val query = Apps.selectAll().where { Apps.name eq appName }
+        if (bkt != null) query.andWhere { Apps.bucketId eq bkt.id }
+        AppEntity.wrapRows(query).toList().forEach { it.delete() }
+    } }
+
+    /** Insert or update a single app. If the app already exists (by name), update it; otherwise create a new record. */
+    fun upsertApp(app: App) = synchronized(writeLock) { transaction {
+        val bkt = app.bucket?.name?.let {
+            BucketEntity.find { Buckets.name eq it }.firstOrNull()
+        }
+        val query = Apps.selectAll().where { Apps.name eq app.name }
+        if (bkt != null) {
+            query.andWhere { Apps.bucketId eq bkt.id }
+        }
+        val existing = AppEntity.wrapRows(query).firstOrNull()
+        if (existing != null) {
+            existing.update(
+                app.copy(createAt = existing.createAt, updateAt = existing.updateAt),
+                bkt,
+            )
+        } else {
+            AppEntity.new { update(app, bkt) }
+        }
     } }
 
     private fun AppEntity.update(

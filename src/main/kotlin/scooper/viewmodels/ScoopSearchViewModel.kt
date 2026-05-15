@@ -4,15 +4,27 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
+import org.orbitmvi.orbit.syntax.simple.blockingIntent
 import org.orbitmvi.orbit.syntax.simple.intent
+import org.orbitmvi.orbit.syntax.simple.postSideEffect
 import org.orbitmvi.orbit.syntax.simple.reduce
+import scooper.data.App
+import scooper.data.AppStatus
+import scooper.data.Bucket
 import scooper.service.ScoopSearchApp
 import scooper.service.ScoopSearchService
 import scooper.service.ScoopSearchSort
+import scooper.service.ScoopService
+import scooper.service.ScoopEvent
+import scooper.service.ScoopClient
+import scooper.taskqueue.Task
+import scooper.taskqueue.TaskQueue
 import scooper.util.logger
+import scooper.repository.AppsRepository
 
 data class ScoopSearchState(
     val query: String = "",
@@ -27,16 +39,50 @@ data class ScoopSearchState(
     val distinctOnly: Boolean = true,
     val showBucketName: Boolean = true,
     val errorMessage: String? = null,
+    val installingApps: Set<String> = emptySet(),
+    val installedAppNames: Set<String> = emptySet(),
+    val localBucketNames: Set<String> = emptySet(),
 )
 
 class ScoopSearchViewModel(
     private val searchService: ScoopSearchService,
+    private val scoopClient: ScoopClient,
+    private val taskQueue: TaskQueue,
+    private val appsRepository: AppsRepository,
+    private val scoopService: ScoopService,
 ) : ContainerHost<ScoopSearchState, ScoopSearchSideEffect>, AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     override val container: Container<ScoopSearchState, ScoopSearchSideEffect> =
-        coroutineScope.container(ScoopSearchState())
+        coroutineScope.container(ScoopSearchState()) {
+        refreshInstalledState()
+        subscribeEvents()
+    }
+
+    private fun subscribeEvents() = intent {
+        coroutineScope.launch {
+            scoopService.events.collect { event ->
+                when (event) {
+                    is ScoopEvent.AppInstalled,
+                    is ScoopEvent.AppUninstalled,
+                    is ScoopEvent.BucketAdded,
+                    is ScoopEvent.BucketRemoved,
+                    ScoopEvent.Reloaded,
+                    ScoopEvent.AppsReloaded,
+                    ScoopEvent.BucketsReloaded -> refreshInstalledState()
+                    else -> {}
+                }
+            }
+        }
+    }
+
+    private fun refreshInstalledState() = intent {
+        val installedNames = appsRepository.getApps(scope = "installed")
+            .value.map { it.name.lowercase() }.toSet()
+        val bucketNames = scoopClient.bucketNames.map { it.lowercase() }.toSet()
+        reduce { state.copy(installedAppNames = installedNames, localBucketNames = bucketNames) }
+    }
 
     fun onSearch(query: String) = intent {
         // Snapshot current options before any state change
@@ -89,6 +135,43 @@ class ScoopSearchViewModel(
         }
     }
 
+    fun installSearchApp(app: ScoopSearchApp, bucketName: String) = intent {
+        val appKey = app.Name
+
+        reduce { state.copy(installingApps = state.installingApps + appKey) }
+
+        val bucketExists = scoopClient.bucketNames.any { it.equals(bucketName, ignoreCase = true) }
+
+        if (!bucketExists) {
+            taskQueue.addTask(Task.AddBucket(bucketName) { blockingIntent {
+                val resultCode = scoopService.addBucket(bucketName, app.Metadata.Repository)
+                if (resultCode != 0) {
+                    postSideEffect(ScoopSearchSideEffect.Toast("Add bucket: $bucketName error!"))
+                    reduce { state.copy(installingApps = state.installingApps - appKey) }
+                }
+            }})
+        }
+
+        val installApp = App(
+            name = app.Name,
+            latestVersion = app.Version,
+            status = AppStatus.UNINSTALL,
+            description = app.Description,
+            homepage = app.Homepage,
+            license = app.License,
+            bucket = Bucket(name = bucketName, url = app.Metadata.Repository),
+        )
+        taskQueue.addTask(Task.Install(installApp) { blockingIntent {
+            val resultCode = scoopService.install(installApp, global = false)
+            reduce { state.copy(installingApps = state.installingApps - appKey) }
+            if (resultCode != 0) {
+                postSideEffect(ScoopSearchSideEffect.Toast("Install ${installApp.uniqueName} error!"))
+            } else {
+                postSideEffect(ScoopSearchSideEffect.Toast("Install ${installApp.uniqueName} successfully!"))
+            }
+        }})
+    }
+
     /**
      * Apply option change, then re-search first page if there's an active query.
      */
@@ -97,7 +180,7 @@ class ScoopSearchViewModel(
     ) {
         val query = state.query
         val pageSize = state.pageSize
-        val options = SearchOptions(partialState.sort, partialState.officialOnly, partialState.distinctOnly)
+        val options = SearchOptions(partialState.sort, partialState.officialOnly, state.distinctOnly)
         reduce { partialState }
         if (query.isBlank()) return
         reduce { state.copy(searching = true, errorMessage = null) }

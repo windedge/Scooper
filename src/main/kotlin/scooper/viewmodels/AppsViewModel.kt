@@ -27,6 +27,8 @@ import scooper.service.GitHistoryService
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopService
+import scooper.service.ScoopEvent
+import scooper.service.ScoopClient
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
@@ -69,6 +71,7 @@ class AppsViewModel(
     private val configRepository: ConfigRepository,
     private val scoopLogStream: ScoopLogStream,
     private val scoopCli: ScoopCli,
+    private val scoopClient: ScoopClient,
     private val scoopService: ScoopService,
     private val gitHistoryService: GitHistoryService,
 ) : ContainerHost<AppsState, AppsSideEffect>, AutoCloseable {
@@ -85,7 +88,32 @@ class AppsViewModel(
         applyFilters()
         getBuckets()
         subscribeLogging()
+        subscribeEvents()
         scheduleIndexGitHistoryIfNeeded()
+    }
+
+    fun subscribeEvents() = intent {
+        coroutineScope.launch {
+            scoopService.events.collect { event ->
+                when (event) {
+                    is ScoopEvent.AppInstalled,
+                    is ScoopEvent.AppUninstalled,
+                    is ScoopEvent.AppUpdated,
+                    is ScoopEvent.AppDownloaded,
+                    is ScoopEvent.AppsReloaded,
+                    ScoopEvent.Reloaded -> {
+                        applyFilters()
+                    }
+                    is ScoopEvent.BucketAdded,
+                    is ScoopEvent.BucketRemoved,
+                    ScoopEvent.BucketsReloaded -> {
+                        getBuckets()
+                        applyFilters()
+                    }
+                    else -> {}
+                }
+            }
+        }
     }
 
     fun subscribeLogging() = intent {
@@ -268,82 +296,76 @@ class AppsViewModel(
     // ==================== Task Queue ====================
 
     fun scheduleReloadApps() = intent {
-        taskQueue.addTask(Task.Refresh { reloadApps() })
+        taskQueue.addTask(Task.Refresh {
+            scoopService.reloadApps()
+        })
     }
 
     fun scheduleReloadAll() = intent {
-        taskQueue.addTask(Task.Refresh { reloadAll() })
+        taskQueue.addTask(Task.Refresh {
+            scoopService.reloadAll()
+        })
     }
 
     fun scheduleUpdateApps() = intent {
-        taskQueue.addTask(Task.Refresh { refresh() })
+        taskQueue.addTask(Task.Refresh {
+            scoopService.refresh()
+        })
     }
 
     fun openApp(app: App, shortcutIndex: Int = 0) = intent {
-        scoopService.openShortcut(app, shortcutIndex)
+        scoopClient.openShortcut(app, shortcutIndex)
     }
 
     fun scheduleInstall(app: App, global: Boolean = false) = intent {
         taskQueue.addTask(Task.Install(app) { blockingIntent {
-            val result = scoopCli.install(app, global)
-            if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Install app: ${app.uniqueName} error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+            val resultCode = scoopService.install(app, global)
+            if (resultCode != 0) {
+                postSideEffect(AppsSideEffect.Toast("Install app: ${app.uniqueName} error!"))
             } else {
                 postSideEffect(AppsSideEffect.Toast("Install app: ${app.uniqueName} successfully!"))
-                appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED))
-                applyFilters()
             }
         }})
     }
 
     fun scheduleUninstall(app: App) = intent {
         taskQueue.addTask(Task.Uninstall(app) { blockingIntent {
-            val result = scoopCli.uninstall(app, app.global)
-            if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Uninstall app: ${app.uniqueName} error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+            val resultCode = scoopService.uninstall(app)
+            if (resultCode != 0) {
+                postSideEffect(AppsSideEffect.Toast("Uninstall app: ${app.uniqueName} error!"))
             } else {
                 postSideEffect(AppsSideEffect.Toast("Uninstall app: ${app.uniqueName} successfully!"))
-                appsRepository.updateApp(app.copy(status = AppStatus.UNINSTALL, global = false))
-                applyFilters()
             }
         }})
     }
 
     fun scheduleUpdate(app: App) = intent {
         taskQueue.addTask(Task.Update(app) { blockingIntent {
-            val result = scoopCli.update(app, app.global)
-            if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Update app: ${app.uniqueName} error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+            val resultCode = scoopService.updateApp(app, app.global)
+            if (resultCode != 0) {
+                postSideEffect(AppsSideEffect.Toast("Update app: ${app.uniqueName} error!"))
             } else {
                 postSideEffect(AppsSideEffect.Toast("Update app: ${app.uniqueName} successfully!"))
-                appsRepository.updateApp(app.copy(version = app.latestVersion))
-                applyFilters()
             }
         }})
     }
 
     fun scheduleDownload(app: App) = intent {
         taskQueue.addTask(Task.Download(app) { blockingIntent {
-            val result = scoopCli.download(app)
-            if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Download app: ${app.uniqueName} error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+            val resultCode = scoopService.download(app)
+            if (resultCode != 0) {
+                postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} error!"))
             } else {
                 postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} successfully!"))
-                applyFilters()
             }
         }})
     }
 
     fun scheduleAddBucket(bucket: String, url: String? = null) = intent {
         taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
-            val result = scoopCli.addBucket(bucket, url)
-            if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Add bucket: $bucket error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+            val resultCode = scoopService.addBucket(bucket, url)
+            if (resultCode != 0) {
+                postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket error!"))
             } else {
                 postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket successfully!"))
                 getBuckets()
@@ -354,19 +376,16 @@ class AppsViewModel(
 
     fun scheduleRemoveBucket(bucket: String) = intent {
         taskQueue.addTask(Task.RemoveBucket(bucket) { blockingIntent {
-            val result = scoopCli.removeBucket(bucket)
-            if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Remove bucket: $bucket error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+            val resultCode = scoopService.removeBucket(bucket)
+            if (resultCode != 0) {
+                postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket error!"))
             } else {
                 postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket successfully!"))
-                getBuckets()
-                reloadApps()
             }
         }})
     }
 
-    // ==================== Cancel ====================
+    // ==================== Cancel ==================== 
 
     fun cancelTask(app: App) = intent {
         taskQueue.getTask(app.uniqueName)?.run {
@@ -397,7 +416,7 @@ class AppsViewModel(
     // ==================== Version History (P2) ====================
 
     private val scoopDbRepository by lazy {
-        ScoopDbRepository(scoopService.rootDir.resolve("scoop.db"))
+        ScoopDbRepository(scoopClient.rootDir.resolve("scoop.db"))
     }
 
     fun showVersionPicker(app: App) = intent {
@@ -430,7 +449,7 @@ class AppsViewModel(
 
         // Priority 2: Git fallback only when Scoop DB has no data.
         if (versions.isEmpty() && app.bucket != null) {
-            val bucketDir = scoopService.bucketsBaseDir.resolve(app.bucket!!.name)
+            val bucketDir = scoopClient.bucketsBaseDir.resolve(app.bucket!!.name)
             val manifestPath = "bucket/${app.name}.json"
             val gitVersions = gitHistoryService.loadManifestVersions(bucketDir, manifestPath)
             val seenVersions = mutableSetOf<String>()
@@ -467,7 +486,7 @@ class AppsViewModel(
             val manifestText = when (version.source) {
                 AppVersionSource.ScoopDb -> scoopDbRepository.getManifest(app, version.version)
                 AppVersionSource.Git -> {
-                    val bucketDir = app.bucket?.name?.let { scoopService.bucketsBaseDir.resolve(it) }
+                    val bucketDir = app.bucket?.name?.let { scoopClient.bucketsBaseDir.resolve(it) }
                     val commit = version.commit ?: return@blockingIntent
                     bucketDir?.let {
                         gitHistoryService.readManifestAtCommit(it, commit, "bucket/${app.name}.json")
@@ -511,14 +530,14 @@ class AppsViewModel(
             try {
                 val bucketStates = appsRepository.getBucketIndexStates()
                 for (bucketState in bucketStates) {
-                    val bucketDir = scoopService.bucketsBaseDir.resolve(bucketState.name)
+                    val bucketDir = scoopClient.bucketsBaseDir.resolve(bucketState.name)
                     if (!gitHistoryService.isGitBucket(bucketDir)) continue
 
                     val headCommit = gitHistoryService.getHeadCommit(bucketDir) ?: continue
                     if (GitHistoryService.isCurrentIndexState(bucketState.lastIndexedCommit, headCommit)) continue
 
                     // Collect known manifest names for this bucket
-                    val knownNames = scoopService.bucketDirManifestNames(bucketDir)
+                    val knownNames = scoopClient.bucketDirManifestNames(bucketDir)
                     val lastIndexedCommit = if (bucketState.lastIndexedCommit?.startsWith("v") == true) {
                         GitHistoryService.commitFromIndexState(bucketState.lastIndexedCommit)
                     } else {

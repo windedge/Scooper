@@ -1,528 +1,113 @@
 package scooper.service
 
-import kotlinx.serialization.json.*
-import org.slf4j.LoggerFactory
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
-import scooper.data.ShortCut
-import scooper.taskqueue.TaskQueue
-import scooper.util.ProgressParser
-import scooper.util.ScoopConfigManager
-import scooper.util.dirSize
-import scooper.util.execute
-import scooper.util.executeSuspend
-import scooper.util.findExecutable
-import scooper.util.getString
-import scooper.util.killAllSubProcesses
-import java.io.File
-import java.nio.file.Files
-import java.security.MessageDigest
-import java.nio.file.attribute.BasicFileAttributes
-import java.time.LocalDateTime
-import java.time.ZoneId
+import scooper.repository.AppsRepository
 
 /**
- * Service layer for Scoop CLI and filesystem operations.
- * Injected via Koin DI, supports testing and lifecycle management.
+ * Application layer for Scoop operations.
+ * Executes CLI calls, updates database, and emits ScoopEvent changes
+ * so that all ViewModels can stay in sync.
+ *
+ * ViewModels own the TaskQueue scheduling and Toast messages.
+ * This service is called from within task lambdas.
  */
 class ScoopService(
-    val logStream: ScoopLogStream,
-    private val taskQueue: TaskQueue,
-) : ScoopCli {
-    private val logger = LoggerFactory.getLogger(javaClass)
-    private val manifestDownloader = ManifestDownloader()
+    private val scoopClient: ScoopClient,
+    private val appsRepository: AppsRepository,
+) {
+    private val _events = MutableSharedFlow<ScoopEvent>(extraBufferCapacity = 64)
+    val events: SharedFlow<ScoopEvent> = _events.asSharedFlow()
 
-    // ==================== Environment Paths ====================
-
-    val configFile: File
-        get() = File(System.getenv("USERPROFILE")).resolve(".config/scoop/config.json")
-
-    val rootDir: File
-        get() {
-            val scoop = System.getenv("SCOOP")
-            if (!scoop.isNullOrEmpty()) {
-                val root = File(scoop)
-                if (root.exists()) return root
-            }
-            return File(System.getenv("USERPROFILE")).resolve("scoop")
-        }
-
-    val globalRootDir: File
-        get() {
-            val scoop = System.getenv("SCOOP_GLOBAL")
-            if (!scoop.isNullOrEmpty()) {
-                val root = File(scoop)
-                if (root.exists()) return root
-            }
-            return File(System.getenv("ALLUSERSPROFILE")).resolve("scoop")
-        }
-
-    val bucketsBaseDir: File
-        get() = rootDir.resolve("buckets")
-
-    val bucketNames: List<String>
-        get() = bucketsBaseDir.list()?.asList() ?: listOf()
-
-    val bucketDirs: List<File>
-        get() = bucketNames.map { bucketsBaseDir.resolve(it) }
-
-    val localInstalledAppDirs: List<File>
-        get() = rootDir.resolve("apps")
-            .listFiles { file -> file.isDirectory }
-            ?.toList() ?: listOf()
-
-    val globalInstalledAppDirs: List<File>
-        get() = globalRootDir.resolve("apps")
-            .listFiles { file -> file.isDirectory }
-            ?.toList() ?: listOf()
-
-    val cacheDir: File
-        get() = rootDir.resolve("cache")
-
-    // ==================== Filesystem Queries ====================
-
-    fun getBucketRepo(bucketDir: File): String? {
-        if (findExecutable("git.exe") == null) return null
-        val result = execute("git", "remote", "-v", asShell = false, workingDir = bucketDir)
-        val output = result.output.joinToString("\n")
-        val regex = """origin\s+(.*)\s+\(fetch\)""".toRegex(RegexOption.MULTILINE)
-        return regex.find(output)?.groupValues?.get(1)
+    private suspend fun emit(event: ScoopEvent) {
+        _events.emit(event)
     }
 
-    fun getRepoUrl(bucketDir: File): String? {
-        val repoInfo = bucketDir.resolve(".git/config").readText()
-        val regex = """\[remote\s+"origin"]\s*\n(\s*\n*)+url\s*=\s*(.+)""".toRegex()
-        return regex.find(repoInfo)?.groupValues?.get(2)
+    /** Install an app and update DB on success. Returns exit code. */
+    suspend fun install(app: App, global: Boolean = false): Int {
+        val result = scoopClient.install(app, global)
+        if (result.exitCode == 0) {
+            appsRepository.upsertApp(app.copy(status = AppStatus.INSTALLED))
+            emit(ScoopEvent.AppInstalled(app.name))
+        }
+        return result.exitCode
     }
 
-    /** Parse all bucket manifest files to build the complete app list. */
-    val apps: List<App>
-        get() {
-            val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
-            val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
-
-            val allApps = mutableListOf<App>()
-            for (bucketDir in bucketDirs) {
-                val bucket = Bucket(name = bucketDir.name, url = "")
-                val apps = bucketDir.resolve("bucket").listFiles()
-                    ?.filter { !it.isDirectory && it.extension == "json" }
-                    ?.mapNotNull { file -> buildAppFromManifest(file, bucket, localInstallApps, globalInstalledApps) }
-                    ?: listOf()
-                allApps.addAll(apps)
-            }
-            return allApps
-        }
-
-    /** Build apps only from the specified manifest file names in a single bucket. */
-    fun buildAppsFromManifestNames(
-        bucketDir: File,
-        manifestNames: Set<String>,
-        bucket: Bucket,
-    ): List<App> {
-        val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
-        val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
-
-        return manifestNames.mapNotNull { fileName ->
-            val file = bucketDir.resolve("bucket/$fileName")
-            if (!file.exists()) return@mapNotNull null
-            buildAppFromManifest(file, bucket, localInstallApps, globalInstalledApps)
-        }
-    }
-
-    private fun buildAppFromManifest(
-        file: File,
-        bucket: Bucket,
-        localInstallApps: List<String>,
-        globalInstalledApps: List<String>,
-    ): App? {
-        val json = try {
-            Json.parseToJsonElement(file.readText()).jsonObject
-        } catch (e: Exception) {
-            logger.error("parsing manifest: ${file.absolutePath}, error: ${e.message}")
-            null
-        } ?: return null
-
-        val shortcuts: List<ShortCut> = json["shortcuts"]?.jsonArray?.let { array ->
-            val normalized = if (array[0] is JsonArray) array else buildJsonArray { add(array) }
-            normalized.map { ele ->
-                ShortCut(ele.jsonArray[0].jsonPrimitive.content, ele.jsonArray[1].jsonPrimitive.content)
-            }
-        } ?: emptyList()
-
-        val base = App(
-            name = file.nameWithoutExtension,
-            latestVersion = json.getString("version"),
-            version = json.getString("version"),
-            homepage = json.getString("homepage"),
-            description = json.getString("description"),
-            url = resolveManifestUrl(json),
-            license = json.getString("license"),
-            bucket = bucket,
-            shortcuts = shortcuts,
-        )
-
-        val attrs = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
-        val createAt = LocalDateTime.ofInstant(attrs.creationTime().toInstant(), ZoneId.systemDefault())
-        val updateAt = LocalDateTime.ofInstant(attrs.lastModifiedTime().toInstant(), ZoneId.systemDefault())
-
-        val isGlobal = globalInstalledApps.contains(base.name.lowercase())
-        val isInstalled = isGlobal || localInstallApps.contains(base.name.lowercase())
-
-        return if (isInstalled) {
-            val installedVersion = (globalInstalledAppDirs + localInstalledAppDirs)
-                .find { it.name.equals(base.name, ignoreCase = true) }!!
-                .resolve("current")
-                .let { if (!it.exists()) null else it.toPath().toRealPath().fileName.toString() }
-            base.copy(
-                createAt = createAt,
-                updateAt = updateAt,
-                global = isGlobal,
-                status = if (installedVersion == null) AppStatus.FAILED else AppStatus.INSTALLED,
-                version = installedVersion,
-            )
+    /** Uninstall an app and update DB.
+     *  If the app's bucket still exists locally, marks it as UNINSTALL.
+     *  If the bucket was already removed, deletes the record entirely.
+     *  Returns the actual CLI exit code for UI feedback. */
+    suspend fun uninstall(app: App): Int {
+        val result = scoopClient.uninstall(app, app.global)
+        val bucketExists = app.bucket?.name?.let { it in scoopClient.bucketNames } ?: false
+        if (bucketExists) {
+            appsRepository.upsertApp(app.copy(status = AppStatus.UNINSTALL, global = false))
         } else {
-            base.copy(createAt = createAt, updateAt = updateAt)
+            appsRepository.deleteApp(app.name, app.bucket?.name)
         }
+        emit(ScoopEvent.AppUninstalled(app.name))
+        return result.exitCode
     }
 
-    fun computeCacheSize(): Long {
-        return cacheDir.dirSize()
-    }
-
-    /** Collect manifest file names (e.g. "7zip.json") for a given bucket directory. */
-    fun bucketDirManifestNames(bucketDir: File): Set<String> {
-        return bucketDir.resolve("bucket").listFiles()
-            ?.filter { !it.isDirectory && it.extension == "json" }
-            ?.map { it.name }
-            ?.toSet()
-            ?: emptySet()
-    }
-
-    // ==================== CLI Commands ====================
-
-    override suspend fun refresh(): CommandResult {
-        return executeAndLog(mutableListOf("scoop", "update"))
-    }
-
-    override suspend fun install(app: App, global: Boolean): CommandResult {
-        preDownloadIfNeeded(app)
-        val commandArgs = if (global) mutableListOf(
-            "sudo", "scoop", "install", "-g", "${app.bucket!!.name}/${app.name}"
-        ) else {
-            mutableListOf("scoop", "install", "${app.bucket!!.name}/${app.name}")
+    /** Update an app and update DB on success. Returns exit code. */
+    suspend fun updateApp(app: App, global: Boolean = false): Int {
+        val result = scoopClient.update(app, global)
+        if (result.exitCode == 0) {
+            appsRepository.upsertApp(app.copy(version = app.latestVersion))
+            emit(ScoopEvent.AppUpdated(app.name))
         }
-        return executeAndLog(commandArgs)
+        return result.exitCode
     }
 
-    override suspend fun uninstall(app: App, global: Boolean): CommandResult {
-        val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
-        } else {
-            mutableListOf("scoop", "uninstall", app.name)
+    /** Download an app. Returns exit code. */
+    suspend fun download(app: App): Int {
+        val result = scoopClient.download(app)
+        if (result.exitCode == 0) {
+            emit(ScoopEvent.AppDownloaded(app.name))
         }
-        return executeAndLog(commandArgs)
+        return result.exitCode
     }
 
-    override suspend fun update(app: App, global: Boolean): CommandResult {
-        preDownloadIfNeeded(app)
-        val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "update", "-g", app.name)
-        } else {
-            mutableListOf("scoop", "update", app.name)
+    /** Add a bucket and update DB on success. Returns exit code. */
+    suspend fun addBucket(bucket: String, url: String? = null): Int {
+        val result = scoopClient.addBucket(bucket, url)
+        if (result.exitCode == 0) {
+            appsRepository.loadBuckets()
+            emit(ScoopEvent.BucketAdded(bucket))
         }
-        return executeAndLog(commandArgs)
+        return result.exitCode
     }
 
-    override suspend fun download(app: App): CommandResult {
-        val config = ScoopConfigManager.readScoopConfig()
-        return if (config.aria2Enabled) {
-            // aria2 mode: use scoop download command, parse progress from output
-            executeAndLog(mutableListOf("scoop", "download", app.uniqueName))
-        } else {
-            // Non-aria2 mode: use JVM HttpClient for precise progress
-            downloadWithJvm(app)
+    /** Remove a bucket and update DB on success. Returns exit code. */
+    suspend fun removeBucket(bucket: String): Int {
+        val result = scoopClient.removeBucket(bucket)
+        if (result.exitCode == 0) {
+            appsRepository.loadBuckets()
+            emit(ScoopEvent.BucketRemoved(bucket))
         }
+        return result.exitCode
     }
 
-    override suspend fun addBucket(bucket: String, url: String?): CommandResult {
-        val commandArgs = mutableListOf("scoop", "bucket", "add", bucket)
-        if (url != null) commandArgs.add(url)
-        return executeAndLog(commandArgs)
+    /** Full reload from filesystem. */
+    suspend fun reloadAll() {
+        appsRepository.loadAll()
+        emit(ScoopEvent.Reloaded)
     }
 
-    override suspend fun removeBucket(bucket: String): CommandResult {
-        return executeAndLog(mutableListOf("scoop", "bucket", "rm", bucket))
+    /** Incremental apps reload. */
+    suspend fun reloadApps() {
+        appsRepository.loadApps()
+        emit(ScoopEvent.AppsReloaded)
     }
 
-    override suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult {
-        val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "cleanup", "-g", *apps)
-        } else {
-            mutableListOf("scoop", "cleanup", *apps)
-        }
-        return executeAndLog(commandArgs)
-    }
-
-    override suspend fun removeCache(vararg apps: String): CommandResult {
-        val targets = if (apps.isEmpty()) arrayOf("-a") else apps
-        val commandArgs = mutableListOf("scoop", "cache", "rm", *targets)
-        logger.info("remove cache, commandArgs = $commandArgs")
-        return executeAndLog(commandArgs)
-    }
-
-    override fun stop() {
-        logger.warn("stopping all processes...")
-        killAllSubProcesses()
-        logger.warn("all processes stopped")
-    }
-
-    override suspend fun installVersion(app: App, manifestFile: File, global: Boolean): CommandResult {
-        val currentlyInstalledInTargetScope = if (global) {
-            globalInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
-        } else {
-            localInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
-        }
-
-        if (currentlyInstalledInTargetScope) {
-            val uninstallArgs = if (global) {
-                mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
-            } else {
-                mutableListOf("scoop", "uninstall", app.name)
-            }
-            logStream.emit("Uninstalling current ${app.name} before installing version from manifest...")
-            val uninstallResult = executeAndLog(uninstallArgs)
-            if (uninstallResult.exitCode != 0) return uninstallResult
-        }
-
-        val installArgs = if (global) {
-            mutableListOf("sudo", "scoop", "install", "-g", manifestFile.absolutePath)
-        } else {
-            mutableListOf("scoop", "install", manifestFile.absolutePath)
-        }
-        return executeAndLog(installArgs)
-    }
-
-    // ==================== Internal Methods ====================
-
-    /** Pre-download files to cache via JVM HttpClient when aria2 is not enabled. */
-    private suspend fun preDownloadIfNeeded(app: App) {
-        val config = ScoopConfigManager.readScoopConfig()
-        if (config.aria2Enabled) return
-
-        val manifestFile = findManifest(app) ?: run {
-            logger.warn("Manifest not found for ${app.uniqueName}, skip pre-download")
-            return
-        }
-
-        val json = try {
-            Json.parseToJsonElement(manifestFile.readText()).jsonObject
-        } catch (e: Exception) {
-            logger.warn("Failed to parse manifest: ${e.message}, skip pre-download")
-            return
-        }
-
-        val info = manifestDownloader.parseDownloadInfo(json)
-        if (info == null) {
-            logger.warn("No download URL found in manifest for ${app.uniqueName}, skip pre-download")
-            return
-        }
-
-        val version = json.getString("version")
-        val ok = downloadManifestItemsToCache(app, version, info, logPrefix = "Pre-download")
-        if (!ok) {
-            logStream.emit("Pre-download failed for ${app.name}, will fallback to scoop")
-        }
-    }
-
-    private suspend fun downloadWithJvm(app: App): CommandResult {
-        val manifestFile = findManifest(app)
-        if (manifestFile == null) {
-            logStream.emit("Manifest not found for ${app.uniqueName}")
-            return CommandResult(1)
-        }
-
-        val json = try {
-            Json.parseToJsonElement(manifestFile.readText()).jsonObject
-        } catch (e: Exception) {
-            logStream.emit("Failed to parse manifest: ${e.message}")
-            return CommandResult(1)
-        }
-
-        val info = manifestDownloader.parseDownloadInfo(json)
-        if (info == null) {
-            logStream.emit("No download URL found in manifest for ${app.uniqueName}")
-            return CommandResult(1)
-        }
-
-        val version = json.getString("version")
-        val ok = downloadManifestItemsToCache(app, version, info, logPrefix = "Download")
-        return CommandResult(if (ok) 0 else 1)
-    }
-
-    private suspend fun downloadManifestItemsToCache(
-        app: App,
-        version: String,
-        info: DownloadInfo,
-        logPrefix: String,
-    ): Boolean {
-        if (info.items.isEmpty()) return false
-
-        val totalItems = info.items.size
-
-        for ((index, item) in info.items.withIndex()) {
-            val cacheName = cacheFileName(app, version, item.url)
-            val destFile = cacheDir.resolve(cacheName)
-            logStream.emit("$logPrefix url[${index + 1}/$totalItems]: ${item.url}")
-            logStream.emit("$logPrefix cache target[${index + 1}/$totalItems]: ${destFile.absolutePath}")
-
-            if (destFile.exists()) {
-                logStream.emit("File already cached: ${destFile.name}")
-                val overall = (((index + 1).toFloat() / totalItems) * 100).toInt().coerceAtMost(100)
-                taskQueue.updateProgress(overall)
-                continue
-            }
-
-            logStream.emit("Downloading ${app.name}... (${index + 1}/$totalItems)")
-            val result = manifestDownloader.download(
-                url = item.url,
-                destFile = destFile,
-                hash = item.hash,
-            ) { percent ->
-                val overall = (((index + percent / 100f) / totalItems) * 100).toInt().coerceIn(0, 100)
-                taskQueue.updateProgress(overall)
-            }
-
-            if (result != null) {
-                logStream.emit("Downloaded to cache: ${result.absolutePath}")
-                logStream.emit("Cache exists after download: ${result.exists()}")
-            } else {
-                logStream.emit("Failed downloading item[${index + 1}/$totalItems] for ${app.name}")
-                return false
-            }
-        }
-
-        taskQueue.updateProgress(100)
-        return true
-    }
-
-    /** Find the manifest file for the given app. */
-    private fun findManifest(app: App): File? {
-        val bucketDir = app.bucket?.name?.let { bucketsBaseDir.resolve(it) }
-        if (bucketDir != null && bucketDir.exists()) {
-            val manifestFile = bucketDir.resolve("bucket/${app.name}.json")
-            if (manifestFile.exists()) return manifestFile
-        }
-        // Fallback: search all buckets
-        for (dir in bucketDirs) {
-            val manifestFile = dir.resolve("bucket/${app.name}.json")
-            if (manifestFile.exists()) return manifestFile
-        }
-        return null
-    }
-
-    /**
-     * Aligns with scoop's cache_path($app, $version, $url).
-     */
-    private fun cacheFileName(app: App, version: String, url: String): String {
-        val urlHash = MessageDigest.getInstance("SHA-256")
-            .digest(url.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-            .take(7)
-        return "${app.name}#$version#$urlHash${scoopCacheExtension(url)}"
-    }
-
-    /**
-     * Aligns with PowerShell: [System.IO.Path]::GetExtension($url)
-     * Does not strip query/fragment, to stay consistent with scoop.
-     */
-    private fun scoopCacheExtension(url: String): String {
-        val normalized = url.replace('\\', '/')
-        val ext = File(normalized).extension
-        return if (ext.isNotEmpty()) ".${ext}" else ""
-    }
-
-    /** Resolve the first download URL from manifest, checking architecture sub-objects.
-     *  Also falls back to checkver.github for GitHub repo detection.
-     */
-    private fun resolveManifestUrl(json: JsonObject): String? {
-        // Top-level url
-        val topLevel = json.getString("url")
-        if (topLevel.isNotBlank()) return topLevel
-
-        // Architecture sub-object
-        val arch = detectArch()
-        val archObj = json["architecture"]?.jsonObject
-        if (archObj != null) {
-            val archBlock = archObj[arch]?.jsonObject ?: archObj["64bit"]?.jsonObject
-            if (archBlock != null) {
-                val urlElement = archBlock["url"]
-                val url = when (urlElement) {
-                    is JsonArray -> urlElement.firstOrNull()?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
-                    else -> urlElement?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
-                }
-                if (!url.isNullOrBlank()) return url
-            }
-        }
-
-        // Fallback: checkver.github (e.g. "https://github.com/owner/repo")
-        val checkverGithub = (json["checkver"] as? JsonObject)?.let { cv ->
-            cv["github"]?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
-        }
-        if (!checkverGithub.isNullOrBlank()) return checkverGithub
-
-        return null
-    }
-
-    private fun detectArch(): String {
-        val arch = System.getProperty("os.arch", "").lowercase()
-        return when {
-            arch.contains("aarch64") || arch.contains("arm64") -> "arm64"
-            arch.contains("64") -> "64bit"
-            else -> "32bit"
-        }
-    }
-
-    /** Get the manifest file for an app. */
-    fun getManifestFile(app: App): File? = findManifest(app)
-
-    /** Read the manifest JSON content for an app. */
-    fun getManifestContent(app: App): String? = findManifest(app)?.readText()
-
-    /** Open a shortcut of an installed app. */
-    fun openShortcut(app: App, shortcutIndex: Int = 0) {
-        val shortcuts = app.shortcuts ?: return
-        if (shortcutIndex !in shortcuts.indices) return
-
-        val root = if (app.global) globalRootDir else rootDir
-        val appDir = root.resolve("apps/${app.name}/current")
-        if (!appDir.exists()) return
-
-        val shortcut = shortcuts[shortcutIndex]
-        // shortcut.title is the exe relative path (e.g. "Fiddler.exe"), shortcut.path is the display name
-        val target = appDir.resolve(shortcut.title.replace('\\', '/'))
-        val dir = target.parentFile
-
-        logger.info("Opening shortcut: ${target.absolutePath}")
-        ProcessBuilder("cmd", "/c", "start", "", target.absolutePath)
-            .directory(dir)
-            .start()
-    }
-
-    private suspend fun executeAndLog(args: List<String>): CommandResult {
-        val outputLines = mutableListOf<String>()
-        val result = executeSuspend(
-            args,
-            consumer = { line ->
-                outputLines.add(line)
-                logStream.emit(line)
-                logger.info(line)
-                ProgressParser.parseProgress(line)?.let { taskQueue.updateProgress(it) }
-            },
-            onFinish = {},
-        )
-        val errorMessage = outputLines.find { it.trimStart().startsWith("ERROR ") }
-        val exitCode = if (errorMessage != null && result.resultCode == 0) 1 else result.resultCode
-        return CommandResult(exitCode, errorMessage)
+    /** Full refresh (scoop update + reloadApps). */
+    suspend fun refresh() {
+        scoopClient.refresh()
+        appsRepository.loadApps()
+        emit(ScoopEvent.Reloaded)
     }
 }
