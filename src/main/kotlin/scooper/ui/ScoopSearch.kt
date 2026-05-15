@@ -84,13 +84,18 @@ fun ScoopSearchScreen(
             .padding(start = 48.dp, end = 48.dp, top = 32.dp, bottom = 0.dp),
     ) {
         // Page title
-        Text(
-            "Search Online",
-            style = typography.h5.copy(
-                fontWeight = FontWeight.Bold,
-                color = colors.textTitle,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Search Online",
+                style = typography.h5.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textTitle,
+                )
             )
-        )
+            Spacer(Modifier.weight(1f))
+        }
         Spacer(Modifier.height(24.dp))
 
         // Search input
@@ -171,6 +176,10 @@ fun ScoopSearchScreen(
                                         ScoopSearchDetailPanel(
                                             app = currentApp,
                                             onClose = { selectedApp = null },
+                                            onInstall = { app, bucketName -> viewModel.installSearchApp(app, bucketName) },
+                                            isInstalling = state.installingApps.contains(currentApp.Name),
+                                            isInstalled = state.installedAppNames.contains(currentApp.Name.lowercase()),
+                                            isBucketInstalled = state.localBucketNames.contains(currentApp.Metadata.Repository.substringAfterLast("/").lowercase()),
                                             modifier = Modifier.padding(start = 4.dp),
                                         )
                                     }

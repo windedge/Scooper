@@ -1,4 +1,4 @@
-package scooper.ui
+﻿package scooper.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.HorizontalScrollbar
@@ -27,7 +27,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
@@ -35,6 +37,7 @@ import org.koin.compose.koinInject
 import scooper.service.GitHubRelease
 import scooper.service.GitHubService
 import scooper.service.ScoopSearchApp
+import scooper.service.ScoopClient
 import scooper.ui.components.DetailMetadataRow
 import scooper.ui.components.ReleaseNoteCard
 import scooper.ui.components.Tooltip
@@ -58,12 +61,19 @@ private enum class SearchDetailTab(val label: String) {
 fun ScoopSearchDetailPanel(
     app: ScoopSearchApp,
     onClose: () -> Unit,
+    onInstall: (ScoopSearchApp, String) -> Unit,
+    isInstalling: Boolean = false,
+    isInstalled: Boolean = false,
+    isBucketInstalled: Boolean = false,
     modifier: Modifier = Modifier,
+    scoopClient: ScoopClient = koinInject(),
     gitHubService: GitHubService = koinInject(),
 ) {
     val colors = MaterialTheme.colors
     val scope = rememberCoroutineScope()
     val appKey = remember(app) { "${app.Name}_${app.Metadata.Repository}" }
+    val defaultBucketName = remember(appKey) { app.Metadata.Repository.substringAfterLast("/") }
+    var showInstallDialog by remember { mutableStateOf(false) }
 
     var releases by remember { mutableStateOf<List<GitHubRelease>?>(null) }
     var releasesLoading by remember { mutableStateOf(false) }
@@ -132,7 +142,23 @@ fun ScoopSearchDetailPanel(
         elevation = 0.dp,
     ) {
         Column(Modifier.fillMaxSize()) {
-            SearchDetailHeader(app, onClose)
+            SearchDetailHeader(
+                app = app,
+                onClose = onClose,
+            )
+            if (!isInstalled) {
+                SearchInstallAction(
+                    app = app,
+                    isInstalling = isInstalling,
+                    onInstallClick = {
+                        if (isBucketInstalled) {
+                            onInstall(app, defaultBucketName)
+                        } else {
+                            showInstallDialog = true
+                        }
+                    },
+                )
+            }
 
             Box(Modifier.weight(1f)) {
                 LazyColumn(
@@ -165,10 +191,26 @@ fun ScoopSearchDetailPanel(
             }
         }
     }
+
+    // Install confirm dialog
+    if (showInstallDialog && !isBucketInstalled) {
+        InstallConfirmDialog(
+            app = app,
+            scoopClient = scoopClient,
+            onConfirm = { bucketName ->
+                showInstallDialog = false
+                onInstall(app, bucketName)
+            },
+            onCancel = { showInstallDialog = false },
+        )
+    }
 }
 
 @Composable
-private fun SearchDetailHeader(app: ScoopSearchApp, onClose: () -> Unit) {
+private fun SearchDetailHeader(
+    app: ScoopSearchApp,
+    onClose: () -> Unit,
+) {
     val colors = MaterialTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -190,7 +232,8 @@ private fun SearchDetailHeader(app: ScoopSearchApp, onClose: () -> Unit) {
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
+
+        // Close button
         var closeHover by remember { mutableStateOf(false) }
         Box(
             modifier = Modifier.size(28.dp)
@@ -202,6 +245,226 @@ private fun SearchDetailHeader(app: ScoopSearchApp, onClose: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(Icons.TwoTone.Close, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+        }
+    }
+}
+
+@Composable
+private fun SearchInstallAction(
+    app: ScoopSearchApp,
+    isInstalling: Boolean,
+    onInstallClick: () -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    val defaultBucketName = app.Metadata.Repository.substringAfterLast("/")
+    val tooltipText = "scoop install $defaultBucketName/${app.Name}"
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Tooltip(tooltipText, position = TooltipPosition.Top) {
+            Button(
+                onClick = onInstallClick,
+                enabled = !isInstalling,
+                modifier = Modifier.height(28.dp).cursorHand(),
+                shape = RoundedCornerShape(6.dp),
+                elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = colors.primary,
+                    disabledBackgroundColor = colors.primary.copy(alpha = 0.7f),
+                ),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            ) {
+                if (isInstalling) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(10.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Installing...",
+                        style = typography.caption.copy(color = Color.White, fontWeight = FontWeight.Medium),
+                    )
+                } else {
+                    Icon(
+                        painterResource("package-check.svg"),
+                        "Install",
+                        modifier = Modifier.size(12.dp),
+                        tint = Color.White,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Install",
+                        style = typography.caption.copy(color = Color.White, fontWeight = FontWeight.Medium),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstallConfirmDialog(
+    app: ScoopSearchApp,
+    scoopClient: ScoopClient,
+    onConfirm: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    val defaultBucketName = app.Metadata.Repository.substringAfterLast("/")
+    var bucketName by remember { mutableStateOf(defaultBucketName) }
+    var bucketNameError by remember { mutableStateOf(false) }
+
+    val localBuckets = remember { scoopClient.bucketNames }
+    val bucketExists = localBuckets.any { it.equals(bucketName, ignoreCase = true) }
+
+    scooper.ui.components.ConfirmDialog(
+        title = "Install ${app.Name}",
+        confirmText = "Install",
+        cancelText = "Cancel",
+        onConfirm = {
+            val trimmed = bucketName.trim()
+            if (trimmed.isBlank()) {
+                bucketNameError = true
+                return@ConfirmDialog
+            }
+            onConfirm(trimmed)
+        },
+        onCancel = onCancel,
+        state = DialogState(size = DpSize(760.dp, 520.dp)),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Text(
+                "This will install the app and its bucket if not already added.",
+                style = typography.body2.copy(color = colors.textBody),
+            )
+
+            Spacer(Modifier.height(18.dp))
+
+            // Bucket Name field
+            Text(
+                "Bucket Name",
+                style = typography.caption.copy(
+                    color = colors.textTitle,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+            Spacer(Modifier.height(8.dp))
+            scooper.ui.components.DialogTextField(
+                value = bucketName,
+                onValueChange = {
+                    bucketName = it
+                    bucketNameError = false
+                },
+                placeholder = "e.g. extras",
+                isError = bucketNameError,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (bucketNameError) "Bucket name is required" else "Bucket name used locally by Scoop.",
+                color = if (bucketNameError) colors.error else colors.textBody,
+                style = typography.caption,
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // Command preview
+            Text(
+                "Commands",
+                style = typography.caption.copy(
+                    color = colors.textTitle,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+            Spacer(Modifier.height(8.dp))
+            val bucketCommand = "scoop bucket add $bucketName ${app.Metadata.Repository}"
+            val installCommand = "scoop install $bucketName/${app.Name}"
+
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (!bucketExists) {
+                        CommandLineRow(text = bucketCommand)
+                    }
+                    CommandLineRow(text = installCommand)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandLineRow(
+    text: String,
+    muted: Boolean = false,
+    hint: String? = null,
+) {
+    val colors = MaterialTheme.colors
+    val commandColor = if (muted) colors.textMuted else colors.onSurface
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.inputBackground)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                ">",
+                style = typography.body1.copy(
+                    color = commandColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text,
+                style = typography.body1.copy(
+                    color = commandColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.weight(1f))
+            Tooltip("Copy", position = TooltipPosition.Top) {
+                var copyHover by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier.size(24.dp)
+                        .cursorHand()
+                        .onHover { copyHover = it }
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (copyHover) colors.backgroundHover else Color.Transparent)
+                        .clickable {
+                            val selection = StringSelection(text)
+                            Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource("copy.svg"),
+                        "Copy",
+                        modifier = Modifier.size(12.dp),
+                        tint = colors.textMuted,
+                    )
+                }
+            }
+        }
+
+        if (hint != null) {
+            Text(
+                hint,
+                style = typography.caption.copy(color = colors.textMuted),
+                modifier = Modifier.padding(start = 6.dp),
+            )
         }
     }
 }
