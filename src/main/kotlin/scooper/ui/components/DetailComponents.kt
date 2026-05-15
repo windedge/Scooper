@@ -12,7 +12,7 @@ import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,7 +100,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 Spacer(Modifier.width(4.dp))
                 Tooltip(release.html_url, position = TooltipPosition.Top) {
                     Icon(
-                        painterResource("external_link_icon.xml"),
+                        rememberPainterResource("external_link_icon.xml"),
                         "View on GitHub",
                         modifier = Modifier.size(12.dp).cursorHand().clickable { safeBrowse(release.html_url) },
                         tint = colors.textMuted,

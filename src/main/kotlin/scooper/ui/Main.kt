@@ -13,7 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import kotlinx.coroutines.runBlocking
@@ -129,7 +129,7 @@ fun main() {
         },
         winState,
         title = "Scooper",
-        icon = painterResource("logo.svg"),
+        icon = rememberPainterResource("logo.svg"),
         // Window-level key event interception — handled at AWT level, independent of Compose focus.
         onPreviewKeyEvent = { keyEvent ->
             handleWindowShortcut(
@@ -285,7 +285,7 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
             position = WindowPosition(Alignment.Center)
         ),
         title = "Scooper",
-        icon = painterResource("logo.svg"),
+        icon = rememberPainterResource("logo.svg"),
         undecorated = true,
         resizable = false,
         transparent = true,
@@ -308,7 +308,7 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource("logo.svg"),
+                        painter = rememberPainterResource("logo.svg"),
                         contentDescription = "Scooper",
                         modifier = Modifier.size(56.dp)
                     )

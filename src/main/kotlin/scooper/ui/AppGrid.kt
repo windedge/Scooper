@@ -19,7 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import scooper.data.App
@@ -152,7 +152,7 @@ fun AppGridCard(
                         Spacer(Modifier.width(4.dp))
                         val homepage = app.homepage!!
                         Icon(
-                            painter = painterResource("external_link_icon.xml"),
+                            painter = rememberPainterResource("external_link_icon.xml"),
                             homepage,
                             modifier = Modifier.size(12.dp).cursorHand().clickable { safeBrowse(homepage) },
                             tint = colors.textMuted
@@ -196,7 +196,7 @@ fun AppGridCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(app.version ?: "", style = OldVersionStyle)
                             Spacer(Modifier.width(4.dp))
-                            Icon(painterResource("arrow_right.xml"), "", modifier = Modifier.size(10.dp), tint = colors.textMuted)
+                            Icon(rememberPainterResource("arrow_right.xml"), "", modifier = Modifier.size(10.dp), tint = colors.textMuted)
                             Spacer(Modifier.width(4.dp))
                             Text(app.latestVersion, style = NewVersionStyle)
                         }

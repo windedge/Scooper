@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -75,7 +75,7 @@ fun MoreActionsButton() {
     var open by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }, Modifier.cursorLink(), rippleRadius = 20.dp) {
-        Icon(painterResource("more.svg"), "More Actions", modifier = Modifier.height(30.dp), tint = colors.primary)
+        Icon(rememberPainterResource("more.svg"), "More Actions", modifier = Modifier.height(30.dp), tint = colors.primary)
 
         DropdownMenu(open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
@@ -92,7 +92,7 @@ fun MoreActionsButton() {
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Output) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painterResource("CommandLine.svg"), "View Logs", modifier = Modifier.size(16.dp))
+                    Icon(rememberPainterResource("CommandLine.svg"), "View Logs", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
                     Text("View Logs")
                 }
@@ -198,7 +198,7 @@ fun RefreshScoopButton() {
                     rippleRadius = 20.dp
                 ) {
                     Icon(
-                        painterResource("sync.svg"),
+                        rememberPainterResource("sync.svg"),
                         "refresh",
                         modifier = Modifier.height(30.dp),
                         tint = colors.primary
@@ -258,7 +258,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
             )
         } else {
             Icon(
-                painterResource("drag_indicator.svg"),
+                rememberPainterResource("drag_indicator.svg"),
                 contentDescription = "Reorder Task",
                 modifier = Modifier.size(18.dp).then(draggableHandle?.cursorHand() ?: Modifier)
             )
@@ -277,7 +277,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(painterResource("stop.svg"), "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
+                Icon(rememberPainterResource("stop.svg"), "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
             }
 
         } else {

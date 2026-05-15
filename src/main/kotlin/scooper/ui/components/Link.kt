@@ -9,7 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.unit.dp
 import scooper.util.bottomBorder
 import scooper.util.cursorHand
@@ -20,7 +20,7 @@ import scooper.util.onHover
 fun Link(
     text: String = "",
     modifier: Modifier = Modifier,
-    painter: Painter? = painterResource("external_link_icon.xml"),
+    painter: Painter? = rememberPainterResource("external_link_icon.xml"),
     onClicked: () -> Unit
 ) {
     var hover by remember { mutableStateOf(false) }

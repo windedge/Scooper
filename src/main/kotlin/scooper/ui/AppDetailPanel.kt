@@ -27,7 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -263,7 +263,7 @@ private fun ContentTabSection(
                 if (selectedTab == ContentTab.Changelog && releasesPageUrl != null) {
                     Tooltip(releasesPageUrl, position = TooltipPosition.Top) {
                         Icon(
-                            painterResource("github-fill.svg"),
+                            rememberPainterResource("github-fill.svg"),
                             "View releases on GitHub",
                             modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(releasesPageUrl) },
                             tint = colors.textMuted,
@@ -273,7 +273,7 @@ private fun ContentTabSection(
                 if (selectedTab == ContentTab.Manifest && manifestContent != null) {
                     Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
                         Icon(
-                            painterResource("copy.svg"),
+                            rememberPainterResource("copy.svg"),
                             "Copy",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
@@ -285,7 +285,7 @@ private fun ContentTabSection(
                     Spacer(Modifier.width(12.dp))
                     Tooltip("Open in editor", position = TooltipPosition.Top) {
                         Icon(
-                            painterResource("external_link_icon.xml"),
+                            rememberPainterResource("external_link_icon.xml"),
                             "Open",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
@@ -337,7 +337,7 @@ private fun ContentTabSection(
                 if (manifestContent != null) {
                     Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
                         Icon(
-                            painterResource("copy.svg"),
+                            rememberPainterResource("copy.svg"),
                             "Copy",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
@@ -349,7 +349,7 @@ private fun ContentTabSection(
                     Spacer(Modifier.width(12.dp))
                     Tooltip("Open in editor", position = TooltipPosition.Top) {
                         Icon(
-                            painterResource("external_link_icon.xml"),
+                            rememberPainterResource("external_link_icon.xml"),
                             "Open",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
@@ -488,7 +488,7 @@ private fun MetadataSection(app: App) {
                     Text(app.version ?: "", style = OldVersionStyle)
                     Spacer(Modifier.width(6.dp))
                     Icon(
-                        painterResource("arrow_right.xml"), "",
+                        rememberPainterResource("arrow_right.xml"), "",
                         modifier = Modifier.size(12.dp),
                         tint = colors.textMuted,
                     )
