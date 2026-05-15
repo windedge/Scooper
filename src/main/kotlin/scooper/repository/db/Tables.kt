@@ -27,7 +27,7 @@ object Apps : IntIdTable("apps") {
     val updateAt = datetime("update_at")
 
     init {
-        index(isUnique = true, name, bucketId)
+        index("apps_name_bucket_id_unique", true, name, bucketId)
     }
 }
 
