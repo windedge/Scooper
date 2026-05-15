@@ -96,7 +96,9 @@ class ScoopClient(
         return regex.find(repoInfo)?.groupValues?.get(2)
     }
 
-    /** Parse all bucket manifest files to build the complete app list. */
+    /** Parse all bucket manifest files to build the complete app list.
+     *  Deduplicates by name: installed apps take priority, then first bucket wins.
+     *  This matches Scoop's behavior (Get-Manifest in manifest.ps1). */
     val apps: List<App>
         get() {
             val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
@@ -111,8 +113,25 @@ class ScoopClient(
                     ?: listOf()
                 allApps.addAll(apps)
             }
-            return allApps
+            return deduplicateApps(allApps)
         }
+
+    /** Deduplicate apps by name, keeping the first match per Scoop's behavior.
+     *  Installed apps take priority; otherwise the first bucket in order wins. */
+    private fun deduplicateApps(apps: List<App>): List<App> {
+        val result = LinkedHashMap<String, App>()
+        // First pass: prefer installed apps (use their bucket's manifest)
+        for (app in apps) {
+            if (app.installed) {
+                result.putIfAbsent(app.name, app)
+            }
+        }
+        // Second pass: fill remaining with first bucket match
+        for (app in apps) {
+            result.putIfAbsent(app.name, app)
+        }
+        return result.values.toList()
+    }
 
     /** Build apps only from the specified manifest file names in a single bucket. */
     fun buildAppsFromManifestNames(
