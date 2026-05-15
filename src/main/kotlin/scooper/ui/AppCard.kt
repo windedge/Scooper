@@ -17,7 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -162,7 +162,7 @@ fun AppCard(
                             val homepage = app.homepage!!
                             Tooltip(homepage, position = TooltipPosition.Top) {
                                 Icon(
-                                    painter = painterResource("external_link_icon.xml"),
+                                    painter = rememberPainterResource("external_link_icon.xml"),
                                     homepage,
                                     modifier = Modifier.size(14.dp).cursorHand().clickable {
                                         safeBrowse(homepage)
@@ -211,7 +211,7 @@ fun AppCard(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Icon(
-                                    painterResource("arrow_right.xml"), "",
+                                    rememberPainterResource("arrow_right.xml"), "",
                                     modifier = Modifier.size(12.dp),
                                     tint = colors.textMuted
                                 )

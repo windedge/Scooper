@@ -12,7 +12,7 @@ import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
 import scooper.data.App
@@ -143,7 +143,7 @@ fun NoResults() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            painterResource("no-results.svg"),
+            rememberPainterResource("no-results.svg"),
             contentDescription = "No Results",
             modifier = Modifier.size(60.dp), tint = colors.primary
         )

@@ -10,7 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
@@ -355,7 +355,7 @@ fun AboutSection() {
         SectionCard {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                 Icon(
-                    painterResource("logo.svg"),
+                    rememberPainterResource("logo.svg"),
                     contentDescription = "logo",
                     modifier = Modifier.size(36.dp),
                     tint = colors.primary
@@ -377,7 +377,7 @@ fun AboutSection() {
                 ) {
                     Text("GitHub", color = colors.primary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(4.dp))
-                    Icon(painterResource("github-fill.svg"), "github", modifier = Modifier.size(16.dp), tint = colors.primary)
+                    Icon(rememberPainterResource("github-fill.svg"), "github", modifier = Modifier.size(16.dp), tint = colors.primary)
                 }
             }
         }

@@ -20,7 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
@@ -100,7 +100,7 @@ fun CleanupScreen(
                             modifier = Modifier.cursorLink(),
                         ) {
                             Icon(
-                                painterResource("sync.svg"),
+                                rememberPainterResource("sync.svg"),
                                 contentDescription = "Rescan",
                                 tint = colors.primary,
                                 modifier = Modifier.size(18.dp),
@@ -153,7 +153,7 @@ fun CleanupScreen(
                                 modifier = Modifier.cursorLink(),
                             ) {
                                 Icon(
-                                    painterResource("sync.svg"),
+                                    rememberPainterResource("sync.svg"),
                                     contentDescription = "Rescan",
                                     tint = colors.primary,
                                     modifier = Modifier.size(18.dp),
@@ -232,14 +232,14 @@ private fun CacheActionButtons(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            painterResource("sync.svg"),
+                            rememberPainterResource("sync.svg"),
                             "",
                             tint = colors.primary,
                             modifier = Modifier.size(18.dp).padding(start = 5.dp),
                         )
                         Text("Rescan", modifier = Modifier.padding(horizontal = 4.dp))
                         Icon(
-                            painterResource("box.xml"),
+                            rememberPainterResource("box.xml"),
                             "",
                             tint = colors.primary,
                             modifier = Modifier.size(16.dp).padding(end = 5.dp),
@@ -250,7 +250,7 @@ private fun CacheActionButtons(
                 Tooltip("Open Directory") {
                     Box(modifier = Modifier.clickable { onOpen() }) {
                         Icon(
-                            painterResource("folder.svg"),
+                            rememberPainterResource("folder.svg"),
                             "",
                             tint = colors.primary,
                             modifier = Modifier.fillMaxHeight().padding(5.dp).width(25.dp).cursorLink(),
@@ -374,7 +374,7 @@ private fun OldVersionRow(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit
                     onClicked = { Desktop.getDesktop().open(oldVersion.appDir) },
                 )
                 Icon(
-                    painterResource("external_link_icon.xml"),
+                    rememberPainterResource("external_link_icon.xml"),
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = colors.primary.copy(alpha = 0.6f),

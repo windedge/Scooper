@@ -33,7 +33,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -134,7 +134,7 @@ fun SidebarNav(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painter = painterResource("logo.svg"),
+                    painter = rememberPainterResource("logo.svg"),
                     contentDescription = "Scooper",
                     modifier = Modifier.size(18.dp),
                     tint = Color.White,
@@ -162,7 +162,7 @@ fun SidebarNav(
             onFocused = { focusedIndex = 0 },
             onClick = { items[0].action() },
         ) {
-            Icon(painterResource("package-search.svg"), "Discover", modifier = Modifier.size(18.dp))
+            Icon(rememberPainterResource("package-search.svg"), "Discover", modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
@@ -175,7 +175,7 @@ fun SidebarNav(
             onClick = { items[1].action() },
             onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) },
         ) {
-            Icon(painterResource("package-check.svg"), "Installed", modifier = Modifier.size(18.dp))
+            Icon(rememberPainterResource("package-check.svg"), "Installed", modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.height(16.dp))
@@ -190,7 +190,7 @@ fun SidebarNav(
             onFocused = { focusedIndex = 2 },
             onClick = { items[2].action() },
         ) {
-            Icon(painterResource("component.svg"), "Buckets", modifier = Modifier.size(18.dp))
+            Icon(rememberPainterResource("component.svg"), "Buckets", modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.height(16.dp))
@@ -205,7 +205,7 @@ fun SidebarNav(
             onFocused = { focusedIndex = 3 },
             onClick = { items[3].action() },
         ) {
-            Icon(painterResource("brush-cleaning.svg"), "Cleanup", modifier = Modifier.size(18.dp))
+            Icon(rememberPainterResource("brush-cleaning.svg"), "Cleanup", modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
@@ -213,7 +213,7 @@ fun SidebarNav(
             selected = currentRoute is AppRoute.ScoopSearch,
             onClick = { navigator.popupAllAndPush(AppRoute.ScoopSearch) },
         ) {
-            Icon(painterResource("search_for.svg"), "Search Online", modifier = Modifier.size(18.dp))
+            Icon(rememberPainterResource("search_for.svg"), "Search Online", modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.weight(1f))
@@ -227,7 +227,7 @@ fun SidebarNav(
             onFocused = { focusedIndex = 4 },
             onClick = { items[4].action() },
         ) {
-            Icon(painterResource("settings-2.svg"), "Settings", modifier = Modifier.size(18.dp))
+            Icon(rememberPainterResource("settings-2.svg"), "Settings", modifier = Modifier.size(18.dp))
         }
     }
 }

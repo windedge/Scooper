@@ -16,7 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import scooper.ui.theme.*
@@ -85,7 +85,7 @@ fun PaginationBar(
                 enabled = currentPage > 1,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(painterResource("arrow-left-to-line.svg"), "First", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(rememberPainterResource("arrow-left-to-line.svg"), "First", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.width(12.dp))
@@ -96,7 +96,7 @@ fun PaginationBar(
                 enabled = currentPage > 1,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(painterResource("chevron-left.svg"), "Prev", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(rememberPainterResource("chevron-left.svg"), "Prev", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.width(12.dp))
@@ -149,7 +149,7 @@ fun PaginationBar(
                 enabled = currentPage < totalPages,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(painterResource("chevron-right.svg"), "Next", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(rememberPainterResource("chevron-right.svg"), "Next", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
             Spacer(Modifier.width(12.dp))
             // Last page
@@ -158,7 +158,7 @@ fun PaginationBar(
                 enabled = currentPage < totalPages,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(painterResource("arrow-right-to-line.svg"), "Last", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(rememberPainterResource("arrow-right-to-line.svg"), "Last", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
         }
     }

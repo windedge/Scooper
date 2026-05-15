@@ -27,7 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -247,7 +247,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            painterResource("list.svg"), "List View",
+                            rememberPainterResource("list.svg"), "List View",
                             modifier = Modifier.size(14.dp),
                             tint = if (viewMode == ViewMode.List) colors.primary else colors.textMuted
                         )
@@ -260,7 +260,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            painterResource("layout-grid.svg"), "Grid View",
+                            rememberPainterResource("layout-grid.svg"), "Grid View",
                             modifier = Modifier.size(14.dp),
                             tint = if (viewMode == ViewMode.Grid) colors.primary else colors.textMuted
                         )
@@ -283,7 +283,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            painterResource("scroll.svg"), "Waterfall",
+                            rememberPainterResource("scroll.svg"), "Waterfall",
                             modifier = Modifier.size(14.dp),
                             tint = if (paginationMode == PaginationMode.Waterfall) colors.primary else colors.textMuted
                         )
@@ -296,7 +296,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            painterResource("book-open.svg"), "Pagination",
+                            rememberPainterResource("book-open.svg"), "Pagination",
                             modifier = Modifier.size(14.dp),
                             tint = if (paginationMode == PaginationMode.Pagination) colors.primary else colors.textMuted
                         )
@@ -391,7 +391,7 @@ private fun BucketFilterDropdown(
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource("filter.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
+            Icon(rememberPainterResource("filter.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
                 selectedBucket.ifBlank { "All Buckets" },
@@ -479,7 +479,7 @@ private fun SortFilterDropdown(
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource("sort.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
+            Icon(rememberPainterResource("sort.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
                 sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
@@ -490,7 +490,7 @@ private fun SortFilterDropdown(
             )
             Spacer(Modifier.width(4.dp))
             Icon(
-                painterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
+                rememberPainterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
                 "",
                 modifier = Modifier.requiredSize(14.dp),
                 tint = colors.textMuted
@@ -576,7 +576,7 @@ private fun SortFilterDropdown(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        painterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
+                                        rememberPainterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
                                         if (sortOrder == "asc") "Ascending" else "Descending",
                                         modifier = Modifier.size(16.dp),
                                         tint = colors.primary

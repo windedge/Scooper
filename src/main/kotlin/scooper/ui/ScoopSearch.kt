@@ -31,7 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.res.painterResource
+import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -280,7 +280,7 @@ private fun SearchOptionsMenu(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(
-                        painterResource("sliders-horizontal.svg"),
+                        rememberPainterResource("sliders-horizontal.svg"),
                         "Search options",
                         modifier = Modifier.size(14.dp),
                         tint = colors.textBody,
@@ -537,7 +537,7 @@ private fun SearchResultCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Icon(
-                                painterResource("clock.xml"),
+                                rememberPainterResource("clock.xml"),
                                 "Updated",
                                 modifier = Modifier.size(11.dp),
                                 tint = colors.textMuted,
