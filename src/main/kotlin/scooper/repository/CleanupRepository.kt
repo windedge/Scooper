@@ -1,7 +1,7 @@
 package scooper.repository
 
 import scooper.service.CommandResult
-import scooper.service.ScoopService
+import scooper.service.ScoopClient
 import scooper.util.dirSize
 import java.io.File
 import kotlin.io.path.name
@@ -15,24 +15,24 @@ data class OldVersion(
 )
 
 class CleanupRepository(
-    private val scoopService: ScoopService,
+    private val scoopClient: ScoopClient,
 ) {
-    fun computeCacheSize(): Long = scoopService.computeCacheSize()
+    fun computeCacheSize(): Long = scoopClient.computeCacheSize()
 
     val cacheDir: File
-        get() = scoopService.cacheDir
+        get() = scoopClient.cacheDir
 
     fun scanOldVersions(): List<OldVersion> {
-        return (scoopService.localInstalledAppDirs + scoopService.globalInstalledAppDirs)
+        return (scoopClient.localInstalledAppDirs + scoopClient.globalInstalledAppDirs)
             .filter { dir -> dir.exists() && ((dir.listFiles()?.size ?: 0) > 2) }
             .map { dir ->
                 val current = dir.resolve("current").toPath().toRealPath().name
                 val oldDirs = dir.listFiles()?.filter { it.name != "current" && it.name != current } ?: listOf()
-                val global = dir.absolutePath.contains(scoopService.globalRootDir.absolutePath)
+                val global = dir.absolutePath.contains(scoopClient.globalRootDir.absolutePath)
                 val appDir = if (global) {
-                    scoopService.globalRootDir.resolve("apps").resolve(dir.name)
+                    scoopClient.globalRootDir.resolve("apps").resolve(dir.name)
                 } else {
-                    scoopService.rootDir.resolve("apps").resolve(dir.name)
+                    scoopClient.rootDir.resolve("apps").resolve(dir.name)
                 }
                 OldVersion(
                     app = dir.name,
@@ -44,7 +44,7 @@ class CleanupRepository(
             }
     }
 
-    suspend fun removeCache(vararg apps: String): CommandResult = scoopService.removeCache(*apps)
+    suspend fun removeCache(vararg apps: String): CommandResult = scoopClient.removeCache(*apps)
 
-    suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult = scoopService.cleanup(*apps, global = global)
+    suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult = scoopClient.cleanup(*apps, global = global)
 }

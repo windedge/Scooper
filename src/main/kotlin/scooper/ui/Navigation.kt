@@ -1,4 +1,4 @@
-package scooper.ui
+﻿package scooper.ui
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -36,13 +36,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
-import scooper.service.ScoopService
+import scooper.service.ScoopClient
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.onHover
 import scooper.viewmodels.AppsViewModel
+import scooper.ui.theme.*
 import sh.calvin.reorderable.ReorderableColumn
 
 @Suppress("UNCHECKED_CAST")
@@ -116,7 +117,7 @@ fun MoreActionsButton() {
 fun RefreshScoopButton() {
     val appsViewModel: AppsViewModel = koinInject()
     val taskQueue: TaskQueue = koinInject()
-    val scoopService: ScoopService = koinInject()
+    val scoopClient: ScoopClient = koinInject()
     val runningTask by taskQueue.runningTaskFlow.collectAsState(null)
     val scope = rememberCoroutineScope { Dispatchers.Default }
     Box(modifier = Modifier.width(42.dp), contentAlignment = Alignment.Center) {
@@ -159,7 +160,7 @@ fun RefreshScoopButton() {
 
                     DropdownMenu(showQueueTasks, onDismissRequest = { showQueueTasks = false }) {
                         TaskRow(runningTask!!, true, onCancel = {
-                            scope.launch { scoopService.stop() }
+                            scope.launch { scoopClient.stop() }
                         })
 
                         ReorderableColumn(queuedTasks, onSettle = { from, to ->
@@ -270,14 +271,13 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
         )
 
         var hover by remember { mutableStateOf(false) }
-        val tint = if (hover) colors.error else colors.onSecondary
         if (isRunning) {
             IconButton(
                 onClick = { onCancel() },
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(painterResource("stop.svg"), "", modifier = Modifier.size(20.dp), tint = tint)
+                Icon(painterResource("stop.svg"), "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
             }
 
         } else {
@@ -286,7 +286,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(20.dp), tint = tint)
+                Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
             }
         }
     }

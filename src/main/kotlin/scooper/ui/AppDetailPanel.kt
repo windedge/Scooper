@@ -1,4 +1,4 @@
-package scooper.ui
+﻿package scooper.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
@@ -39,7 +39,7 @@ import scooper.data.App
 import scooper.data.AppStatus
 import scooper.service.GitHubRelease
 import scooper.service.GitHubService
-import scooper.service.ScoopService
+import scooper.service.ScoopClient
 import scooper.ui.components.DetailMetadataRow
 import scooper.ui.components.Link
 import scooper.ui.components.ReleaseNoteCard
@@ -69,7 +69,7 @@ fun AppDetailPanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     gitHubService: GitHubService = koinInject(),
-    scoopService: ScoopService = koinInject(),
+    scoopClient: ScoopClient = koinInject(),
 ) {
     val colors = MaterialTheme.colors
     val scope = rememberCoroutineScope()
@@ -108,7 +108,7 @@ fun AppDetailPanel(
 
     LaunchedEffect(app.uniqueName) {
         scope.launch(Dispatchers.IO) {
-            manifestContent = scoopService.getManifestContent(app)
+            manifestContent = scoopClient.getManifestContent(app)
         }
     }
 
@@ -147,7 +147,7 @@ fun AppDetailPanel(
                             releasesError = releasesError,
                             releasesPageUrl = gitHubService.buildReleasesPageUrl(gitHubSourceUrl),
                             manifestContent = manifestContent,
-                            scoopService = scoopService,
+                            scoopClient = scoopClient,
                         )
                     }
                 }
@@ -216,7 +216,7 @@ private fun ContentTabSection(
     releasesError: String?,
     releasesPageUrl: String?,
     manifestContent: String?,
-    scoopService: ScoopService,
+    scoopClient: ScoopClient,
 ) {
     val colors = MaterialTheme.colors
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
@@ -288,7 +288,7 @@ private fun ContentTabSection(
                             painterResource("external_link_icon.xml"),
                             "Open",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
-                                val file = scoopService.getManifestFile(app)
+                                val file = scoopClient.getManifestFile(app)
                                 if (file != null && file.exists()) {
                                     Desktop.getDesktop().open(file)
                                 }
@@ -352,7 +352,7 @@ private fun ContentTabSection(
                             painterResource("external_link_icon.xml"),
                             "Open",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
-                                val file = scoopService.getManifestFile(app)
+                                val file = scoopClient.getManifestFile(app)
                                 if (file != null && file.exists()) {
                                     Desktop.getDesktop().open(file)
                                 }
