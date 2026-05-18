@@ -1,5 +1,16 @@
 # Release Notes
 
+## v1.2.1 (2026-05-18)
+
+### ✨ New Feature
+
+- **Markdown Changelog**: GitHub changelog is now rendered as rich markdown instead of plain text, supporting headings, bold, italic, code, lists, links, and more. (856f731)
+
+### 🐛 Bug Fixes
+
+- **Preserve Text Selection on Right-Click**: Right-clicking on selected text no longer clears the selection across all text panels (console, manifest viewers, release notes). A copy link is also added to release note cards. (f9f86dc)
+- **Deduplicate Apps from Multiple Buckets**: Apps appearing in multiple buckets no longer cause version overrides. Installed apps take priority, then first bucket wins. (db79869)
+
 ## v1.2.0 (2026-05-15)
 
 ### ✨ New Feature
