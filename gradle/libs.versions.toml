@@ -19,6 +19,7 @@ slf4j = "2.0.5"
 common-text = "1.10.0"
 kotlin-process = "1.4.1"
 reorderable = "1.5.2"
+commonmark = "0.24.0"
 
 
 [libraries]
@@ -49,6 +50,8 @@ commons-text =  {module = "org.apache.commons:commons-text", version.ref="common
 kotlin-process =  {module = "com.github.pgreze:kotlin-process", version.ref="kotlin-process"}
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 gettext = { module = "name.kropp.kotlinx-gettext:kotlinx-gettext", version.ref = "gettext" }
+commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
+commonmark-ext-gfm-strikethrough = { module = "org.commonmark:commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 

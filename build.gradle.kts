@@ -41,6 +41,8 @@ dependencies {
     implementation(libs.commons.text)
     implementation(libs.kotlin.process)
     implementation(libs.reorderable)
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.ext.gfm.strikethrough)
 //    implementation(libs.compose.dnd)
 
     // test
