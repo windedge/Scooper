@@ -13,10 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import scooper.ui.components.rememberPainterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import scooper.service.GitHubRelease
 import scooper.ui.theme.*
 import scooper.util.cursorHand
@@ -116,13 +116,19 @@ fun ReleaseNoteCard(release: GitHubRelease) {
             var expanded by remember { mutableStateOf(false) }
             var needsToggle by remember { mutableStateOf(false) }
 
+            val annotatedBody = remember(fullBody) {
+                parseMarkdown(fullBody, MarkdownStyle(
+                    bodyColor = colors.textBody,
+                    mutedColor = colors.textMuted,
+                    linkColor = colors.primary,
+                    codeBackgroundColor = colors.backgroundHover,
+                ))
+            }
+
             androidx.compose.foundation.text.selection.SelectionContainer {
                 Text(
-                    fullBody,
-                    style = typography.body2.copy(
-                        color = colors.textBody,
-                        fontFamily = FontFamily.Monospace,
-                    ),
+                    annotatedBody,
+                    style = typography.body2,
                     maxLines = if (expanded) Int.MAX_VALUE else collapsedLineCount,
                     overflow = TextOverflow.Ellipsis,
                     onTextLayout = { result ->
