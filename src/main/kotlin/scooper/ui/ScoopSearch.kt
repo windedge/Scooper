@@ -43,8 +43,7 @@ import scooper.ui.components.Link
 import scooper.ui.components.OnBottomReached
 import scooper.ui.components.Tooltip
 import scooper.ui.theme.*
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.foundation.text.selection.SelectionContainer
+import scooper.ui.components.SelectableContainer
 import scooper.util.bottomBorder
 import scooper.util.cursorHand
 import scooper.util.noRippleClickable
@@ -694,7 +693,7 @@ private fun SyntaxRow(query: String, description: String) {
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SelectionContainer {
+        SelectableContainer {
             Text(
                 query,
                 style = typography.body2.copy(

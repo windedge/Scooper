@@ -1,6 +1,7 @@
 package scooper.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +14,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import scooper.ui.components.rememberPainterResource
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -125,7 +133,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 ))
             }
 
-            androidx.compose.foundation.text.selection.SelectionContainer {
+            SelectableContainer {
                 Text(
                     annotatedBody,
                     style = typography.body2,
@@ -137,11 +145,25 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 )
             }
             if (needsToggle || expanded) {
-                Link(
-                    text = if (expanded) "Show less" else "Show more",
-                    painter = null,
-                    onClicked = { expanded = !expanded },
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val clipboardManager = LocalClipboardManager.current
+                    Link(
+                        text = if (expanded) "Show less" else "Show more",
+                        painter = null,
+                        onClicked = { expanded = !expanded },
+                    )
+                    Text(
+                        "Copy",
+                        style = typography.caption.copy(color = colors.primary),
+                        modifier = Modifier.cursorHand().clickable {
+                            clipboardManager.setText(AnnotatedString(fullBody))
+                        },
+                    )
+                }
             }
         }
     }
@@ -152,5 +174,26 @@ private fun parseIsoDate(isoDate: String): LocalDateTime? {
         LocalDateTime.ofInstant(Instant.parse(isoDate), ZoneId.systemDefault())
     } catch (_: Exception) {
         null
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@Composable
+fun SelectableContainer(content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.type == PointerEventType.Release && event.button == PointerButton.Secondary) {
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+            }
+        }
+    ) {
+        androidx.compose.foundation.text.selection.SelectionContainer {
+            content()
+        }
     }
 }
