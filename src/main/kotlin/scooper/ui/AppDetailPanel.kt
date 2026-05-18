@@ -45,6 +45,7 @@ import scooper.ui.components.Link
 import scooper.ui.components.ReleaseNoteCard
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
+import scooper.ui.components.SelectableContainer
 import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.onHover
@@ -446,7 +447,7 @@ private fun ManifestContent(
                 .horizontalScroll(horizontalScrollState)
                 .padding(12.dp),
         ) {
-            SelectionContainer {
+            SelectableContainer {
                 Text(
                     content,
                     style = typography.body2.copy(
@@ -572,10 +573,3 @@ private fun MetadataSection(app: App) {
 // ==================== Helpers ====================
 
 private val Colors.Transparent get() = androidx.compose.ui.graphics.Color.Transparent
-
-@Composable
-private fun SelectionContainer(content: @Composable () -> Unit) {
-    androidx.compose.foundation.text.selection.SelectionContainer {
-        content()
-    }
-}

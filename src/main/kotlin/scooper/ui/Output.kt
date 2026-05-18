@@ -3,7 +3,7 @@ package scooper.ui
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
+import scooper.ui.components.SelectableContainer
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -82,7 +82,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
             val showScrollButtons by remember { derivedStateOf { scrollState.maxValue > 0 } }
 
             val annotatedString = parseAnsiColors(output)
-            SelectionContainer {
+            SelectableContainer {
                 Text(
                     text = annotatedString,
                     modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(scrollState),

@@ -40,6 +40,7 @@ import scooper.service.ScoopSearchApp
 import scooper.service.ScoopClient
 import scooper.ui.components.DetailMetadataRow
 import scooper.ui.components.ReleaseNoteCard
+import scooper.ui.components.SelectableContainer
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.theme.*
@@ -383,7 +384,7 @@ private fun InstallConfirmDialog(
             val bucketCommand = "scoop bucket add $bucketName ${app.Metadata.Repository}"
             val installCommand = "scoop install $bucketName/${app.Name}"
 
-            androidx.compose.foundation.text.selection.SelectionContainer {
+            SelectableContainer {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -732,7 +733,7 @@ private fun SearchManifestContent(manifestContent: String?, manifestError: Strin
                         .horizontalScroll(horizontalState)
                         .padding(12.dp),
                 ) {
-                    androidx.compose.foundation.text.selection.SelectionContainer {
+                    SelectableContainer {
                         Text(
                             manifestContent,
                             style = typography.body2.copy(
