@@ -7,10 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.twotone.Clear
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -20,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -75,14 +71,14 @@ fun MoreActionsButton() {
     var open by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }, Modifier.cursorLink(), rippleRadius = 20.dp) {
-        Icon(rememberPainterResource("more.svg"), "More Actions", modifier = Modifier.height(30.dp), tint = colors.primary)
+        Icon(Lucide.EllipsisVertical, "More Actions", modifier = Modifier.height(30.dp), tint = colors.primary)
 
         DropdownMenu(open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Settings.General) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Settings, "Settings", modifier = Modifier.size(16.dp))
+                    Icon(Lucide.Settings, "Settings", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
                     Text("Settings")
                 }
@@ -92,7 +88,7 @@ fun MoreActionsButton() {
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Output) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(rememberPainterResource("CommandLine.svg"), "View Logs", modifier = Modifier.size(16.dp))
+                    Icon(Lucide.Terminal, "View Logs", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
                     Text("View Logs")
                 }
@@ -102,7 +98,7 @@ fun MoreActionsButton() {
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Settings.About) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Info, "About", modifier = Modifier.size(16.dp))
+                    Icon(Lucide.Info, "About", modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
                     Text("About")
                 }
@@ -192,19 +188,20 @@ fun RefreshScoopButton() {
                             appsViewModel.scheduleUpdateApps()
                         }
                     },
-                    modifier = Modifier.cursorLink().onPointerEvent(PointerEventType.Press) {
+                    modifier = Modifier.cursorLink().size(42.dp).clip(RoundedCornerShape(8.dp)).onPointerEvent(PointerEventType.Press) {
                         isCtrlPressed = it.keyboardModifiers.isCtrlPressed
                     },
                     rippleRadius = 20.dp
                 ) {
                     Icon(
-                        rememberPainterResource("sync.svg"),
+                        Lucide.RefreshCw,
                         "refresh",
-                        modifier = Modifier.height(30.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = colors.primary
                     )
                 }
             }
+
 
         }
     }
@@ -258,7 +255,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
             )
         } else {
             Icon(
-                rememberPainterResource("drag_indicator.svg"),
+                Lucide.GripVertical,
                 contentDescription = "Reorder Task",
                 modifier = Modifier.size(18.dp).then(draggableHandle?.cursorHand() ?: Modifier)
             )
@@ -277,7 +274,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(rememberPainterResource("stop.svg"), "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
+                Icon(Lucide.Square, "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
             }
 
         } else {
@@ -286,7 +283,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
                 modifier = Modifier.cursorHand().padding(horizontal = 5.dp).onHover { hover = it },
                 rippleRadius = 12.dp,
             ) {
-                Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
+                Icon(Lucide.X, "", modifier = Modifier.size(20.dp), tint = if (hover) colors.error else colors.dangerDefault)
             }
         }
     }

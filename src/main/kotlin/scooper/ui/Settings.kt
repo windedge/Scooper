@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import scooper.ui.components.rememberPainterResource
+import scooper.ui.icons.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.*
@@ -377,7 +378,7 @@ fun AboutSection() {
                 ) {
                     Text("GitHub", color = colors.primary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(4.dp))
-                    Icon(rememberPainterResource("github-fill.svg"), "github", modifier = Modifier.size(16.dp), tint = colors.primary)
+                    Icon(Lucide.Github, "github", modifier = Modifier.size(16.dp), tint = colors.primary)
                 }
             }
         }

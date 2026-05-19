@@ -24,8 +24,6 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.desktop.currentOs)
     implementation(compose.material)
-    implementation(compose.materialIconsExtended)
-
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.koin.core)

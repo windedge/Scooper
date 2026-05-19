@@ -10,10 +10,7 @@ import androidx.compose.material.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.twotone.Clear
-import androidx.compose.material.icons.twotone.KeyboardArrowDown
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -27,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
@@ -130,7 +126,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Filled.Search,
+                Lucide.Search,
                 "Search",
                 modifier = Modifier.size(16.dp),
                 tint = if (isFocused) colors.primary else colors.textPlaceholder,
@@ -177,7 +173,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                     modifier = Modifier.cursorHand().padding(horizontal = 2.dp),
                     rippleRadius = 10.dp,
                 ) {
-                    Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
+                    Icon(Lucide.X, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
                 }
             }
         }
@@ -247,7 +243,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            rememberPainterResource("list.svg"), "List View",
+                            Lucide.List, "List View",
                             modifier = Modifier.size(14.dp),
                             tint = if (viewMode == ViewMode.List) colors.primary else colors.textMuted
                         )
@@ -260,7 +256,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            rememberPainterResource("layout-grid.svg"), "Grid View",
+                            Lucide.LayoutGrid, "Grid View",
                             modifier = Modifier.size(14.dp),
                             tint = if (viewMode == ViewMode.Grid) colors.primary else colors.textMuted
                         )
@@ -283,7 +279,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            rememberPainterResource("scroll.svg"), "Waterfall",
+                            Lucide.Scroll, "Waterfall",
                             modifier = Modifier.size(14.dp),
                             tint = if (paginationMode == PaginationMode.Waterfall) colors.primary else colors.textMuted
                         )
@@ -296,7 +292,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            rememberPainterResource("book-open.svg"), "Pagination",
+                            Lucide.BookOpen, "Pagination",
                             modifier = Modifier.size(14.dp),
                             tint = if (paginationMode == PaginationMode.Pagination) colors.primary else colors.textMuted
                         )
@@ -391,7 +387,7 @@ private fun BucketFilterDropdown(
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(rememberPainterResource("filter.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
+            Icon(Lucide.ListFilter, "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
                 selectedBucket.ifBlank { "All Buckets" },
@@ -401,7 +397,7 @@ private fun BucketFilterDropdown(
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(4.dp))
-            Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.requiredSize(16.dp), tint = colors.textMuted)
+            Icon(Lucide.ChevronDown, "", modifier = Modifier.requiredSize(16.dp), tint = colors.textMuted)
         }
 
         DropdownMenu(
@@ -479,7 +475,7 @@ private fun SortFilterDropdown(
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(rememberPainterResource("sort.xml"), "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
+            Icon(Lucide.ArrowUpDown, "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
                 sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
@@ -490,13 +486,13 @@ private fun SortFilterDropdown(
             )
             Spacer(Modifier.width(4.dp))
             Icon(
-                rememberPainterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
+                Lucide.ArrowUpDown,
                 "",
                 modifier = Modifier.requiredSize(14.dp),
                 tint = colors.textMuted
             )
             Spacer(Modifier.width(4.dp))
-            Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.requiredSize(16.dp), tint = colors.textMuted)
+            Icon(Lucide.ChevronDown, "", modifier = Modifier.requiredSize(16.dp), tint = colors.textMuted)
         }
 
         DropdownMenu(
@@ -576,7 +572,7 @@ private fun SortFilterDropdown(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
-                                        rememberPainterResource(if (sortOrder == "asc") "arrow-up-narrow-wide.svg" else "arrow-down-wide-narrow.svg"),
+                                        Lucide.ArrowUpDown,
                                         if (sortOrder == "asc") "Ascending" else "Descending",
                                         modifier = Modifier.size(16.dp),
                                         tint = colors.primary

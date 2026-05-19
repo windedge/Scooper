@@ -8,8 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.KeyboardArrowDown
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,7 +101,7 @@ fun ActionButton(
                                 .clickable { expand = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
+                            Icon(Lucide.ChevronDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
                         }
                     }
                 }
@@ -138,7 +137,7 @@ fun ActionButton(
                                 .clickable { expand = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+                            Icon(Lucide.ChevronDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
                         }
                     }
                 }
@@ -174,7 +173,7 @@ fun ActionButton(
                                 .clickable { expand = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+                            Icon(Lucide.ChevronDown, "", modifier = Modifier.size(16.dp), tint = colors.textMuted)
                         }
                     }
                 }
@@ -209,7 +208,7 @@ fun ActionButton(
                                 .clickable { expand = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
+                            Icon(Lucide.ChevronDown, "", modifier = Modifier.size(16.dp), tint = Color.White)
                         }
                     }
                 }

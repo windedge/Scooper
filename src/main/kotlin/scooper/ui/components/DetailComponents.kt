@@ -10,10 +10,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
+
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -108,7 +109,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 Spacer(Modifier.width(4.dp))
                 Tooltip(release.html_url, position = TooltipPosition.Top) {
                     Icon(
-                        rememberPainterResource("external_link_icon.xml"),
+                        Lucide.ExternalLink,
                         "View on GitHub",
                         modifier = Modifier.size(12.dp).cursorHand().clickable { safeBrowse(release.html_url) },
                         tint = colors.textMuted,

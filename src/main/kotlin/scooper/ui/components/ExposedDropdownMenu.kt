@@ -9,8 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,7 +61,7 @@ fun ExposedDropdownMenu(
                         Spacer(modifier = Modifier.width(8.dp))
                         val rotation by animateFloatAsState(if (expanded) 180F else 0F)
                         Icon(
-                            Icons.Default.ArrowDropDown,
+                            Lucide.ChevronDown,
                             contentDescription = "Dropdown Arrow",
                             modifier = Modifier.rotate(rotation),
                             tint = colors.textMuted,
@@ -153,7 +152,7 @@ fun ExposedDropdownMenuX(
                 Spacer(modifier = Modifier.width(8.dp))
                 val rotation by animateFloatAsState(if (expanded) 180F else 0F)
                 Icon(
-                    Icons.Default.ArrowDropDown,
+                    Lucide.ChevronDown,
                     contentDescription = "Dropdown Arrow",
                     modifier = Modifier.rotate(rotation),
                     tint = colors.textMuted,

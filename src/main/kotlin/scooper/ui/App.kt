@@ -9,10 +9,11 @@ import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.shapes
 import androidx.compose.material.MaterialTheme.typography
+
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
 import scooper.data.App
@@ -143,7 +144,7 @@ fun NoResults() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            rememberPainterResource("no-results.svg"),
+            Lucide.SearchX,
             contentDescription = "No Results",
             modifier = Modifier.size(60.dp), tint = colors.primary
         )

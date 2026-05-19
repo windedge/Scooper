@@ -13,11 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
+
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -162,7 +163,7 @@ fun AppCard(
                             val homepage = app.homepage!!
                             Tooltip(homepage, position = TooltipPosition.Top) {
                                 Icon(
-                                    painter = rememberPainterResource("external_link_icon.xml"),
+                                    Lucide.ExternalLink,
                                     homepage,
                                     modifier = Modifier.size(14.dp).cursorHand().clickable {
                                         safeBrowse(homepage)
@@ -211,7 +212,7 @@ fun AppCard(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Icon(
-                                    rememberPainterResource("arrow_right.xml"), "",
+                                    Lucide.ChevronRight, "",
                                     modifier = Modifier.size(12.dp),
                                     tint = colors.textMuted
                                 )

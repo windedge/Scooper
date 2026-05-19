@@ -16,9 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.twotone.Clear
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
@@ -31,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -219,7 +216,7 @@ private fun SearchInput(
         },
         leadingIcon = {
             Icon(
-                Icons.Filled.Search,
+                Lucide.Search,
                 "Search",
                 modifier = Modifier.size(18.dp),
                 tint = colors.textPlaceholder,
@@ -235,7 +232,7 @@ private fun SearchInput(
                     modifier = Modifier.cursorHand().padding(horizontal = 2.dp),
                     rippleRadius = 10.dp,
                 ) {
-                    Icon(Icons.TwoTone.Clear, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
+                    Icon(Lucide.X, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
                 }
             }
         } else null,
@@ -279,7 +276,7 @@ private fun SearchOptionsMenu(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Icon(
-                        rememberPainterResource("sliders-horizontal.svg"),
+                        Lucide.SlidersHorizontal,
                         "Search options",
                         modifier = Modifier.size(14.dp),
                         tint = colors.textBody,
@@ -536,7 +533,7 @@ private fun SearchResultCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             Icon(
-                                rememberPainterResource("clock.xml"),
+                                Lucide.Clock,
                                 "Updated",
                                 modifier = Modifier.size(11.dp),
                                 tint = colors.textMuted,

@@ -16,14 +16,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.Close
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -245,7 +243,7 @@ private fun SearchDetailHeader(
                 .clickable { onClose() },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.TwoTone.Close, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            Icon(Lucide.X, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
         }
     }
 }
@@ -290,7 +288,7 @@ private fun SearchInstallAction(
                     )
                 } else {
                     Icon(
-                        rememberPainterResource("package-check.svg"),
+                        Lucide.PackageCheck,
                         "Install",
                         modifier = Modifier.size(12.dp),
                         tint = Color.White,
@@ -451,7 +449,7 @@ private fun CommandLineRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        rememberPainterResource("copy.svg"),
+                        Lucide.Copy,
                         "Copy",
                         modifier = Modifier.size(12.dp),
                         tint = colors.textMuted,
@@ -576,7 +574,7 @@ private fun SearchDetailContentSection(
                 if (selectedTab == SearchDetailTab.Changelog && releasesPageUrl != null) {
                     Tooltip(releasesPageUrl, position = TooltipPosition.Top) {
                         Icon(
-                            rememberPainterResource("github-fill.svg"),
+                            Lucide.Github,
                             "View releases on GitHub",
                             modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(releasesPageUrl) },
                             tint = colors.textMuted,
@@ -632,7 +630,7 @@ private fun ManifestActionIcons(app: ScoopSearchApp, manifestContent: String?) {
     if (manifestContent != null) {
         Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
             Icon(
-                rememberPainterResource("copy.svg"),
+                Lucide.Copy,
                 "Copy",
                 modifier = Modifier.size(14.dp).cursorHand().clickable {
                     val selection = StringSelection(manifestContent)
@@ -647,7 +645,7 @@ private fun ManifestActionIcons(app: ScoopSearchApp, manifestContent: String?) {
     if (app.Metadata.manifestUrl.isNotBlank()) {
         Tooltip("Open manifest page", position = TooltipPosition.Top) {
             Icon(
-                rememberPainterResource("external_link_icon.xml"),
+                Lucide.ExternalLink,
                 "Open",
                 modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(app.Metadata.manifestUrl) },
                 tint = colors.textMuted,
