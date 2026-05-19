@@ -5,10 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import scooper.ui.components.SelectableContainer
 import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.twotone.ArrowBack
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,7 +47,7 @@ fun OutputScreen(onBack: () -> Unit = {}) {
             ) {
                 IconButton(onClick = { onBack() }) {
                     Icon(
-                        Icons.TwoTone.ArrowBack,
+                        Lucide.ArrowLeft,
                         "",
                         Modifier.cursorLink(),
                         tint = MaterialTheme.colors.primary
@@ -128,7 +125,7 @@ fun ScrollButtons(modifier: Modifier = Modifier, scope: CoroutineScope, scrollSt
             backgroundColor = MaterialTheme.colors.primary,
             modifier = Modifier.size(30.dp).cursorHand()
         ) {
-            Icon(Icons.Filled.KeyboardArrowUp, "")
+            Icon(Lucide.ChevronUp, "")
         }
 
         Spacer(modifier = Modifier.height(5.dp))
@@ -142,7 +139,7 @@ fun ScrollButtons(modifier: Modifier = Modifier, scope: CoroutineScope, scrollSt
             backgroundColor = MaterialTheme.colors.primary,
             modifier = Modifier.size(30.dp).cursorHand()
         ) {
-            Icon(Icons.Filled.KeyboardArrowDown, "")
+            Icon(Lucide.ChevronDown, "")
         }
     }
 }

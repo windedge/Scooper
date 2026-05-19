@@ -9,14 +9,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.KeyboardArrowDown
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import scooper.ui.theme.*
@@ -59,7 +57,7 @@ fun PaginationBar(
                 ) {
                     Text("$pageSize", style = typography.caption.copy(color = colors.onSurface))
                     Spacer(Modifier.width(4.dp))
-                    Icon(Icons.TwoTone.KeyboardArrowDown, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
+                    Icon(Lucide.ChevronDown, "", modifier = Modifier.size(14.dp), tint = colors.textMuted)
                 }
                 DropdownMenu(expanded, onDismissRequest = { expanded = false }, modifier = Modifier.width(80.dp).cursorHand()) {
                     pageSizeOptions.forEach { size ->
@@ -85,7 +83,7 @@ fun PaginationBar(
                 enabled = currentPage > 1,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(rememberPainterResource("arrow-left-to-line.svg"), "First", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ArrowLeftToLine, "First", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.width(12.dp))
@@ -96,7 +94,7 @@ fun PaginationBar(
                 enabled = currentPage > 1,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(rememberPainterResource("chevron-left.svg"), "Prev", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ChevronLeft, "Prev", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.width(12.dp))
@@ -149,7 +147,7 @@ fun PaginationBar(
                 enabled = currentPage < totalPages,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(rememberPainterResource("chevron-right.svg"), "Next", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ChevronRight, "Next", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
             Spacer(Modifier.width(12.dp))
             // Last page
@@ -158,7 +156,7 @@ fun PaginationBar(
                 enabled = currentPage < totalPages,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(rememberPainterResource("arrow-right-to-line.svg"), "Last", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ArrowRightToLine, "Last", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
         }
     }

@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.Add
-import androidx.compose.material.icons.twotone.Delete
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -86,7 +84,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                             elevation = ButtonDefaults.elevation(defaultElevation = 1.dp),
                             modifier = Modifier.cursorHand()
                         ) {
-                            Icon(Icons.TwoTone.Add, "", modifier = Modifier.size(18.dp), tint = Color.White)
+                            Icon(Lucide.Plus, "", modifier = Modifier.size(18.dp), tint = Color.White)
                             Spacer(Modifier.width(6.dp))
                             Text("Add Bucket", color = Color.White, fontWeight = FontWeight.Medium)
                         }
@@ -282,7 +280,7 @@ fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
                     .cursorHand()
             ) {
                 Icon(
-                    Icons.TwoTone.Delete,
+                    Lucide.Trash2,
                     "",
                     modifier = Modifier.size(18.dp),
                     tint = colors.dangerDefault
@@ -352,7 +350,7 @@ fun KnownBucketCard(name: String, onAdd: () -> Unit, modifier: Modifier = Modifi
                 )
             )
             Icon(
-                Icons.TwoTone.Add,
+                Lucide.Plus,
                 "",
                 modifier = Modifier.size(18.dp),
                 tint = if (isHover) colors.primary else colors.textMuted

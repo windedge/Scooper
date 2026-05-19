@@ -11,16 +11,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.Delete
-import androidx.compose.material.icons.twotone.KeyboardArrowDown
-import androidx.compose.material.icons.twotone.KeyboardArrowUp
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.koin.compose.koinInject
@@ -100,7 +96,7 @@ fun CleanupScreen(
                             modifier = Modifier.cursorLink(),
                         ) {
                             Icon(
-                                rememberPainterResource("sync.svg"),
+                                Lucide.RefreshCw,
                                 contentDescription = "Rescan",
                                 tint = colors.primary,
                                 modifier = Modifier.size(18.dp),
@@ -153,7 +149,7 @@ fun CleanupScreen(
                                 modifier = Modifier.cursorLink(),
                             ) {
                                 Icon(
-                                    rememberPainterResource("sync.svg"),
+                                    Lucide.RefreshCw,
                                     contentDescription = "Rescan",
                                     tint = colors.primary,
                                     modifier = Modifier.size(18.dp),
@@ -219,7 +215,7 @@ private fun CacheActionButtons(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            Icons.TwoTone.Delete,
+                            Lucide.Trash2,
                             contentDescription = "Clear Cache",
                             tint = colors.primary,
                             modifier = Modifier.size(30.dp).padding(start = 5.dp, top = 5.dp, bottom = 5.dp),
@@ -232,14 +228,14 @@ private fun CacheActionButtons(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            rememberPainterResource("sync.svg"),
+                            Lucide.RefreshCw,
                             "",
                             tint = colors.primary,
                             modifier = Modifier.size(18.dp).padding(start = 5.dp),
                         )
                         Text("Rescan", modifier = Modifier.padding(horizontal = 4.dp))
                         Icon(
-                            rememberPainterResource("box.xml"),
+                            Lucide.Box,
                             "",
                             tint = colors.primary,
                             modifier = Modifier.size(16.dp).padding(end = 5.dp),
@@ -250,7 +246,7 @@ private fun CacheActionButtons(
                 Tooltip("Open Directory") {
                     Box(modifier = Modifier.clickable { onOpen() }) {
                         Icon(
-                            rememberPainterResource("folder.svg"),
+                            Lucide.Folder,
                             "",
                             tint = colors.primary,
                             modifier = Modifier.fillMaxHeight().padding(5.dp).width(25.dp).cursorLink(),
@@ -347,8 +343,8 @@ private fun OldVersions(
             Spacer(Modifier.height(8.dp))
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
                 val text = if (showMore) "Show less" else "Show more"
-                val down = rememberVectorPainter(Icons.TwoTone.KeyboardArrowDown)
-                val up = rememberVectorPainter(Icons.TwoTone.KeyboardArrowUp)
+                val down = rememberVectorPainter(Lucide.ChevronDown)
+                val up = rememberVectorPainter(Lucide.ChevronUp)
                 val icon = if (showMore) up else down
                 Link(text, painter = icon, onClicked = { showMore = !showMore })
             }
@@ -374,7 +370,7 @@ private fun OldVersionRow(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit
                     onClicked = { Desktop.getDesktop().open(oldVersion.appDir) },
                 )
                 Icon(
-                    rememberPainterResource("external_link_icon.xml"),
+                    Lucide.ExternalLink,
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = colors.primary.copy(alpha = 0.6f),
@@ -403,7 +399,7 @@ private fun OldVersionRow(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit
             modifier = Modifier.cursorHand(),
         ) {
             Icon(
-                Icons.TwoTone.Delete,
+                Lucide.Trash2,
                 contentDescription = "Delete",
                 tint = colors.textMuted,
             )

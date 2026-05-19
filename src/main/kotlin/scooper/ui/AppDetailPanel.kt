@@ -20,14 +20,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.twotone.Close
+import scooper.ui.icons.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -199,7 +197,7 @@ private fun DetailHeader(app: App, onClose: () -> Unit) {
                 .clickable { onClose() },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.TwoTone.Close, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            Icon(Lucide.X, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
         }
     }
 }
@@ -264,7 +262,7 @@ private fun ContentTabSection(
                 if (selectedTab == ContentTab.Changelog && releasesPageUrl != null) {
                     Tooltip(releasesPageUrl, position = TooltipPosition.Top) {
                         Icon(
-                            rememberPainterResource("github-fill.svg"),
+                            Lucide.Github,
                             "View releases on GitHub",
                             modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(releasesPageUrl) },
                             tint = colors.textMuted,
@@ -274,7 +272,7 @@ private fun ContentTabSection(
                 if (selectedTab == ContentTab.Manifest && manifestContent != null) {
                     Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
                         Icon(
-                            rememberPainterResource("copy.svg"),
+                            Lucide.Copy,
                             "Copy",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
@@ -286,7 +284,7 @@ private fun ContentTabSection(
                     Spacer(Modifier.width(12.dp))
                     Tooltip("Open in editor", position = TooltipPosition.Top) {
                         Icon(
-                            rememberPainterResource("external_link_icon.xml"),
+                            Lucide.ExternalLink,
                             "Open",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
@@ -338,7 +336,7 @@ private fun ContentTabSection(
                 if (manifestContent != null) {
                     Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
                         Icon(
-                            rememberPainterResource("copy.svg"),
+                            Lucide.Copy,
                             "Copy",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
@@ -350,7 +348,7 @@ private fun ContentTabSection(
                     Spacer(Modifier.width(12.dp))
                     Tooltip("Open in editor", position = TooltipPosition.Top) {
                         Icon(
-                            rememberPainterResource("external_link_icon.xml"),
+                            Lucide.ExternalLink,
                             "Open",
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
@@ -489,7 +487,7 @@ private fun MetadataSection(app: App) {
                     Text(app.version ?: "", style = OldVersionStyle)
                     Spacer(Modifier.width(6.dp))
                     Icon(
-                        rememberPainterResource("arrow_right.xml"), "",
+                        Lucide.ChevronRight, "",
                         modifier = Modifier.size(12.dp),
                         tint = colors.textMuted,
                     )

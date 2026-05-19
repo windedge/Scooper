@@ -4,8 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import scooper.ui.icons.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -218,7 +217,7 @@ fun NavBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Start,
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "", modifier = Modifier.size(18.dp))
+                    Icon(Lucide.ArrowLeft, "", modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Back", style = MaterialTheme.typography.button)
                 }

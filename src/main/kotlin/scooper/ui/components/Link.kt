@@ -1,15 +1,18 @@
 package scooper.ui.components
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
+
+import scooper.ui.icons.*
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
-import scooper.ui.components.rememberPainterResource
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
 import scooper.util.bottomBorder
 import scooper.util.cursorHand
@@ -20,7 +23,7 @@ import scooper.util.onHover
 fun Link(
     text: String = "",
     modifier: Modifier = Modifier,
-    painter: Painter? = rememberPainterResource("external_link_icon.xml"),
+    painter: Painter? = rememberVectorPainter(Lucide.ExternalLink),
     onClicked: () -> Unit
 ) {
     var hover by remember { mutableStateOf(false) }
@@ -40,6 +43,7 @@ fun Link(
             Icon(
                 painter,
                 contentDescription = "Open Link",
+                modifier = Modifier.size(14.dp),
                 tint = colors.primary
             )
         }
