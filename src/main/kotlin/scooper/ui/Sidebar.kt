@@ -23,7 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import scooper.ui.components.rememberPainterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -301,8 +302,15 @@ private fun SidebarNavItem(
             .height(38.dp)
             .padding(horizontal = 12.dp)
             .then(
-                if (selected) Modifier.shadow(2.dp, RoundedCornerShape(8.dp))
-                else Modifier
+                if (selected) {
+                    Modifier.dropShadow(
+                        shape = RoundedCornerShape(8.dp),
+                        shadow = Shadow(
+                            radius = 2.dp,
+                            color = Color.Black.copy(alpha = 0.12f),
+                        ),
+                    )
+                } else Modifier
             )
             .clip(RoundedCornerShape(8.dp))
             .then(
