@@ -7,8 +7,6 @@ import kotlinx.coroutines.cancel
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
-import org.orbitmvi.orbit.syntax.simple.intent
-import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.ScoopConfig
 import scooper.data.Theme
 import scooper.data.UIConfig

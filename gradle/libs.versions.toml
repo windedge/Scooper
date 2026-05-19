@@ -1,31 +1,30 @@
 [versions]
-kotlin = "1.9.23"
-compose = "1.6.11"
+kotlin = "2.3.10"
+compose = "1.10.2"
 logback = "1.4.5"
 log4j = "2.19.0"
-koin = "3.5.3"
-koin-compose = "1.1.2"
+koin = "4.2.1"
 voyager = "1.0.0"
-orbit = "6.1.0"
+orbit = "10.0.0"
 kopybuilder = "0.2.0"
 viform = "0.2.1"
 gettext = "0.6.1"
-exposed = "0.51.0"
-kotlinx-serialization = "1.6.2"
-sqlite-jdbc = "3.41.2.2"
-junit-jupiter = "5.9.0"
-buildconfig = "3.1.0"
-slf4j = "2.0.5"
+exposed = "0.61.0"
+kotlinx-serialization = "1.10.0"
+sqlite-jdbc = "3.51.1.0"
+junit-jupiter = "5.11.4"
+buildconfig = "5.7.1"
+slf4j = "2.0.17"
 common-text = "1.10.0"
-kotlin-process = "1.4.1"
-reorderable = "1.5.2"
+kotlin-process = "1.5.1"
+reorderable = "2.5.1"
 commonmark = "0.24.0"
 
 
 [libraries]
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 koin-logger-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref = "koin" }
-koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin-compose" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
 
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
@@ -60,6 +59,7 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "jun
 jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kopybuilder = { id = "io.github.windedge.kopybuilder", version.ref = "kopybuilder" }
 gettext = { id = "name.kropp.kotlinx-gettext", version.ref = "gettext" }
 buildconfig = { id = "com.github.gmazzo.buildconfig", version.ref = "buildconfig" }

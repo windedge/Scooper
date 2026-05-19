@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     alias(libs.plugins.jvm)
     alias(libs.plugins.compose)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.serialization)
     // alias(libs.plugins.gettext)
     alias(libs.plugins.buildconfig)
@@ -21,6 +22,10 @@ repositories {
 
 dependencies {
     implementation(compose.desktop.currentOs)
+    implementation(compose.desktop.currentOs)
+    implementation(compose.material)
+    implementation(compose.materialIconsExtended)
+
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.koin.core)
@@ -79,8 +84,8 @@ compose.desktop {
 }
 
 val compileKotlin: KotlinCompile by tasks
-compileKotlin.kotlinOptions {
-    freeCompilerArgs = freeCompilerArgs + "-Xopt-in=kotlin.RequiresOptIn"
+compileKotlin.compilerOptions {
+    freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
 }
 
 kotlin {

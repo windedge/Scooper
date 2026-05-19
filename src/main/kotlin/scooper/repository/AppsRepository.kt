@@ -60,17 +60,21 @@ class AppsRepository(
         val ftsIds = if (query.isNotBlank()) searchFts(query) else null
         if (query.isNotBlank()) {
             val likeOps = buildLikeOps(query)
-            if (likeOps.isNotEmpty()) {
-                val likeCondition = likeOps.reduce { acc, op -> acc or op }
-                if (ftsIds != null && ftsIds.isNotEmpty()) {
+            when {
+                likeOps.isNotEmpty() && ftsIds != null && ftsIds.isNotEmpty() -> {
+                    val likeCondition = likeOps.reduce { acc, op -> acc or op }
                     conditions.andWhere { (Apps.id inList ftsIds) or likeCondition }
-                } else {
+                }
+                likeOps.isNotEmpty() -> {
+                    val likeCondition = likeOps.reduce { acc, op -> acc or op }
                     conditions.andWhere { likeCondition }
                 }
-            } else if (ftsIds != null && ftsIds.isNotEmpty()) {
-                conditions.andWhere { Apps.id inList ftsIds }
-            } else {
-                conditions.andWhere { Apps.id eq -1 }
+                ftsIds != null && ftsIds.isNotEmpty() -> {
+                    conditions.andWhere { Apps.id inList ftsIds }
+                }
+                else -> {
+                    conditions.andWhere { Apps.id eq -1 }
+                }
             }
         }
         if (bucket.isNotBlank()) {
@@ -102,7 +106,7 @@ class AppsRepository(
             wrapRows.orderBy(ftsPriority to SortOrder.ASC, order)
         } else {
             wrapRows.orderBy(order)
-        }.limit(limit, offset)
+        }.limit(limit).offset(offset)
 
         val apps = result.map { row ->
             App(
