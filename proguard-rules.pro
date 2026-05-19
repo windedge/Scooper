@@ -59,3 +59,9 @@
 -keep class org.sqlite.** { *; }
 -keep class org.orbitmvi.** { *; }
 -keep class scooper.** { *; }
+
+# Disable ProGuard optimization to avoid ClassFormatError:
+# Kotlin compiler generates duplicated LocalVariableTable entries for inline functions ($i$f$getDp),
+# and ProGuard's optimization step can produce invalid class files.
+# See: https://youtrack.jetbrains.com/issue/KT-76432
+-dontoptimize

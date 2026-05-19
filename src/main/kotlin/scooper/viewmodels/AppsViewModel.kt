@@ -8,11 +8,8 @@ import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.annotation.OrbitExperimental
+import org.orbitmvi.orbit.blockingIntent
 import org.orbitmvi.orbit.container
-import org.orbitmvi.orbit.syntax.simple.blockingIntent
-import org.orbitmvi.orbit.syntax.simple.intent
-import org.orbitmvi.orbit.syntax.simple.postSideEffect
-import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.AppVersion
@@ -147,57 +144,31 @@ class AppsViewModel(
         val paginationModeChanged = paginationMode != null && paginationMode != state.filter.paginationMode
         val pageSizeChanged = pageSize != null && pageSize != state.filter.pageSize
 
-        if (currentPaginationMode == PaginationMode.Pagination) {
-            val result = appsRepository.getApps(
-                currentQuery, currentBucket, currentScope,
-                offset = 0,
-                limit = currentPageSize,
-                sort = currentSort,
-                sortOrder = currentSortOrder
-            )
-            val updateCount = appsRepository.getUpdateCount()
-            reduce {
-                state.copy(
-                    apps = result.value,
-                    totalCount = result.totalCount,
-                    updateCount = updateCount,
-                    filter = state.filter.copy(
-                        query = currentQuery,
-                        selectedBucket = currentBucket,
-                        scope = currentScope,
-                        sort = currentSort,
-                        sortOrder = currentSortOrder,
-                        page = 1,
-                        paginationMode = currentPaginationMode,
-                        pageSize = currentPageSize,
-                    )
+        val offset = if (currentPaginationMode == PaginationMode.Pagination) 0L else null
+        val result = appsRepository.getApps(
+            currentQuery, currentBucket, currentScope,
+            offset = offset ?: 0,
+            limit = currentPageSize,
+            sort = currentSort,
+            sortOrder = currentSortOrder
+        )
+        val updateCount = appsRepository.getUpdateCount()
+        reduce {
+            state.copy(
+                apps = result.value,
+                totalCount = result.totalCount,
+                updateCount = updateCount,
+                filter = state.filter.copy(
+                    query = currentQuery,
+                    selectedBucket = currentBucket,
+                    scope = currentScope,
+                    sort = currentSort,
+                    sortOrder = currentSortOrder,
+                    page = 1,
+                    paginationMode = currentPaginationMode,
+                    pageSize = currentPageSize,
                 )
-            }
-        } else {
-            val result = appsRepository.getApps(
-                currentQuery, currentBucket, currentScope,
-                limit = currentPageSize,
-                sort = currentSort,
-                sortOrder = currentSortOrder
             )
-            val updateCount = appsRepository.getUpdateCount()
-            reduce {
-                state.copy(
-                    apps = result.value,
-                    totalCount = result.totalCount,
-                    updateCount = updateCount,
-                    filter = state.filter.copy(
-                        query = currentQuery,
-                        selectedBucket = currentBucket,
-                        scope = currentScope,
-                        sort = currentSort,
-                        sortOrder = currentSortOrder,
-                        page = 1,
-                        paginationMode = currentPaginationMode,
-                        pageSize = currentPageSize,
-                    )
-                )
-            }
         }
 
         // Persist pagination settings when changed
@@ -319,45 +290,29 @@ class AppsViewModel(
 
     fun scheduleInstall(app: App, global: Boolean = false) = intent {
         taskQueue.addTask(Task.Install(app) { blockingIntent {
-            val resultCode = scoopService.install(app, global)
-            if (resultCode != 0) {
-                postSideEffect(AppsSideEffect.Toast("Install app: ${app.uniqueName} error!"))
-            } else {
-                postSideEffect(AppsSideEffect.Toast("Install app: ${app.uniqueName} successfully!"))
-            }
+            val result = scoopService.install(app, global)
+            postSideEffect(AppsSideEffect.Toast(taskToast("Install app", app.uniqueName, result)))
         }})
     }
 
     fun scheduleUninstall(app: App) = intent {
         taskQueue.addTask(Task.Uninstall(app) { blockingIntent {
-            val resultCode = scoopService.uninstall(app)
-            if (resultCode != 0) {
-                postSideEffect(AppsSideEffect.Toast("Uninstall app: ${app.uniqueName} error!"))
-            } else {
-                postSideEffect(AppsSideEffect.Toast("Uninstall app: ${app.uniqueName} successfully!"))
-            }
+            val result = scoopService.uninstall(app)
+            postSideEffect(AppsSideEffect.Toast(taskToast("Uninstall app", app.uniqueName, result)))
         }})
     }
 
     fun scheduleUpdate(app: App) = intent {
         taskQueue.addTask(Task.Update(app) { blockingIntent {
-            val resultCode = scoopService.updateApp(app, app.global)
-            if (resultCode != 0) {
-                postSideEffect(AppsSideEffect.Toast("Update app: ${app.uniqueName} error!"))
-            } else {
-                postSideEffect(AppsSideEffect.Toast("Update app: ${app.uniqueName} successfully!"))
-            }
+            val result = scoopService.updateApp(app, app.global)
+            postSideEffect(AppsSideEffect.Toast(taskToast("Update app", app.uniqueName, result)))
         }})
     }
 
     fun scheduleDownload(app: App) = intent {
         taskQueue.addTask(Task.Download(app) { blockingIntent {
-            val resultCode = scoopService.download(app)
-            if (resultCode != 0) {
-                postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} error!"))
-            } else {
-                postSideEffect(AppsSideEffect.Toast("Download app: ${app.uniqueName} successfully!"))
-            }
+            val result = scoopService.download(app)
+            postSideEffect(AppsSideEffect.Toast(taskToast("Download app", app.uniqueName, result)))
         }})
     }
 
@@ -376,19 +331,15 @@ class AppsViewModel(
 
     fun scheduleRemoveBucket(bucket: String) = intent {
         taskQueue.addTask(Task.RemoveBucket(bucket) { blockingIntent {
-            val resultCode = scoopService.removeBucket(bucket)
-            if (resultCode != 0) {
-                postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket error!"))
-            } else {
-                postSideEffect(AppsSideEffect.Toast("Remove bucket: $bucket successfully!"))
-            }
+            val result = scoopService.removeBucket(bucket)
+            postSideEffect(AppsSideEffect.Toast(taskToast("Remove bucket", bucket, result)))
         }})
     }
 
     // ==================== Cancel ==================== 
 
     fun cancelTask(app: App) = intent {
-        taskQueue.getTask(app.uniqueName)?.run {
+        if (taskQueue.containTask(app.uniqueName)) {
             taskQueue.cancelTask(app.uniqueName)
         }
     }
@@ -568,6 +519,11 @@ class AppsViewModel(
                 gitHistoryIndexing.set(false)
             }
         }
+    }
+
+    private fun taskToast(action: String, name: String, resultCode: Int): String {
+        val suffix = if (resultCode != 0) "error!" else "successfully!"
+        return "$action: $name $suffix"
     }
 
     override fun close() {

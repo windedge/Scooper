@@ -7,11 +7,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
+import org.orbitmvi.orbit.blockingIntent
 import org.orbitmvi.orbit.container
-import org.orbitmvi.orbit.syntax.simple.blockingIntent
-import org.orbitmvi.orbit.syntax.simple.intent
-import org.orbitmvi.orbit.syntax.simple.postSideEffect
-import org.orbitmvi.orbit.syntax.simple.reduce
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
@@ -137,11 +134,9 @@ class ScoopSearchViewModel(
 
     fun installSearchApp(app: ScoopSearchApp, bucketName: String) = intent {
         val appKey = app.Name
-
         reduce { state.copy(installingApps = state.installingApps + appKey) }
 
         val bucketExists = scoopClient.bucketNames.any { it.equals(bucketName, ignoreCase = true) }
-
         if (!bucketExists) {
             taskQueue.addTask(Task.AddBucket(bucketName) { blockingIntent {
                 val resultCode = scoopService.addBucket(bucketName, app.Metadata.Repository)
@@ -164,18 +159,19 @@ class ScoopSearchViewModel(
         taskQueue.addTask(Task.Install(installApp) { blockingIntent {
             val resultCode = scoopService.install(installApp, global = false)
             reduce { state.copy(installingApps = state.installingApps - appKey) }
-            if (resultCode != 0) {
-                postSideEffect(ScoopSearchSideEffect.Toast("Install ${installApp.uniqueName} error!"))
-            } else {
-                postSideEffect(ScoopSearchSideEffect.Toast("Install ${installApp.uniqueName} successfully!"))
-            }
+            postSideEffect(ScoopSearchSideEffect.Toast(taskToast("Install ${installApp.uniqueName}", resultCode)))
         }})
+    }
+
+    private fun taskToast(action: String, resultCode: Int): String {
+        val suffix = if (resultCode != 0) "error!" else "successfully!"
+        return "$action $suffix"
     }
 
     /**
      * Apply option change, then re-search first page if there's an active query.
      */
-    private suspend fun org.orbitmvi.orbit.syntax.simple.SimpleSyntax<ScoopSearchState, ScoopSearchSideEffect>.updateOptionsAndSearch(
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<ScoopSearchState, ScoopSearchSideEffect>.updateOptionsAndSearch(
         partialState: ScoopSearchState,
     ) {
         val query = state.query
@@ -187,7 +183,7 @@ class ScoopSearchViewModel(
         doSearchFirstPage(query, pageSize, options)
     }
 
-    private suspend fun org.orbitmvi.orbit.syntax.simple.SimpleSyntax<ScoopSearchState, ScoopSearchSideEffect>.doSearchFirstPage(
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<ScoopSearchState, ScoopSearchSideEffect>.doSearchFirstPage(
         query: String,
         pageSize: Int,
         options: SearchOptions,
@@ -223,14 +219,12 @@ class ScoopSearchViewModel(
         searchService.close()
     }
 
-    private fun formatError(e: Exception): String {
-        return when (e) {
-            is java.net.ConnectException -> "Unable to connect to search server. Please check your network."
-            is java.net.UnknownHostException -> "Unable to reach search server. Please check your network."
-            is java.net.SocketTimeoutException -> "Search server timed out. Please try again."
-            is javax.net.ssl.SSLException -> "Connection to search server failed. Please try again."
-            else -> e.message ?: "Search failed. Please try again."
-        }
+    private fun formatError(e: Exception): String = when (e) {
+        is java.net.ConnectException -> "Unable to connect to search server. Please check your network."
+        is java.net.UnknownHostException -> "Unable to reach search server. Please check your network."
+        is java.net.SocketTimeoutException -> "Search server timed out. Please try again."
+        is javax.net.ssl.SSLException -> "Connection to search server failed. Please try again."
+        else -> e.message ?: "Search failed. Please try again."
     }
 
     private data class SearchOptions(

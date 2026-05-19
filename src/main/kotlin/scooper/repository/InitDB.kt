@@ -29,7 +29,16 @@ suspend fun initDb(appsRepository: AppsRepository, onProgress: (Float) -> Unit =
     onProgress(0.1f)
 
     transaction {
-        SchemaUtils.createMissingTablesAndColumns(Apps, Buckets, Configs)
+        // SQLite does not support ALTER TABLE ... MODIFY COLUMN / ADD PRIMARY KEY.
+        // Use create (creates missing tables) + safe ADD COLUMN statements.
+        SchemaUtils.create(Apps, Buckets, Configs)
+        SchemaUtils.addMissingColumnsStatements(Apps, Buckets, Configs, withLogs = true).forEach { stmt ->
+            if (stmt.contains("MODIFY COLUMN", ignoreCase = true) || stmt.contains("ADD PRIMARY KEY", ignoreCase = true)) {
+                // SQLite does not support these; skip silently.
+                return@forEach
+            }
+            exec(stmt)
+        }
         createFtsTable()
     }
     onProgress(0.2f)
