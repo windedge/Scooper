@@ -184,7 +184,10 @@ class AppsRepository(
             }
         }
 
-        val fullLoadApps = if (bucketsNeedingFullLoad.isNotEmpty()) {
+        val fullLoadApps = if (!incremental && bucketsNeedingFullLoad.isNotEmpty()) {
+            // Full reload: use entire apps list (includes orphan installed apps)
+            scoopClient.apps
+        } else if (bucketsNeedingFullLoad.isNotEmpty()) {
             scoopClient.apps.filter { it.bucket?.name in bucketsNeedingFullLoad }
         } else {
             emptyList()
@@ -193,6 +196,15 @@ class AppsRepository(
         synchronized(writeLock) {
             transaction {
                 upsertApps(allChangedApps, preserveUpdateAt = false)
+
+                // Clean deleted apps from incremental changes
+                for ((appName, bucketName) in deletedAppNames) {
+                    val bkt = BucketEntity.find { Buckets.name eq bucketName }.firstOrNull()
+                    if (bkt != null) {
+                        AppEntity.find { Apps.name eq appName and (Apps.bucketId eq bkt.id) }
+                            .forEach { it.delete() }
+                    }
+                }
 
                 if (fullLoadApps.isNotEmpty()) {
                     upsertApps(fullLoadApps, preserveUpdateAt = true)
@@ -207,7 +219,7 @@ class AppsRepository(
                     }
                 }
 
-                // Also clean up orphan apps (bucketId is null) that are not installed
+                // Clean up non-installed orphans (bucketId is null)
                 Apps.deleteWhere {
                     (Apps.bucketId eq null) and (Apps.status neq AppStatus.INSTALLED.name.lowercase())
                 }
@@ -218,20 +230,37 @@ class AppsRepository(
 
     private fun upsertApps(apps: List<App>, preserveUpdateAt: Boolean) {
         for (app in apps) {
-            val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
-            val rows = AppEntity.wrapRows(query).toList()
-            val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
-            if (rows.isEmpty()) {
-                AppEntity.new { update(app, bkt) }
-            } else {
-                val existing = rows.maxBy { it.id.value }
-                rows.filter { it.id != existing.id }.forEach { it.delete() }
-                val updatedApp = if (preserveUpdateAt) {
-                    app.copy(createAt = existing.createAt, updateAt = existing.updateAt)
+            if (app.bucket != null) {
+                // App with a bucket: find by name and bucket
+                val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
+                val rows = AppEntity.wrapRows(query).toList()
+                val bkt = BucketEntity.find { Buckets.name eq app.bucket!!.name }.firstOrNull()
+                if (rows.isEmpty()) {
+                    AppEntity.new { update(app, bkt) }
                 } else {
-                    app.copy(createAt = existing.createAt)
+                    val existing = rows.maxBy { it.id.value }
+                    rows.filter { it.id != existing.id }.forEach { it.delete() }
+                    val updatedApp = if (preserveUpdateAt) {
+                        app.copy(createAt = existing.createAt, updateAt = existing.updateAt)
+                    } else {
+                        app.copy(createAt = existing.createAt)
+                    }
+                    existing.update(updatedApp, bkt)
                 }
-                existing.update(updatedApp, bkt)
+            } else {
+                // Orphan app (no bucket): find by name where bucket is null
+                val query = Apps.selectAll().where { (Apps.name eq app.name) and (Apps.bucketId eq null) }
+                val existing = AppEntity.wrapRows(query).firstOrNull()
+                if (existing != null) {
+                    val updatedApp = if (preserveUpdateAt) {
+                        app.copy(createAt = existing.createAt, updateAt = existing.updateAt)
+                    } else {
+                        app.copy(createAt = existing.createAt)
+                    }
+                    existing.update(updatedApp, null)
+                } else {
+                    AppEntity.new { update(app, null) }
+                }
             }
         }
     }

@@ -113,8 +113,47 @@ class ScoopClient(
                     ?: listOf()
                 allApps.addAll(apps)
             }
-            return deduplicateApps(allApps)
+            val deduped = deduplicateApps(allApps)
+            val knownNames = deduped.map { it.name.lowercase() }.toSet()
+            return deduped + findOrphanInstalledApps(knownNames)
         }
+
+    /** Find installed apps whose manifest is not in any bucket.
+     *  Reads `current/manifest.json` from each installed app directory. */
+    private fun findOrphanInstalledApps(knownNames: Set<String>): List<App> = buildList {
+        for ((dirs, isGlobal) in listOf(localInstalledAppDirs to false, globalInstalledAppDirs to true)) {
+            for (appDir in dirs) {
+                if (appDir.name.lowercase() in knownNames) continue
+                val current = appDir.resolve("current")
+                val manifest = current.resolve("manifest.json")
+                if (!current.exists() || !manifest.exists()) continue
+                val json = tryParseManifest(manifest) ?: continue
+                val ver = current.toPath().toRealPath().fileName.toString()
+                add(buildAppFromJson(json, appDir.name, ver, isGlobal, null))
+            }
+        }
+    }
+
+    /** Build an App from a manifest JSON, with name/version overrides and no file-attribute dates. */
+    private fun buildAppFromJson(
+        json: JsonObject,
+        name: String,
+        version: String,
+        global: Boolean,
+        bucket: Bucket?,
+    ): App = App(
+        name = name,
+        latestVersion = json.getString("version").ifEmpty { version },
+        version = version,
+        global = global,
+        status = AppStatus.INSTALLED,
+        description = json.getString("description"),
+        homepage = json.getString("homepage"),
+        url = resolveManifestUrl(json),
+        license = json.getString("license"),
+        bucket = bucket,
+        shortcuts = parseShortcuts(json),
+    )
 
     /** Deduplicate apps by name, keeping the first match per Scoop's behavior.
      *  Installed apps take priority; otherwise the first bucket in order wins. */
@@ -149,60 +188,51 @@ class ScoopClient(
         }
     }
 
-    private fun buildAppFromManifest(
-        file: File,
-        bucket: Bucket,
-        localInstallApps: List<String>,
-        globalInstalledApps: List<String>,
-    ): App? {
-        val json = try {
-            Json.parseToJsonElement(file.readText()).jsonObject
-        } catch (e: Exception) {
-            logger.error("parsing manifest: ${file.absolutePath}, error: ${e.message}")
-            null
-        } ?: return null
+    private fun tryParseManifest(file: File): JsonObject? = try {
+        Json.parseToJsonElement(file.readText()).jsonObject
+    } catch (e: Exception) {
+        logger.error("parsing manifest: ${file.absolutePath}, error: ${e.message}")
+        null
+    }
 
-        val shortcuts: List<ShortCut> = json["shortcuts"]?.jsonArray?.let { array ->
+    private fun parseShortcuts(json: JsonObject): List<ShortCut> =
+        json["shortcuts"]?.jsonArray?.let { array ->
             val normalized = if (array[0] is JsonArray) array else buildJsonArray { add(array) }
             normalized.map { ele ->
                 ShortCut(ele.jsonArray[0].jsonPrimitive.content, ele.jsonArray[1].jsonPrimitive.content)
             }
         } ?: emptyList()
 
-        val base = App(
-            name = file.nameWithoutExtension,
-            latestVersion = json.getString("version"),
-            version = json.getString("version"),
-            homepage = json.getString("homepage"),
-            description = json.getString("description"),
-            url = resolveManifestUrl(json),
-            license = json.getString("license"),
-            bucket = bucket,
-            shortcuts = shortcuts,
-        )
+    private fun buildAppFromManifest(
+        file: File,
+        bucket: Bucket,
+        localInstallApps: List<String>,
+        globalInstalledApps: List<String>,
+    ): App? {
+        val json = tryParseManifest(file) ?: return null
 
         val attrs = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
         val createAt = LocalDateTime.ofInstant(attrs.creationTime().toInstant(), ZoneId.systemDefault())
         val updateAt = LocalDateTime.ofInstant(attrs.lastModifiedTime().toInstant(), ZoneId.systemDefault())
 
-        val isGlobal = globalInstalledApps.contains(base.name.lowercase())
-        val isInstalled = isGlobal || localInstallApps.contains(base.name.lowercase())
+        val name = file.nameWithoutExtension
+        val isGlobal = globalInstalledApps.contains(name.lowercase())
+        val isInstalled = isGlobal || localInstallApps.contains(name.lowercase())
 
-        return if (isInstalled) {
+        if (isInstalled) {
             val installedVersion = (globalInstalledAppDirs + localInstalledAppDirs)
-                .find { it.name.equals(base.name, ignoreCase = true) }!!
+                .find { it.name.equals(name, ignoreCase = true) }!!
                 .resolve("current")
                 .let { if (!it.exists()) null else it.toPath().toRealPath().fileName.toString() }
-            base.copy(
-                createAt = createAt,
-                updateAt = updateAt,
-                global = isGlobal,
-                status = if (installedVersion == null) AppStatus.FAILED else AppStatus.INSTALLED,
-                version = installedVersion,
-            )
-        } else {
-            base.copy(createAt = createAt, updateAt = updateAt)
+            return buildAppFromJson(json, name, installedVersion ?: json.getString("version"), isGlobal, bucket)
+                .copy(
+                    createAt = createAt,
+                    updateAt = updateAt,
+                    status = if (installedVersion == null) AppStatus.FAILED else AppStatus.INSTALLED,
+                )
         }
+        return buildAppFromJson(json, name, json.getString("version"), false, bucket)
+            .copy(createAt = createAt, updateAt = updateAt, status = AppStatus.UNINSTALL)
     }
 
     fun computeCacheSize(): Long {
