@@ -1,5 +1,8 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 plugins {
     alias(libs.plugins.jvm)
@@ -21,7 +24,6 @@ repositories {
 }
 
 dependencies {
-    implementation(compose.desktop.currentOs)
     implementation(compose.desktop.currentOs)
     implementation(compose.material)
 
@@ -96,6 +98,60 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+// Strip non-Windows native libraries from sqlite-jdbc to save ~10MB in release
+abstract class StripSqliteNativeLibs : DefaultTask() {
+    @get:InputDirectory
+    abstract val appDir: DirectoryProperty
+
+    @TaskAction
+    fun strip() {
+        appDir.get().asFile.listFiles()?.filter {
+            it.name.startsWith("sqlite-jdbc") && it.name.endsWith(".jar")
+        }?.forEach { jarFile ->
+            val stripped = File(jarFile.parentFile, jarFile.nameWithoutExtension + "-stripped.jar")
+            ZipFile(jarFile).use { zip ->
+                ZipOutputStream(stripped.outputStream()).use { out ->
+                    zip.entries().asSequence()
+                        .filter { entry: ZipEntry ->
+                            val name = entry.name
+                            !name.startsWith("org/sqlite/native/") ||
+                                name.startsWith("org/sqlite/native/Windows/x86_64/")
+                        }
+                        .forEach { entry: ZipEntry ->
+                            out.putNextEntry(ZipEntry(entry.name))
+                            if (!entry.isDirectory) {
+                                zip.getInputStream(entry).copyTo(out)
+                            }
+                            out.closeEntry()
+                        }
+                }
+            }
+            // On Windows, delete + rename may fail if file is still locked by the copy process
+            // Use overwrite approach instead
+            if (jarFile.delete()) {
+                stripped.renameTo(jarFile)
+            } else {
+                jarFile.outputStream().use { out -> stripped.inputStream().use { it.copyTo(out) } }
+                stripped.delete()
+            }
+            logger.lifecycle("Stripped sqlite-jdbc: ${File(appDir.get().asFile, jarFile.name).length() / 1024 / 1024}MB")
+        }
+        // Clean up any leftover stripped files
+        appDir.get().asFile.listFiles()?.filter {
+            it.name.contains("-stripped")
+        }?.forEach { it.delete() }
+    }
+}
+
+val stripSqliteNativeLibs by tasks.registering(StripSqliteNativeLibs::class) {
+    appDir.set(layout.buildDirectory.dir("compose/binaries/main-release/app/Scooper/app"))
+    outputs.upToDateWhen { false }
+}
+
+tasks.matching { it.name == "createReleaseDistributable" }.configureEach {
+    finalizedBy(stripSqliteNativeLibs)
 }
 
 fun String.quoted() = "\"$this\""
