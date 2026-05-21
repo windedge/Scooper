@@ -16,6 +16,7 @@ import scooper.repository.db.BucketEntity
 import scooper.repository.db.Buckets
 import scooper.service.GitHistoryService
 import scooper.service.GitHistoryService.ManifestTimes
+import scooper.service.InstalledAppInfo
 import scooper.service.ScoopClient
 import scooper.util.PAGE_SIZE
 import scooper.util.logger
@@ -138,18 +139,37 @@ class AppsRepository(
 
     fun loadAll() {
         loadBuckets()
-        val bucketDirs = scoopClient.bucketDirs
-        val allApps = scoopClient.apps
         loadApps(incremental = false)
         rebuildFtsIndex()
     }
 
     fun loadApps(incremental: Boolean = true) {
+        val installed = scoopClient.installedSnapshot()
+
+        // Phase 1: Compute changes (outside transaction)
+        val changes = computeBucketChanges(incremental, installed)
+        val fullLoadApps = computeFullLoadApps(changes.bucketsNeedingFullLoad, installed)
+
+        // Phase 2: Apply changes (inside transaction)
+        applyDbChanges(changes, fullLoadApps, installed)
+    }
+
+    /** Compute bucket changes: Git diff incremental or full reload marker */
+    private data class BucketChanges(
+        val changedApps: List<App>,
+        val deletedNames: List<Pair<String, String>>,
+        val bucketsNeedingFullLoad: Set<String>,
+    )
+
+    private fun computeBucketChanges(
+        incremental: Boolean,
+        installed: Map<String, InstalledAppInfo>,
+    ): BucketChanges {
         val bucketStates = getBucketIndexStates()
         val bucketDirsByName = scoopClient.bucketDirs.associateBy { it.name }
 
         val allChangedApps = mutableListOf<App>()
-        val deletedAppNames = mutableListOf<Pair<String, String>>() // (appName, bucketName)
+        val deletedAppNames = mutableListOf<Pair<String, String>>()
         val bucketsNeedingFullLoad = mutableSetOf<String>()
 
         for (state in bucketStates) {
@@ -177,55 +197,94 @@ class AppsRepository(
 
             val bucket = Bucket(name = state.name, url = "")
             allChangedApps.addAll(
-                scoopClient.buildAppsFromManifestNames(bucketDir, changes.addedOrModified, bucket)
+                scoopClient.buildAppsFromManifestNames(bucketDir, changes.addedOrModified, bucket, installed)
             )
             for (fileName in changes.deleted) {
                 deletedAppNames.add(fileName.removeSuffix(".json") to state.name)
             }
         }
 
-        val fullLoadApps = if (!incremental && bucketsNeedingFullLoad.isNotEmpty()) {
-            // Full reload: use entire apps list (includes orphan installed apps)
-            scoopClient.apps
-        } else if (bucketsNeedingFullLoad.isNotEmpty()) {
-            scoopClient.apps.filter { it.bucket?.name in bucketsNeedingFullLoad }
-        } else {
-            emptyList()
-        }
+        return BucketChanges(allChangedApps, deletedAppNames, bucketsNeedingFullLoad)
+    }
 
-        synchronized(writeLock) {
-            transaction {
-                upsertApps(allChangedApps, preserveUpdateAt = false)
+    private fun computeFullLoadApps(
+        bucketsNeedingFullLoad: Set<String>,
+        installed: Map<String, InstalledAppInfo>,
+    ): List<App> {
+        if (bucketsNeedingFullLoad.isEmpty()) return emptyList()
+        return scoopClient.buildAllApps(installed)
+            .filter { it.bucket?.name in bucketsNeedingFullLoad }
+    }
 
-                // Clean deleted apps from incremental changes
-                for ((appName, bucketName) in deletedAppNames) {
-                    val bkt = BucketEntity.find { Buckets.name eq bucketName }.firstOrNull()
-                    if (bkt != null) {
-                        AppEntity.find { Apps.name eq appName and (Apps.bucketId eq bkt.id) }
-                            .forEach { it.delete() }
-                    }
-                }
+    private fun applyDbChanges(
+        changes: BucketChanges,
+        fullLoadApps: List<App>,
+        installed: Map<String, InstalledAppInfo>,
+    ) = synchronized(writeLock) {
+        transaction {
+            // Apply incremental changes
+            upsertApps(changes.changedApps, preserveUpdateAt = false)
 
-                if (fullLoadApps.isNotEmpty()) {
-                    upsertApps(fullLoadApps, preserveUpdateAt = true)
-                    val fullLoadAppNames = fullLoadApps.map { it.name }.toSet()
-                    val fullLoadBucketIds = BucketEntity.find {
-                        Buckets.name inList bucketsNeedingFullLoad.toList()
-                    }.map { it.id }.toSet()
-                    Apps.deleteWhere {
-                        (name notInList fullLoadAppNames) and
-                                (bucketId inList fullLoadBucketIds) and
-                                (status neq AppStatus.INSTALLED.name.lowercase())
-                    }
-                }
-
-                // Clean up non-installed orphans (bucketId is null)
-                Apps.deleteWhere {
-                    (Apps.bucketId eq null) and (Apps.status neq AppStatus.INSTALLED.name.lowercase())
+            // Cleanup deleted manifests
+            if (changes.deletedNames.isNotEmpty()) {
+                val deletedByBucket = changes.deletedNames.groupBy { it.second }
+                for ((bucketName, namePairs) in deletedByBucket) {
+                    val bkt = BucketEntity.find { Buckets.name eq bucketName }.firstOrNull() ?: continue
+                    val names = namePairs.map { it.first }
+                    AppEntity.find { Apps.name inList names and (Apps.bucketId eq bkt.id) }
+                        .forEach { it.delete() }
                 }
             }
-        }
 
+            // Full reload overlay
+            if (fullLoadApps.isNotEmpty()) {
+                upsertApps(fullLoadApps, preserveUpdateAt = true)
+                cleanupOutdatedApps(fullLoadApps, changes.bucketsNeedingFullLoad)
+            }
+
+            // Sync install status
+            syncInstallState(installed)
+
+            // Cleanup non-installed orphans
+            Apps.deleteWhere {
+                (Apps.bucketId eq null) and (Apps.status neq AppStatus.INSTALLED.name.lowercase())
+            }
+        }
+    }
+
+    private fun Transaction.cleanupOutdatedApps(
+        fullLoadApps: List<App>,
+        bucketsNeedingFullLoad: Set<String>,
+    ) {
+        val fullLoadAppNames = fullLoadApps.map { it.name }.toSet()
+        val fullLoadBucketIds = BucketEntity.find {
+            Buckets.name inList bucketsNeedingFullLoad.toList()
+        }.map { it.id }.toSet()
+        Apps.deleteWhere {
+            (name notInList fullLoadAppNames) and
+                    (bucketId inList fullLoadBucketIds) and
+                    (status neq AppStatus.INSTALLED.name.lowercase())
+        }
+    }
+
+    private fun Transaction.syncInstallState(
+        installed: Map<String, InstalledAppInfo>,
+    ) {
+        if (installed.isEmpty()) return
+        val staleInstalled = AppEntity.find {
+            (Apps.status eq AppStatus.INSTALLED.name.lowercase()) and
+                    (Apps.name notInList installed.keys.toList())
+        }
+        for (entity in staleInstalled) {
+            val bucketExists = entity.bucket?.name?.let { it in scoopClient.bucketNames } ?: false
+            if (bucketExists) {
+                entity.status = AppStatus.UNINSTALL
+                entity.version = entity.latestVersion
+                entity.global = false
+            } else {
+                entity.delete()
+            }
+        }
     }
 
     private fun upsertApps(apps: List<App>, preserveUpdateAt: Boolean) {
