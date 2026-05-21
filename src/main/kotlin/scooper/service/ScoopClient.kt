@@ -22,6 +22,14 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.time.LocalDateTime
 import java.time.ZoneId
 
+/** Snapshot of a single installed app at a point in time. */
+data class InstalledAppInfo(
+    val name: String,
+    val version: String,
+    val isGlobal: Boolean,
+    val appDir: File,
+)
+
 /**
  * Adapter for Scoop CLI and filesystem operations.
  * Provides low-level access to the local Scoop environment.
@@ -80,6 +88,23 @@ class ScoopClient(
     val cacheDir: File
         get() = rootDir.resolve("cache")
 
+    /**
+     * Read installed app dirs once and return name-lowercase to info map.
+     * Call this before batch manifest parsing to avoid repeated filesystem scans.
+     */
+    fun installedSnapshot(): Map<String, InstalledAppInfo> {
+        val result = mutableMapOf<String, InstalledAppInfo>()
+        for ((dirs, isGlobal) in listOf(localInstalledAppDirs to false, globalInstalledAppDirs to true)) {
+            for (appDir in dirs) {
+                val current = appDir.resolve("current")
+                if (!current.exists()) continue
+                val version = current.toPath().toRealPath().fileName.toString()
+                result[appDir.name.lowercase()] = InstalledAppInfo(appDir.name, version, isGlobal, appDir)
+            }
+        }
+        return result
+    }
+
     // ==================== Filesystem Queries ====================
 
     fun getBucketRepo(bucketDir: File): String? {
@@ -96,41 +121,36 @@ class ScoopClient(
         return regex.find(repoInfo)?.groupValues?.get(2)
     }
 
-    /** Parse all bucket manifest files to build the complete app list.
-     *  Deduplicates by name: installed apps take priority, then first bucket wins.
-     *  This matches Scoop's behavior (Get-Manifest in manifest.ps1). */
-    val apps: List<App>
-        get() {
-            val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
-            val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
-
-            val allApps = mutableListOf<App>()
-            for (bucketDir in bucketDirs) {
-                val bucket = Bucket(name = bucketDir.name, url = "")
-                val apps = bucketDir.resolve("bucket").listFiles()
-                    ?.filter { !it.isDirectory && it.extension == "json" }
-                    ?.mapNotNull { file -> buildAppFromManifest(file, bucket, localInstallApps, globalInstalledApps) }
-                    ?: listOf()
-                allApps.addAll(apps)
-            }
-            val deduped = deduplicateApps(allApps)
-            val knownNames = deduped.map { it.name.lowercase() }.toSet()
-            return deduped + findOrphanInstalledApps(knownNames)
+    /** Build the full app list from all bucket manifests, then deduplicate. */
+    fun buildAllApps(installed: Map<String, InstalledAppInfo>): List<App> {
+        val allApps = bucketDirs.flatMap { bucketDir ->
+            val bucket = Bucket(name = bucketDir.name, url = "")
+            bucketDir.resolve("bucket").listFiles()
+                ?.filter { it.isFile && it.extension == "json" }
+                ?.mapNotNull { file -> buildAppFromManifest(file, bucket, installed) }
+                ?: emptyList()
         }
+        val deduped = deduplicateApps(allApps)
+        val knownNames = deduped.map { it.name.lowercase() }.toSet()
+        return deduped + findOrphanInstalledApps(knownNames, installed)
+    }
+
+    /** Shortcut: snapshot first, then build all. */
+    fun loadAllApps(): List<App> = buildAllApps(installedSnapshot())
 
     /** Find installed apps whose manifest is not in any bucket.
      *  Reads `current/manifest.json` from each installed app directory. */
-    private fun findOrphanInstalledApps(knownNames: Set<String>): List<App> = buildList {
-        for ((dirs, isGlobal) in listOf(localInstalledAppDirs to false, globalInstalledAppDirs to true)) {
-            for (appDir in dirs) {
-                if (appDir.name.lowercase() in knownNames) continue
-                val current = appDir.resolve("current")
-                val manifest = current.resolve("manifest.json")
-                if (!current.exists() || !manifest.exists()) continue
-                val json = tryParseManifest(manifest) ?: continue
-                val ver = current.toPath().toRealPath().fileName.toString()
-                add(buildAppFromJson(json, appDir.name, ver, isGlobal, null))
-            }
+    private fun findOrphanInstalledApps(
+        knownNames: Set<String>,
+        installed: Map<String, InstalledAppInfo>,
+    ): List<App> = buildList {
+        for ((name, info) in installed) {
+            if (name in knownNames) continue
+            // current exists is guaranteed by installedSnapshot()
+            val manifest = info.appDir.resolve("current/manifest.json")
+            if (!manifest.exists()) continue
+            val json = tryParseManifest(manifest) ?: continue
+            add(buildAppFromJson(json, info.name, info.version, info.isGlobal, null))
         }
     }
 
@@ -177,15 +197,11 @@ class ScoopClient(
         bucketDir: File,
         manifestNames: Set<String>,
         bucket: Bucket,
-    ): List<App> {
-        val localInstallApps = localInstalledAppDirs.map { it.name.lowercase() }
-        val globalInstalledApps = globalInstalledAppDirs.map { it.name.lowercase() }
-
-        return manifestNames.mapNotNull { fileName ->
-            val file = bucketDir.resolve("bucket/$fileName")
-            if (!file.exists()) return@mapNotNull null
-            buildAppFromManifest(file, bucket, localInstallApps, globalInstalledApps)
-        }
+        installed: Map<String, InstalledAppInfo>,
+    ): List<App> = manifestNames.mapNotNull { fileName ->
+        val file = bucketDir.resolve("bucket/$fileName")
+        if (!file.exists()) return@mapNotNull null
+        buildAppFromManifest(file, bucket, installed)
     }
 
     private fun tryParseManifest(file: File): JsonObject? = try {
@@ -206,8 +222,7 @@ class ScoopClient(
     private fun buildAppFromManifest(
         file: File,
         bucket: Bucket,
-        localInstallApps: List<String>,
-        globalInstalledApps: List<String>,
+        installed: Map<String, InstalledAppInfo>,
     ): App? {
         val json = tryParseManifest(file) ?: return null
 
@@ -216,20 +231,11 @@ class ScoopClient(
         val updateAt = LocalDateTime.ofInstant(attrs.lastModifiedTime().toInstant(), ZoneId.systemDefault())
 
         val name = file.nameWithoutExtension
-        val isGlobal = globalInstalledApps.contains(name.lowercase())
-        val isInstalled = isGlobal || localInstallApps.contains(name.lowercase())
+        val info = installed[name.lowercase()]
 
-        if (isInstalled) {
-            val installedVersion = (globalInstalledAppDirs + localInstalledAppDirs)
-                .find { it.name.equals(name, ignoreCase = true) }!!
-                .resolve("current")
-                .let { if (!it.exists()) null else it.toPath().toRealPath().fileName.toString() }
-            return buildAppFromJson(json, name, installedVersion ?: json.getString("version"), isGlobal, bucket)
-                .copy(
-                    createAt = createAt,
-                    updateAt = updateAt,
-                    status = if (installedVersion == null) AppStatus.FAILED else AppStatus.INSTALLED,
-                )
+        if (info != null) {
+            return buildAppFromJson(json, name, info.version, info.isGlobal, bucket)
+                .copy(createAt = createAt, updateAt = updateAt)
         }
         return buildAppFromJson(json, name, json.getString("version"), false, bucket)
             .copy(createAt = createAt, updateAt = updateAt, status = AppStatus.UNINSTALL)
