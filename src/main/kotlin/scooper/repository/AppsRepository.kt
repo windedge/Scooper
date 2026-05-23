@@ -148,7 +148,7 @@ class AppsRepository(
 
         // Phase 1: Compute changes (outside transaction)
         val changes = computeBucketChanges(incremental, installed)
-        val fullLoadApps = computeFullLoadApps(changes.bucketsNeedingFullLoad, installed)
+        val fullLoadApps = computeFullLoadApps(incremental, changes.bucketsNeedingFullLoad, installed)
 
         // Phase 2: Apply changes (inside transaction)
         applyDbChanges(changes, fullLoadApps, installed)
@@ -208,12 +208,13 @@ class AppsRepository(
     }
 
     private fun computeFullLoadApps(
+        incremental: Boolean,
         bucketsNeedingFullLoad: Set<String>,
         installed: Map<String, InstalledAppInfo>,
     ): List<App> {
         if (bucketsNeedingFullLoad.isEmpty()) return emptyList()
-        return scoopClient.buildAllApps(installed)
-            .filter { it.bucket?.name in bucketsNeedingFullLoad }
+        val all = scoopClient.buildAllApps(installed)
+        return if (incremental) all.filter { it.bucket?.name in bucketsNeedingFullLoad } else all
     }
 
     private fun applyDbChanges(
@@ -271,9 +272,12 @@ class AppsRepository(
         installed: Map<String, InstalledAppInfo>,
     ) {
         if (installed.isEmpty()) return
+        // Use original-case names from InstalledAppInfo (not lowercase map keys)
+        // to match DB Apps.name which preserves original case from manifest filenames.
+        val installedNames = installed.values.map { it.name }
         val staleInstalled = AppEntity.find {
             (Apps.status eq AppStatus.INSTALLED.name.lowercase()) and
-                    (Apps.name notInList installed.keys.toList())
+                    (Apps.name notInList installedNames)
         }
         for (entity in staleInstalled) {
             val bucketExists = entity.bucket?.name?.let { it in scoopClient.bucketNames } ?: false
