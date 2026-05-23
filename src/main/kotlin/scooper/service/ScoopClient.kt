@@ -98,7 +98,11 @@ class ScoopClient(
             for (appDir in dirs) {
                 val current = appDir.resolve("current")
                 if (!current.exists()) continue
-                val version = current.toPath().toRealPath().fileName.toString()
+                val version = try {
+                    current.toPath().toRealPath().fileName.toString()
+                } catch (_: java.nio.file.NoSuchFileException) {
+                    continue // broken symlink
+                }
                 result[appDir.name.lowercase()] = InstalledAppInfo(appDir.name, version, isGlobal, appDir)
             }
         }
@@ -116,7 +120,9 @@ class ScoopClient(
     }
 
     fun getRepoUrl(bucketDir: File): String? {
-        val repoInfo = bucketDir.resolve(".git/config").readText()
+        val configFile = bucketDir.resolve(".git/config")
+        if (!configFile.exists()) return null
+        val repoInfo = configFile.readText()
         val regex = """\[remote\s+"origin"]\s*\n(\s*\n*)+url\s*=\s*(.+)""".toRegex()
         return regex.find(repoInfo)?.groupValues?.get(2)
     }
