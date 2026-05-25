@@ -12,16 +12,19 @@ import org.orbitmvi.orbit.container
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
+import scooper.repository.AppsRepository
+import scooper.service.ScoopClient
+import scooper.service.ScoopEvent
 import scooper.service.ScoopSearchApp
 import scooper.service.ScoopSearchService
 import scooper.service.ScoopSearchSort
 import scooper.service.ScoopService
-import scooper.service.ScoopEvent
-import scooper.service.ScoopClient
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.logger
-import scooper.repository.AppsRepository
+import scooper.viewmodels.AppSideEffect
+import scooper.viewmodels.ToastType
+import scooper.viewmodels.taskToast
 
 data class ScoopSearchState(
     val query: String = "",
@@ -47,11 +50,11 @@ class ScoopSearchViewModel(
     private val taskQueue: TaskQueue,
     private val appsRepository: AppsRepository,
     private val scoopService: ScoopService,
-) : ContainerHost<ScoopSearchState, ScoopSearchSideEffect>, AutoCloseable {
+) : ContainerHost<ScoopSearchState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
-    override val container: Container<ScoopSearchState, ScoopSearchSideEffect> =
+    override val container: Container<ScoopSearchState, AppSideEffect> =
         coroutineScope.container(ScoopSearchState()) {
         refreshInstalledState()
         subscribeEvents()
@@ -141,7 +144,7 @@ class ScoopSearchViewModel(
             taskQueue.addTask(Task.AddBucket(bucketName) { blockingIntent {
                 val resultCode = scoopService.addBucket(bucketName, app.Metadata.Repository)
                 if (resultCode != 0) {
-                    postSideEffect(ScoopSearchSideEffect.Toast("Add bucket: $bucketName error!"))
+                    postSideEffect(AppSideEffect.Toast("Failed to add $bucketName", ToastType.ERROR))
                     reduce { state.copy(installingApps = state.installingApps - appKey) }
                 }
             }})
@@ -159,19 +162,14 @@ class ScoopSearchViewModel(
         taskQueue.addTask(Task.Install(installApp) { blockingIntent {
             val resultCode = scoopService.install(installApp, global = false)
             reduce { state.copy(installingApps = state.installingApps - appKey) }
-            postSideEffect(ScoopSearchSideEffect.Toast(taskToast("Install ${installApp.uniqueName}", resultCode)))
+            postSideEffect(taskToast("Install", installApp.name, resultCode))
         }})
-    }
-
-    private fun taskToast(action: String, resultCode: Int): String {
-        val suffix = if (resultCode != 0) "error!" else "successfully!"
-        return "$action $suffix"
     }
 
     /**
      * Apply option change, then re-search first page if there's an active query.
      */
-    private suspend fun org.orbitmvi.orbit.syntax.Syntax<ScoopSearchState, ScoopSearchSideEffect>.updateOptionsAndSearch(
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<ScoopSearchState, AppSideEffect>.updateOptionsAndSearch(
         partialState: ScoopSearchState,
     ) {
         val query = state.query
@@ -183,7 +181,7 @@ class ScoopSearchViewModel(
         doSearchFirstPage(query, pageSize, options)
     }
 
-    private suspend fun org.orbitmvi.orbit.syntax.Syntax<ScoopSearchState, ScoopSearchSideEffect>.doSearchFirstPage(
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<ScoopSearchState, AppSideEffect>.doSearchFirstPage(
         query: String,
         pageSize: Int,
         options: SearchOptions,

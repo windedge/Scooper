@@ -12,6 +12,9 @@ import org.orbitmvi.orbit.blockingIntent
 import org.orbitmvi.orbit.container
 import scooper.data.App
 import scooper.data.AppStatus
+import scooper.viewmodels.AppSideEffect
+import scooper.viewmodels.ToastType
+import scooper.viewmodels.taskToast
 import scooper.data.AppVersion
 import scooper.data.AppVersionSource
 import scooper.data.Bucket
@@ -71,7 +74,7 @@ class AppsViewModel(
     private val scoopClient: ScoopClient,
     private val scoopService: ScoopService,
     private val gitHistoryService: GitHistoryService,
-) : ContainerHost<AppsState, AppsSideEffect>, AutoCloseable {
+) : ContainerHost<AppsState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
 
     private val supervisorJob = SupervisorJob()
@@ -81,7 +84,7 @@ class AppsViewModel(
         val config = configRepository.getConfig()
         AppsState(viewMode = config.viewMode, filter = AppsFilter(paginationMode = config.paginationMode, pageSize = config.pageSize))
     }
-    override val container: Container<AppsState, AppsSideEffect> = coroutineScope.container(initialState) {
+    override val container: Container<AppsState, AppSideEffect> = coroutineScope.container(initialState) {
         applyFilters()
         getBuckets()
         subscribeLogging()
@@ -116,7 +119,7 @@ class AppsViewModel(
     fun subscribeLogging() = intent {
         coroutineScope.launch(Dispatchers.IO) {
             scoopLogStream.logStream.collect {
-                postSideEffect(AppsSideEffect.Log(it))
+                postSideEffect(AppSideEffect.Log(it))
                 val lines = (state.output + it + "\n").lines()
                 val output = lines.takeLast(500).joinToString("\n")
                 reduce { state.copy(output = output) }
@@ -291,28 +294,28 @@ class AppsViewModel(
     fun scheduleInstall(app: App, global: Boolean = false) = intent {
         taskQueue.addTask(Task.Install(app) { blockingIntent {
             val result = scoopService.install(app, global)
-            postSideEffect(AppsSideEffect.Toast(taskToast("Install app", app.uniqueName, result)))
+            postSideEffect(taskToast("Install", app.name, result))
         }})
     }
 
     fun scheduleUninstall(app: App) = intent {
         taskQueue.addTask(Task.Uninstall(app) { blockingIntent {
             val result = scoopService.uninstall(app)
-            postSideEffect(AppsSideEffect.Toast(taskToast("Uninstall app", app.uniqueName, result)))
+            postSideEffect(taskToast("Uninstall", app.name, result))
         }})
     }
 
     fun scheduleUpdate(app: App) = intent {
         taskQueue.addTask(Task.Update(app) { blockingIntent {
             val result = scoopService.updateApp(app, app.global)
-            postSideEffect(AppsSideEffect.Toast(taskToast("Update app", app.uniqueName, result)))
+            postSideEffect(taskToast("Update", app.name, result))
         }})
     }
 
     fun scheduleDownload(app: App) = intent {
         taskQueue.addTask(Task.Download(app) { blockingIntent {
             val result = scoopService.download(app)
-            postSideEffect(AppsSideEffect.Toast(taskToast("Download app", app.uniqueName, result)))
+            postSideEffect(taskToast("Download", app.name, result))
         }})
     }
 
@@ -320,9 +323,9 @@ class AppsViewModel(
         taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
             val resultCode = scoopService.addBucket(bucket, url)
             if (resultCode != 0) {
-                postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket error!"))
+                postSideEffect(AppSideEffect.Toast("Failed to add $bucket", ToastType.ERROR))
             } else {
-                postSideEffect(AppsSideEffect.Toast("Add bucket: $bucket successfully!"))
+                postSideEffect(AppSideEffect.Toast("Added $bucket", ToastType.SUCCESS))
                 getBuckets()
                 reloadApps()
             }
@@ -332,7 +335,7 @@ class AppsViewModel(
     fun scheduleRemoveBucket(bucket: String) = intent {
         taskQueue.addTask(Task.RemoveBucket(bucket) { blockingIntent {
             val result = scoopService.removeBucket(bucket)
-            postSideEffect(AppsSideEffect.Toast(taskToast("Remove bucket", bucket, result)))
+            postSideEffect(taskToast("Remove bucket", bucket, result))
         }})
     }
 
@@ -446,7 +449,7 @@ class AppsViewModel(
             }
 
             if (manifestText == null) {
-                postSideEffect(AppsSideEffect.Toast("Failed to get manifest for ${app.name}@${version.version}"))
+                postSideEffect(AppSideEffect.Toast("Failed to get manifest for ${app.name}@${version.version}", ToastType.ERROR))
                 return@blockingIntent
             }
 
@@ -459,10 +462,9 @@ class AppsViewModel(
             tempFile.delete()
             tempDir.deleteRecursively()
             if (result.exitCode != 0) {
-                val msg = result.errorMessage ?: "Install version: ${app.name}@${version.version} error!"
-                postSideEffect(AppsSideEffect.Toast(msg))
+                postSideEffect(AppSideEffect.Toast("Failed to install ${app.name}@${version.version}", ToastType.ERROR))
             } else {
-                postSideEffect(AppsSideEffect.Toast("Installed version: ${app.name}@${version.version} successfully!"))
+                postSideEffect(AppSideEffect.Toast("Installed ${app.name}@${version.version}", ToastType.SUCCESS))
                 appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED, version = version.version))
                 applyFilters()
             }
@@ -519,11 +521,6 @@ class AppsViewModel(
                 gitHistoryIndexing.set(false)
             }
         }
-    }
-
-    private fun taskToast(action: String, name: String, resultCode: Int): String {
-        val suffix = if (resultCode != 0) "error!" else "successfully!"
-        return "$action: $name $suffix"
     }
 
     override fun close() {

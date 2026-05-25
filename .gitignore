@@ -192,3 +192,4 @@ fabric.properties
 
 .projectile
 docs/archive/
+.kotlin

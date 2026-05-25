@@ -287,6 +287,27 @@ class ScoopClient(
 
     override suspend fun update(app: App, global: Boolean): CommandResult {
         preDownloadIfNeeded(app)
+        val bucketName = app.bucket?.name
+
+        // Fix broken manifest reference left by legacy installVersion (temp file).
+        // Detect via install.json: if bucket is null, the app was installed from a
+        // local manifest that may no longer exist, so reinstall from bucket.
+        if (bucketName != null && isLocalManifestInstall(app.name)) {
+            val uninstallArgs = if (global) {
+                mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
+            } else {
+                mutableListOf("scoop", "uninstall", app.name)
+            }
+            val uninstallResult = executeAndLog(uninstallArgs)
+            if (uninstallResult.exitCode != 0) return uninstallResult
+            val installArgs = if (global) {
+                mutableListOf("sudo", "scoop", "install", "-g", "$bucketName/${app.name}")
+            } else {
+                mutableListOf("scoop", "install", "$bucketName/${app.name}")
+            }
+            return executeAndLog(installArgs)
+        }
+
         val commandArgs = if (global) {
             mutableListOf("sudo", "scoop", "update", "-g", app.name)
         } else {
@@ -356,6 +377,33 @@ class ScoopClient(
             if (uninstallResult.exitCode != 0) return uninstallResult
         }
 
+        // Install via bucket: temporarily write old manifest to the bucket so scoop
+        // registers it as a bucket install, then restore the original after install.
+        // This avoids scoop recording a temp file path that later update can't find.
+        val bucketName = app.bucket?.name
+        val bucketManifest = if (bucketName != null) {
+            bucketsBaseDir.resolve(bucketName).resolve("bucket/${app.name}.json").takeIf { it.exists() }
+        } else null
+
+        if (bucketManifest != null) {
+            var originalContent: String? = null
+            try {
+                originalContent = bucketManifest.readText()
+                bucketManifest.writeText(manifestFile.readText())
+                val args = if (global) {
+                    mutableListOf("sudo", "scoop", "install", "-g", "$bucketName/${app.name}")
+                } else {
+                    mutableListOf("scoop", "install", "$bucketName/${app.name}")
+                }
+                return executeAndLog(args)
+            } finally {
+                if (originalContent != null) {
+                    bucketManifest.writeText(originalContent)
+                }
+            }
+        }
+
+        // Fallback: no bucket manifest found, install from file path
         val installArgs = if (global) {
             mutableListOf("sudo", "scoop", "install", "-g", manifestFile.absolutePath)
         } else {
@@ -585,5 +633,19 @@ class ScoopClient(
         val errorMessage = outputLines.find { " ERROR " in it || it.trimStart().startsWith("ERROR ") }
         val exitCode = if (errorMessage != null && result.resultCode == 0) 1 else result.resultCode
         return CommandResult(exitCode, errorMessage)
+    }
+
+    private fun isLocalManifestInstall(appName: String): Boolean {
+        val installDir = rootDir.resolve("apps/$appName/current")
+        val installJson = installDir.resolve("install.json")
+        if (!installJson.exists()) return false
+        return try {
+            val json = Json.parseToJsonElement(installJson.readText()).jsonObject
+            val bucket = json["bucket"]?.jsonPrimitive?.contentOrNull
+            bucket.isNullOrBlank()
+        } catch (e: Exception) {
+            logger.warn("Failed to read install.json for $appName: ${e.message}")
+            false
+        }
     }
 }

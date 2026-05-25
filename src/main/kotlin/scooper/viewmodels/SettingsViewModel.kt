@@ -22,11 +22,11 @@ data class SettingsState(
 
 class SettingsViewModel(
     private val configRepository: ConfigRepository,
-) : ContainerHost<SettingsState, SettingsSideEffect>, AutoCloseable {
+) : ContainerHost<SettingsState, AppSideEffect>, AutoCloseable {
 
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
-    override val container: Container<SettingsState, SettingsSideEffect> = coroutineScope.container(
+    override val container: Container<SettingsState, AppSideEffect> = coroutineScope.container(
         SettingsState(uiConfig = configRepository.getConfig())
     ) {
         scoopFormState.setData(ScoopConfigManager.readScoopConfig())
