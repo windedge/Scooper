@@ -27,12 +27,12 @@ data class CleanupState(
 
 class CleanupViewModel(
     private val cleanupRepository: CleanupRepository,
-) : ContainerHost<CleanupState, CleanupSideEffect>, AutoCloseable {
+) : ContainerHost<CleanupState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
 
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
-    override val container: Container<CleanupState, CleanupSideEffect> = coroutineScope.container(CleanupState())
+    override val container: Container<CleanupState, AppSideEffect> = coroutineScope.container(CleanupState())
 
     fun computeCacheSize() = intent {
         reduce { state.copy(scanningCache = true) }

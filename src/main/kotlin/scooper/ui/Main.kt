@@ -6,9 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
-import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,23 +28,21 @@ import scooper.repository.AppsRepository
 import scooper.repository.ConfigRepository
 import scooper.repository.initDb
 import scooper.ui.components.EnterAnimation
+import scooper.ui.components.CustomSnackbarHostState
 import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.*
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.navigation.Router
-import scooper.viewmodels.AppsSideEffect
+import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
-import scooper.viewmodels.CleanupSideEffect
 import scooper.viewmodels.CleanupViewModel
-import scooper.viewmodels.ScoopSearchSideEffect
 import scooper.viewmodels.ScoopSearchViewModel
-import scooper.viewmodels.SettingsSideEffect
-
 import scooper.viewmodels.SettingsViewModel
 import java.awt.Dimension
 import java.io.File
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.merge
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
 val LocalFocusSearch = compositionLocalOf<() -> Unit> { {} }
@@ -152,42 +148,20 @@ fun main() {
             }
         }
 
-        val scaffoldState = rememberScaffoldState()
+        val snackbarHostState = remember { CustomSnackbarHostState() }
         var statusText by remember { mutableStateOf("") }
 
-        // Collect Apps side effects
-        LaunchedEffect(appsViewModel) {
-            appsViewModel.container.sideEffectFlow.collect { sideEffect ->
+        // Collect all side effects from all ViewModels
+        LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel) {
+            merge(
+                appsViewModel.container.sideEffectFlow,
+                settingsViewModel.container.sideEffectFlow,
+                cleanupViewModel.container.sideEffectFlow,
+                scoopSearchViewModel.container.sideEffectFlow,
+            ).collect { sideEffect ->
                 when (sideEffect) {
-                    is AppsSideEffect.Toast -> scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
-                    is AppsSideEffect.Log -> statusText = sideEffect.text
-                }
-            }
-        }
-
-        // Collect Settings side effects
-        LaunchedEffect(settingsViewModel) {
-            settingsViewModel.container.sideEffectFlow.collect { sideEffect ->
-                when (sideEffect) {
-                    is SettingsSideEffect.Toast -> scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
-                }
-            }
-        }
-
-        // Collect Cleanup side effects
-        LaunchedEffect(cleanupViewModel) {
-            cleanupViewModel.container.sideEffectFlow.collect { sideEffect ->
-                when (sideEffect) {
-                    is CleanupSideEffect.Toast -> scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
-                }
-            }
-        }
-
-        // Collect ScoopSearch side effects
-        LaunchedEffect(scoopSearchViewModel) {
-            scoopSearchViewModel.container.sideEffectFlow.collect { sideEffect ->
-                when (sideEffect) {
-                    is ScoopSearchSideEffect.Toast -> scaffoldState.snackbarHostState.showSnackbar(sideEffect.text)
+                    is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text, sideEffect.type)
+                    is AppSideEffect.Log -> statusText = sideEffect.text
                 }
             }
         }
@@ -196,78 +170,82 @@ fun main() {
 
         ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
             CompositionLocalProvider(LocalShowFps provides showFpsState) {
-                Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
-                @Suppress("UNCHECKED_CAST")
-                val navigator = LocalBackStack.current as BackStack<AppRoute>
-                // Expose navigator to Window-level onPreviewKeyEvent
-                navigatorRef.value = navigator
-                val provideFocusSearch: () -> Unit = { focusSearchRequester.value++ }
+                // Snackbar overlay sits above Router so it survives route changes.
+                Box(Modifier.fillMaxSize()) {
+                    Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
+                        @Suppress("UNCHECKED_CAST")
+                        val navigator = LocalBackStack.current as BackStack<AppRoute>
+                        // Expose navigator to Window-level onPreviewKeyEvent
+                        navigatorRef.value = navigator
+                        val provideFocusSearch: () -> Unit = { focusSearchRequester.value++ }
 
-                val showToolbar = when (currentRoute.value) {
-                    is AppRoute.Settings -> false
-                    AppRoute.Output -> false
-                    AppRoute.Cleanup -> false
-                    AppRoute.ScoopSearch -> false
-                    else -> true
-                }
-
-                val appsState by appsViewModel.container.stateFlow.collectAsState()
-
-                CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
-                Scaffold(
-                    scaffoldState = scaffoldState,
-                    snackbarHost = { hostState -> SnackbarHost(hostState) },
-                    bottomBar = { StatusBar(statusText) }
-                ) { paddingValues ->
-                    Row(modifier = Modifier.padding(paddingValues)) {
-                        val isSettings = currentRoute.value is AppRoute.Settings
-                        val isOutput = currentRoute.value == AppRoute.Output
-                        if (!isSettings && !isOutput) {
-                            SidebarNav(updateCount = appsState.updateCount)
+                        val showToolbar = when (currentRoute.value) {
+                            is AppRoute.Settings, AppRoute.Output, AppRoute.Cleanup, AppRoute.ScoopSearch -> false
+                            else -> true
                         }
-                        Column(Modifier.weight(1f)) {
-                            if (currentRoute.value is AppRoute.Apps) {
-                                SearchBar(
-                                    show = showToolbar,
-                                    focusRequester = focusSearchRequester.value,
-                                    onResetFocusRequester = { focusSearchRequester.value = 0 },
-                                )
-                            } else {
-                                ToolbarRow(showToolbar && currentRoute.value != AppRoute.Buckets && currentRoute.value != AppRoute.Cleanup && currentRoute.value != AppRoute.ScoopSearch)
-                            }
-                            Layout {
-                                val routeKey = when (val route = currentRoute.value) {
-                                    AppRoute.Splash -> "splash"
-                                    is AppRoute.Apps -> "apps:${route.scope}"
-                                    AppRoute.Buckets -> "buckets"
-                                    AppRoute.Cleanup -> "cleanup"
-                                    AppRoute.ScoopSearch -> "scoopSearch"
-                                    AppRoute.Output -> "output"
-                                    is AppRoute.Settings -> "settings:${route.menuText}"
-                                }
-                                val previousRoute = this@Router.snapshot.dropLast(1).lastOrNull()?.value
-                                val bothSettings = currentRoute.value is AppRoute.Settings && previousRoute is AppRoute.Settings
-                                val animateContent = !bothSettings
-                                key(routeKey) {
-                                    EnterAnimation(animateContent) {
-                                        when (val route = currentRoute.value) {
-                                            AppRoute.Splash -> {}
-                                            is AppRoute.Apps -> AppScreen(route.scope)
-                                            AppRoute.Buckets -> BucketsScreen()
-                                            AppRoute.Cleanup -> CleanupScreen()
-                                            AppRoute.ScoopSearch -> ScoopSearchScreen()
-                                            AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
-                                            is AppRoute.Settings -> SettingScreen()
+
+                        val appsState by appsViewModel.container.stateFlow.collectAsState()
+
+                        Column(Modifier.fillMaxSize()) {
+                            CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
+                                Row(Modifier.weight(1f)) {
+                                    val isSettings = currentRoute.value is AppRoute.Settings
+                                    val isOutput = currentRoute.value == AppRoute.Output
+                                    if (!isSettings && !isOutput) {
+                                        SidebarNav(updateCount = appsState.updateCount)
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        if (currentRoute.value is AppRoute.Apps) {
+                                            SearchBar(
+                                                show = showToolbar,
+                                                focusRequester = focusSearchRequester.value,
+                                                onResetFocusRequester = { focusSearchRequester.value = 0 },
+                                            )
+                                        } else {
+                                            val showToolbarRow = showToolbar && currentRoute.value !in listOf(
+                                                AppRoute.Buckets, AppRoute.Cleanup, AppRoute.ScoopSearch
+                                            )
+                                            ToolbarRow(showToolbarRow)
+                                        }
+                                        Layout {
+                                            val routeKey = when (val route = currentRoute.value) {
+                                                AppRoute.Splash -> "splash"
+                                                is AppRoute.Apps -> "apps:${route.scope}"
+                                                AppRoute.Buckets -> "buckets"
+                                                AppRoute.Cleanup -> "cleanup"
+                                                AppRoute.ScoopSearch -> "scoopSearch"
+                                                AppRoute.Output -> "output"
+                                                is AppRoute.Settings -> "settings:${route.menuText}"
+                                            }
+                                            val previousRoute = this@Router.snapshot.dropLast(1).lastOrNull()?.value
+                                            val bothSettings = currentRoute.value is AppRoute.Settings && previousRoute is AppRoute.Settings
+                                            val animateContent = !bothSettings
+                                            key(routeKey) {
+                                                EnterAnimation(animateContent) {
+                                                    when (val route = currentRoute.value) {
+                                                        AppRoute.Splash -> {}
+                                                        is AppRoute.Apps -> AppScreen(route.scope)
+                                                        AppRoute.Buckets -> BucketsScreen()
+                                                        AppRoute.Cleanup -> CleanupScreen()
+                                                        AppRoute.ScoopSearch -> ScoopSearchScreen()
+                                                        AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
+                                                        is AppRoute.Settings -> SettingScreen()
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
-                            }
+                            } // CompositionLocalProvider LocalFocusSearch
+                            StatusBar(statusText)
                         }
-                    }
-                }
-                } // CompositionLocalProvider LocalFocusSearch
+                    } // Router
 
-            } // Router
+                    // Snackbar overlay — outside Router so it is not recreated on route change.
+                    Box(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 48.dp)) {
+                        SnackbarHost(snackbarHostState)
+                    }
+                } // Box
             } // CompositionLocalProvider LocalShowFps
         }
     }

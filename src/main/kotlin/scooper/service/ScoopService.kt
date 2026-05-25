@@ -43,13 +43,15 @@ class ScoopService(
      *  Returns the actual CLI exit code for UI feedback. */
     suspend fun uninstall(app: App): Int {
         val result = scoopClient.uninstall(app, app.global)
-        val bucketExists = app.bucket?.name?.let { it in scoopClient.bucketNames } ?: false
-        if (bucketExists) {
-            appsRepository.upsertApp(app.copy(status = AppStatus.UNINSTALL, global = false))
-        } else {
-            appsRepository.deleteApp(app.name, app.bucket?.name)
+        if (result.exitCode == 0) {
+            val bucketExists = app.bucket?.name?.let { it in scoopClient.bucketNames } ?: false
+            if (bucketExists) {
+                appsRepository.upsertApp(app.copy(status = AppStatus.UNINSTALL, global = false))
+            } else {
+                appsRepository.deleteApp(app.name, app.bucket?.name)
+            }
+            emit(ScoopEvent.AppUninstalled(app.name))
         }
-        emit(ScoopEvent.AppUninstalled(app.name))
         return result.exitCode
     }
 
