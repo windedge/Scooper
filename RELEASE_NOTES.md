@@ -1,5 +1,18 @@
 # Release Notes
 
+## v1.2.2 (2026-05-25)
+
+### 🛠 Improvement
+
+- **Improved toast notifications**: Past-tense messages with theme-based colors and success/error/info icons; no longer re-shows when switching tabs.
+- **Upgrade Compose to 1.10.2**: Kotlin 2.3.10, Gradle 8.14.3. Replaced Material Icons with lightweight Lucide icons for cleaner visuals. Stripped non-Windows native libs from sqlite-jdbc to reduce distribution size.
+
+### 🐛 Bug Fixes
+
+- **Status consistency**: Uninstall no longer updates DB on failure; installVersion uses bucket manifest instead of temp file (legacy installs auto-repaired); orphan apps correctly indexed during reload.
+- **FPS counter**: Fixed stalling after Compose 1.10+ upgrade.
+- **Sidebar shadow**: Uses `dropShadow` for consistent rendering across platforms.
+
 ## v1.2.1 (2026-05-18)
 
 ### ✨ New Feature
