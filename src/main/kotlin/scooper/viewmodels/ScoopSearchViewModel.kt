@@ -144,7 +144,7 @@ class ScoopSearchViewModel(
             taskQueue.addTask(Task.AddBucket(bucketName) { blockingIntent {
                 val resultCode = scoopService.addBucket(bucketName, app.Metadata.Repository)
                 if (resultCode != 0) {
-                    postSideEffect(AppSideEffect.Toast("Failed to add $bucketName", ToastType.ERROR))
+                    postSideEffect(AppSideEffect.Toast("Failed to add $bucketName.", ToastType.ERROR))
                     reduce { state.copy(installingApps = state.installingApps - appKey) }
                 }
             }})
