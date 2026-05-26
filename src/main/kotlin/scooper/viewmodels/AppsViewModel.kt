@@ -323,9 +323,9 @@ class AppsViewModel(
         taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
             val resultCode = scoopService.addBucket(bucket, url)
             if (resultCode != 0) {
-                postSideEffect(AppSideEffect.Toast("Failed to add $bucket", ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast("Failed to add $bucket.", ToastType.ERROR))
             } else {
-                postSideEffect(AppSideEffect.Toast("Added $bucket", ToastType.SUCCESS))
+                postSideEffect(AppSideEffect.Toast("$bucket has been added.", ToastType.SUCCESS))
                 getBuckets()
                 reloadApps()
             }
@@ -449,7 +449,7 @@ class AppsViewModel(
             }
 
             if (manifestText == null) {
-                postSideEffect(AppSideEffect.Toast("Failed to get manifest for ${app.name}@${version.version}", ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast("Failed to get manifest for ${app.name}@${version.version}.", ToastType.ERROR))
                 return@blockingIntent
             }
 
@@ -462,9 +462,9 @@ class AppsViewModel(
             tempFile.delete()
             tempDir.deleteRecursively()
             if (result.exitCode != 0) {
-                postSideEffect(AppSideEffect.Toast("Failed to install ${app.name}@${version.version}", ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast("Failed to install ${app.name}@${version.version}.", ToastType.ERROR))
             } else {
-                postSideEffect(AppSideEffect.Toast("Installed ${app.name}@${version.version}", ToastType.SUCCESS))
+                postSideEffect(AppSideEffect.Toast("${app.name}@${version.version} has been installed.", ToastType.SUCCESS))
                 appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED, version = version.version))
                 applyFilters()
             }

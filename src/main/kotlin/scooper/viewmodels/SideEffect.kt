@@ -15,14 +15,14 @@ sealed class AppSideEffect {
 fun taskToast(action: String, name: String, resultCode: Int): AppSideEffect.Toast {
     val success = resultCode == 0
     val type = if (success) ToastType.SUCCESS else ToastType.ERROR
-    val pastAction = when (action) {
-        "Install" -> "Installed"
-        "Uninstall" -> "Uninstalled"
-        "Update" -> "Updated"
-        "Download" -> "Downloaded"
-        "Remove bucket" -> "Removed"
-        else -> action
+    val (past, lower) = when (action) {
+        "Install" -> "installed" to "install"
+        "Uninstall" -> "uninstalled" to "uninstall"
+        "Update" -> "updated" to "update"
+        "Download" -> "downloaded" to "download"
+        "Remove bucket" -> "removed" to "remove bucket"
+        else -> action to action
     }
-    val text = if (success) "$pastAction $name" else "Failed to $action $name"
+    val text = if (success) "$name has been $past." else "Failed to $lower $name."
     return AppSideEffect.Toast(text, type)
 }
