@@ -63,12 +63,6 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     val buckets = mutableListOf("")
     buckets.addAll(state.buckets.map { it.name })
 
-    val sortOptions = listOf(
-        "updated" to "Recently Updated",
-        "added" to "Recently Added",
-        "name" to "Name"
-    )
-
     var expandBucket by remember { mutableStateOf(false) }
     var expandSort by remember { mutableStateOf(false) }
     var selectedItem by rememberSaveable { mutableStateOf(-1) }
@@ -76,6 +70,23 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     var sortBy by rememberSaveable { mutableStateOf("updated") }
     var sortOrder by rememberSaveable { mutableStateOf("desc") }
     var queryText by rememberSaveable { mutableStateOf("") }
+
+    val sortOptions = remember(queryText) {
+        if (queryText.isNotBlank()) {
+            listOf(
+                "bestmatch" to "Best Match",
+                "updated" to "Recently Updated",
+                "added" to "Recently Added",
+                "name" to "Name"
+            )
+        } else {
+            listOf(
+                "updated" to "Recently Updated",
+                "added" to "Recently Added",
+                "name" to "Name"
+            )
+        }
+    }
 
     LaunchedEffect(state.filter.selectedBucket, state.filter.sort, state.filter.sortOrder, state.filter.query, buckets.size) {
         bucket = state.filter.selectedBucket
@@ -90,7 +101,13 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             .distinctUntilChanged()
             .debounce(400)
             .collectLatest {
-                appsViewModel.applyFilters(query = it)
+                if (it.isBlank() && sortBy == "bestmatch") {
+                    sortBy = "updated"
+                    sortOrder = "desc"
+                    appsViewModel.applyFilters(query = it, sort = "updated", sortOrder = "desc")
+                } else {
+                    appsViewModel.applyFilters(query = it)
+                }
             }
     }
 
@@ -520,6 +537,7 @@ private fun SortFilterDropdown(
                             val nextSortOrder = when {
                                 key == sortBy -> sortOrder
                                 key == "name" -> "asc"
+                                key == "bestmatch" -> "desc"
                                 else -> "desc"
                             }
                             onSortChange(key, nextSortOrder)
@@ -554,7 +572,7 @@ private fun SortFilterDropdown(
                                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 ),
                             )
-                            if (isSelected) {
+                            if (isSelected && key != "bestmatch") {
                                 Spacer(Modifier.width(8.dp))
                                 var sortOrderHover by remember { mutableStateOf(false) }
                                 Box(

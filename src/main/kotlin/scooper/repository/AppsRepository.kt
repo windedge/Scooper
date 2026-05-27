@@ -99,14 +99,28 @@ class AppsRepository(
         }
         val order = column to if (sortOrder == "asc") SortOrder.ASC else SortOrder.DESC
 
-        // When FTS results exist, prioritize them over LIKE-only matches
-        val result = if (ftsIds != null && ftsIds.isNotEmpty()) {
-            val ftsPriority = Case()
-                .When(Apps.id inList ftsIds, intLiteral(0))
-                .Else(intLiteral(1))
-            wrapRows.orderBy(ftsPriority to SortOrder.ASC, order)
-        } else {
-            wrapRows.orderBy(order)
+        val result = when {
+            sort == "bestmatch" && query.isNotBlank() && ftsIds != null && ftsIds.isNotEmpty() -> {
+                val rankCase = if (ftsIds.size == 1) {
+                    Case().When(Apps.id eq ftsIds[0], intLiteral(0)).Else(intLiteral(1))
+                } else {
+                    var base = Case().When(Apps.id eq ftsIds[0], intLiteral(0))
+                    for (i in 1 until ftsIds.size) {
+                        base = base.When(Apps.id eq ftsIds[i], intLiteral(i))
+                    }
+                    base.Else(intLiteral(ftsIds.size))
+                }
+                wrapRows.orderBy(rankCase to SortOrder.ASC, Apps.name to SortOrder.ASC)
+            }
+            ftsIds != null && ftsIds.isNotEmpty() -> {
+                val ftsPriority = Case()
+                    .When(Apps.id inList ftsIds, intLiteral(0))
+                    .Else(intLiteral(1))
+                wrapRows.orderBy(ftsPriority to SortOrder.ASC, order)
+            }
+            else -> {
+                wrapRows.orderBy(order)
+            }
         }.limit(limit).offset(offset)
 
         val apps = result.map { row ->
@@ -450,12 +464,12 @@ class AppsRepository(
         exec("INSERT INTO apps_fts(apps_fts) VALUES ('rebuild')")
     }
 
-    /** Search using FTS5 full-text index. Returns null if FTS is unavailable. */
+    /** Search using FTS5 full-text index. Returns rowids ordered by bm25 relevance (lower score = better match). Returns null if FTS is unavailable. */
     private fun Transaction.searchFts(query: String): List<Int>? {
         val ftsQuery = buildFtsQuery(query) ?: return emptyList()
         return try {
             exec(
-                "SELECT rowid FROM apps_fts WHERE apps_fts MATCH ?",
+                "SELECT rowid FROM apps_fts WHERE apps_fts MATCH ? ORDER BY bm25(apps_fts)",
                 args = listOf(VarCharColumnType() to ftsQuery)
             ) { rs ->
                 val ids = mutableListOf<Int>()
