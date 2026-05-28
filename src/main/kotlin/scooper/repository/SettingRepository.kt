@@ -14,6 +14,8 @@ class ConfigRepository {
             Configs.selectAll().first().run {
                 UIConfig(
                     refreshOnStartup = this[Configs.refreshOnStartup],
+                    periodicRefreshEnabled = this[Configs.periodicRefreshEnabled],
+                    autoRefreshIntervalMinutes = this[Configs.autoRefreshIntervalMinutes].toString(),
                     theme = this[Configs.theme],
                     fontSizeScale = this[Configs.fontSizeScale],
                     viewMode = this[Configs.viewMode],
@@ -34,6 +36,8 @@ class ConfigRepository {
         transaction {
             Configs.update({ Configs.id eq Configs.selectAll().first()[Configs.id] }) {
                 it[refreshOnStartup] = config.refreshOnStartup
+                it[periodicRefreshEnabled] = config.periodicRefreshEnabled
+                it[autoRefreshIntervalMinutes] = config.autoRefreshIntervalMinutes.toInt()
                 it[theme] = config.theme
                 it[fontSizeScale] = config.fontSizeScale
                 it[viewMode] = config.viewMode

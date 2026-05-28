@@ -40,6 +40,8 @@ const val MIN_WINDOW_HEIGHT = 680
 
 data class UIConfig(
     val refreshOnStartup: Boolean = false,
+    val periodicRefreshEnabled: Boolean = false,
+    val autoRefreshIntervalMinutes: String = "120",
     val theme: Theme = Theme.Auto,
     val fontSizeScale: Float = 1.0f,
     val viewMode: ViewMode = ViewMode.List,

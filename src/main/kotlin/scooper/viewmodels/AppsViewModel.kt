@@ -1,9 +1,12 @@
 package scooper.viewmodels
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -79,6 +82,7 @@ class AppsViewModel(
 
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.Default + supervisorJob)
+    private var autoRefreshJob: Job? = null
     private val gitHistoryIndexing = AtomicBoolean(false)
     private val initialState = run {
         val config = configRepository.getConfig()
@@ -90,6 +94,10 @@ class AppsViewModel(
         subscribeLogging()
         subscribeEvents()
         scheduleIndexGitHistoryIfNeeded()
+        // Startup refresh
+        if (configRepository.getConfig().refreshOnStartup) {
+            scheduleUpdateApps()
+        }
     }
 
     fun subscribeEvents() = intent {
@@ -523,7 +531,22 @@ class AppsViewModel(
         }
     }
 
+    // ==================== Auto Refresh Timer ====================
+
+    fun setAutoRefresh(enabled: Boolean, intervalMinutes: String) {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
+        if (!enabled) return
+        autoRefreshJob = coroutineScope.launch {
+            while (isActive) {
+                delay(intervalMinutes.toLong() * 60_000L)
+                scheduleUpdateApps()
+            }
+        }
+    }
+
     override fun close() {
+        autoRefreshJob?.cancel()
         supervisorJob.cancel()
     }
 }

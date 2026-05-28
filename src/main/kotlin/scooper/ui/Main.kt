@@ -142,10 +142,12 @@ fun main() {
         val uiConfig = settings.uiConfig
         val theme = uiConfig.theme.toSystemTheme()
 
-        LaunchedEffect(Unit) {
-            if (uiConfig.refreshOnStartup) {
-                appsViewModel.scheduleUpdateApps()
-            }
+        // Auto-refresh: delegate to ViewModel
+        LaunchedEffect(settings.uiConfig.periodicRefreshEnabled, settings.uiConfig.autoRefreshIntervalMinutes) {
+            appsViewModel.setAutoRefresh(
+                settings.uiConfig.periodicRefreshEnabled,
+                settings.uiConfig.autoRefreshIntervalMinutes,
+            )
         }
 
         val snackbarHostState = remember { CustomSnackbarHostState() }

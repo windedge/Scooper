@@ -39,6 +39,8 @@ object Buckets : IntIdTable("buckets") {
 
 object Configs : IntIdTable(name = "configs") {
     val refreshOnStartup = bool("refresh_on_startup").default(false)
+    val periodicRefreshEnabled = bool("periodic_refresh_enabled").default(false)
+    val autoRefreshIntervalMinutes = integer("auto_refresh_interval_minutes").default(120)
     val theme = enumeration("theme", Theme::class).default(Theme.Auto)
     val fontSizeScale = float("font_size_scale").default(1.0f)
     val viewMode = enumeration("view_mode", ViewMode::class).default(ViewMode.List)
