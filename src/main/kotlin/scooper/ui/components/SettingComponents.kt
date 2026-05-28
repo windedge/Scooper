@@ -1,8 +1,11 @@
 package scooper.ui.components
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.*
 import scooper.ui.icons.*
 import androidx.compose.runtime.Composable
@@ -34,21 +37,48 @@ fun PrefTextField(
     errorMessage: String? = null,
 ) {
     val colors = MaterialTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor = when {
+        isError -> colors.error
+        isFocused -> colors.primary
+        else -> colors.inputBorder
+    }
+
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         if (label != null) {
             Text(label)
         }
-        TextField(
-            value = value,
-            onValueChange = onValueChange,
-            placeholder = { Text(placeholder) },
-            isError = isError,
-            modifier = modifier.then(Modifier.widthIn(min = 100.dp).fillMaxWidth(0.6f).height(30.dp)),
-            singleLine = true,
-            contentPadding = PaddingValues(5.dp),
-        )
-        if (isError && errorMessage != null) {
-            Text(errorMessage, color = MaterialTheme.colors.error)
+        Column(modifier = modifier.widthIn(min = 100.dp).fillMaxWidth(0.6f)) {
+            Box(
+                modifier = Modifier
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(colors.inputBackground)
+                    .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        style = MaterialTheme.typography.body2.copy(color = colors.textPlaceholder)
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.body2.copy(color = colors.textTitle),
+                    interactionSource = interactionSource,
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(if (isError) colors.error else colors.primary)
+                )
+            }
+            if (isError && errorMessage != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(errorMessage, color = MaterialTheme.colors.error, style = MaterialTheme.typography.caption)
+            }
         }
     }
 }
@@ -85,9 +115,13 @@ fun PrefRow(
 ) {
     val colors = MaterialTheme.colors
     val rowModifier = if (onClick != null) {
-        Modifier.fillMaxWidth().clickable(onClick = onClick)
-    } else {
         Modifier.fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    } else {
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
     }
     Column(modifier = modifier.then(Modifier.fillMaxWidth().padding(vertical = 16.dp))) {
         Row(
@@ -116,7 +150,9 @@ fun PrefRow(
         if (nestedContent != null) {
             Spacer(Modifier.height(12.dp))
             ProvideTextStyle(MaterialTheme.typography.body1) {
-                nestedContent()
+                Box(modifier = Modifier.padding(start = 32.dp, end = 24.dp)) {
+                    nestedContent()
+                }
             }
         }
     }
@@ -281,6 +317,7 @@ private fun SettingsNavItem(
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)
+            .padding(horizontal = 12.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .border(1.dp, border, RoundedCornerShape(8.dp))

@@ -215,10 +215,12 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
         settingsViewModel.reloadUIConfig()
     }
 
-    val refreshState: SwitchState = formState.getState("refreshOnStartup")
     val themeState: ChoiceState = formState.getState("theme")
     val viewModeState: ChoiceState = formState.getState("viewMode")
     val paginationModeState: ChoiceState = formState.getState("paginationMode")
+    val refreshOnStartupState: SwitchState = formState.getState("refreshOnStartup")
+    val periodicRefreshState: SwitchState = formState.getState("periodicRefreshEnabled")
+    val intervalState: ChoiceState = formState.getState("autoRefreshIntervalMinutes")
 
     LaunchedEffect(themeState.value) {
         val theme = Theme.valueOf(themeState.value)
@@ -256,18 +258,85 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
         SettingsTitle("UI Settings", "Customize the application appearance.")
 
         SectionCard {
-            PrefRow("Reload apps after startup",
-                subtitle = "Run \"scoop update\" after startup.",
+            // Auto Refresh section
+            var autoRefreshExpanded by remember { mutableStateOf(false) }
+            val autoRefreshEnabled = refreshOnStartupState.value || periodicRefreshState.value
+
+            // Sync expanded state after config is loaded from DB
+            LaunchedEffect(autoRefreshEnabled) {
+                if (autoRefreshEnabled) autoRefreshExpanded = true
+            }
+
+            val onMasterToggle: () -> Unit = {
+                if (autoRefreshExpanded) {
+                    // Collapse and disable both sub-options
+                    refreshOnStartupState.value = false
+                    periodicRefreshState.value = false
+                    autoRefreshExpanded = false
+                } else {
+                    autoRefreshExpanded = true
+                }
+            }
+            PrefRow(
+                title = "Auto Refresh",
+                subtitle = "When enabled, Scooper will automatically run \"scoop update\" to check for updates.",
                 modifier = Modifier.cursorHand(),
-                onClick = { refreshState.update(!refreshState.value) }
+                onClick = onMasterToggle,
             ) {
                 Switch(
-                    refreshState.value,
-                    onCheckedChange = { refreshState.update(it) },
+                    autoRefreshExpanded,
+                    onCheckedChange = { onMasterToggle() },
                     modifier = Modifier.cursorHand(),
                     colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
                 )
             }
+            if (autoRefreshExpanded) {
+                Column(modifier = Modifier.padding(start = 16.dp)) {
+                    PrefRow(
+                        title = "Refresh on Startup",
+                        subtitle = "Run \"scoop update\" once after startup.",
+                        modifier = Modifier.cursorHand(),
+                        onClick = { refreshOnStartupState.update(!refreshOnStartupState.value) },
+                    ) {
+                        Switch(
+                            refreshOnStartupState.value,
+                            onCheckedChange = { refreshOnStartupState.update(it) },
+                            modifier = Modifier.cursorHand(),
+                            colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
+                        )
+                    }
+                    Divider(color = colors.divider)
+                    PrefRow(
+                        title = "Periodic Refresh",
+                        subtitle = "Periodically run \"scoop update\" at a fixed interval.",
+                        modifier = Modifier.cursorHand(),
+                        onClick = { periodicRefreshState.update(!periodicRefreshState.value) },
+                    ) {
+                        Switch(
+                            periodicRefreshState.value,
+                            onCheckedChange = { periodicRefreshState.update(it) },
+                            modifier = Modifier.cursorHand(),
+                            colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
+                        )
+                    }
+                    if (periodicRefreshState.value) {
+                        Divider(color = colors.divider)
+                        PrefRow(
+                            title = "Interval",
+                            subtitle = "How often to check for updates.",
+                        ) {
+                            val choices = intervalState.choices
+                            ExposedDropdownMenu(
+                                choices.values.toList(),
+                                selected = choices[intervalState.value]!!,
+                                onItemSelected = { label ->
+                                    intervalState.value = choices.filterValues { it == label }.keys.first()
+                            })
+                        }
+                    }
+                }
+            }
+
             Divider(color = colors.divider)
             PrefRow(title = "Switch Theme") {
                 val choices = themeState.choices

@@ -76,6 +76,15 @@ class SettingsViewModel(
     val uiFormState = FormState(
         fields = listOf(
             SwitchState("refreshOnStartup"),
+            SwitchState("periodicRefreshEnabled"),
+            ChoiceState(
+                "autoRefreshIntervalMinutes", initial = "120", validators = listOf(), choices = mapOf(
+                    "30" to "30 min",
+                    "60" to "1 hour",
+                    "120" to "2 hours",
+                    "240" to "4 hours",
+                )
+            ),
             ChoiceState("theme", validators = listOf(), choices = Theme.values().associate { it.name to it.name }),
             ChoiceState("viewMode", validators = listOf(), choices = ViewMode.values().associate { it.name to it.name }),
             ChoiceState("paginationMode", validators = listOf(), choices = PaginationMode.values().associate { it.name to it.name }),
@@ -110,6 +119,8 @@ class SettingsViewModel(
         val currentConfig = configRepository.getConfig()
         val config = currentConfig.copy(
             refreshOnStartup = formConfig.refreshOnStartup,
+            periodicRefreshEnabled = formConfig.periodicRefreshEnabled,
+            autoRefreshIntervalMinutes = formConfig.autoRefreshIntervalMinutes,
             theme = formConfig.theme,
             viewMode = formConfig.viewMode,
             paginationMode = formConfig.paginationMode,
