@@ -37,6 +37,7 @@ import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
+import scooper.util.tr
 import scooper.util.onHover
 import scooper.viewmodels.AppsViewModel
 import scooper.ui.theme.*
@@ -71,16 +72,16 @@ fun MoreActionsButton() {
     var open by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }, Modifier.cursorLink(), rippleRadius = 20.dp) {
-        Icon(Lucide.EllipsisVertical, "More Actions", modifier = Modifier.height(30.dp), tint = colors.primary)
+        Icon(Lucide.EllipsisVertical, tr("More Actions"), modifier = Modifier.height(30.dp), tint = colors.primary)
 
         DropdownMenu(open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Settings.General) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Lucide.Settings, "Settings", modifier = Modifier.size(16.dp))
+                    Icon(Lucide.Settings, tr("Settings"), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
-                    Text("Settings")
+                    Text(tr("Settings"))
                 }
             }
 
@@ -88,9 +89,9 @@ fun MoreActionsButton() {
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Output) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Lucide.Terminal, "View Logs", modifier = Modifier.size(16.dp))
+                    Icon(Lucide.Terminal, tr("View Logs"), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
-                    Text("View Logs")
+                    Text(tr("View Logs"))
                 }
             }
 
@@ -98,9 +99,9 @@ fun MoreActionsButton() {
                 modifier = Modifier.height(30.dp).cursorHand(),
                 onClick = { navigator.push(AppRoute.Settings.About) }) {
                 Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Lucide.Info, "About", modifier = Modifier.size(16.dp))
+                    Icon(Lucide.Info, tr("About"), modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(5.dp))
-                    Text("About")
+                    Text(tr("About"))
                 }
             }
 
@@ -179,7 +180,7 @@ fun RefreshScoopButton() {
             }
         } else {
             var isCtrlPressed by remember { mutableStateOf(false) }
-            Tooltip("Refreshing Scoop (Ctrl+Click: Full Reload)") {
+            Tooltip(tr("Refreshing Scoop (Ctrl+Click: Full Reload)")) {
                 IconButton(
                     onClick = {
                         if (isCtrlPressed) {
@@ -210,33 +211,33 @@ fun RefreshScoopButton() {
 
 private fun Task.toAnnotatedTitle(): AnnotatedString = buildAnnotatedString {
     when (this@toAnnotatedTitle) {
-        is Task.Refresh -> append("Refreshing")
+        is Task.Refresh -> append(tr("Refreshing"))
         is Task.AddBucket -> {
-            append("Add Bucket: ")
+            append(tr("Add Bucket: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.name) }
         }
         is Task.RemoveBucket -> {
-            append("Remove Bucket: ")
+            append(tr("Remove Bucket: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.name) }
         }
         is Task.Download -> {
-            append("Download: ")
+            append(tr("Download: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
         }
         is Task.Install -> {
-            append("Install: ")
+            append(tr("Install: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
         }
         is Task.InstallVersion -> {
-            append("Install: ")
+            append(tr("Install: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("${this@toAnnotatedTitle.app.name}@${this@toAnnotatedTitle.version}") }
         }
         is Task.Uninstall -> {
-            append("Uninstall: ")
+            append(tr("Uninstall: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
         }
         is Task.Update -> {
-            append("Update: ")
+            append(tr("Update: "))
             withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(this@toAnnotatedTitle.app.name) }
         }
     }
@@ -256,7 +257,7 @@ private fun TaskRow(task: Task, isRunning: Boolean, draggableHandle: Modifier? =
         } else {
             Icon(
                 Lucide.GripVertical,
-                contentDescription = "Reorder Task",
+                contentDescription = tr("Reorder Task"),
                 modifier = Modifier.size(18.dp).then(draggableHandle?.cursorHand() ?: Modifier)
             )
         }

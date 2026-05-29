@@ -18,6 +18,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.theme.*
 import scooper.util.cursorHand
+import scooper.util.tr
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.noRippleClickable
@@ -52,7 +53,7 @@ fun StatusBar(statusText: String) {
             // Right: Logs toggle & Clock
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Console Toggle
-                Tooltip("Show Console Logs", position = TooltipPosition.Top) {
+                Tooltip(tr("Show Console Logs"), position = TooltipPosition.Top) {
                     Box(
                         modifier = Modifier
                             .height(20.dp)
@@ -72,7 +73,7 @@ fun StatusBar(statusText: String) {
                     ) {
                         val annotatedString = removeAnsiColor(statusText)
                         Text(
-                            annotatedString.ifBlank { "Console" },
+                            annotatedString.ifBlank { tr("Console") },
                             style = MaterialTheme.typography.caption.copy(color = colors.sidebarTextMedium),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis

@@ -1,5 +1,7 @@
 package scooper.viewmodels
 
+import scooper.util.tr
+
 enum class ToastType {
     SUCCESS,
     ERROR,
@@ -23,6 +25,6 @@ fun taskToast(action: String, name: String, resultCode: Int): AppSideEffect.Toas
         "Remove bucket" -> "removed" to "remove bucket"
         else -> action to action
     }
-    val text = if (success) "$name has been $past." else "Failed to $lower $name."
+    val text = if (success) tr("{{name}} has been {{past}}.", "name" to name, "past" to past) else tr("Failed to {{lower}} {{name}}.", "lower" to lower, "name" to name)
     return AppSideEffect.Toast(text, type)
 }

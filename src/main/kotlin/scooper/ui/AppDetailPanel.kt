@@ -45,6 +45,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.components.SelectableContainer
 import scooper.ui.theme.*
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse
@@ -270,10 +271,10 @@ private fun ContentTabSection(
                     }
                 }
                 if (selectedTab == ContentTab.Manifest && manifestContent != null) {
-                    Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
+                    Tooltip(tr("Copy to clipboard"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Copy,
-                            "Copy",
+                            tr("Copy"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
                                 Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
@@ -325,7 +326,7 @@ private fun ContentTabSection(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "Manifest",
+                        tr("Manifest"),
                         style = typography.body2.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = colors.primary,
@@ -384,7 +385,7 @@ private fun ChangelogContent(
     when {
         !isGitHub -> {
             Text(
-                "Not a GitHub repository.",
+                tr("Not a GitHub repository."),
                 style = typography.body2.copy(color = colors.textMuted),
             )
         }
@@ -404,7 +405,7 @@ private fun ChangelogContent(
         }
         releases.isNullOrEmpty() -> {
             Text(
-                "No releases found.",
+                tr("No releases found."),
                 style = typography.body2.copy(color = colors.textMuted),
             )
         }
@@ -428,7 +429,7 @@ private fun ManifestContent(
     val colors = MaterialTheme.colors
     if (content == null) {
         Text(
-            "Manifest not found.",
+            tr("Manifest not found."),
             style = typography.body2.copy(color = colors.textMuted),
         )
         return
@@ -481,7 +482,7 @@ private fun MetadataSection(app: App) {
         }
 
         // Version info
-        DetailMetadataRow("Version") {
+        DetailMetadataRow(tr("Version")) {
             if (app.updatable) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(app.version ?: "", style = OldVersionStyle)
@@ -506,12 +507,12 @@ private fun MetadataSection(app: App) {
         }
 
         // Status
-        DetailMetadataRow("Status") {
+        DetailMetadataRow(tr("Status")) {
             val statusText = when {
-                app.status == AppStatus.INSTALLED -> "Installed"
-                app.status == AppStatus.FAILED -> "Failed"
-                app.updatable -> "Update Available"
-                else -> "Not Installed"
+                app.status == AppStatus.INSTALLED -> tr("Installed")
+                app.status == AppStatus.FAILED -> tr("Failed")
+                app.updatable -> tr("Update Available")
+                else -> tr("Not Installed")
             }
             val statusColor = when {
                 app.status == AppStatus.INSTALLED && !app.updatable -> colors.updateDefault
@@ -530,7 +531,7 @@ private fun MetadataSection(app: App) {
 
         // Homepage
         if (!app.homepage.isNullOrBlank()) {
-            DetailMetadataRow("Homepage") {
+            DetailMetadataRow(tr("Homepage")) {
                 Link(
                     text = app.homepage!!,
                     onClicked = { safeBrowse(app.homepage) },
@@ -540,7 +541,7 @@ private fun MetadataSection(app: App) {
 
         // License
         if (!app.license.isNullOrBlank()) {
-            DetailMetadataRow("License") {
+            DetailMetadataRow(tr("License")) {
                 Text(
                     app.license!!,
                     style = typography.body2.copy(color = colors.textBody),
@@ -550,7 +551,7 @@ private fun MetadataSection(app: App) {
 
         // Dates
         app.createAt?.let {
-            DetailMetadataRow("Added") {
+            DetailMetadataRow(tr("Added")) {
                 Text(
                     it.format(DateFormatter),
                     style = typography.body2.copy(color = colors.textBody),
@@ -558,7 +559,7 @@ private fun MetadataSection(app: App) {
             }
         }
         app.updateAt?.let {
-            DetailMetadataRow("Updated") {
+            DetailMetadataRow(tr("Updated")) {
                 Text(
                     it.format(DateFormatter),
                     style = typography.body2.copy(color = colors.textBody),

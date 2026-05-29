@@ -42,6 +42,7 @@ import scooper.ui.components.SelectableContainer
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.theme.*
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse

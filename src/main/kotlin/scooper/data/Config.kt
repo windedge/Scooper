@@ -47,6 +47,7 @@ data class UIConfig(
     val viewMode: ViewMode = ViewMode.List,
     val paginationMode: PaginationMode = PaginationMode.Waterfall,
     val pageSize: Int = PAGE_SIZE,
+    val locale: String = scooper.util.getDefaultLocale().toLanguageTag(),
     val windowX: Int? = null,
     val windowY: Int? = null,
     val windowWidth: Int = DEFAULT_WINDOW_WIDTH,

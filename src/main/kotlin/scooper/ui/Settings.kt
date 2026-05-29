@@ -23,6 +23,7 @@ import scooper.data.ViewMode
 import scooper.ui.components.*
 import scooper.util.*
 import scooper.ui.components.SectionCard
+import scooper.util.tr
 import scooper.ui.theme.*
 import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
@@ -159,19 +160,19 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     }, onDiscard = {
         formChangedState.discard()
     }, applyEnabled = hasChanged) {
-        SettingsTitle("General Settings", "Manage core configuration for Scoop.")
+        SettingsTitle(tr("General Settings"), tr("Manage core configuration for Scoop."))
 
         SectionCard {
             PrefRow(
-                "Proxy",
-                subtitle = "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication.",
+                tr("Proxy"),
+                subtitle = tr("By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."),
                 nestedContent = {
                     if (proxyTypeState.value == "custom") {
                         Column(modifier = Modifier.padding(top = 12.dp)) {
                             PrefTextField(
                                 value = proxyState.value,
                                 onValueChange = { proxyState.change(it) },
-                                label = "Proxy Address:",
+                                label = tr("Proxy Address:"),
                                 placeholder = "[username:password@]host:port",
                                 isError = proxyState.hasError,
                                 errorMessage = proxyState.errorMessage
@@ -190,8 +191,8 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             Divider(color = colors.divider)
             PrefRow(
-                title = "Enable Aria2",
-                subtitle = "Aria2c will be used for downloading of artifacts to speed up transfers.",
+                title = tr("Enable Aria2"),
+                subtitle = tr("Aria2c will be used for downloading of artifacts to speed up transfers."),
                 modifier = Modifier.cursorHand(),
                 onClick = { ariaState.update(!ariaState.value) }
             ) {
@@ -242,8 +243,9 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val formChangedState = rememberFormChanged(formState)
     val formChanged by formChangedState.hasChanged
 
-    // Font size scale — managed separately from form_builder
     val settingsState by settingsViewModel.container.stateFlow.collectAsState()
+
+    // Font size scale — managed separately from form_builder
     var fontSizeScale by remember { mutableStateOf(settingsState.uiConfig.fontSizeScale) }
     LaunchedEffect(fontSizeScale) {
         settingsViewModel.switchFontSizeScale(fontSizeScale)
@@ -257,7 +259,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     }, onDiscard = {
         formChangedState.discard()
     }, applyEnabled = formChanged) {
-        SettingsTitle("UI Settings", "Customize the application appearance.")
+        SettingsTitle(tr("UI Settings"), tr("Customize the application appearance."))
 
         SectionCard {
             // Auto Refresh section
@@ -280,8 +282,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 }
             }
             PrefRow(
-                title = "Auto Refresh",
-                subtitle = "When enabled, Scooper will automatically run \"scoop update\" to check for updates.",
+                title = tr("Auto Refresh"),
+                subtitle = tr("When enabled, Scooper will automatically run \"scoop update\" to check for updates."),
                 modifier = Modifier.cursorHand(),
                 onClick = onMasterToggle,
             ) {
@@ -295,8 +297,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             if (autoRefreshExpanded) {
                 Column(modifier = Modifier.padding(start = 16.dp)) {
                     PrefRow(
-                        title = "Refresh on Startup",
-                        subtitle = "Run \"scoop update\" once after startup.",
+                        title = tr("Refresh on Startup"),
+                        subtitle = tr("Run \"scoop update\" once after startup."),
                         modifier = Modifier.cursorHand(),
                         onClick = { refreshOnStartupState.update(!refreshOnStartupState.value) },
                     ) {
@@ -309,8 +311,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     }
                     Divider(color = colors.divider)
                     PrefRow(
-                        title = "Periodic Refresh",
-                        subtitle = "Periodically run \"scoop update\" at a fixed interval.",
+                        title = tr("Periodic Refresh"),
+                        subtitle = tr("Periodically run \"scoop update\" at a fixed interval."),
                         modifier = Modifier.cursorHand(),
                         onClick = { periodicRefreshState.update(!periodicRefreshState.value) },
                     ) {
@@ -324,8 +326,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     if (periodicRefreshState.value) {
                         Divider(color = colors.divider)
                         PrefRow(
-                            title = "Interval",
-                            subtitle = "How often to check for updates.",
+                            title = tr("Interval"),
+                            subtitle = tr("How often to check for updates."),
                         ) {
                             val choices = intervalState.choices
                             ExposedDropdownMenu(
@@ -340,7 +342,23 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
 
             Divider(color = colors.divider)
-            PrefRow(title = "Switch Theme") {
+            PrefRow(title = tr("Language"),
+                subtitle = tr("Choose the display language."),
+            ) {
+                val locales = scooper.util.supportedLocales
+                val currentLocaleTag = settingsState.uiConfig.locale
+                val selectedLocale = locales.find { it.locale.toLanguageTag() == currentLocaleTag } ?: locales.first()
+                ExposedDropdownMenu(
+                    locales.map { it.displayName },
+                    selected = selectedLocale.displayName,
+                    onItemSelected = { label ->
+                        val locale = locales.first { it.displayName == label }
+                        settingsViewModel.switchLocale(locale.locale.toLanguageTag())
+                        formChangedState.hasChanged.value = true
+                    })
+            }
+            Divider(color = colors.divider)
+            PrefRow(title = tr("Switch Theme")) {
                 val choices = themeState.choices
                 ExposedDropdownMenu(
                     choices.values.toList(),
@@ -350,8 +368,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     })
             }
             Divider(color = colors.divider)
-            PrefRow(title = "Default View Mode",
-                subtitle = "Choose how packages are displayed in the list.",
+            PrefRow(title = tr("Default View Mode"),
+                subtitle = tr("Choose how packages are displayed in the list."),
             ) {
                 val choices = viewModeState.choices
                 ExposedDropdownMenu(
@@ -362,8 +380,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     })
             }
             Divider(color = colors.divider)
-            PrefRow(title = "Default Pagination Mode",
-                subtitle = "Choose how packages are paginated.",
+            PrefRow(title = tr("Default Pagination Mode"),
+                subtitle = tr("Choose how packages are paginated."),
             ) {
                 val choices = paginationModeState.choices
                 ExposedDropdownMenu(
@@ -375,8 +393,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             Divider(color = colors.divider)
             PrefRow(
-                title = "Font Size",
-                subtitle = "Adjust the application font size. Changes take effect immediately.",
+                title = tr("Font Size"),
+                subtitle = tr("Adjust the application font size. Changes take effect immediately."),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -436,7 +454,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
 fun AboutSection() {
     val colors = MaterialTheme.colors
     SettingContainer {
-        SettingsTitle("About", "Information about this application.")
+        SettingsTitle(tr("About"), tr("Information about this application."))
 
         SectionCard {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
@@ -454,14 +472,14 @@ fun AboutSection() {
             }
             Divider(color = colors.divider)
             PrefRow(title = {
-                Text("Version: ${BuildConfig.APP_VERSION}", color = Slate700)
+                Text(tr("Version: {{version}}", "version" to BuildConfig.APP_VERSION), color = Slate700)
             }) {
                 val url = "https://github.com/windedge/Scooper"
                 TextButton(
                     onClick = { safeBrowse(url) },
                     modifier = Modifier.cursorHand()
                 ) {
-                    Text("GitHub", color = colors.primary, fontWeight = FontWeight.Medium)
+                    Text(tr("GitHub"), color = colors.primary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(4.dp))
                     Icon(Lucide.Github, "github", modifier = Modifier.size(16.dp), tint = colors.primary)
                 }

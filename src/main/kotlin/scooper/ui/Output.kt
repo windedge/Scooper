@@ -21,6 +21,7 @@ import org.koin.compose.koinInject
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.parseAnsiColors
+import scooper.util.tr
 import scooper.viewmodels.AppsViewModel
 import scooper.ui.theme.*
 
@@ -59,14 +60,14 @@ fun OutputScreen(onBack: () -> Unit = {}) {
                         onClick = { clipboardManager.setText(AnnotatedString(output)) },
                         modifier = Modifier.cursorHand()
                     ) {
-                        Text("Copy")
+                        Text(tr("Copy"))
                     }
 
                     Button(
                         onClick = { appsViewModel.clearOutput() },
                         modifier = Modifier.cursorHand()
                     ) {
-                        Text("Clear")
+                        Text(tr("Clear"))
                     }
                 }
             }

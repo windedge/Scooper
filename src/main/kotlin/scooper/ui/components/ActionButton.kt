@@ -20,6 +20,7 @@ import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.onHover
+import scooper.util.tr
 
 private val UpdateGreen @Composable get() = colors.updateDefault
 private val UninstallRed @Composable get() = colors.dangerDefault
@@ -64,7 +65,7 @@ fun ActionButton(
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(
-                        if (showingCancel) "Cancel" else "Waiting",
+                        if (showingCancel) tr("Cancel") else tr("Waiting"),
                         color = Color.White,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                         style = typography.body2,
@@ -90,7 +91,7 @@ fun ActionButton(
                                 .clickable { onUpdate(app) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Update", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
+                            Text(tr("Update"), color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
                         }
                         Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.2f)))
                         Box(
@@ -126,7 +127,7 @@ fun ActionButton(
                                 .clickable { onOpen(app, 0) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Open", color = colors.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
+                            Text(tr("Open"), color = colors.primary, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
                         }
                         Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.borderDefault))
                         Box(
@@ -162,7 +163,7 @@ fun ActionButton(
                                 .clickable { onUninstall(app) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Uninstall", color = colors.sidebarTextMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
+                            Text(tr("Uninstall"), color = colors.sidebarTextMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
                         }
                         Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(colors.borderDefault))
                         Box(
@@ -197,7 +198,7 @@ fun ActionButton(
                                 .clickable { onInstall(app, false) },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("Install", color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
+                            Text(tr("Install"), color = Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, style = typography.body2)
                         }
                         Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.2f)))
                         Box(
@@ -226,20 +227,20 @@ fun ActionButton(
                         onClick = { expand = false; onInstall(app, true) },
                         modifier = Modifier.sizeIn(maxHeight = 28.dp)
                     ) {
-                        MenuText("Install Globally")
+                        MenuText(tr("Install Globally"))
                     }
                     DropdownMenuItem(
                         onClick = { expand = false; onDownload(app) },
                         modifier = Modifier.sizeIn(maxHeight = 28.dp)
                     ) {
-                        MenuText("Download Only")
+                        MenuText(tr("Download Only"))
                     }
                     Divider()
                     DropdownMenuItem(
                         onClick = { expand = false; onInstallVersion(app) },
                         modifier = Modifier.sizeIn(maxHeight = 28.dp)
                     ) {
-                        MenuText("Install Version...")
+                        MenuText(tr("Install Version..."))
                     }
                 }
                 if (app.status == AppStatus.FAILED) {
@@ -247,7 +248,7 @@ fun ActionButton(
                         onClick = { expand = false; onUninstall(app) },
                         modifier = Modifier.sizeIn(maxHeight = 28.dp)
                     ) {
-                        MenuText("Uninstall")
+                        MenuText(tr("Uninstall"))
                     }
                 }
             }
@@ -258,7 +259,7 @@ fun ActionButton(
                             onClick = { expand = false; onOpen(app, index) },
                             modifier = Modifier.sizeIn(maxHeight = 28.dp)
                         ) {
-                            MenuText("Open ${shortcut.path}")
+                            MenuText(tr("Open {{path}}", "path" to shortcut.path))
                         }
                     }
                     Divider()
@@ -268,7 +269,7 @@ fun ActionButton(
                     onClick = { expand = false; onUninstall(app) },
                     modifier = Modifier.sizeIn(maxHeight = 28.dp)
                 ) {
-                    MenuText("Uninstall")
+                    MenuText(tr("Uninstall"))
                 }
 
                 if (app.updatable) {
@@ -276,7 +277,7 @@ fun ActionButton(
                         onClick = { expand = false; onDownload(app) },
                         modifier = Modifier.sizeIn(maxHeight = 28.dp)
                     ) {
-                        MenuText("Download Only")
+                        MenuText(tr("Download Only"))
                     }
                 }
 
@@ -285,7 +286,7 @@ fun ActionButton(
                     onClick = { expand = false; onInstallVersion(app) },
                     modifier = Modifier.sizeIn(maxHeight = 28.dp)
                 ) {
-                    MenuText("Install Version...")
+                    MenuText(tr("Install Version..."))
                 }
             }
         }

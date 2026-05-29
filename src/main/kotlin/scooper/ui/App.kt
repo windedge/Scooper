@@ -23,6 +23,7 @@ import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.ui.components.PaginationBar
 import scooper.viewmodels.AppsViewModel
+import scooper.util.tr
 
 @Composable
 fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
@@ -145,10 +146,10 @@ fun NoResults() {
     ) {
         Icon(
             Lucide.SearchX,
-            contentDescription = "No Results",
+            contentDescription = tr("No Results"),
             modifier = Modifier.size(60.dp), tint = colors.primary
         )
         Spacer(modifier = Modifier.height(20.dp))
-        Text("No Results", style = typography.h6, color = colors.primary)
+        Text(tr("No Results"), style = typography.h6, color = colors.primary)
     }
 }

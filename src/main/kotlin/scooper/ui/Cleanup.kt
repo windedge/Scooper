@@ -28,6 +28,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.SectionCard
 import scooper.ui.theme.*
 import scooper.util.cursorHand
+import scooper.util.tr
 import scooper.util.cursorLink
 import scooper.util.readableSize
 import scooper.viewmodels.CleanupState
@@ -62,7 +63,7 @@ fun CleanupScreen(
         ) {
             // Page Title
             Text(
-                "Cleanup",
+                tr("Cleanup"),
                 style = MaterialTheme.typography.h5.copy(
                     fontWeight = FontWeight.Bold,
                     color = colors.textTitle,
@@ -70,7 +71,7 @@ fun CleanupScreen(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Free up disk space by removing old versions and downloaded cache files.",
+                tr("Free up disk space by removing old versions and downloaded cache files."),
                 style = MaterialTheme.typography.body2.copy(color = colors.textBody)
             )
 
@@ -84,20 +85,20 @@ fun CleanupScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Download Cache",
+                        tr("Download Cache"),
                         style = MaterialTheme.typography.subtitle1.copy(
                             fontWeight = FontWeight.Medium,
                             color = colors.textTitle,
                         )
                     )
-                    Tooltip("Rescan") {
+                    Tooltip(tr("Rescan")) {
                         IconButton(
                             onClick = { cleanupViewModel.computeCacheSize() },
                             modifier = Modifier.cursorLink(),
                         ) {
                             Icon(
                                 Lucide.RefreshCw,
-                                contentDescription = "Rescan",
+                                contentDescription = tr("Rescan"),
                                 tint = colors.primary,
                                 modifier = Modifier.size(18.dp),
                             )
@@ -113,7 +114,7 @@ fun CleanupScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "Total Size: ${state.cacheSize.readableSize()}",
+                        tr("Total Size: {{size}}", "size" to state.cacheSize.readableSize()),
                         style = MaterialTheme.typography.body1.copy(color = colors.textBody)
                     )
                     Spacer(Modifier.height(16.dp))
@@ -136,21 +137,21 @@ fun CleanupScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Old Versions",
+                        tr("Old Versions"),
                         style = MaterialTheme.typography.subtitle1.copy(
                             fontWeight = FontWeight.Medium,
                             color = colors.textTitle,
                         )
                     )
                     if (!state.scanningOldVersion) {
-                        Tooltip("Rescan") {
+                        Tooltip(tr("Rescan")) {
                             IconButton(
                                 onClick = { cleanupViewModel.computeOldVersions() },
                                 modifier = Modifier.cursorLink(),
                             ) {
                                 Icon(
                                     Lucide.RefreshCw,
-                                    contentDescription = "Rescan",
+                                    contentDescription = tr("Rescan"),
                                     tint = colors.primary,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -192,7 +193,7 @@ private fun CacheActionButtons(
             enabled = false,
             modifier = Modifier.height(35.dp),
         ) {
-            Text("Cleaning...")
+            Text(tr("Cleaning..."))
         }
     } else if (state.scanningCache) {
         OutlinedButton(
@@ -200,7 +201,7 @@ private fun CacheActionButtons(
             enabled = false,
             modifier = Modifier.height(35.dp),
         ) {
-            Text("Scanning...")
+            Text(tr("Scanning..."))
         }
     } else {
         ProvideTextStyle(MaterialTheme.typography.button.copy(color = colors.primary)) {
@@ -216,11 +217,11 @@ private fun CacheActionButtons(
                     ) {
                         Icon(
                             Lucide.Trash2,
-                            contentDescription = "Clear Cache",
+                            contentDescription = tr("Clear Cache"),
                             tint = colors.primary,
                             modifier = Modifier.size(30.dp).padding(start = 5.dp, top = 5.dp, bottom = 5.dp),
                         )
-                        Text("Clear Cache", modifier = Modifier.padding(end = 5.dp))
+                        Text(tr("Clear Cache"), modifier = Modifier.padding(end = 5.dp))
                     }
                 } else {
                     Row(
@@ -233,7 +234,7 @@ private fun CacheActionButtons(
                             tint = colors.primary,
                             modifier = Modifier.size(18.dp).padding(start = 5.dp),
                         )
-                        Text("Rescan", modifier = Modifier.padding(horizontal = 4.dp))
+                        Text(tr("Rescan"), modifier = Modifier.padding(horizontal = 4.dp))
                         Icon(
                             Lucide.Box,
                             "",
@@ -243,7 +244,7 @@ private fun CacheActionButtons(
                     }
                 }
                 Divider(modifier = Modifier.width(1.dp).height(20.dp).align(Alignment.CenterVertically))
-                Tooltip("Open Directory") {
+                Tooltip(tr("Open Directory")) {
                     Box(modifier = Modifier.clickable { onOpen() }) {
                         Icon(
                             Lucide.Folder,
@@ -284,7 +285,7 @@ private fun OldVersions(
             modifier = Modifier.fillMaxWidth().height(40.dp).padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Great, old versions have been cleaned up.", color = colors.textBody)
+            Text(tr("Great, old versions have been cleaned up."), color = colors.textBody)
         }
         return
     }
@@ -299,7 +300,7 @@ private fun OldVersions(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Total Size: ${totalSize.readableSize()}", color = colors.textBody)
+            Text(tr("Total Size: {{size}}", "size" to totalSize.readableSize()), color = colors.textBody)
             if (cleaning) {
                 Box(
                     modifier = Modifier.height(48.dp),
@@ -313,7 +314,7 @@ private fun OldVersions(
                     modifier = Modifier.cursorHand(),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 ) {
-                    Text("Clean All")
+                    Text(tr("Clean All"))
                 }
             }
         }
@@ -342,7 +343,7 @@ private fun OldVersions(
         if (oldVersions.size > MAX_ENTRIES) {
             Spacer(Modifier.height(8.dp))
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
-                val text = if (showMore) "Show less" else "Show more"
+                val text = if (showMore) tr("Show less") else tr("Show more")
                 val down = rememberVectorPainter(Lucide.ChevronDown)
                 val up = rememberVectorPainter(Lucide.ChevronUp)
                 val icon = if (showMore) up else down
@@ -379,7 +380,7 @@ private fun OldVersionRow(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    "${oldVersion.paths.size} old versions",
+                    tr("{{count}} old versions", "count" to oldVersion.paths.size.toString()),
                     style = MaterialTheme.typography.body2.copy(color = colors.textBody),
                 )
                 Text(
@@ -388,7 +389,7 @@ private fun OldVersionRow(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit
                 )
                 if (oldVersion.global) {
                     Text(
-                        "*global*",
+                        tr("*global*"),
                         style = MaterialTheme.typography.body2.copy(color = colors.primary),
                     )
                 }
@@ -400,7 +401,7 @@ private fun OldVersionRow(oldVersion: OldVersion, onDelete: (OldVersion) -> Unit
         ) {
             Icon(
                 Lucide.Trash2,
-                contentDescription = "Delete",
+                contentDescription = tr("Delete"),
                 tint = colors.textMuted,
             )
         }

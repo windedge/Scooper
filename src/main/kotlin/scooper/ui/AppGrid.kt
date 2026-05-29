@@ -26,6 +26,7 @@ import scooper.ui.icons.*
 import scooper.data.PaginationMode
 import scooper.ui.components.ActionButton
 import scooper.ui.theme.*
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse
@@ -176,7 +177,7 @@ fun AppGridCard(
 
             // Description (2 lines)
             Text(
-                app.description ?: "No description available.",
+                app.description ?: tr("No description available."),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = DescStyle,

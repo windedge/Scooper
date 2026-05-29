@@ -21,6 +21,7 @@ class ConfigRepository {
                     viewMode = this[Configs.viewMode],
                     paginationMode = this[Configs.paginationMode],
                     pageSize = this[Configs.pageSize],
+                    locale = this[Configs.locale].ifBlank { scooper.util.getDefaultLocale().toLanguageTag() },
                     windowX = this[Configs.windowX],
                     windowY = this[Configs.windowY],
                     windowWidth = this[Configs.windowWidth],
@@ -50,6 +51,7 @@ class ConfigRepository {
                 it[windowHeight] = config.windowHeight
                 it[isMaximized] = config.isMaximized
                 it[showTrayIcon] = config.showTrayIcon
+                it[locale] = config.locale
             }
         }
     }
