@@ -52,6 +52,7 @@ data class UIConfig(
     val windowWidth: Int = DEFAULT_WINDOW_WIDTH,
     val windowHeight: Int = DEFAULT_WINDOW_HEIGHT,
     val isMaximized: Boolean = false,
+    val showTrayIcon: Boolean = false,
 )
 
 fun Theme.toSystemTheme() = when (this) {

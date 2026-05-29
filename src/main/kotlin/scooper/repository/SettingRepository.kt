@@ -26,6 +26,7 @@ class ConfigRepository {
                     windowWidth = this[Configs.windowWidth],
                     windowHeight = this[Configs.windowHeight],
                     isMaximized = this[Configs.isMaximized],
+                    showTrayIcon = this[Configs.showTrayIcon],
                 )
             }
         }
@@ -48,6 +49,7 @@ class ConfigRepository {
                 it[windowWidth] = config.windowWidth
                 it[windowHeight] = config.windowHeight
                 it[isMaximized] = config.isMaximized
+                it[showTrayIcon] = config.showTrayIcon
             }
         }
     }

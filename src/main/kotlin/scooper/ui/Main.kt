@@ -31,18 +31,28 @@ import scooper.ui.components.EnterAnimation
 import scooper.ui.components.CustomSnackbarHostState
 import scooper.ui.components.SnackbarHost
 import scooper.ui.theme.*
+import scooper.util.bringToFront
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.navigation.Router
 import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
+import scooper.ui.icons.*
 import scooper.viewmodels.ScoopSearchViewModel
 import scooper.viewmodels.SettingsViewModel
+import java.awt.Desktop
 import java.awt.Dimension
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.merge
+import androidx.compose.ui.graphics.toAwtImage
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.geometry.Size
+import scooper.util.TrayManager
+import javax.swing.ImageIcon
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
 val LocalFocusSearch = compositionLocalOf<() -> Unit> { {} }
@@ -104,26 +114,41 @@ fun main() {
     val focusSearchRequester = mutableStateOf(0)
     val navigatorRef = mutableStateOf<BackStack<AppRoute>?>(null)
 
+    // Shared exit logic used by both window close and tray exit
+    fun performExit() {
+        val isMaximized = winState.placement == WindowPlacement.Maximized
+        val size = winState.size
+        val pos = winState.position
+        logger.info("Saving window: x=${pos.x.value}, y=${pos.y.value}, w=${size.width.value}, h=${size.height.value}, maximized=$isMaximized")
+        configRepository.setConfig(configRepository.getConfig().copy(
+            windowX = pos.x.value.roundToInt(),
+            windowY = pos.y.value.roundToInt(),
+            windowWidth = size.width.value.roundToInt(),
+            windowHeight = size.height.value.roundToInt(),
+            isMaximized = isMaximized,
+        ))
+        appsViewModel.close()
+        settingsViewModel.close()
+        cleanupViewModel.close()
+        scoopSearchViewModel.close()
+        exitApplication()
+    }
+
+    // Track show-tray-icon setting reactively
+    var showTrayIcon by remember { mutableStateOf(savedConfig.showTrayIcon) }
+    var windowVisible by remember { mutableStateOf(true) }
+    var bringToFront by remember { mutableStateOf(false) }
+
     Window(
         onCloseRequest = {
-            val isMaximized = winState.placement == WindowPlacement.Maximized
-            val size = winState.size
-            val pos = winState.position
-            logger.info("Saving window: x=${pos.x.value}, y=${pos.y.value}, w=${size.width.value}, h=${size.height.value}, maximized=$isMaximized")
-            configRepository.setConfig(configRepository.getConfig().copy(
-                windowX = pos.x.value.roundToInt(),
-                windowY = pos.y.value.roundToInt(),
-                windowWidth = size.width.value.roundToInt(),
-                windowHeight = size.height.value.roundToInt(),
-                isMaximized = isMaximized,
-            ))
-            appsViewModel.close()
-            settingsViewModel.close()
-            cleanupViewModel.close()
-            scoopSearchViewModel.close()
-            exitApplication()
+            if (showTrayIcon) {
+                windowVisible = false
+            } else {
+                performExit()
+            }
         },
-        winState,
+        state = winState,
+        visible = windowVisible,
         title = "Scooper",
         icon = rememberPainterResource("logo.svg"),
         // Window-level key event interception — handled at AWT level, independent of Compose focus.
@@ -138,9 +163,33 @@ fun main() {
     ) {
         window.minimumSize = Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
+        // When the window becomes visible (e.g. restored from tray), bring it to the foreground
+        LaunchedEffect(windowVisible) {
+            if (windowVisible) {
+                bringToFront = true
+            }
+        }
+        // Bring window to foreground when requested (e.g. double-click tray icon)
+        LaunchedEffect(bringToFront) {
+            if (bringToFront) {
+                window.bringToFront()
+                bringToFront = false
+            }
+        }
+
         val settings by settingsViewModel.container.stateFlow.collectAsState()
         val uiConfig = settings.uiConfig
         val theme = uiConfig.theme.toSystemTheme()
+
+        // Sync show-tray-icon setting from ViewModel state
+        // If the setting is disabled while the window is hidden, show the window
+        LaunchedEffect(uiConfig.showTrayIcon) {
+            showTrayIcon = uiConfig.showTrayIcon
+            if (!uiConfig.showTrayIcon) {
+                windowVisible = true
+                bringToFront = true
+            }
+        }
 
         // Auto-refresh: delegate to ViewModel
         LaunchedEffect(settings.uiConfig.periodicRefreshEnabled, settings.uiConfig.autoRefreshIntervalMinutes) {
@@ -251,6 +300,52 @@ fun main() {
             } // CompositionLocalProvider LocalShowFps
         }
     }
+
+    // System tray icon — shown when show-tray-icon is enabled
+    if (showTrayIcon) {
+        SystemTrayIcon(
+            onShow = { windowVisible = true; bringToFront = true },
+            onExit = { performExit() }
+        )
+    }
+    }
+}
+
+@Composable
+private fun SystemTrayIcon(
+    onShow: () -> Unit,
+    onExit: () -> Unit
+) {
+    val trayIconPainter = rememberPainterResource("logo.svg")
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val iconSize = Size(16f, 16f)
+    
+    val awtIcon = remember(trayIconPainter, density, layoutDirection) {
+        trayIconPainter.toAwtImage(density, layoutDirection, iconSize)
+    }
+    val showIcon = remember(awtIcon) { ImageIcon(awtIcon) }
+    
+    // Convert Lucide.Power (Compose ImageVector) to Swing Icon for the Exit menu item
+    val exitPainter = rememberVectorPainter(Lucide.Power)
+    val exitAwtImage = remember(exitPainter, density, layoutDirection) {
+        exitPainter.toAwtImage(density, layoutDirection, iconSize)
+    }
+    val exitIcon = remember(exitAwtImage) { ImageIcon(exitAwtImage) }
+    
+    val trayManager = remember {
+        TrayManager(
+            icon = awtIcon,
+            showIcon = showIcon,
+            exitIcon = exitIcon,
+            onShow = onShow,
+            onExit = onExit
+        )
+    }
+    
+    DisposableEffect(trayManager) {
+        trayManager.install()
+        onDispose { trayManager.remove() }
     }
 }
 

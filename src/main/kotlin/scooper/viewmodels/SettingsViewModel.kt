@@ -49,6 +49,10 @@ class SettingsViewModel(
         reduce { state.copy(uiConfig = state.uiConfig.copy(paginationMode = paginationMode)) }
     }
 
+    fun switchShowTrayIcon(enabled: Boolean) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(showTrayIcon = enabled)) }
+    }
+
     val scoopFormState = FormState(
         fields = listOf(
             ChoiceState(
@@ -88,6 +92,7 @@ class SettingsViewModel(
             ChoiceState("theme", validators = listOf(), choices = Theme.values().associate { it.name to it.name }),
             ChoiceState("viewMode", validators = listOf(), choices = ViewMode.values().associate { it.name to it.name }),
             ChoiceState("paginationMode", validators = listOf(), choices = PaginationMode.values().associate { it.name to it.name }),
+            SwitchState("showTrayIcon"),
         )
     )
 
@@ -125,8 +130,10 @@ class SettingsViewModel(
             viewMode = formConfig.viewMode,
             paginationMode = formConfig.paginationMode,
             fontSizeScale = fontSizeScale ?: currentConfig.fontSizeScale,
+            showTrayIcon = formConfig.showTrayIcon,
         )
         configRepository.setConfig(config)
+        intent { reduce { state.copy(uiConfig = config) } }
     }
 
     fun reloadUIConfig() {
