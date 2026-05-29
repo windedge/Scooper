@@ -237,6 +237,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
         settingsViewModel.switchPaginationMode(mode)
     }
 
+    val showTrayIconState: SwitchState = formState.getState("showTrayIcon")
+
     val formChangedState = rememberFormChanged(formState)
     val formChanged by formChangedState.hasChanged
 
@@ -394,6 +396,20 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                         modifier = Modifier.width(36.dp),
                     )
                 }
+            }
+            Divider(color = colors.divider)
+            PrefRow(
+                title = "System Tray Icon",
+                subtitle = "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting.",
+                modifier = Modifier.cursorHand(),
+                onClick = { showTrayIconState.update(!showTrayIconState.value) }
+            ) {
+                Switch(
+                    showTrayIconState.value,
+                    onCheckedChange = { showTrayIconState.update(it) },
+                    modifier = Modifier.cursorHand(),
+                    colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
+                )
             }
             Divider(color = colors.divider)
             // FPS toggle (not saved to config)

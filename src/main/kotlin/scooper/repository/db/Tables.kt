@@ -51,4 +51,5 @@ object Configs : IntIdTable(name = "configs") {
     val windowWidth = integer("window_width").default(DEFAULT_WINDOW_WIDTH)
     val windowHeight = integer("window_height").default(DEFAULT_WINDOW_HEIGHT)
     val isMaximized = bool("is_maximized").default(false)
+    val showTrayIcon = bool("show_tray_icon").default(false)
 }
