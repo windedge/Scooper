@@ -18,6 +18,7 @@ import scooper.ui.components.ConfirmDialog
 import scooper.ui.components.DialogTextField
 import scooper.ui.components.SectionCard
 import scooper.ui.theme.*
+import scooper.util.tr
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -60,14 +61,14 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                     ) {
                         Column {
                             Text(
-                                "Configured Buckets",
+                                tr("Configured Buckets"),
                                 style = MaterialTheme.typography.h5.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = colors.textTitle
                                 )
                             )
                             Text(
-                                "Manage repositories where Scoop looks for packages.",
+                                tr("Manage repositories where Scoop looks for packages."),
                                 style = MaterialTheme.typography.body2.copy(color = colors.textBody)
                             )
                         }
@@ -86,7 +87,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                         ) {
                             Icon(Lucide.Plus, "", modifier = Modifier.size(18.dp), tint = Color.White)
                             Spacer(Modifier.width(6.dp))
-                            Text("Add Bucket", color = Color.White, fontWeight = FontWeight.Medium)
+                            Text(tr("Add Bucket"), color = Color.White, fontWeight = FontWeight.Medium)
                         }
                     }
 
@@ -116,7 +117,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
 
                     // Known Buckets Section
                     Text(
-                        "KNOWN BUCKETS",
+                        tr("KNOWN BUCKETS"),
                         style = MaterialTheme.typography.overline.copy(
                             fontWeight = FontWeight.Bold,
                             color = colors.textBody,
@@ -140,9 +141,9 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
 
     if (showDeleteDialog) {
         ConfirmDialog(
-            text = "Are you sure you want to delete '$bucketToDelete'?",
-            title = "Delete Bucket",
-            confirmText = "Delete",
+            text = tr("Are you sure you want to delete '{{name}}'?", "name" to bucketToDelete),
+            title = tr("Delete Bucket"),
+            confirmText = tr("Delete"),
             onConfirm = {
                 showDeleteDialog = false
                 appsViewModel.scheduleRemoveBucket(bucketToDelete)
@@ -153,14 +154,14 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
 
     if (showAddDialog) {
         ConfirmDialog(
-            title = "Add Bucket",
+            title = tr("Add Bucket"),
             onConfirm = {
                 val trimmedBucketName = bucketName.trim()
                 val trimmedBucketUrl = bucketUrl.trim()
                 bucketNameError = trimmedBucketName.isBlank()
                 bucketUrlError = when {
-                    trimmedBucketUrl.isBlank() -> "Repository URL is required"
-                    !isValidBucketUrl(trimmedBucketUrl) -> "URL must start with http:// or https://"
+                    trimmedBucketUrl.isBlank() -> tr("Repository URL is required")
+                    !isValidBucketUrl(trimmedBucketUrl) -> tr("URL must start with http:// or https://")
                     else -> null
                 }
                 if (bucketNameError || bucketUrlError != null) {
@@ -174,7 +175,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                 bucketUrlError = null
                 showAddDialog = false
             },
-            confirmText = "Add",
+            confirmText = tr("Add"),
             state = DialogState(size = DpSize(520.dp, 400.dp))
         ) {
             Column(Modifier.fillMaxSize()) {
@@ -183,14 +184,14 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                 }
 
                 Text(
-                    "Add a custom Scoop bucket by name and repository URL.",
+                    tr("Add a custom Scoop bucket by name and repository URL."),
                     style = MaterialTheme.typography.caption.copy(color = colors.textBody)
                 )
 
                 Spacer(Modifier.height(18.dp))
 
                 Text(
-                    "Bucket Name",
+                    tr("Bucket Name"),
                     style = MaterialTheme.typography.caption.copy(color = colors.textTitle),
                     fontWeight = FontWeight.SemiBold
                 )
@@ -201,13 +202,13 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                         bucketName = it
                         bucketNameError = false
                     },
-                    placeholder = "e.g. extras",
+                    placeholder = tr("e.g. extras"),
                     isError = bucketNameError,
                     modifier = Modifier.fillMaxWidth().focusRequester(inputFocusRequester)
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (bucketNameError) "Name is required" else "Used as the local bucket alias in Scoop.",
+                    if (bucketNameError) tr("Name is required") else tr("Used as the local bucket alias in Scoop."),
                     color = if (bucketNameError) colors.error else colors.textBody,
                     style = MaterialTheme.typography.caption
                 )
@@ -215,7 +216,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                 Spacer(Modifier.height(16.dp))
 
                 Text(
-                    "Repository URL",
+                    tr("Repository URL"),
                     style = MaterialTheme.typography.caption.copy(color = colors.textTitle),
                     fontWeight = FontWeight.SemiBold
                 )
@@ -226,7 +227,7 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
                         bucketUrl = it
                         bucketUrlError = null
                     },
-                    placeholder = "https://github.com/...",
+                    placeholder = tr("https://github.com/..."),
                     isError = bucketUrlError != null,
                     modifier = Modifier.fillMaxWidth()
                 )

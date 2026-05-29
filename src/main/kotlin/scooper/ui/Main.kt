@@ -35,6 +35,7 @@ import scooper.util.bringToFront
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.navigation.Router
+import scooper.util.ProvideI18n
 import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
@@ -52,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.geometry.Size
 import scooper.util.TrayManager
+import scooper.util.tr
 import javax.swing.ImageIcon
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
@@ -180,6 +182,7 @@ fun main() {
         val settings by settingsViewModel.container.stateFlow.collectAsState()
         val uiConfig = settings.uiConfig
         val theme = uiConfig.theme.toSystemTheme()
+        val currentLocale = name.kropp.kotlinx.gettext.Locale.forLanguageTag(uiConfig.locale)
 
         // Sync show-tray-icon setting from ViewModel state
         // If the setting is disabled while the window is hidden, show the window
@@ -219,6 +222,7 @@ fun main() {
 
         val showFpsState = remember { mutableStateOf(false) }
 
+        ProvideI18n(currentLocale) {
         ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
             CompositionLocalProvider(LocalShowFps provides showFpsState) {
                 // Snackbar overlay sits above Router so it survives route changes.
@@ -298,7 +302,8 @@ fun main() {
                     }
                 } // Box
             } // CompositionLocalProvider LocalShowFps
-        }
+        } // ScooperTheme
+        } // ProvideI18n
     }
 
     // System tray icon — shown when show-tray-icon is enabled
@@ -392,7 +397,7 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
                 Spacer(Modifier.height(20.dp))
 
                 Text(
-                    "Scooper",
+                    tr("Scooper"),
                     style = typography().h5,
                     color = Slate900
                 )
@@ -400,7 +405,7 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
                 Spacer(Modifier.height(4.dp))
 
                 Text(
-                    "Scoop Package Manager GUI",
+                    tr("Scoop Package Manager GUI"),
                     style = typography().caption,
                     color = Slate400
                 )

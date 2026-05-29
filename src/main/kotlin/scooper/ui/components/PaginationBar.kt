@@ -10,6 +10,7 @@ import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
 import scooper.ui.icons.*
+import scooper.util.tr
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +41,7 @@ fun PaginationBar(
     ) {
         // Page size selector
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Rows per page:", style = typography.caption.copy(color = colors.textBody))
+            Text(tr("Rows per page:"), style = typography.caption.copy(color = colors.textBody))
             Spacer(Modifier.width(8.dp))
             val pageSizeOptions = listOf(10, 25, 50, 100)
             var expanded by remember { mutableStateOf(false) }

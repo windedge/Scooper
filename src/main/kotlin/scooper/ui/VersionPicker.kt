@@ -25,6 +25,7 @@ import scooper.data.AppVersionSource
 import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.onHover
+import scooper.util.tr
 import java.time.format.DateTimeFormatter
 
 private val VersionDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -52,12 +53,12 @@ fun VersionPickerDialog(
             Column(modifier = Modifier.padding(16.dp)) {
                 // Title
                 Text(
-                    "Select Version — ${app.name}",
+                    tr("Select Version — {{name}}", "name" to app.name),
                     style = typography.h6.copy(color = colors.onSurface),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${versions.size} version(s) available",
+                    tr("{{count}} version(s) available", "count" to versions.size.toString()),
                     style = typography.caption.copy(color = colors.textMuted),
                 )
                 Spacer(Modifier.height(12.dp))
@@ -87,7 +88,7 @@ fun VersionPickerDialog(
                             modifier = Modifier.fillMaxWidth().height(200.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text("No versions available", style = typography.body2.copy(color = colors.textMuted))
+                            Text(tr("No versions available"), style = typography.body2.copy(color = colors.textMuted))
                         }
                     }
                     else -> {
@@ -121,7 +122,7 @@ fun VersionPickerDialog(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss, modifier = Modifier.cursorHand()) {
-                        Text("Close", style = typography.body2.copy(color = colors.textMuted))
+                        Text(tr("Close"), style = typography.body2.copy(color = colors.textMuted))
                     }
                 }
             }
@@ -160,7 +161,7 @@ private fun VersionRow(
                     if (isCurrentVersion) {
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "(installed)",
+                            tr("(installed)"),
                             style = typography.caption.copy(color = colors.primary),
                         )
                     }
@@ -181,7 +182,7 @@ private fun VersionRow(
                                     .background(sourceColor.copy(alpha = 0.1f), RoundedCornerShape(3.dp))
                                     .padding(horizontal = 4.dp, vertical = 1.dp),
                             ) {
-                                Text("Git", style = typography.overline.copy(color = sourceColor, fontWeight = FontWeight.Medium))
+                                Text(tr("Git"), style = typography.overline.copy(color = sourceColor, fontWeight = FontWeight.Medium))
                             }
                             Spacer(Modifier.width(6.dp))
                         }
@@ -213,14 +214,14 @@ private fun VersionRow(
                         modifier = Modifier.cursorHand(),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     ) {
-                        Text("Install", style = typography.caption.copy(color = colors.primary))
+                        Text(tr("Install"), style = typography.caption.copy(color = colors.primary))
                     }
                     TextButton(
                         onClick = { onInstall(true) },
                         modifier = Modifier.cursorHand(),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     ) {
-                        Text("Global", style = typography.caption.copy(color = colors.textMuted))
+                        Text(tr("Global"), style = typography.caption.copy(color = colors.textMuted))
                     }
                 }
             }

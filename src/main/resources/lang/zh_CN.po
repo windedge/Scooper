@@ -1,0 +1,489 @@
+# Simplified Chinese translations for Scooper
+# This file is auto-generated, DO NOT EDIT manually
+msgid ""
+msgstr ""
+"Project-Id-Version: Scooper\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-05-29 10:00+0800\n"
+"PO-Revision-Date: 2025-05-29 10:00+0800\n"
+"Last-Translator: Scooper\n"
+"Language: zh_CN\n"
+"Language-Team: zh_CN\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: Scooper\n"
+"X-Poedit-SourceCharset: UTF-8\n"
+"X-Poedit-KeywordsList: tr;trc:1c,2\n"
+
+msgid "Discover"
+msgstr "发现"
+
+msgid "Installed"
+msgstr "已安装"
+
+msgid "Buckets"
+msgstr "仓库"
+
+msgid "Cleanup"
+msgstr "清理"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "LIBRARY"
+msgstr "库"
+
+msgid "SOURCES"
+msgstr "源"
+
+msgid "TOOLS"
+msgstr "工具"
+
+msgid "Search Online"
+msgstr "在线搜索"
+
+msgid "Scooper"
+msgstr "Scooper"
+
+msgid "Scoop Package Manager GUI"
+msgstr "Scoop 包管理器图形界面"
+
+msgid "No Results"
+msgstr "无结果"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Search packages... (supports OR, -exclude)"
+msgstr "搜索软件包... (支持 OR、-排除)"
+
+msgid "All Installed"
+msgstr "全部已安装"
+
+msgid "Updates"
+msgstr "更新"
+
+msgid "All Buckets"
+msgstr "所有仓库"
+
+msgid "Sort By"
+msgstr "排序方式"
+
+msgid "Best Match"
+msgstr "最佳匹配"
+
+msgid "Recently Updated"
+msgstr "最近更新"
+
+msgid "Recently Added"
+msgstr "最近添加"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "Ascending"
+msgstr "升序"
+
+msgid "Descending"
+msgstr "降序"
+
+msgid "List View"
+msgstr "列表视图"
+
+msgid "Grid View"
+msgstr "网格视图"
+
+msgid "Waterfall Scroll"
+msgstr "瀑布流"
+
+msgid "Waterfall"
+msgstr "瀑布流"
+
+msgid "Paginated"
+msgstr "分页"
+
+msgid "Pagination"
+msgstr "分页"
+
+msgid "Cleanup"
+msgstr "清理"
+
+msgid "Free up disk space by removing old versions and downloaded cache files."
+msgstr "通过删除旧版本和下载缓存来释放磁盘空间。"
+
+msgid "Download Cache"
+msgstr "下载缓存"
+
+msgid "Rescan"
+msgstr "重新扫描"
+
+msgid "Total Size: {{size}}"
+msgstr "总大小：{{size}}"
+
+msgid "Old Versions"
+msgstr "旧版本"
+
+msgid "Cleaning..."
+msgstr "清理中..."
+
+msgid "Scanning..."
+msgstr "扫描中..."
+
+msgid "Clear Cache"
+msgstr "清理缓存"
+
+msgid "Open Directory"
+msgstr "打开目录"
+
+msgid "Great, old versions have been cleaned up."
+msgstr "很好，旧版本已清理完毕。"
+
+msgid "Clean All"
+msgstr "全部清理"
+
+msgid "Show less"
+msgstr "收起"
+
+msgid "Show more"
+msgstr "展开更多"
+
+msgid "{{count}} old versions"
+msgstr "{{count}} 个旧版本"
+
+msgid "*global*"
+msgstr "*全局*"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Configured Buckets"
+msgstr "已配置的仓库"
+
+msgid "Manage repositories where Scoop looks for packages."
+msgstr "管理 Scoop 查找软件包的仓库。"
+
+msgid "Add Bucket"
+msgstr "添加仓库"
+
+msgid "KNOWN BUCKETS"
+msgstr "已知仓库"
+
+msgid "Are you sure you want to delete '{{name}}'?"
+msgstr "确定要删除 '{{name}}' 吗？"
+
+msgid "Delete Bucket"
+msgstr "删除仓库"
+
+msgid "Add a custom Scoop bucket by name and repository URL."
+msgstr "通过名称和仓库 URL 添加自定义 Scoop 仓库。"
+
+msgid "Bucket Name"
+msgstr "仓库名称"
+
+msgid "e.g. extras"
+msgstr "例如 extras"
+
+msgid "Name is required"
+msgstr "名称必填"
+
+msgid "Used as the local bucket alias in Scoop."
+msgstr "用作 Scoop 中的本地仓库别名。"
+
+msgid "Repository URL"
+msgstr "仓库 URL"
+
+msgid "Repository URL is required"
+msgstr "仓库 URL 必填"
+
+msgid "URL must start with http:// or https://"
+msgstr "URL 必须以 http:// 或 https:// 开头"
+
+msgid "https://github.com/..."
+msgstr "https://github.com/..."
+
+msgid "Changelog"
+msgstr "更新日志"
+
+msgid "Manifest"
+msgstr "清单"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "View releases on GitHub"
+msgstr "在 GitHub 上查看发布"
+
+msgid "Copy to clipboard"
+msgstr "复制到剪贴板"
+
+msgid "Copy"
+msgstr "复制"
+
+msgid "Open in editor"
+msgstr "在编辑器中打开"
+
+msgid "Open"
+msgstr "打开"
+
+msgid "Not a GitHub repository."
+msgstr "不是 GitHub 仓库。"
+
+msgid "No releases found."
+msgstr "未找到发布版本。"
+
+msgid "Manifest not found."
+msgstr "未找到清单。"
+
+msgid "Version"
+msgstr "版本"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Installed"
+msgstr "已安装"
+
+msgid "Failed"
+msgstr "失败"
+
+msgid "Update Available"
+msgstr "有可用更新"
+
+msgid "Not Installed"
+msgstr "未安装"
+
+msgid "Homepage"
+msgstr "主页"
+
+msgid "License"
+msgstr "许可证"
+
+msgid "Added"
+msgstr "添加时间"
+
+msgid "Updated"
+msgstr "更新时间"
+
+msgid "No description available."
+msgstr "暂无描述。"
+
+msgid "Select Version — {{name}}"
+msgstr "选择版本 — {{name}}"
+
+msgid "{{count}} version(s) available"
+msgstr "{{count}} 个可用版本"
+
+msgid "No versions available"
+msgstr "无可用版本"
+
+msgid "(installed)"
+msgstr "(已安装)"
+
+msgid "Git"
+msgstr "Git"
+
+msgid "Install"
+msgstr "安装"
+
+msgid "Global"
+msgstr "全局"
+
+msgid "More Actions"
+msgstr "更多操作"
+
+msgid "View Logs"
+msgstr "查看日志"
+
+msgid "About"
+msgstr "关于"
+
+msgid "Refreshing Scoop (Ctrl+Click: Full Reload)"
+msgstr "刷新 Scoop（Ctrl+点击：完全重载）"
+
+msgid "Refreshing"
+msgstr "刷新中"
+
+msgid "Add Bucket: "
+msgstr "添加仓库："
+
+msgid "Remove Bucket: "
+msgstr "删除仓库："
+
+msgid "Download: "
+msgstr "下载："
+
+msgid "Install: "
+msgstr "安装："
+
+msgid "Uninstall: "
+msgstr "卸载："
+
+msgid "Update: "
+msgstr "更新："
+
+msgid "Reorder Task"
+msgstr "调整任务顺序"
+
+msgid "Show Console Logs"
+msgstr "显示控制台日志"
+
+msgid "Console"
+msgstr "控制台"
+
+msgid "Waiting"
+msgstr "等待中"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Update"
+msgstr "更新"
+
+msgid "Uninstall"
+msgstr "卸载"
+
+msgid "Install Globally"
+msgstr "全局安装"
+
+msgid "Download Only"
+msgstr "仅下载"
+
+msgid "Install Version..."
+msgstr "安装指定版本..."
+
+msgid "Open {{path}}"
+msgstr "打开 {{path}}"
+
+msgid "Rows per page:"
+msgstr "每页行数："
+
+msgid "OK"
+msgstr "确定"
+
+msgid "General Settings"
+msgstr "通用设置"
+
+msgid "Manage core configuration for Scoop."
+msgstr "管理 Scoop 的核心配置。"
+
+msgid "Proxy"
+msgstr "代理"
+
+msgid "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."
+msgstr "默认情况下，Scoop 会使用 Internet 选项中的代理设置，但使用匿名认证。"
+
+msgid "Proxy Address:"
+msgstr "代理地址："
+
+msgid "Enable Aria2"
+msgstr "启用 Aria2"
+
+msgid "Aria2c will be used for downloading of artifacts to speed up transfers."
+msgstr "Aria2c 将用于下载文件以加速传输。"
+
+msgid "UI Settings"
+msgstr "界面设置"
+
+msgid "Customize the application appearance."
+msgstr "自定义应用程序外观。"
+
+msgid "Auto Refresh"
+msgstr "自动刷新"
+
+msgid "When enabled, Scooper will automatically run \"scoop update\" to check for updates."
+msgstr "启用后，Scooper 将自动运行 \"scoop update\" 来检查更新。"
+
+msgid "Refresh on Startup"
+msgstr "启动时刷新"
+
+msgid "Run \"scoop update\" once after startup."
+msgstr "启动后运行一次 \"scoop update\"。"
+
+msgid "Periodic Refresh"
+msgstr "定时刷新"
+
+msgid "Periodically run \"scoop update\" at a fixed interval."
+msgstr "按固定间隔定期运行 \"scoop update\"。"
+
+msgid "Interval"
+msgstr "间隔"
+
+msgid "How often to check for updates."
+msgstr "多久检查一次更新。"
+
+msgid "Language"
+msgstr "语言"
+
+msgid "Choose the display language."
+msgstr "选择显示语言。"
+
+msgid "Switch Theme"
+msgstr "切换主题"
+
+msgid "Default View Mode"
+msgstr "默认视图模式"
+
+msgid "Choose how packages are displayed in the list."
+msgstr "选择软件包在列表中的显示方式。"
+
+msgid "Default Pagination Mode"
+msgstr "默认分页模式"
+
+msgid "Choose how packages are paginated."
+msgstr "选择软件包的分页方式。"
+
+msgid "Font Size"
+msgstr "字体大小"
+
+msgid "Adjust the application font size. Changes take effect immediately."
+msgstr "调整应用程序字体大小。更改立即生效。"
+
+msgid "System Tray Icon"
+msgstr "系统托盘图标"
+
+msgid "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."
+msgstr "在任务栏保留托盘图标。关闭窗口时将隐藏到托盘而不是退出。"
+
+msgid "Show FPS"
+msgstr "显示帧率"
+
+msgid "Display frame rate in the status bar. This setting is not persisted."
+msgstr "在状态栏中显示帧率。此设置不会持久化。"
+
+msgid "Information about this application."
+msgstr "关于此应用程序的信息。"
+
+msgid "Version: {{version}}"
+msgstr "版本：{{version}}"
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Discard"
+msgstr "放弃更改"
+
+msgid "Apply Changes"
+msgstr "应用更改"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "SETTINGS"
+msgstr "设置"
+
+msgid "{{name}} has been {{past}}."
+msgstr "{{name}} 已{{past}}。"
+
+msgid "Failed to {{lower}} {{name}}."
+msgstr "{{name}} {{lower}}失败。"
+
+msgid "scoop install {{bucket}}/{{name}}"
+msgstr "scoop install {{bucket}}/{{name}}"
+
+msgid "Installing..."
+msgstr "安装中..."
+
+msgid "This will install the app and its bucket if not already added."
+msgstr "这将安装应用并自动添加仓库（如果尚未添加）。"

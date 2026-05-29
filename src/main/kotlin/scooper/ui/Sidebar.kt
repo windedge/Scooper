@@ -46,6 +46,7 @@ import scooper.util.onHover
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.ui.theme.*
+import scooper.util.tr
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -63,14 +64,14 @@ fun SidebarNav(
     // Sidebar items in visual order
     val items = remember(updateCount) {
         listOf(
-            SidebarItem("Discover") { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
-            SidebarItem("Installed", badge = if (updateCount > 0) updateCount.toInt() else null,
+            SidebarItem(tr("Discover")) { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
+            SidebarItem(tr("Installed"), badge = if (updateCount > 0) updateCount.toInt() else null,
                 onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) }) {
                 navigator.popupAllAndPush(AppRoute.Apps(scope = "installed"))
             },
-            SidebarItem("Buckets") { navigator.popupAllAndPush(AppRoute.Buckets) },
-            SidebarItem("Cleanup") { navigator.popupAllAndPush(AppRoute.Cleanup) },
-            SidebarItem("Settings") { navigator.push(AppRoute.Settings.General) },
+            SidebarItem(tr("Buckets")) { navigator.popupAllAndPush(AppRoute.Buckets) },
+            SidebarItem(tr("Cleanup")) { navigator.popupAllAndPush(AppRoute.Cleanup) },
+            SidebarItem(tr("Settings")) { navigator.push(AppRoute.Settings.General) },
         )
     }
 
@@ -138,14 +139,14 @@ fun SidebarNav(
             ) {
                 Icon(
                     painter = rememberPainterResource("logo.svg"),
-                    contentDescription = "Scooper",
+                    contentDescription = tr("Scooper"),
                     modifier = Modifier.size(18.dp),
                     tint = Color.White,
                 )
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                "Scooper",
+                tr("Scooper"),
                 style = typography.h6.copy(
                     fontWeight = FontWeight.Bold,
                     color = colors.textTitle,
@@ -156,20 +157,20 @@ fun SidebarNav(
         Spacer(Modifier.height(8.dp))
 
         // LIBRARY section
-        SectionHeader("LIBRARY")
+        SectionHeader(tr("LIBRARY"))
         SidebarNavItem(
-            label = "Discover",
+            label = tr("Discover"),
             selected = currentRoute is AppRoute.Apps && currentRoute.scope.isEmpty(),
             focused = focusedIndex == 0,
             focusRequester = focusRequesters[0],
             onFocused = { focusedIndex = 0 },
             onClick = { items[0].action() },
         ) {
-            Icon(Lucide.PackageSearch, "Discover", modifier = Modifier.size(18.dp))
+            Icon(Lucide.PackageSearch, tr("Discover"), modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
-            label = "Installed",
+            label = tr("Installed"),
             badge = if (updateCount > 0) updateCount.toInt() else null,
             selected = currentRoute is AppRoute.Apps && (currentRoute.scope == "installed" || currentRoute.scope == "updates"),
             focused = focusedIndex == 1,
@@ -178,59 +179,59 @@ fun SidebarNav(
             onClick = { items[1].action() },
             onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) },
         ) {
-            Icon(Lucide.PackageCheck, "Installed", modifier = Modifier.size(18.dp))
+            Icon(Lucide.PackageCheck, tr("Installed"), modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.height(16.dp))
 
         // Sources section
-        SectionHeader("SOURCES")
+        SectionHeader(tr("SOURCES"))
         SidebarNavItem(
-            label = "Buckets",
+            label = tr("Buckets"),
             selected = currentRoute is AppRoute.Buckets,
             focused = focusedIndex == 2,
             focusRequester = focusRequesters[2],
             onFocused = { focusedIndex = 2 },
             onClick = { items[2].action() },
         ) {
-            Icon(Lucide.Component, "Buckets", modifier = Modifier.size(18.dp))
+            Icon(Lucide.Component, tr("Buckets"), modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.height(16.dp))
 
         // Tools section
-        SectionHeader("TOOLS")
+        SectionHeader(tr("TOOLS"))
         SidebarNavItem(
-            label = "Cleanup",
+            label = tr("Cleanup"),
             selected = currentRoute is AppRoute.Cleanup,
             focused = focusedIndex == 3,
             focusRequester = focusRequesters[3],
             onFocused = { focusedIndex = 3 },
             onClick = { items[3].action() },
         ) {
-            Icon(Lucide.BrushCleaning, "Cleanup", modifier = Modifier.size(18.dp))
+            Icon(Lucide.BrushCleaning, tr("Cleanup"), modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
-            label = "Search Online",
+            label = tr("Search Online"),
             selected = currentRoute is AppRoute.ScoopSearch,
             onClick = { navigator.popupAllAndPush(AppRoute.ScoopSearch) },
         ) {
-            Icon(Lucide.Search, "Search Online", modifier = Modifier.size(18.dp))
+            Icon(Lucide.Search, tr("Search Online"), modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.weight(1f))
 
         // Settings at bottom
         SidebarNavItem(
-            label = "Settings",
+            label = tr("Settings"),
             selected = currentRoute is AppRoute.Settings,
             focused = focusedIndex == 4,
             focusRequester = focusRequesters[4],
             onFocused = { focusedIndex = 4 },
             onClick = { items[4].action() },
         ) {
-            Icon(Lucide.Settings2, "Settings", modifier = Modifier.size(18.dp))
+            Icon(Lucide.Settings2, tr("Settings"), modifier = Modifier.size(18.dp))
         }
     }
 }

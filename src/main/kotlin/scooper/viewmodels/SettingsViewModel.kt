@@ -53,6 +53,10 @@ class SettingsViewModel(
         reduce { state.copy(uiConfig = state.uiConfig.copy(showTrayIcon = enabled)) }
     }
 
+    fun switchLocale(localeTag: String) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(locale = localeTag)) }
+    }
+
     val scoopFormState = FormState(
         fields = listOf(
             ChoiceState(
@@ -130,6 +134,7 @@ class SettingsViewModel(
             viewMode = formConfig.viewMode,
             paginationMode = formConfig.paginationMode,
             fontSizeScale = fontSizeScale ?: currentConfig.fontSizeScale,
+            locale = container.stateFlow.value.uiConfig.locale,
             showTrayIcon = formConfig.showTrayIcon,
         )
         configRepository.setConfig(config)

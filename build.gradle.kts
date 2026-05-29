@@ -9,7 +9,7 @@ plugins {
     alias(libs.plugins.compose)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.serialization)
-    // alias(libs.plugins.gettext)
+    alias(libs.plugins.gettext)
     alias(libs.plugins.buildconfig)
 }
 
@@ -18,6 +18,7 @@ version = "1.2.4"
 
 repositories {
     google()
+    mavenLocal()
     mavenCentral()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     maven("https://jitpack.io")
@@ -49,6 +50,9 @@ dependencies {
     implementation(libs.commonmark)
     implementation(libs.commonmark.ext.gfm.strikethrough)
 //    implementation(libs.compose.dnd)
+
+    implementation(libs.gettext)
+    implementation(libs.kotlinx.io.core)
 
     // test
     testImplementation(libs.junit.jupiter)
@@ -155,6 +159,11 @@ tasks.matching { it.name == "createReleaseDistributable" }.configureEach {
 }
 
 fun String.quoted() = "\"$this\""
+gettext {
+    potFile.set(File(projectDir, "src/main/resources/lang/messages.pot"))
+    keywords.set(listOf("tr", "trn:1,2", "trc:1c,2"))
+}
+
 buildConfig {
     packageName("scooper.util")
     useKotlinOutput()
