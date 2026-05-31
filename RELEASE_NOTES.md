@@ -1,5 +1,17 @@
 # Release Notes
 
+## v1.2.3 (2026-05-31)
+
+### ✨ New Feature
+
+- **System Tray Icon**: Optional tray icon in the taskbar. Closing the window hides it to tray instead of exiting. Double-click or right-click menu to restore. Enable in UI Settings.
+- **Periodic Auto-Refresh**: Automatically refresh scoop at a configurable interval. Set the interval in UI Settings.
+- **Best Match Sort**: Local search results now sort by best match relevance by default.
+
+### 🐛 Bug Fixes
+
+- **Link underline**: Fixed underline not covering all lines and the trailing icon in link text.
+
 ## v1.2.2 (2026-05-25)
 
 ### 🛠 Improvement
