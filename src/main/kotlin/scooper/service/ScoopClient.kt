@@ -1,5 +1,6 @@
 package scooper.service
 
+import com.scoopai.tools.cache.ScoopCacheManager
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import scooper.data.App
@@ -445,10 +446,51 @@ class ScoopClient(
             if (uninstallResult.exitCode != 0) return uninstallResult
         }
 
+        val prewarmed = prewarmTestInstallCache(testAppName, manifestFile)
+        logger.info("Prewarmed $prewarmed cache file(s) for test install of $testAppName")
+
         val installArgs = mutableListOf(
             "scoop", "install", manifestFile.absolutePath, "-s",
         )
         return executeAndLog(installArgs)
+    }
+
+    /**
+     * Pre-warm the Scoop cache for a test install by linking/copying already-cached
+     * downloads (scoop-ai download-phase files or finalized entries) to the
+     * `{testAppName}#{version}#{hash}{ext}` names scoop expects for a local manifest.
+     *
+     * @return number of cache entries successfully pre-warmed
+     */
+    fun prewarmTestInstallCache(
+        testAppName: String,
+        manifestFile: File,
+        cacheDir: File = this.cacheDir,
+    ): Int {
+        val json = try {
+            manifestJson.parseToJsonElement(readManifestText(manifestFile)).jsonObject
+        } catch (e: Exception) {
+            logger.warn("Failed to parse manifest for cache prewarm: ${manifestFile.absolutePath}, error: ${e.message}")
+            return 0
+        }
+
+        val version = json.getString("version").takeIf { it.isNotBlank() } ?: run {
+            logger.warn("Manifest has no version, skip cache prewarm: ${manifestFile.absolutePath}")
+            return 0
+        }
+
+        val urls = collectManifestUrls(json)
+        if (urls.isEmpty()) {
+            logger.warn("Manifest has no download URL, skip cache prewarm: ${manifestFile.absolutePath}")
+            return 0
+        }
+
+        val app = App(name = testAppName, latestVersion = version)
+        var warmed = 0
+        for (url in urls) {
+            if (prewarmCacheEntry(app, version, url, cacheDir)) warmed++
+        }
+        return warmed
     }
 
     // ==================== Internal Methods ====================
@@ -588,6 +630,73 @@ class ScoopClient(
         val normalized = url.replace('\\', '/')
         val ext = File(normalized).extension
         return if (ext.isNotEmpty()) ".${ext}" else ""
+    }
+
+    /** Collect every download URL from a manifest: top-level `url` plus each architecture block. */
+    private fun collectManifestUrls(json: JsonObject): List<String> {
+        val urls = linkedSetOf<String>()
+
+        fun add(element: JsonElement?) {
+            when (element) {
+                is JsonArray -> element.forEach { add(it) }
+                is JsonPrimitive -> element.contentOrNull?.takeIf(String::isNotBlank)?.let(urls::add)
+                else -> Unit
+            }
+        }
+
+        add(json["url"])
+
+        val arch = json["architecture"] as? JsonObject
+        if (arch != null) {
+            for (key in listOf("64bit", "32bit", "arm64")) {
+                (arch[key] as? JsonObject)?.let { add(it["url"]) }
+            }
+        }
+
+        return urls.toList()
+    }
+
+    /** Pre-warm one cache entry; returns true when the target now exists. */
+    private fun prewarmCacheEntry(app: App, version: String, url: String, cacheDir: File): Boolean {
+        val target = File(cacheDir, cacheFileName(app, version, url))
+        if (target.exists()) {
+            logger.info("Cache already warm for ${app.name}: ${target.name}")
+            return false
+        }
+
+        val source = findCacheSource(url, cacheDir)
+        if (source == null) {
+            logger.info("No cached source for $url, skip prewarm")
+            return false
+        }
+
+        return try {
+            try {
+                Files.createLink(target.toPath(), source.toPath())
+            } catch (e: Exception) {
+                Files.copy(source.toPath(), target.toPath())
+            }
+            logger.info("Prewarmed cache: ${source.name} -> ${target.name}")
+            true
+        } catch (e: Exception) {
+            logger.warn("Failed to prewarm cache for $url: ${e.message}")
+            false
+        }
+    }
+
+    /** Find an existing cache file for [url]: download-phase name first, then a finalized scan. */
+    private fun findCacheSource(url: String, cacheDir: File): File? {
+        // a. scoop-ai download-phase file (normalized-url hash)
+        val downloadName = ScoopCacheManager.downloadCacheName(url)
+        val downloadFile = File(cacheDir, downloadName)
+        if (downloadFile.isFile && downloadFile.length() > 0) return downloadFile
+
+        // b. already-finalized entry matching `*#{urlHash}{ext}`
+        if (!cacheDir.isDirectory) return null
+        val suffix = "#${ScoopCacheManager.urlHash(url)}${ScoopCacheManager.urlExtension(url)}"
+        return cacheDir.listFiles { f ->
+            f.isFile && f.name.contains(suffix)
+        }?.firstOrNull()
     }
 
     /** Resolve the first download URL from manifest, checking architecture sub-objects.
