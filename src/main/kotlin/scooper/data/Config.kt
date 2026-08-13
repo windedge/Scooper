@@ -53,6 +53,21 @@ data class UIConfig(
     val windowHeight: Int = DEFAULT_WINDOW_HEIGHT,
     val isMaximized: Boolean = false,
     val showTrayIcon: Boolean = false,
+    // AI (Create) settings
+    val aiProvider: String = "openai-compatible",
+    val aiApiKey: String = "",
+    val aiBaseUrl: String = "",
+    val aiModel: String = "",
+    val aiGithubToken: String = "",
+)
+
+/** AI settings form model (Settings.AI). Field names match form_builder keys. */
+data class AiConfig(
+    val aiProvider: String = "openai-compatible",
+    val aiApiKey: String = "",
+    val aiBaseUrl: String = "",
+    val aiModel: String = "",
+    val aiGithubToken: String = "",
 )
 
 fun Theme.toSystemTheme() = when (this) {

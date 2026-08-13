@@ -17,5 +17,10 @@ interface ScoopCli {
     suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult
     suspend fun removeCache(vararg apps: String): CommandResult
     suspend fun installVersion(app: App, manifestFile: File, global: Boolean): CommandResult
+    /**
+     * Test-install a local manifest under a dedicated temporary app name.
+     * Does NOT uninstall any real/official app - only the given [testAppName].
+     */
+    suspend fun testInstallManifest(testAppName: String, manifestFile: File): CommandResult
     fun stop()
 }

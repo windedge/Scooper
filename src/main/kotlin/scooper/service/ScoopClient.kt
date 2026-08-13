@@ -431,6 +431,26 @@ class ScoopClient(
         return executeAndLog(installArgs)
     }
 
+    /**
+     * Install a local manifest as [testAppName] for validation.
+     * Only uninstalls an existing install of the same test name - never the real app.
+     */
+    override suspend fun testInstallManifest(testAppName: String, manifestFile: File): CommandResult {
+        val alreadyInstalled = localInstalledAppDirs.any {
+            it.name.equals(testAppName, ignoreCase = true)
+        }
+        if (alreadyInstalled) {
+            logStream.emit("Uninstalling existing test app $testAppName before test install...")
+            val uninstallResult = executeAndLog(mutableListOf("scoop", "uninstall", testAppName))
+            if (uninstallResult.exitCode != 0) return uninstallResult
+        }
+
+        val installArgs = mutableListOf(
+            "scoop", "install", manifestFile.absolutePath, "-s",
+        )
+        return executeAndLog(installArgs)
+    }
+
     // ==================== Internal Methods ====================
 
     /** Pre-download files to cache via JVM HttpClient when aria2 is not enabled. */

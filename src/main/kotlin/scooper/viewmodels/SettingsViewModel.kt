@@ -7,12 +7,14 @@ import kotlinx.coroutines.cancel
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
+import scooper.data.AiConfig
 import scooper.data.ScoopConfig
 import scooper.data.Theme
 import scooper.data.UIConfig
 import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
+import scooper.service.ScoopAiBridge
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
 
@@ -31,6 +33,7 @@ class SettingsViewModel(
     ) {
         scoopFormState.setData(ScoopConfigManager.readScoopConfig())
         uiFormState.setData(state.uiConfig)
+        aiFormState.setData(state.uiConfig.toAiConfig())
     }
 
     fun switchTheme(theme: Theme) = intent {
@@ -96,6 +99,24 @@ class SettingsViewModel(
         )
     )
 
+    val aiFormState = FormState(
+        fields = listOf(
+            ChoiceState(
+                "aiProvider",
+                initial = "openai-compatible",
+                validators = listOf(Validators.ValidChoice()),
+                choices = mapOf(
+                    "openai-compatible" to "OpenAI Compatible",
+                    "deepseek" to "DeepSeek",
+                )
+            ),
+            TextFieldState("aiApiKey"),
+            TextFieldState("aiBaseUrl"),
+            TextFieldState("aiModel"),
+            TextFieldState("aiGithubToken"),
+        )
+    )
+
     private fun transformProxy(proxy: String): String {
         val proxyType = scoopFormState.getState<ChoiceState>("proxyType")
         return when (proxyType.value) {
@@ -140,6 +161,39 @@ class SettingsViewModel(
         val config = configRepository.getConfig()
         uiFormState.setData(config)
         intent { reduce { state.copy(uiConfig = config) } }
+    }
+
+    fun reloadAiConfig() {
+        val config = configRepository.getConfig()
+        aiFormState.setData(config.toAiConfig())
+        intent { reduce { state.copy(uiConfig = config) } }
+    }
+
+    private fun UIConfig.toAiConfig() = AiConfig(
+        aiProvider = aiProvider,
+        aiApiKey = aiApiKey,
+        aiBaseUrl = aiBaseUrl,
+        aiModel = aiModel,
+        aiGithubToken = aiGithubToken,
+    )
+
+    fun writeAiConfig() {
+        // Read TextFieldState / ChoiceState directly - more reliable than getData reflection
+        val config = configRepository.getConfig().copy(
+            aiProvider = aiFormState.getState<ChoiceState>("aiProvider").value.trim()
+                .ifBlank { "openai-compatible" },
+            aiApiKey = aiFormState.getState<TextFieldState>("aiApiKey").value.trim(),
+            aiBaseUrl = ScoopAiBridge.normalizeAiBaseUrl(
+                aiFormState.getState<TextFieldState>("aiBaseUrl").value,
+            ),
+            aiModel = aiFormState.getState<TextFieldState>("aiModel").value.trim(),
+            aiGithubToken = aiFormState.getState<TextFieldState>("aiGithubToken").value.trim(),
+        )
+        configRepository.setConfig(config)
+        intent {
+            reduce { state.copy(uiConfig = config) }
+            postSideEffect(AppSideEffect.Toast("AI settings saved", ToastType.SUCCESS))
+        }
     }
 
     override fun close() {

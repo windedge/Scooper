@@ -19,6 +19,7 @@ enum class ShortcutAction(val label: String, val keys: String) {
     NavInstalled("Navigate to Installed", "Ctrl+2"),
     NavBuckets("Navigate to Buckets", "Ctrl+3"),
     NavCleanup("Navigate to Cleanup", "Ctrl+4"),
+    NavCreate("Navigate to Create", "Ctrl+5"),
     OpenSettings("Open Settings", "Ctrl+,"),
     OpenOutput("View Logs / Output", "Ctrl+L / Ctrl+`"),
     GoBack("Go Back", "Esc"),
@@ -51,11 +52,12 @@ fun matchShortcutKey(key: Key, ctrl: Boolean = false, shift: Boolean = false): S
     // Ctrl+F — focus search
     if (ctrl && key == Key.F) return ShortcutAction.FocusSearch
 
-    // Ctrl+1..4 — navigation
+    // Ctrl+1..5 — navigation
     if (ctrl && key == Key.One) return ShortcutAction.NavDiscover
     if (ctrl && key == Key.Two) return ShortcutAction.NavInstalled
     if (ctrl && key == Key.Three) return ShortcutAction.NavBuckets
     if (ctrl && key == Key.Four) return ShortcutAction.NavCleanup
+    if (ctrl && key == Key.Five) return ShortcutAction.NavCreate
 
     // Ctrl+, — settings
     if (ctrl && key == Key.Comma) return ShortcutAction.OpenSettings
@@ -117,6 +119,12 @@ fun handleWindowShortcut(
         ShortcutAction.NavCleanup -> {
             if (nav.current.value !is AppRoute.Cleanup) {
                 nav.popupAllAndPush(AppRoute.Cleanup)
+            }
+            true
+        }
+        ShortcutAction.NavCreate -> {
+            if (nav.current.value !is AppRoute.Create) {
+                nav.popupAllAndPush(AppRoute.Create)
             }
             true
         }

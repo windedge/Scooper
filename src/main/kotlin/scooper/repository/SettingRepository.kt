@@ -27,6 +27,11 @@ class ConfigRepository {
                     windowHeight = this[Configs.windowHeight],
                     isMaximized = this[Configs.isMaximized],
                     showTrayIcon = this[Configs.showTrayIcon],
+                    aiProvider = this[Configs.aiProvider],
+                    aiApiKey = this[Configs.aiApiKey],
+                    aiBaseUrl = this[Configs.aiBaseUrl],
+                    aiModel = this[Configs.aiModel],
+                    aiGithubToken = this[Configs.aiGithubToken],
                 )
             }
         }
@@ -50,6 +55,11 @@ class ConfigRepository {
                 it[windowHeight] = config.windowHeight
                 it[isMaximized] = config.isMaximized
                 it[showTrayIcon] = config.showTrayIcon
+                it[aiProvider] = config.aiProvider
+                it[aiApiKey] = config.aiApiKey
+                it[aiBaseUrl] = config.aiBaseUrl
+                it[aiModel] = config.aiModel
+                it[aiGithubToken] = config.aiGithubToken
             }
         }
     }

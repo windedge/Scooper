@@ -218,6 +218,14 @@ fun SidebarNav(
         ) {
             Icon(Lucide.Search, "Search Online", modifier = Modifier.size(18.dp))
         }
+        Spacer(Modifier.height(8.dp))
+        SidebarNavItem(
+            label = "Create",
+            selected = currentRoute is AppRoute.Create,
+            onClick = { navigator.popupAllAndPush(AppRoute.Create) },
+        ) {
+            Icon(Lucide.Plus, "Create", modifier = Modifier.size(18.dp))
+        }
 
         Spacer(Modifier.weight(1f))
 

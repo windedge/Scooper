@@ -17,6 +17,7 @@ group = "Scooper"
 version = "1.2.4"
 
 repositories {
+    mavenLocal()
     google()
     mavenCentral()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
@@ -49,6 +50,8 @@ dependencies {
     implementation(libs.commonmark)
     implementation(libs.commonmark.ext.gfm.strikethrough)
 //    implementation(libs.compose.dnd)
+
+    implementation("com.scoopai:scoop-ai-tools:0.1.0")
 
     // test
     testImplementation(libs.junit.jupiter)
@@ -86,6 +89,8 @@ compose.desktop {
 val compileKotlin: KotlinCompile by tasks
 compileKotlin.compilerOptions {
     freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
+    // scoop-ai is built with Kotlin 2.1.x while scooper uses 2.3.x
+    freeCompilerArgs.add("-Xskip-metadata-version-check")
 }
 
 kotlin {

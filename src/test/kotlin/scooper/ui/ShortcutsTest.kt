@@ -47,6 +47,11 @@ class ShortcutsTest {
     }
 
     @Test
+    fun `Ctrl+5 matches NavCreate`() {
+        assertEquals(ShortcutAction.NavCreate, matchShortcutKey(Key.Five, ctrl = true))
+    }
+
+    @Test
     fun `Ctrl+Comma matches OpenSettings`() {
         assertEquals(ShortcutAction.OpenSettings, matchShortcutKey(Key.Comma, ctrl = true))
     }

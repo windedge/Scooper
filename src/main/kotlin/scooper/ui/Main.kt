@@ -39,8 +39,10 @@ import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
 import scooper.ui.icons.*
+import scooper.viewmodels.CreateViewModel
 import scooper.viewmodels.ScoopSearchViewModel
 import scooper.viewmodels.SettingsViewModel
+import scooper.ui.create.CreateScreen
 import java.awt.Desktop
 import java.awt.Dimension
 import java.io.File
@@ -109,6 +111,7 @@ fun main() {
     val settingsViewModel: SettingsViewModel = koinInject()
     val cleanupViewModel: CleanupViewModel = koinInject()
     val scoopSearchViewModel: ScoopSearchViewModel = koinInject()
+    val createViewModel: CreateViewModel = koinInject()
 
     // Window-level mutable state shared between Window onPreviewKeyEvent and content
     val focusSearchRequester = mutableStateOf(0)
@@ -131,6 +134,7 @@ fun main() {
         settingsViewModel.close()
         cleanupViewModel.close()
         scoopSearchViewModel.close()
+        createViewModel.close()
         exitApplication()
     }
 
@@ -203,12 +207,13 @@ fun main() {
         var statusText by remember { mutableStateOf("") }
 
         // Collect all side effects from all ViewModels
-        LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel) {
+        LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel, createViewModel) {
             merge(
                 appsViewModel.container.sideEffectFlow,
                 settingsViewModel.container.sideEffectFlow,
                 cleanupViewModel.container.sideEffectFlow,
                 scoopSearchViewModel.container.sideEffectFlow,
+                createViewModel.container.sideEffectFlow,
             ).collect { sideEffect ->
                 when (sideEffect) {
                     is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text, sideEffect.type)
@@ -231,7 +236,8 @@ fun main() {
                         val provideFocusSearch: () -> Unit = { focusSearchRequester.value++ }
 
                         val showToolbar = when (currentRoute.value) {
-                            is AppRoute.Settings, AppRoute.Output, AppRoute.Cleanup, AppRoute.ScoopSearch -> false
+                            is AppRoute.Settings, AppRoute.Output, AppRoute.Cleanup,
+                            AppRoute.ScoopSearch, AppRoute.Create -> false
                             else -> true
                         }
 
@@ -254,7 +260,7 @@ fun main() {
                                             )
                                         } else {
                                             val showToolbarRow = showToolbar && currentRoute.value !in listOf(
-                                                AppRoute.Buckets, AppRoute.Cleanup, AppRoute.ScoopSearch
+                                                AppRoute.Buckets, AppRoute.Cleanup, AppRoute.ScoopSearch, AppRoute.Create
                                             )
                                             ToolbarRow(showToolbarRow)
                                         }
@@ -265,6 +271,7 @@ fun main() {
                                                 AppRoute.Buckets -> "buckets"
                                                 AppRoute.Cleanup -> "cleanup"
                                                 AppRoute.ScoopSearch -> "scoopSearch"
+                                                AppRoute.Create -> "create"
                                                 AppRoute.Output -> "output"
                                                 is AppRoute.Settings -> "settings:${route.menuText}"
                                             }
@@ -279,6 +286,7 @@ fun main() {
                                                         AppRoute.Buckets -> BucketsScreen()
                                                         AppRoute.Cleanup -> CleanupScreen()
                                                         AppRoute.ScoopSearch -> ScoopSearchScreen()
+                                                        AppRoute.Create -> CreateScreen()
                                                         AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
                                                         is AppRoute.Settings -> SettingScreen()
                                                     }

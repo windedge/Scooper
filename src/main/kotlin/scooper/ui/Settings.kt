@@ -32,7 +32,12 @@ import kotlin.math.roundToInt
 
 
 val navItems =
-    listOf(AppRoute.Settings.General, AppRoute.Settings.UI, AppRoute.Settings.About)
+    listOf(
+        AppRoute.Settings.General,
+        AppRoute.Settings.UI,
+        AppRoute.Settings.AI,
+        AppRoute.Settings.About,
+    )
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -51,6 +56,7 @@ fun SettingScreen() {
             when (currentRoute) {
                 AppRoute.Settings.General -> GeneralSettings()
                 AppRoute.Settings.UI -> UISettings()
+                AppRoute.Settings.AI -> AiSettings()
                 AppRoute.Settings.About -> AboutSection()
             }
         }
@@ -430,6 +436,117 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
         }
     }
+}
+
+@Composable
+fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
+    val colors = MaterialTheme.colors
+    val formState = settingsViewModel.aiFormState
+
+    LaunchedEffect(Unit) {
+        settingsViewModel.reloadAiConfig()
+    }
+
+    val providerState: ChoiceState = formState.getState("aiProvider")
+    val apiKeyState: TextFieldState = formState.getState("aiApiKey")
+    val baseUrlState: TextFieldState = formState.getState("aiBaseUrl")
+    val modelState: TextFieldState = formState.getState("aiModel")
+    val githubTokenState: TextFieldState = formState.getState("aiGithubToken")
+
+    // Do not restore on dispose: auto-save unsaved AI settings when leaving the page
+    val formChangedState = rememberFormChanged(formState, restoreOnDispose = false)
+    val hasChanged by formChangedState.hasChanged
+    val hasChangedRef = formChangedState.hasChanged
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (hasChangedRef.value && formState.validate()) {
+                settingsViewModel.writeAiConfig()
+            }
+        }
+    }
+
+    SettingContainer(
+        onApply = {
+            if (formState.validate()) {
+                settingsViewModel.writeAiConfig()
+                formChangedState.markSaved()
+            }
+        },
+        onDiscard = { formChangedState.discard() },
+        applyEnabled = hasChanged,
+    ) {
+        SettingsTitle(
+            "AI Settings",
+            "Configure the LLM used by Create to generate Scoop manifests.",
+        )
+
+        SectionCard {
+            PrefRow(
+                title = "Provider",
+                subtitle = "DeepSeek or any OpenAI-compatible API endpoint.",
+            ) {
+                val choices = providerState.choices
+                ExposedDropdownMenu(
+                    choices.values.toList(),
+                    selected = choices[providerState.value] ?: providerState.value,
+                    onItemSelected = { label ->
+                        providerState.value = choices.filterValues { it == label }.keys.first()
+                    },
+                )
+            }
+            Divider(color = colors.divider)
+            AiTextFieldPref(
+                title = "API Key",
+                subtitle = "Stored locally. Never written to logs or toast messages.",
+                state = apiKeyState,
+                placeholder = "sk-...",
+            )
+            Divider(color = colors.divider)
+            AiTextFieldPref(
+                title = "Base URL",
+                subtitle = "Required for openai-compatible. Do not append /v1; client adds /v1/chat/completions. Leave empty for DeepSeek default.",
+                state = baseUrlState,
+                placeholder = "http://192.168.40.130:8317",
+            )
+            Divider(color = colors.divider)
+            AiTextFieldPref(
+                title = "Model",
+                subtitle = "Model id sent to the provider. Empty uses provider default.",
+                state = modelState,
+                placeholder = "deepseek-chat",
+            )
+            Divider(color = colors.divider)
+            AiTextFieldPref(
+                title = "GitHub Token",
+                subtitle = "Optional. Raises GitHub API rate limits when researching releases.",
+                state = githubTokenState,
+                placeholder = "ghp_...",
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiTextFieldPref(
+    title: String,
+    subtitle: String,
+    state: TextFieldState,
+    placeholder: String,
+) {
+    PrefRow(
+        title = title,
+        subtitle = subtitle,
+        nestedContent = {
+            Column(modifier = Modifier.padding(top = 12.dp)) {
+                PrefTextField(
+                    value = state.value,
+                    onValueChange = { state.change(it) },
+                    placeholder = placeholder,
+                )
+            }
+        },
+    )
 }
 
 @Composable

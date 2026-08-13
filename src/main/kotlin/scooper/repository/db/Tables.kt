@@ -52,4 +52,9 @@ object Configs : IntIdTable(name = "configs") {
     val windowHeight = integer("window_height").default(DEFAULT_WINDOW_HEIGHT)
     val isMaximized = bool("is_maximized").default(false)
     val showTrayIcon = bool("show_tray_icon").default(false)
+    val aiProvider = varchar("ai_provider", 64).default("openai-compatible")
+    val aiApiKey = text("ai_api_key").default("")
+    val aiBaseUrl = text("ai_base_url").default("")
+    val aiModel = varchar("ai_model", 256).default("")
+    val aiGithubToken = text("ai_github_token").default("")
 }

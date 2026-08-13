@@ -7,6 +7,7 @@ import scooper.repository.CleanupRepository
 import scooper.repository.ConfigRepository
 import scooper.service.GitHistoryService
 import scooper.service.GitHubService
+import scooper.service.ScoopAiBridge
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
 import scooper.service.ScoopSearchService
@@ -15,6 +16,7 @@ import scooper.service.ScoopClient
 import scooper.taskqueue.TaskQueue
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
+import scooper.viewmodels.CreateViewModel
 import scooper.viewmodels.ScoopSearchViewModel
 import scooper.viewmodels.SettingsViewModel
 
@@ -29,6 +31,7 @@ val system = module {
     single { AppsRepository(get(), get()) }
     single { CleanupRepository(get()) }
     single { ScoopService(get(), get()) }
+    single { ScoopAiBridge(get()) }
 }
 
 val viewModels = module {
@@ -36,4 +39,5 @@ val viewModels = module {
     single { SettingsViewModel(get()) }
     single { ScoopSearchViewModel(get(), get<ScoopClient>(), get(), get(), get()) }
     single { CleanupViewModel(get()) }
+    single { CreateViewModel(get(), get()) }
 }
