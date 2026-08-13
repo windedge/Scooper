@@ -39,5 +39,5 @@ val viewModels = module {
     single { SettingsViewModel(get()) }
     single { ScoopSearchViewModel(get(), get<ScoopClient>(), get(), get(), get()) }
     single { CleanupViewModel(get()) }
-    single { CreateViewModel(get(), get()) }
+    single { CreateViewModel(get(), get(), get()) }
 }

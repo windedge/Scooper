@@ -1,8 +1,12 @@
 package scooper.ui.create
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -11,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -71,17 +78,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogState
 import org.koin.compose.koinInject
 import scooper.ui.AppRoute
+import scooper.ui.components.ConfirmDialog
+import scooper.ui.components.DialogTextField
+import scooper.ui.icons.ChevronDown
 import scooper.ui.icons.Lucide
 import scooper.ui.icons.Plus
+import scooper.ui.icons.Send
 import scooper.ui.icons.Settings
-import scooper.ui.theme.Slate900
+import scooper.ui.icons.X
 import scooper.ui.theme.borderDefault
 import scooper.ui.theme.dangerBg
 import scooper.ui.theme.dangerDefault
 import scooper.ui.theme.inputBackground
+import scooper.ui.theme.inputBorder
 import scooper.ui.theme.primarySubtle
 import scooper.ui.theme.textBody
 import scooper.ui.theme.textMuted
@@ -154,9 +168,185 @@ fun CreateScreen(
                 onCancel = { viewModel.onCancel() },
                 onCopyDone = viewModel::onCopyDone,
                 onTestInstall = { viewModel.onTestInstall() },
-                onSave = viewModel::onSave,
+                onSave = { viewModel.onSave() },
                 onRegenerate = viewModel::onRegenerate,
             )
+        }
+    }
+
+    if (state.saveDialogOpen) {
+        SaveToBucketDialog(
+            appName = state.saveAppName,
+            bucket = state.saveBucket,
+            bucketOptions = state.bucketOptions,
+            onAppNameChange = viewModel::onSaveAppNameChange,
+            onBucketChange = viewModel::onSaveBucketChange,
+            onConfirm = viewModel::onConfirmSave,
+            onCancel = viewModel::onDismissSaveDialog,
+        )
+    }
+
+    if (state.overwriteConfirmOpen) {
+        ConfirmDialog(
+            text = "File exists. Overwrite?",
+            title = "Overwrite Manifest",
+            confirmText = "Overwrite",
+            onConfirm = viewModel::onConfirmOverwrite,
+            onCancel = viewModel::onDismissOverwrite,
+        )
+    }
+}
+
+@Composable
+private fun SaveToBucketDialog(
+    appName: String,
+    bucket: String,
+    bucketOptions: List<String>,
+    onAppNameChange: (String) -> Unit,
+    onBucketChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    ConfirmDialog(
+        title = "Save to Bucket",
+        confirmText = "Save",
+        onConfirm = onConfirm,
+        onCancel = onCancel,
+        state = DialogState(size = DpSize(420.dp, 360.dp)),
+    ) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(
+                "App name",
+                style = typography.caption.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textTitle,
+                ),
+            )
+            Spacer(Modifier.height(8.dp))
+            DialogTextField(
+                value = appName,
+                onValueChange = onAppNameChange,
+                placeholder = "e.g. ripgrep",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Letters, digits, '.', '_' and '-' only.",
+                style = typography.caption.copy(color = colors.textMuted),
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                "Bucket",
+                style = typography.caption.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textTitle,
+                ),
+            )
+            Spacer(Modifier.height(8.dp))
+            if (bucketOptions.isNotEmpty()) {
+                val selected = if (bucket in bucketOptions) bucket else bucketOptions.first()
+                InlineBucketPicker(
+                    selected = selected,
+                    options = bucketOptions,
+                    onSelectedChange = onBucketChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Text(
+                    "No buckets available",
+                    style = typography.caption.copy(color = colors.dangerDefault),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineBucketPicker(
+    selected: String,
+    options: List<String>,
+    onSelectedChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "chevronRotation"
+    )
+
+    Column(modifier = modifier) {
+        // Trigger row (collapsed state)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+                .background(color = colors.inputBackground, shape = RoundedCornerShape(8.dp))
+                .border(1.dp, colors.inputBorder, RoundedCornerShape(8.dp))
+                .cursorHand()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                selected,
+                style = typography.body2.copy(color = colors.textTitle),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Lucide.ChevronDown,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(16.dp)
+                    .rotate(rotation),
+                tint = colors.textMuted,
+            )
+        }
+
+        // Expanded in-place list (no Popup)
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(expandFrom = Alignment.Top),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .heightIn(max = 140.dp)
+                    .verticalScroll(rememberScrollState())
+                    .background(colors.surface, shape = RoundedCornerShape(8.dp))
+                    .border(1.dp, colors.inputBorder, RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp)),
+            ) {
+                options.forEach { item ->
+                    val isSel = item == selected
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .cursorHand()
+                            .clickable {
+                                expanded = false
+                                onSelectedChange(item)
+                            }
+                            .background(if (isSel) colors.primarySubtle else Color.Transparent)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            item,
+                            style = typography.body2.copy(
+                                color = if (isSel) colors.primary else colors.textTitle,
+                                fontWeight = if (isSel) FontWeight.Medium else FontWeight.Normal,
+                            ),
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -182,10 +372,10 @@ private fun CreateTopBar(
                     color = colors.textTitle,
                 ),
             )
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 "Generate Scoop manifest with AI from a GitHub URL",
-                style = typography.caption.copy(color = colors.textBody),
+                style = typography.body2.copy(color = colors.textBody),
             )
         }
         Row(
@@ -218,9 +408,9 @@ private fun StatusPill(running: Boolean) {
 
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(4.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(999.dp))
+            .border(1.dp, border, RoundedCornerShape(4.dp))
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -323,7 +513,7 @@ private fun EmptyWorkspace(
         Spacer(Modifier.height(4.dp))
         Text(
             "Paste a GitHub repository URL and press Send.\nAfter the manifest is ready, you can Test Install / Save.",
-            style = typography.caption.copy(color = colors.textMuted),
+            style = typography.body2.copy(color = colors.textBody),
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(20.dp))
@@ -475,9 +665,9 @@ private fun PhaseTag(phase: String, modifier: Modifier = Modifier) {
             letterSpacing = typography.overline.letterSpacing,
         ),
         modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(RoundedCornerShape(4.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(999.dp))
+            .border(1.dp, border, RoundedCornerShape(4.dp))
             .padding(horizontal = 7.dp, vertical = 1.dp),
     )
 }
@@ -557,10 +747,10 @@ private fun ManifestPreviewCard(
     val scroll = rememberScrollState()
 
     Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, colors.borderDefault),
         color = colors.surface,
-        elevation = 1.dp,
+        elevation = 0.dp,
         modifier = Modifier.fillMaxWidth().widthIn(max = 760.dp),
     ) {
         Column {
@@ -575,8 +765,8 @@ private fun ManifestPreviewCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Manifest Preview",
-                        style = typography.subtitle2.copy(
-                            fontWeight = FontWeight.Bold,
+                        style = typography.subtitle1.copy(
+                            fontWeight = FontWeight.Medium,
                             color = colors.textTitle,
                         ),
                     )
@@ -588,9 +778,9 @@ private fun ManifestPreviewCard(
                             color = statusColor,
                         ),
                         modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(4.dp))
                             .background(statusColor.copy(alpha = 0.12f))
-                            .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
+                            .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
@@ -608,14 +798,14 @@ private fun ManifestPreviewCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 200.dp, max = if (expanded) 2000.dp else 360.dp)
-                    .background(Slate900),
+                    .background(colors.inputBackground),
             ) {
                 Text(
                     manifestJson,
-                    style = typography.caption.copy(
-                        color = Color.White,
+                    style = typography.body2.copy(
+                        color = colors.onSurface,
                         fontFamily = FontFamily.Monospace,
-                        lineHeight = typography.caption.fontSize * 1.55f,
+                        lineHeight = typography.body2.fontSize * 1.55f,
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -674,9 +864,10 @@ private fun SmallActionButton(
     primary: Boolean = false,
     loading: Boolean = false,
 ) {
-    val modifier = Modifier.cursorHand().height(32.dp)
+    val modifier = Modifier.cursorHand().height(34.dp)
     val padding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-    val labelStyle = typography.caption.copy(fontWeight = FontWeight.SemiBold)
+    val shape = RoundedCornerShape(6.dp)
+    val labelStyle = typography.button.copy(fontWeight = FontWeight.Medium)
     if (primary) {
         Button(
             onClick = onClick,
@@ -684,11 +875,12 @@ private fun SmallActionButton(
             modifier = modifier,
             contentPadding = padding,
             colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
-            elevation = ButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 0.dp),
+            shape = shape,
+            elevation = null,
         ) {
             if (loading) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp,
                     color = Color.White,
                 )
@@ -702,6 +894,7 @@ private fun SmallActionButton(
             enabled = enabled,
             modifier = modifier,
             contentPadding = padding,
+            shape = shape,
             border = BorderStroke(1.dp, colors.borderDefault),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textTitle),
         ) {
@@ -761,14 +954,12 @@ private fun Composer(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (focused) colors.surface else colors.inputBackground)
+                .background(colors.surface)
                 .border(
                     width = 1.dp,
-                    color = if (focused) colors.primary else colors.borderDefault,
+                    color = if (focused) colors.primary else colors.inputBorder,
                     shape = RoundedCornerShape(12.dp),
-                )
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
+                ),
         ) {
             BasicTextField(
                 value = urlText,
@@ -786,10 +977,16 @@ private fun Composer(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 44.dp)
                     .focusRequester(focusRequester)
                     .onFocusChanged { urlFocused = it.isFocused },
                 decorationBox = { inner ->
-                    Box {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
                         if (urlText.isEmpty()) {
                             Text(
                                 "https://github.com/owner/repo",
@@ -800,11 +997,11 @@ private fun Composer(
                     }
                 },
             )
-            Spacer(Modifier.height(5.dp))
             val dividerColor = colors.borderDefault
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 14.dp)
                     .height(1.dp),
             ) {
                 val strokeWidth = 1.dp.toPx()
@@ -816,72 +1013,94 @@ private fun Composer(
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
                 )
             }
-            Spacer(Modifier.height(5.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BasicTextField(
-                    value = noteText,
-                    onValueChange = { value ->
-                        noteText = value
-                        onNoteChange(value)
-                    },
-                    enabled = !state.running,
-                    singleLine = true,
-                    textStyle = typography.caption.copy(color = colors.textBody),
-                    cursorBrush = SolidColor(colors.primary),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { submit() }),
-                    modifier = Modifier
-                        .weight(1f)
-                        .onFocusChanged { noteFocused = it.isFocused },
-                    decorationBox = { inner ->
-                        Box {
-                            if (noteText.isEmpty()) {
-                                Text(
-                                    "Optional note (e.g. prefer portable zip, GUI app)...",
-                                    style = typography.caption.copy(color = colors.textPlaceholder),
-                                )
-                            }
-                            inner()
+            BasicTextField(
+                value = noteText,
+                onValueChange = { value ->
+                    noteText = value
+                    onNoteChange(value)
+                },
+                enabled = !state.running,
+                singleLine = true,
+                textStyle = typography.body2.copy(color = colors.textTitle),
+                cursorBrush = SolidColor(colors.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { submit() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp)
+                    .onFocusChanged { noteFocused = it.isFocused },
+                decorationBox = { inner ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (noteText.isEmpty()) {
+                            Text(
+                                "Optional note (e.g. prefer portable zip, GUI app)...",
+                                style = typography.body2.copy(color = colors.textPlaceholder),
+                            )
                         }
-                    },
-                )
-                if (state.running) {
-                    OutlinedButton(
-                        onClick = onCancel,
-                        modifier = Modifier.cursorHand().height(34.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.dangerDefault),
-                        border = BorderStroke(1.dp, colors.dangerDefault),
-                    ) {
-                        Text(
-                            "Cancel",
-                            style = typography.caption.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.dangerDefault,
-                            ),
-                        )
+                        inner()
                     }
-                } else {
-                    Button(
-                        onClick = { submit() },
-                        enabled = urlText.isNotBlank(),
-                        modifier = Modifier.cursorHand().height(34.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
-                        elevation = ButtonDefaults.elevation(defaultElevation = 0.dp, pressedElevation = 1.dp),
-                    ) {
-                        Text(
-                            "Send",
-                            style = typography.caption.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                            ),
-                        )
-                    }
+                },
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            if (state.running) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.cursorHand().height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.dangerDefault),
+                    border = BorderStroke(1.dp, colors.dangerDefault),
+                    elevation = null,
+                ) {
+                    Icon(
+                        Lucide.X,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = colors.dangerDefault,
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Text(
+                        "Cancel",
+                        style = typography.button.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = colors.dangerDefault,
+                        ),
+                    )
+                }
+            } else {
+                Button(
+                    onClick = { submit() },
+                    enabled = urlText.isNotBlank(),
+                    modifier = Modifier.cursorHand().height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                    shape = RoundedCornerShape(6.dp),
+                    elevation = null,
+                ) {
+                    Icon(
+                        Lucide.Send,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White,
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Text(
+                        "Send",
+                        style = typography.button.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                        ),
+                    )
                 }
             }
         }
@@ -892,11 +1111,7 @@ private fun Composer(
             } else {
                 "Enter a GitHub URL (optional note). Generation uses nonInteractive mode."
             },
-            style = typography.overline.copy(
-                fontWeight = FontWeight.Normal,
-                color = colors.textMuted,
-                letterSpacing = typography.overline.letterSpacing,
-            ),
+            style = typography.caption.copy(color = colors.textMuted),
             modifier = if (centered) Modifier.fillMaxWidth() else Modifier,
             textAlign = if (centered) TextAlign.Center else TextAlign.Start,
         )

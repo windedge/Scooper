@@ -81,7 +81,7 @@ compose.desktop {
             configurationFiles.from("proguard-rules.pro")
         }
 
-        jvmArgs += listOf("-Xmx256m", "-Xms64m", "-XX:+DisableExplicitGC")
+        jvmArgs += listOf("-Xmx512m", "-Xms64m", "-XX:+DisableExplicitGC")
 
     }
 }

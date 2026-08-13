@@ -15,6 +15,7 @@ import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
 import scooper.data.App
+import scooper.repository.AppsRepository
 import scooper.service.GithubUrlParser
 import scooper.service.ScoopAiBridge
 import scooper.service.ScoopClient
@@ -50,6 +51,11 @@ data class CreateState(
     val error: String? = null,
     val aiConfigured: Boolean = true,
     val configHint: String? = null,
+    val saveDialogOpen: Boolean = false,
+    val saveAppName: String = "",
+    val saveBucket: String = "",
+    val bucketOptions: List<String> = emptyList(),
+    val overwriteConfirmOpen: Boolean = false,
 ) {
     val isEmpty: Boolean get() = messages.isEmpty()
 }
@@ -57,6 +63,7 @@ data class CreateState(
 class CreateViewModel(
     private val scoopAiBridge: ScoopAiBridge,
     private val scoopClient: ScoopClient,
+    private val appsRepository: AppsRepository,
 ) : ContainerHost<CreateState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
@@ -220,7 +227,141 @@ class CreateViewModel(
     }
 
     fun onSave() = intent {
-        postSideEffect(AppSideEffect.Toast("Save to Bucket coming soon", ToastType.INFO))
+        if (state.manifestJson.isBlank()) {
+            postSideEffect(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
+            return@intent
+        }
+        val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }.sorted()
+        if (buckets.isEmpty()) {
+            postSideEffect(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
+            return@intent
+        }
+        val defaultBucket = when {
+            state.saveBucket in buckets -> state.saveBucket
+            "main" in buckets -> "main"
+            else -> buckets.first()
+        }
+        reduce {
+            state.copy(
+                saveDialogOpen = true,
+                saveAppName = state.suggestedAppName.orEmpty(),
+                saveBucket = defaultBucket,
+                bucketOptions = buckets,
+                overwriteConfirmOpen = false,
+            )
+        }
+    }
+
+    fun onSaveAppNameChange(name: String) = intent {
+        reduce { state.copy(saveAppName = name) }
+    }
+
+    fun onSaveBucketChange(bucket: String) = intent {
+        reduce { state.copy(saveBucket = bucket) }
+    }
+
+    fun onDismissSaveDialog() = intent {
+        reduce {
+            state.copy(
+                saveDialogOpen = false,
+                overwriteConfirmOpen = false,
+            )
+        }
+    }
+
+    fun onConfirmSave() = intent {
+        performSave(allowOverwrite = state.overwriteConfirmOpen)
+    }
+
+    fun onConfirmOverwrite() = intent {
+        performSave(allowOverwrite = true)
+    }
+
+    fun onDismissOverwrite() = intent {
+        reduce { state.copy(overwriteConfirmOpen = false) }
+    }
+
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.performSave(
+        allowOverwrite: Boolean,
+    ) {
+        val manifestJson = state.manifestJson
+        if (manifestJson.isBlank()) {
+            postSideEffect(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
+            reduce {
+                state.copy(
+                    saveDialogOpen = false,
+                    overwriteConfirmOpen = false,
+                )
+            }
+            return
+        }
+
+        val name = state.saveAppName.trim()
+        if (name.isEmpty() || !APP_NAME_REGEX.matches(name)) {
+            postSideEffect(
+                AppSideEffect.Toast(
+                    "App name may only contain letters, digits, '.', '_' and '-'",
+                    ToastType.ERROR,
+                ),
+            )
+            return
+        }
+
+        val bucket = state.saveBucket.trim()
+        if (bucket.isEmpty() || bucket !in scoopClient.bucketNames) {
+            postSideEffect(AppSideEffect.Toast("Please select a valid bucket", ToastType.ERROR))
+            return
+        }
+
+        val baseDir = scoopClient.bucketsBaseDir
+        val target = baseDir.resolve(bucket).resolve("bucket").resolve("$name.json")
+        val baseCanonical = baseDir.canonicalFile
+        val targetCanonical = target.canonicalFile
+        val basePath = baseCanonical.path
+        val targetPath = targetCanonical.path
+        val underBase = targetPath == basePath ||
+            targetPath.startsWith(basePath + File.separator)
+        if (!underBase) {
+            postSideEffect(AppSideEffect.Toast("Invalid save path", ToastType.ERROR))
+            return
+        }
+
+        if (targetCanonical.exists() && !allowOverwrite) {
+            reduce { state.copy(overwriteConfirmOpen = true) }
+            return
+        }
+
+        try {
+            withContext(Dispatchers.IO) {
+                targetCanonical.parentFile?.mkdirs()
+                targetCanonical.writeText(manifestJson)
+                appsRepository.loadApps()
+            }
+            reduce {
+                state.copy(
+                    saveDialogOpen = false,
+                    overwriteConfirmOpen = false,
+                    suggestedAppName = name,
+                )
+            }
+            postSideEffect(
+                AppSideEffect.Toast(
+                    "Saved $name.json to bucket/$bucket",
+                    ToastType.SUCCESS,
+                ),
+            )
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            val message = e.message?.takeIf { it.isNotBlank() }
+                ?: e::class.simpleName
+                ?: "Failed to save manifest"
+            logger.error("Save to bucket failed: $message")
+            postSideEffect(AppSideEffect.Toast(sanitizeError(message), ToastType.ERROR))
+        }
+    }
+
+    companion object {
+        private val APP_NAME_REGEX = Regex("^[a-zA-Z0-9._-]+$")
     }
 
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startGeneration(
