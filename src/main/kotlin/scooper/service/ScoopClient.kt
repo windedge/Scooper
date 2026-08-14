@@ -219,9 +219,14 @@ class ScoopClient(
 
     private fun parseShortcuts(json: JsonObject): List<ShortCut> =
         json["shortcuts"]?.jsonArray?.let { array ->
+            // Some manifests have an empty shortcuts array - nothing to do
+            if (array.isEmpty()) return@let emptyList()
+            // Some manifests use a single non-nested pair ["name","target"] - wrap it
             val normalized = if (array[0] is JsonArray) array else buildJsonArray { add(array) }
-            normalized.map { ele ->
-                ShortCut(ele.jsonArray[0].jsonPrimitive.content, ele.jsonArray[1].jsonPrimitive.content)
+            normalized.mapNotNull { ele ->
+                ele.jsonArray.takeIf { it.size >= 2 }?.let { pair ->
+                    ShortCut(pair[0].jsonPrimitive.content, pair[1].jsonPrimitive.content)
+                }
             }
         } ?: emptyList()
 

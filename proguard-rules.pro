@@ -56,6 +56,7 @@
 
 -keep class org.apache.** { *; }
 -keep class org.jetbrains.** { *; }
+-keep class org.slf4j.** { *; }  # slf4j providers are only referenced via META-INF/services
 -keep class org.sqlite.** { *; }
 -keep class org.orbitmvi.** { *; }
 -keep class scooper.** { *; }
