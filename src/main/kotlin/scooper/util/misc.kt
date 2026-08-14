@@ -5,7 +5,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.awt.Desktop
 import java.io.File
 import java.net.URI
@@ -33,7 +35,12 @@ fun File.dirSize(noFollowLink: Boolean = true): Long {
 }
 
 fun JsonObject.getString(key: String): String {
-    return getOrDefault(key, "").toString().removeSurrounding("\"")
+    return when (val element = this[key]) {
+        null, is JsonNull -> ""
+        is JsonPrimitive -> element.content
+        // Non-primitive values (nested objects like license) - keep raw JSON text
+        else -> element.toString()
+    }
 }
 
 @Suppress("unused")

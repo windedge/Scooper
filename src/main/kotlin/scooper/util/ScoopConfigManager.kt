@@ -19,8 +19,13 @@ object ScoopConfigManager {
             isLenient = true
             ignoreUnknownKeys = true
         }
-        val jsonText = file.readText()
-        return format.decodeFromString(jsonText.ifBlank { "{}" })
+        return try {
+            val jsonText = file.readText()
+            format.decodeFromString(jsonText.ifBlank { "{}" })
+        } catch (e: Exception) {
+            // Malformed config.json should not break install/update flows - fall back to defaults
+            ScoopConfig()
+        }
     }
 
     fun writeScoopConfig(
