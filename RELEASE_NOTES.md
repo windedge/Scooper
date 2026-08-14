@@ -1,5 +1,12 @@
 # Release Notes
 
+## v1.2.4 (2026-08-15)
+
+### 🐛 Bug Fixes
+
+- **Startup crash with malformed manifests**: A scoop manifest containing an empty `shortcuts` array crashed the app at startup with a misleading "Failed to launch JVM" dialog. All manifest and config JSON parsing is now hardened: malformed arrays, wrong field types, and a corrupted scoop `config.json` are skipped or safely defaulted instead of crashing.
+- **Logging restored**: ProGuard stripped slf4j's service provider, silently disabling all logging. Provider classes are now kept in the release build, so logs are visible again.
+
 ## v1.2.3 (2026-05-31)
 
 ### ✨ New Feature
