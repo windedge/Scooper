@@ -217,18 +217,17 @@ class ScoopClient(
         null
     }
 
-    private fun parseShortcuts(json: JsonObject): List<ShortCut> =
-        json["shortcuts"]?.jsonArray?.let { array ->
-            // Some manifests have an empty shortcuts array - nothing to do
-            if (array.isEmpty()) return@let emptyList()
-            // Some manifests use a single non-nested pair ["name","target"] - wrap it
-            val normalized = if (array[0] is JsonArray) array else buildJsonArray { add(array) }
-            normalized.mapNotNull { ele ->
-                ele.jsonArray.takeIf { it.size >= 2 }?.let { pair ->
-                    ShortCut(pair[0].jsonPrimitive.content, pair[1].jsonPrimitive.content)
-                }
-            }
-        } ?: emptyList()
+    private fun parseShortcuts(json: JsonObject): List<ShortCut> {
+        val array = json["shortcuts"] as? JsonArray ?: return emptyList()
+        // Some manifests use a single non-nested pair ["name","target"] - wrap it
+        val normalized = if (array.firstOrNull() is JsonArray) array else buildJsonArray { add(array) }
+        return normalized.mapNotNull { ele ->
+            val pair = ele as? JsonArray ?: return@mapNotNull null
+            val name = pair.getOrNull(0) as? JsonPrimitive ?: return@mapNotNull null
+            val target = pair.getOrNull(1) as? JsonPrimitive ?: return@mapNotNull null
+            ShortCut(name.content, target.content)
+        }
+    }
 
     private fun buildAppFromManifest(
         file: File,
@@ -566,14 +565,14 @@ class ScoopClient(
 
         // Architecture sub-object
         val arch = detectArch()
-        val archObj = json["architecture"]?.jsonObject
+        val archObj = json["architecture"] as? JsonObject
         if (archObj != null) {
-            val archBlock = archObj[arch]?.jsonObject ?: archObj["64bit"]?.jsonObject
+            val archBlock = archObj[arch] as? JsonObject ?: archObj["64bit"] as? JsonObject
             if (archBlock != null) {
                 val urlElement = archBlock["url"]
                 val url = when (urlElement) {
-                    is JsonArray -> urlElement.firstOrNull()?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
-                    else -> urlElement?.jsonPrimitive?.contentOrNull?.takeIf(String::isNotBlank)
+                    is JsonArray -> (urlElement.firstOrNull() as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+                    else -> (urlElement as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
                 }
                 if (!url.isNullOrBlank()) return url
             }

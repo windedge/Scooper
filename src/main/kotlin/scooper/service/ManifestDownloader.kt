@@ -28,7 +28,7 @@ class ManifestDownloader {
     fun parseDownloadInfo(manifestJson: JsonObject): DownloadInfo? {
         val arch = detectArch()
 
-        val archObj = manifestJson["architecture"]?.jsonObject
+        val archObj = manifestJson["architecture"] as? JsonObject
         if (archObj != null) {
             val archBlock = archObj[arch]?.jsonObject ?: archObj["64bit"]?.jsonObject
             if (archBlock != null) {
@@ -56,8 +56,11 @@ class ManifestDownloader {
     private fun parseStringOrArray(element: JsonElement?): List<String> {
         return when (element) {
             null -> emptyList()
-            is JsonArray -> element.mapNotNull { it.jsonPrimitive.contentOrNull?.takeIf(String::isNotBlank) }
-            else -> listOfNotNull(element.jsonPrimitive.contentOrNull?.takeIf(String::isNotBlank))
+            is JsonArray -> element.mapNotNull {
+                (it as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank)
+            }
+            is JsonPrimitive -> listOfNotNull(element.contentOrNull?.takeIf(String::isNotBlank))
+            else -> emptyList()
         }
     }
 
