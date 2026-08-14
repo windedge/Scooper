@@ -1,83 +1,62 @@
 package scooper.util
 
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
-import java.nio.file.FileVisitOption
-import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.attribute.DosFileAttributes
-import kotlin.io.path.isSymbolicLink
-
+import java.nio.file.Path
 
 class MiscKtTest {
-    @Test
-    fun testDirSize() {
-        val dir = File("C:\\ProgramData\\scoop\\apps\\gradle\\7.6")
-        // println("dir.dirSize() = ${dir.dirSize()}")
-        println("dir.dirSize() = ${dir.length()}")
 
-        val clinkDir = File("c:\\Users\\xujl\\scoop\\apps\\clink\\1.4.16\\")
-        println("clinkDir.toPath() = ${clinkDir.toPath().parent.toRealPath()}")
-        println("clinkDir.toRealPath() = ${clinkDir.toPath().toRealPath().parent.toRealPath()}")
-        println(
-            "clinkDir.toRealPath(LinkOption.NOFOLLOW_LINKS) = ${
-                clinkDir.toPath().toRealPath(LinkOption.NOFOLLOW_LINKS)
-            }"
-        )
-        assertTrue { clinkDir.dirSize() > 0 }
+    @TempDir
+    lateinit var tempDir: Path
+
+    @Test
+    fun `dirSize sums file sizes in directory`() {
+        val dir = tempDir.resolve("app").toFile().apply { mkdirs() }
+        File(dir, "a.txt").writeBytes(ByteArray(100))
+        File(dir, "b.txt").writeBytes(ByteArray(200))
+
+        assertEquals(300L, dir.dirSize())
     }
 
     @Test
-    fun testSymbolicDir() {
-        val file = File("C:\\ProgramData\\scoop\\apps\\gradle\\8.0\\.gradle")
-        println("parent.toPath() = ${file.toPath().parent.toRealPath()}")
-        println("parent.toRealPath() = ${file.toPath().toRealPath().parent.toRealPath()}")
-        println(
-            "file.toRealPath(LinkOption.NOFOLLOW_LINKS) = ${
-                file.toPath().toRealPath(LinkOption.NOFOLLOW_LINKS).parent.toRealPath()
-            }"
-        )
+    fun `dirSize of empty directory is zero`() {
+        val dir = tempDir.resolve("empty").toFile().apply { mkdirs() }
+        assertEquals(0L, dir.dirSize())
+    }
 
-        assertTrue {
-            file.dirSize() < 10L * 1024 * 1024 * 1024
+    @Test
+    fun `dirSize of missing directory is zero`() {
+        val dir = File(tempDir.toFile(), "missing")
+        assertEquals(0L, dir.dirSize())
+    }
+
+    @Test
+    fun `dirSize does not follow directory symlinks`() {
+        // Symlink creation may require privileges on some CI environments; skip if so
+        val realDir = tempDir.resolve("real").toFile().apply { mkdirs() }
+        File(realDir, "big.bin").writeBytes(ByteArray(10_000))
+        val link = tempDir.resolve("link")
+        try {
+            java.nio.file.Files.createSymbolicLink(link, realDir.toPath())
+        } catch (_: java.nio.file.FileSystemException) {
+            return // no privilege to create symlinks - nothing to assert
         }
-        // file.length()
-        // val dosFileAttributes = Files.readAttributes(
-        //     file.toPath(),
-        //     DosFileAttributes::class.java,
-        //     LinkOption.NOFOLLOW_LINKS
-        // )
-        // println("dosFileAttributes = ${dosFileAttributes}")
-        // val isSymbolic = dosFileAttributes.isSymbolicLink
-        // val isSymbolic2 = file.toPath().isSymbolicLink()
-        // assertTrue(isSymbolic)
-        // assertTrue(isSymbolic2)
+
+        val rootDir = tempDir.toFile()
+        // Without following links, only realDir contents are counted
+        assertTrue(rootDir.dirSize() >= 10_000L)
+        assertTrue(rootDir.dirSize() < 20_000L)
     }
 
     @Test
-    fun listFiles() {
-        val file = File("C:\\ProgramData\\scoop\\apps\\gradle\\7.6\\")
-        val paths = file.listFiles()!!.map { it.toPath() }
-        /*
-        paths.forEach {
-            // val isSymbolic = Files.isSymbolicLink(it)
-            // println("${it} isSymbolic = ${isSymbolic}")
-            println("${it} it.toRealPath(LinkOption.NOFOLLOW_LINKS) = ${it.toRealPath()}")
-        }
-        */
-
-        file.walkTopDown()
-            .maxDepth(3)
-            .onEnter { it.toPath() == it.toPath().toRealPath() }
-            .onEach {
-                println("it.toPath() = ${it.toPath()}, it.toPath().toRealPath() = ${it.toPath().toRealPath()}")
-            }
-            .filter { it.isFile }
-            .map {
-                it.length()
-            }.sum().let { println("size: ${it.readableSize()}") }
+    fun `readableSize formats common sizes`() {
+        assertEquals("0 bytes", 0.0.readableSize())
+        assertEquals("2 kB", 2048.0.readableSize())
+        assertEquals("0 bytes", 0L.readableSize())
+        assertEquals("2 kB", 2048L.readableSize())
+        assertEquals("2.0 MB", (2L * 1024 * 1024).readableSize())
     }
-
-
 }

@@ -136,17 +136,21 @@ class ScoopConfigTest {
 
     @Test
     fun testWriteConfig() {
-        // val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = false)
-        // ScoopConfigManager.writeScoopConfig(config, ScoopConfigManager.configFile.parentFile.resolve("config.test.json"))
+        // Use a fixture file instead of the real user config: the real file may
+        // contain unmanaged keys like "--global": "aria2-enabled" that would
+        // break the substring assertion below.
+        val configFile = kotlin.io.path.createTempFile("config", ".json").toFile()
+        configFile.writeText(jsonText)
 
         val config = ScoopConfig(proxy = "localhost:2183", aria2Enabled = true)
         val output = ByteArrayOutputStream()
-        ScoopConfigManager.writeScoopConfig(config, ScoopConfigManager.configFile, output)
+        ScoopConfigManager.writeScoopConfig(config, configFile, output)
 
         val result = output.toString()
         println("result = ${result}")
         assertTrue { !result.contains("aria2") }
         assertTrue(result.contains("last_update"))
+        configFile.delete()
     }
 
 }
