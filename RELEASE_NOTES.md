@@ -5,6 +5,7 @@
 ### 🐛 Bug Fixes
 
 - **Startup crash with malformed manifests**: A scoop manifest containing an empty `shortcuts` array crashed the app at startup with a misleading "Failed to launch JVM" dialog. All manifest and config JSON parsing is now hardened: malformed arrays, wrong field types, and a corrupted scoop `config.json` are skipped or safely defaulted instead of crashing.
+- **Real-world manifests now parse**: Manifests written by PowerShell with a UTF-8 BOM, JSONC-style comments, or trailing commas (e.g. in the anderlli0053/DEV-tools bucket) are accepted, matching scoop's own lenient parser. Dot-files like `.dprint.json` in bucket directories are no longer treated as app manifests.
 - **Logging restored**: ProGuard stripped slf4j's service provider, silently disabling all logging. Provider classes are now kept in the release build, so logs are visible again.
 
 ## v1.2.3 (2026-05-31)
