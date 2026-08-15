@@ -225,11 +225,18 @@ class ScoopClient(
         buildAppFromManifest(file, bucket, installed)
     }
 
-    private fun tryParseManifest(file: File): JsonObject? = try {
-        manifestJson.parseToJsonElement(readManifestText(file)).jsonObject
-    } catch (e: Exception) {
-        logger.error("parsing manifest: ${file.absolutePath}, error: ${e.message}")
-        null
+    private fun tryParseManifest(file: File): JsonObject? {
+        val element = try {
+            manifestJson.parseToJsonElement(readManifestText(file))
+        } catch (e: Exception) {
+            // Broken manifests exist in the wild (single-quoted values, etc.) -
+            // they break scoop itself too, so just skip with a low-noise log
+            logger.warn("parsing manifest: ${file.absolutePath}, error: ${e.message}")
+            return null
+        }
+        // Some files in bucket/ are plain JSON but not manifests
+        // (e.g. a VS Code snippets template committed by mistake)
+        return element as? JsonObject
     }
 
     private fun parseShortcuts(json: JsonObject): List<ShortCut> {

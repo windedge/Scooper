@@ -63,4 +63,17 @@ class ManifestParsingTest {
     fun `invalid manifest returns null instead of throwing`() {
         assertNull(parseFile("not json at all {"))
     }
+
+    @Test
+    fun `root-level JSON array is not a manifest and is skipped`() {
+        // custom-snippets.json in DEV-tools is a VS Code snippets array
+        val json = parseFile("[{\"name\": \"Scoop app manifest template\"}]")
+        assertNull(json)
+    }
+
+    @Test
+    fun `manifest with single-quoted value is skipped as unparseable`() {
+        // fonts-nasu.json uses single quotes - invalid JSON that breaks scoop too
+        assertNull(parseFile("""{"version": "1.0", "url": 'https://example.com/a.zip'}"""))
+    }
 }
