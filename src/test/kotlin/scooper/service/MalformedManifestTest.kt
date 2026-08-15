@@ -8,7 +8,11 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import scooper.taskqueue.TaskQueue
+import scooper.util.getString
+import java.io.File
+import java.nio.file.Path
 
 /**
  * Malformed-manifest robustness tests.

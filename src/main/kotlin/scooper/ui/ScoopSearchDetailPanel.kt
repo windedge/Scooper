@@ -769,7 +769,8 @@ private fun extractGitHubSourceFromManifest(manifestContent: String?): String? {
     if (manifestContent.isNullOrBlank()) return null
 
     return try {
-        val json = Json.parseToJsonElement(manifestContent).jsonObject
+        val json = scooper.service.ScoopClient.manifestJson
+            .parseToJsonElement(manifestContent.removePrefix("\uFEFF")).jsonObject
 
         val checkverGithub = (json["checkver"] as? JsonObject)
             ?.get("github")
