@@ -41,6 +41,21 @@ class ScoopClient(
     private val logger = LoggerFactory.getLogger(javaClass)
     private val manifestDownloader = ManifestDownloader()
 
+    companion object {
+        /** Scoop manifests in the wild commonly contain comments and trailing
+         *  commas (PowerShell's ConvertFrom-Json tolerates both), so match that
+         *  leniency when parsing manifest files. */
+        val manifestJson = Json {
+            allowComments = true
+            allowTrailingComma = true
+        }
+
+        /** Read a manifest file, stripping a leading UTF-8 BOM. PowerShell-written
+         *  manifests are UTF-8 with BOM, which kotlinx.serialization rejects. */
+        fun readManifestText(file: File): String =
+            file.readText().removePrefix("\uFEFF")
+    }
+
     // ==================== Environment Paths ====================
 
     val configFile: File
@@ -132,7 +147,7 @@ class ScoopClient(
         val allApps = bucketDirs.flatMap { bucketDir ->
             val bucket = Bucket(name = bucketDir.name, url = "")
             bucketDir.resolve("bucket").listFiles()
-                ?.filter { it.isFile && it.extension == "json" }
+                ?.filter { it.isFile && it.extension == "json" && !it.name.startsWith(".") }
                 ?.mapNotNull { file -> buildAppFromManifest(file, bucket, installed) }
                 ?: emptyList()
         }
@@ -211,7 +226,7 @@ class ScoopClient(
     }
 
     private fun tryParseManifest(file: File): JsonObject? = try {
-        Json.parseToJsonElement(file.readText()).jsonObject
+        manifestJson.parseToJsonElement(readManifestText(file)).jsonObject
     } catch (e: Exception) {
         logger.error("parsing manifest: ${file.absolutePath}, error: ${e.message}")
         null
@@ -258,7 +273,7 @@ class ScoopClient(
     /** Collect manifest file names (e.g. "7zip.json") for a given bucket directory. */
     fun bucketDirManifestNames(bucketDir: File): Set<String> {
         return bucketDir.resolve("bucket").listFiles()
-            ?.filter { !it.isDirectory && it.extension == "json" }
+            ?.filter { !it.isDirectory && it.extension == "json" && !it.name.startsWith(".") }
             ?.map { it.name }
             ?.toSet()
             ?: emptySet()
@@ -429,7 +444,7 @@ class ScoopClient(
         }
 
         val json = try {
-            Json.parseToJsonElement(manifestFile.readText()).jsonObject
+            manifestJson.parseToJsonElement(readManifestText(manifestFile)).jsonObject
         } catch (e: Exception) {
             logger.warn("Failed to parse manifest: ${e.message}, skip pre-download")
             return
@@ -456,7 +471,7 @@ class ScoopClient(
         }
 
         val json = try {
-            Json.parseToJsonElement(manifestFile.readText()).jsonObject
+            manifestJson.parseToJsonElement(readManifestText(manifestFile)).jsonObject
         } catch (e: Exception) {
             logStream.emit("Failed to parse manifest: ${e.message}")
             return CommandResult(1)
@@ -644,7 +659,7 @@ class ScoopClient(
         val installJson = installDir.resolve("install.json")
         if (!installJson.exists()) return false
         return try {
-            val json = Json.parseToJsonElement(installJson.readText()).jsonObject
+            val json = manifestJson.parseToJsonElement(readManifestText(installJson)).jsonObject
             val bucket = json["bucket"]?.jsonPrimitive?.contentOrNull
             bucket.isNullOrBlank()
         } catch (e: Exception) {
