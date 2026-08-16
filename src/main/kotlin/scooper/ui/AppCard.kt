@@ -188,7 +188,7 @@ fun AppCard(
                     }
 
                     Text(
-                        app.description ?: "No description available.",
+                        app.description ?: tr("No description available."),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = DescStyle

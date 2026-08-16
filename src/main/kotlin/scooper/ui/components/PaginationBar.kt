@@ -84,7 +84,7 @@ fun PaginationBar(
                 enabled = currentPage > 1,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(Lucide.ArrowLeftToLine, "First", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ArrowLeftToLine, tr("First"), modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.width(12.dp))
@@ -95,7 +95,7 @@ fun PaginationBar(
                 enabled = currentPage > 1,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(Lucide.ChevronLeft, "Prev", modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ChevronLeft, tr("Prev"), modifier = Modifier.size(16.dp), tint = if (currentPage > 1) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
 
             Spacer(Modifier.width(12.dp))
@@ -148,7 +148,7 @@ fun PaginationBar(
                 enabled = currentPage < totalPages,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(Lucide.ChevronRight, "Next", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ChevronRight, tr("Next"), modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
             Spacer(Modifier.width(12.dp))
             // Last page
@@ -157,7 +157,7 @@ fun PaginationBar(
                 enabled = currentPage < totalPages,
                 modifier = Modifier.cursorHand()
             ) {
-                Icon(Lucide.ArrowRightToLine, "Last", modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
+                Icon(Lucide.ArrowRightToLine, tr("Last"), modifier = Modifier.size(16.dp), tint = if (currentPage < totalPages) colors.textBody else colors.textMuted.copy(alpha = 0.4f))
             }
         }
     }

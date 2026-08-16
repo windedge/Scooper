@@ -58,9 +58,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 
-private enum class ContentTab(val label: String) {
-    Changelog("Changelog"),
-    Manifest("Manifest"),
+private enum class ContentTab(val key: String) {
+    Changelog("changelog"),
+    Manifest("manifest"),
+}
+
+private fun ContentTab.displayLabel(): String = when (this) {
+    ContentTab.Changelog -> tr("Changelog")
+    ContentTab.Manifest -> tr("Manifest")
 }
 
 @Composable
@@ -198,7 +203,7 @@ private fun DetailHeader(app: App, onClose: () -> Unit) {
                 .clickable { onClose() },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Lucide.X, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            Icon(Lucide.X, tr("Close"), modifier = Modifier.size(16.dp), tint = colors.textMuted)
         }
     }
 }
@@ -248,7 +253,7 @@ private fun ContentTabSection(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            tab.label,
+                            tab.displayLabel(),
                             style = typography.body2.copy(
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = textColor,
@@ -264,7 +269,7 @@ private fun ContentTabSection(
                     Tooltip(releasesPageUrl, position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Github,
-                            "View releases on GitHub",
+                            tr("View releases on GitHub"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(releasesPageUrl) },
                             tint = colors.textMuted,
                         )
@@ -283,10 +288,10 @@ private fun ContentTabSection(
                         )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Tooltip("Open in editor", position = TooltipPosition.Top) {
+                    Tooltip(tr("Open in editor"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.ExternalLink,
-                            "Open",
+                            tr("Open"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
                                 if (file != null && file.exists()) {
@@ -335,10 +340,10 @@ private fun ContentTabSection(
                 }
                 Spacer(Modifier.weight(1f))
                 if (manifestContent != null) {
-                    Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
+                    Tooltip(tr("Copy to clipboard"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Copy,
-                            "Copy",
+                            tr("Copy"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
                                 Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
@@ -347,10 +352,10 @@ private fun ContentTabSection(
                         )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Tooltip("Open in editor", position = TooltipPosition.Top) {
+                    Tooltip(tr("Open in editor"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.ExternalLink,
-                            "Open",
+                            tr("Open"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
                                 if (file != null && file.exists()) {

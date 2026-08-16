@@ -36,6 +36,7 @@ import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
 import scooper.util.logger
+import scooper.util.tr
 import scooper.util.VersionComparator
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -331,9 +332,9 @@ class AppsViewModel(
         taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
             val resultCode = scoopService.addBucket(bucket, url)
             if (resultCode != 0) {
-                postSideEffect(AppSideEffect.Toast("Failed to add $bucket.", ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast(tr("Failed to add {{name}}.", "name" to bucket), ToastType.ERROR))
             } else {
-                postSideEffect(AppSideEffect.Toast("$bucket has been added.", ToastType.SUCCESS))
+                postSideEffect(AppSideEffect.Toast(tr("{{name}} has been added.", "name" to bucket), ToastType.SUCCESS))
                 getBuckets()
                 reloadApps()
             }
@@ -457,7 +458,7 @@ class AppsViewModel(
             }
 
             if (manifestText == null) {
-                postSideEffect(AppSideEffect.Toast("Failed to get manifest for ${app.name}@${version.version}.", ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast(tr("Failed to get manifest for {{name}}@{{version}}.", "name" to app.name, "version" to version.version), ToastType.ERROR))
                 return@blockingIntent
             }
 
@@ -470,9 +471,9 @@ class AppsViewModel(
             tempFile.delete()
             tempDir.deleteRecursively()
             if (result.exitCode != 0) {
-                postSideEffect(AppSideEffect.Toast("Failed to install ${app.name}@${version.version}.", ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast(tr("Failed to install {{name}}@{{version}}.", "name" to app.name, "version" to version.version), ToastType.ERROR))
             } else {
-                postSideEffect(AppSideEffect.Toast("${app.name}@${version.version} has been installed.", ToastType.SUCCESS))
+                postSideEffect(AppSideEffect.Toast(tr("{{name}}@{{version}} has been installed.", "name" to app.name, "version" to version.version), ToastType.SUCCESS))
                 appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED, version = version.version))
                 applyFilters()
             }

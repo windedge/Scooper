@@ -43,6 +43,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.theme.*
 import scooper.util.tr
+import scooper.util.trn
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse
@@ -52,9 +53,14 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-private enum class SearchDetailTab(val label: String) {
-    Changelog("Changelog"),
-    Manifest("Manifest"),
+private enum class SearchDetailTab(val key: String) {
+    Changelog("changelog"),
+    Manifest("manifest"),
+}
+
+private fun SearchDetailTab.displayLabel(): String = when (this) {
+    SearchDetailTab.Changelog -> tr("Changelog")
+    SearchDetailTab.Manifest -> tr("Manifest")
 }
 
 @Composable
@@ -125,12 +131,12 @@ fun ScoopSearchDetailPanel(
             try {
                 val content = gitHubService.fetchRawFile(app.Metadata.manifestUrl)
                 if (content == null) {
-                    manifestError = "Manifest not available."
+                    manifestError = tr("Manifest not available.")
                 } else {
                     manifestContent = content
                 }
             } catch (e: Exception) {
-                manifestError = e.message ?: "Manifest not available."
+                manifestError = e.message ?: tr("Manifest not available.")
             }
         }
     }
@@ -244,7 +250,7 @@ private fun SearchDetailHeader(
                 .clickable { onClose() },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Lucide.X, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            Icon(Lucide.X, tr("Close"), modifier = Modifier.size(16.dp), tint = colors.textMuted)
         }
     }
 }
@@ -257,7 +263,7 @@ private fun SearchInstallAction(
 ) {
     val colors = MaterialTheme.colors
     val defaultBucketName = app.Metadata.Repository.substringAfterLast("/")
-    val tooltipText = "scoop install $defaultBucketName/${app.Name}"
+    val tooltipText = tr("scoop install {{bucket}}/{{name}}", "bucket" to defaultBucketName, "name" to app.Name)
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -284,19 +290,19 @@ private fun SearchInstallAction(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Installing...",
+                        tr("Installing..."),
                         style = typography.caption.copy(color = Color.White, fontWeight = FontWeight.Medium),
                     )
                 } else {
                     Icon(
                         Lucide.PackageCheck,
-                        "Install",
+                        tr("Install"),
                         modifier = Modifier.size(12.dp),
                         tint = Color.White,
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        "Install",
+                        tr("Install"),
                         style = typography.caption.copy(color = Color.White, fontWeight = FontWeight.Medium),
                     )
                 }
@@ -321,9 +327,9 @@ private fun InstallConfirmDialog(
     val bucketExists = localBuckets.any { it.equals(bucketName, ignoreCase = true) }
 
     scooper.ui.components.ConfirmDialog(
-        title = "Install ${app.Name}",
-        confirmText = "Install",
-        cancelText = "Cancel",
+        title = tr("Install {{name}}", "name" to app.Name),
+        confirmText = tr("Install"),
+        cancelText = tr("Cancel"),
         onConfirm = {
             val trimmed = bucketName.trim()
             if (trimmed.isBlank()) {
@@ -337,7 +343,7 @@ private fun InstallConfirmDialog(
     ) {
         Column(Modifier.fillMaxSize()) {
             Text(
-                "This will install the app and its bucket if not already added.",
+                tr("This will install the app and its bucket if not already added."),
                 style = typography.body2.copy(color = colors.textBody),
             )
 
@@ -345,7 +351,7 @@ private fun InstallConfirmDialog(
 
             // Bucket Name field
             Text(
-                "Bucket Name",
+                tr("Bucket Name"),
                 style = typography.caption.copy(
                     color = colors.textTitle,
                     fontWeight = FontWeight.SemiBold,
@@ -358,13 +364,13 @@ private fun InstallConfirmDialog(
                     bucketName = it
                     bucketNameError = false
                 },
-                placeholder = "e.g. extras",
+                placeholder = tr("e.g. extras"),
                 isError = bucketNameError,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                if (bucketNameError) "Bucket name is required" else "Bucket name used locally by Scoop.",
+                if (bucketNameError) tr("Bucket name is required") else tr("Bucket name used locally by Scoop."),
                 color = if (bucketNameError) colors.error else colors.textBody,
                 style = typography.caption,
             )
@@ -373,7 +379,7 @@ private fun InstallConfirmDialog(
 
             // Command preview
             Text(
-                "Commands",
+                tr("Commands"),
                 style = typography.caption.copy(
                     color = colors.textTitle,
                     fontWeight = FontWeight.SemiBold,
@@ -435,7 +441,7 @@ private fun CommandLineRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.weight(1f))
-            Tooltip("Copy", position = TooltipPosition.Top) {
+            Tooltip(tr("Copy"), position = TooltipPosition.Top) {
                 var copyHover by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier.size(24.dp)
@@ -451,7 +457,7 @@ private fun CommandLineRow(
                 ) {
                     Icon(
                         Lucide.Copy,
-                        "Copy",
+                        tr("Copy"),
                         modifier = Modifier.size(12.dp),
                         tint = colors.textMuted,
                     )
@@ -482,7 +488,7 @@ private fun SearchMetadataSection(app: ScoopSearchApp) {
         }
 
         if (app.Version.isNotBlank()) {
-            DetailMetadataRow("Version") {
+            DetailMetadataRow(tr("Version")) {
                 Text(
                     app.Version,
                     style = typography.body2.copy(fontWeight = FontWeight.Medium, color = colors.textBody),
@@ -491,7 +497,7 @@ private fun SearchMetadataSection(app: ScoopSearchApp) {
         }
 
         if (app.Homepage.isNotBlank()) {
-            DetailMetadataRow("Homepage") {
+            DetailMetadataRow(tr("Homepage")) {
                 Text(
                     app.Homepage,
                     style = typography.body2.copy(color = colors.primary),
@@ -503,7 +509,7 @@ private fun SearchMetadataSection(app: ScoopSearchApp) {
         }
 
         if (app.License.isNotBlank()) {
-            DetailMetadataRow("License") {
+            DetailMetadataRow(tr("License")) {
                 Text(
                     app.License,
                     style = typography.body2.copy(color = colors.textBody),
@@ -512,7 +518,7 @@ private fun SearchMetadataSection(app: ScoopSearchApp) {
         }
 
         if (app.Metadata.Committed.isNotBlank()) {
-            DetailMetadataRow("Updated") {
+            DetailMetadataRow(tr("Updated")) {
                 Text(
                     formatCommittedDate(app.Metadata.Committed),
                     style = typography.body2.copy(color = colors.textBody),
@@ -562,7 +568,7 @@ private fun SearchDetailContentSection(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            tab.label,
+                            tab.displayLabel(),
                             style = typography.body2.copy(
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = textColor,
@@ -576,7 +582,7 @@ private fun SearchDetailContentSection(
                     Tooltip(releasesPageUrl, position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Github,
-                            "View releases on GitHub",
+                            tr("View releases on GitHub"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(releasesPageUrl) },
                             tint = colors.textMuted,
                         )
@@ -606,7 +612,7 @@ private fun SearchDetailContentSection(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Manifest",
+                    tr("Manifest"),
                     style = typography.body2.copy(
                         fontWeight = FontWeight.SemiBold,
                         color = colors.primary,
@@ -629,10 +635,10 @@ private fun SearchDetailContentSection(
 private fun ManifestActionIcons(app: ScoopSearchApp, manifestContent: String?) {
     val colors = MaterialTheme.colors
     if (manifestContent != null) {
-        Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
+        Tooltip(tr("Copy to clipboard"), position = TooltipPosition.Top) {
             Icon(
                 Lucide.Copy,
-                "Copy",
+                tr("Copy"),
                 modifier = Modifier.size(14.dp).cursorHand().clickable {
                     val selection = StringSelection(manifestContent)
                     Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
@@ -644,10 +650,10 @@ private fun ManifestActionIcons(app: ScoopSearchApp, manifestContent: String?) {
     }
 
     if (app.Metadata.manifestUrl.isNotBlank()) {
-        Tooltip("Open manifest page", position = TooltipPosition.Top) {
+        Tooltip(tr("Open manifest page"), position = TooltipPosition.Top) {
             Icon(
                 Lucide.ExternalLink,
-                "Open",
+                tr("Open"),
                 modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(app.Metadata.manifestUrl) },
                 tint = colors.textMuted,
             )
@@ -687,7 +693,7 @@ private fun SearchChangelogContent(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "View manifest instead",
+                    tr("View manifest instead"),
                     style = typography.caption.copy(color = colors.primary),
                     modifier = Modifier.cursorHand().clickable { onSwitchToManifest() },
                 )
@@ -701,7 +707,7 @@ private fun SearchChangelogContent(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    "No releases found.",
+                    tr("No releases found."),
                     style = typography.body2.copy(color = colors.textMuted),
                 )
             }
@@ -759,7 +765,7 @@ private fun SearchManifestContent(manifestContent: String?, manifestError: Strin
         }
         else -> {
             Text(
-                "Loading manifest...",
+                tr("Loading manifest..."),
                 style = typography.body2.copy(color = colors.textMuted),
             )
         }
@@ -814,11 +820,17 @@ private fun formatCommittedDate(isoDate: String): String {
         val now = LocalDateTime.now()
         val days = java.time.Duration.between(date, now).toDays()
         when {
-            days < 1 -> "Today"
-            days == 1L -> "1 day ago"
-            days < 30 -> "$days days ago"
-            days < 365 -> "${days / 30} month${if (days / 30 > 1) "s" else ""} ago"
-            else -> "${days / 365} year${if (days / 365 > 1) "s" else ""} ago"
+            days < 1 -> tr("Today")
+            days == 1L -> trn("{{n}} day ago", "{{n}} days ago", 1, "n" to "1")
+            days < 30 -> trn("{{n}} day ago", "{{n}} days ago", days.toInt(), "n" to "$days")
+            days < 365 -> {
+                val months = (days / 30).toInt()
+                trn("{{n}} month ago", "{{n}} months ago", months, "n" to "$months")
+            }
+            else -> {
+                val years = (days / 365).toInt()
+                trn("{{n}} year ago", "{{n}} years ago", years, "n" to "$years")
+            }
         }
     } catch (_: Exception) {
         ""

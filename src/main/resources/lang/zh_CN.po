@@ -7,483 +7,1125 @@ msgstr ""
 "POT-Creation-Date: 2025-05-29 10:00+0800\n"
 "PO-Revision-Date: 2025-05-29 10:00+0800\n"
 "Last-Translator: Scooper\n"
-"Language: zh_CN\n"
 "Language-Team: zh_CN\n"
-"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"Language: zh_CN\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 "X-Generator: Scooper\n"
 "X-Poedit-SourceCharset: UTF-8\n"
-"X-Poedit-KeywordsList: tr;trc:1c,2\n"
+"X-Poedit-KeywordsList: tr;trn:1,2;trc:1c,2\n"
 
-msgid "Discover"
-msgstr "发现"
-
-msgid "Installed"
-msgstr "已安装"
-
-msgid "Buckets"
-msgstr "仓库"
-
-msgid "Cleanup"
-msgstr "清理"
-
-msgid "Settings"
-msgstr "设置"
-
-msgid "LIBRARY"
-msgstr "库"
-
-msgid "SOURCES"
-msgstr "源"
-
-msgid "TOOLS"
-msgstr "工具"
-
-msgid "Search Online"
-msgstr "在线搜索"
-
-msgid "Scooper"
-msgstr "Scooper"
-
-msgid "Scoop Package Manager GUI"
-msgstr "Scoop 包管理器图形界面"
-
+#: src\main\kotlin\scooper\ui\App.kt:149 src\main\kotlin\scooper\ui\App.kt:153
 msgid "No Results"
 msgstr "无结果"
 
-msgid "Search"
-msgstr "搜索"
-
-msgid "Search packages... (supports OR, -exclude)"
-msgstr "搜索软件包... (支持 OR、-排除)"
-
-msgid "All Installed"
-msgstr "全部已安装"
-
-msgid "Updates"
-msgstr "更新"
-
-msgid "All Buckets"
-msgstr "所有仓库"
-
-msgid "Sort By"
-msgstr "排序方式"
-
-msgid "Best Match"
-msgstr "最佳匹配"
-
-msgid "Recently Updated"
-msgstr "最近更新"
-
-msgid "Recently Added"
-msgstr "最近添加"
-
-msgid "Name"
-msgstr "名称"
-
-msgid "Ascending"
-msgstr "升序"
-
-msgid "Descending"
-msgstr "降序"
-
-msgid "List View"
-msgstr "列表视图"
-
-msgid "Grid View"
-msgstr "网格视图"
-
-msgid "Waterfall Scroll"
-msgstr "瀑布流"
-
-msgid "Waterfall"
-msgstr "瀑布流"
-
-msgid "Paginated"
-msgstr "分页"
-
-msgid "Pagination"
-msgstr "分页"
-
-msgid "Cleanup"
-msgstr "清理"
-
-msgid "Free up disk space by removing old versions and downloaded cache files."
-msgstr "通过删除旧版本和下载缓存来释放磁盘空间。"
-
-msgid "Download Cache"
-msgstr "下载缓存"
-
-msgid "Rescan"
-msgstr "重新扫描"
-
-msgid "Total Size: {{size}}"
-msgstr "总大小：{{size}}"
-
-msgid "Old Versions"
-msgstr "旧版本"
-
-msgid "Cleaning..."
-msgstr "清理中..."
-
-msgid "Scanning..."
-msgstr "扫描中..."
-
-msgid "Clear Cache"
-msgstr "清理缓存"
-
-msgid "Open Directory"
-msgstr "打开目录"
-
-msgid "Great, old versions have been cleaned up."
-msgstr "很好，旧版本已清理完毕。"
-
-msgid "Clean All"
-msgstr "全部清理"
-
-msgid "Show less"
-msgstr "收起"
-
-msgid "Show more"
-msgstr "展开更多"
-
-msgid "{{count}} old versions"
-msgstr "{{count}} 个旧版本"
-
-msgid "*global*"
-msgstr "*全局*"
-
-msgid "Delete"
-msgstr "删除"
-
-msgid "Configured Buckets"
-msgstr "已配置的仓库"
-
-msgid "Manage repositories where Scoop looks for packages."
-msgstr "管理 Scoop 查找软件包的仓库。"
-
-msgid "Add Bucket"
-msgstr "添加仓库"
-
-msgid "KNOWN BUCKETS"
-msgstr "已知仓库"
-
-msgid "Are you sure you want to delete '{{name}}'?"
-msgstr "确定要删除 '{{name}}' 吗？"
-
-msgid "Delete Bucket"
-msgstr "删除仓库"
-
-msgid "Add a custom Scoop bucket by name and repository URL."
-msgstr "通过名称和仓库 URL 添加自定义 Scoop 仓库。"
-
-msgid "Bucket Name"
-msgstr "仓库名称"
-
-msgid "e.g. extras"
-msgstr "例如 extras"
-
-msgid "Name is required"
-msgstr "名称必填"
-
-msgid "Used as the local bucket alias in Scoop."
-msgstr "用作 Scoop 中的本地仓库别名。"
-
-msgid "Repository URL"
-msgstr "仓库 URL"
-
-msgid "Repository URL is required"
-msgstr "仓库 URL 必填"
-
-msgid "URL must start with http:// or https://"
-msgstr "URL 必须以 http:// 或 https:// 开头"
-
-msgid "https://github.com/..."
-msgstr "https://github.com/..."
-
-msgid "Changelog"
-msgstr "更新日志"
-
-msgid "Manifest"
-msgstr "清单"
-
-msgid "Close"
-msgstr "关闭"
-
-msgid "View releases on GitHub"
-msgstr "在 GitHub 上查看发布"
-
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:274
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:338
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:638
 msgid "Copy to clipboard"
 msgstr "复制到剪贴板"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:277
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:341
+#: src\main\kotlin\scooper\ui\Output.kt:63
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:444
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:460
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:641
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:162
 msgid "Copy"
 msgstr "复制"
 
-msgid "Open in editor"
-msgstr "在编辑器中打开"
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:329
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:63
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:615
+msgid "Manifest"
+msgstr "清单"
 
-msgid "Open"
-msgstr "打开"
-
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:388
 msgid "Not a GitHub repository."
 msgstr "不是 GitHub 仓库。"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:408
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:710
 msgid "No releases found."
 msgstr "未找到发布版本。"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:432
 msgid "Manifest not found."
 msgstr "未找到清单。"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:485
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:491
 msgid "Version"
 msgstr "版本"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:510
 msgid "Status"
 msgstr "状态"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:512
+#: src\main\kotlin\scooper\ui\Sidebar.kt:68
+#: src\main\kotlin\scooper\ui\Sidebar.kt:173
+#: src\main\kotlin\scooper\ui\Sidebar.kt:182
 msgid "Installed"
 msgstr "已安装"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:513
 msgid "Failed"
 msgstr "失败"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:514
 msgid "Update Available"
 msgstr "有可用更新"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:515
 msgid "Not Installed"
 msgstr "未安装"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:534
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:500
 msgid "Homepage"
 msgstr "主页"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:544
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:512
 msgid "License"
 msgstr "许可证"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:554
 msgid "Added"
 msgstr "添加时间"
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:562
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:554
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:521
 msgid "Updated"
 msgstr "更新时间"
 
+#: src\main\kotlin\scooper\ui\AppCard.kt:191
+#: src\main\kotlin\scooper\ui\AppGrid.kt:180
 msgid "No description available."
 msgstr "暂无描述。"
 
-msgid "Select Version — {{name}}"
-msgstr "选择版本 — {{name}}"
+#: src\main\kotlin\scooper\ui\Bucket.kt:64
+msgid "Configured Buckets"
+msgstr "已配置的仓库"
 
-msgid "{{count}} version(s) available"
-msgstr "{{count}} 个可用版本"
+#: src\main\kotlin\scooper\ui\Bucket.kt:71
+msgid "Manage repositories where Scoop looks for packages."
+msgstr "管理 Scoop 查找软件包的仓库。"
 
-msgid "No versions available"
-msgstr "无可用版本"
+#: src\main\kotlin\scooper\ui\Bucket.kt:120
+msgid "KNOWN BUCKETS"
+msgstr "已知仓库"
 
-msgid "(installed)"
-msgstr "(已安装)"
+#: src\main\kotlin\scooper\ui\Bucket.kt:144
+#, java-format
+msgid "Are you sure you want to delete '{{name}}'?"
+msgstr "确定要删除 '{{name}}' 吗？"
 
-msgid "Git"
-msgstr "Git"
+#: src\main\kotlin\scooper\ui\Bucket.kt:145
+msgid "Delete Bucket"
+msgstr "删除仓库"
 
-msgid "Install"
-msgstr "安装"
+#: src\main\kotlin\scooper\ui\Bucket.kt:146
+#: src\main\kotlin\scooper\ui\Cleanup.kt:404
+msgid "Delete"
+msgstr "删除"
 
-msgid "Global"
-msgstr "全局"
+#: src\main\kotlin\scooper\ui\Bucket.kt:90
+#: src\main\kotlin\scooper\ui\Bucket.kt:157
+msgid "Add Bucket"
+msgstr "添加仓库"
 
+#: src\main\kotlin\scooper\ui\Bucket.kt:163
+msgid "Repository URL is required"
+msgstr "仓库 URL 必填"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:164
+msgid "URL must start with http:// or https://"
+msgstr "URL 必须以 http:// 或 https:// 开头"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:178
+msgid "Add"
+msgstr "添加"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:187
+msgid "Add a custom Scoop bucket by name and repository URL."
+msgstr "通过名称和仓库 URL 添加自定义 Scoop 仓库。"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:194
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:354
+msgid "Bucket Name"
+msgstr "仓库名称"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:205
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:367
+msgid "e.g. extras"
+msgstr "例如 extras"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:211
+msgid "Name is required"
+msgstr "名称必填"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:211
+msgid "Used as the local bucket alias in Scoop."
+msgstr "用作 Scoop 中的本地仓库别名。"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:219
+msgid "Repository URL"
+msgstr "仓库 URL"
+
+#: src\main\kotlin\scooper\ui\Bucket.kt:230
+msgid "https://github.com/..."
+msgstr "https://github.com/..."
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:66
+#: src\main\kotlin\scooper\ui\Sidebar.kt:73
+#: src\main\kotlin\scooper\ui\Sidebar.kt:205
+#: src\main\kotlin\scooper\ui\Sidebar.kt:212
+msgid "Cleanup"
+msgstr "清理"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:74
+msgid "Free up disk space by removing old versions and downloaded cache files."
+msgstr "通过删除旧版本和下载缓存来释放磁盘空间。"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:88
+msgid "Download Cache"
+msgstr "下载缓存"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:94
+#: src\main\kotlin\scooper\ui\Cleanup.kt:101
+#: src\main\kotlin\scooper\ui\Cleanup.kt:147
+#: src\main\kotlin\scooper\ui\Cleanup.kt:154
+#: src\main\kotlin\scooper\ui\Cleanup.kt:237
+msgid "Rescan"
+msgstr "重新扫描"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:117
+#: src\main\kotlin\scooper\ui\Cleanup.kt:303
+#, java-format
+msgid "Total Size: {{size}}"
+msgstr "总大小：{{size}}"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:140
+msgid "Old Versions"
+msgstr "旧版本"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:220
+#: src\main\kotlin\scooper\ui\Cleanup.kt:224
+msgid "Clear Cache"
+msgstr "清理缓存"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:247
+msgid "Open Directory"
+msgstr "打开目录"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:288
+msgid "Great, old versions have been cleaned up."
+msgstr "很好，旧版本已清理完毕。"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:346
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
+msgid "Show less"
+msgstr "收起"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:346
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
+msgid "Show more"
+msgstr "展开更多"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:383
+#, java-format
+msgid "{{count}} old versions"
+msgstr "{{count}} 个旧版本"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:392
+msgid "*global*"
+msgstr "*全局*"
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:196
+msgid "Cleaning..."
+msgstr "清理中..."
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:204
+msgid "Scanning..."
+msgstr "扫描中..."
+
+#: src\main\kotlin\scooper\ui\Cleanup.kt:317
+msgid "Clean All"
+msgstr "全部清理"
+
+#: src\main\kotlin\scooper\ui\Main.kt:400
+#: src\main\kotlin\scooper\ui\Sidebar.kt:142
+#: src\main\kotlin\scooper\ui\Sidebar.kt:149
+msgid "Scooper"
+msgstr "Scooper"
+
+#: src\main\kotlin\scooper\ui\Main.kt:408
+msgid "Scoop Package Manager GUI"
+msgstr "Scoop 包管理器图形界面"
+
+#: src\main\kotlin\scooper\ui\Navigation.kt:75
 msgid "More Actions"
 msgstr "更多操作"
 
-msgid "View Logs"
-msgstr "查看日志"
-
-msgid "About"
-msgstr "关于"
-
+#: src\main\kotlin\scooper\ui\Navigation.kt:183
 msgid "Refreshing Scoop (Ctrl+Click: Full Reload)"
 msgstr "刷新 Scoop（Ctrl+点击：完全重载）"
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:214
 msgid "Refreshing"
 msgstr "刷新中"
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:216
 msgid "Add Bucket: "
 msgstr "添加仓库："
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:220
 msgid "Remove Bucket: "
 msgstr "删除仓库："
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:224
 msgid "Download: "
 msgstr "下载："
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:228
+#: src\main\kotlin\scooper\ui\Navigation.kt:232
 msgid "Install: "
 msgstr "安装："
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:236
 msgid "Uninstall: "
 msgstr "卸载："
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:240
 msgid "Update: "
 msgstr "更新："
 
+#: src\main\kotlin\scooper\ui\Navigation.kt:260
 msgid "Reorder Task"
 msgstr "调整任务顺序"
 
-msgid "Show Console Logs"
-msgstr "显示控制台日志"
+#: src\main\kotlin\scooper\ui\Navigation.kt:82
+#: src\main\kotlin\scooper\ui\Navigation.kt:84
+#: src\main\kotlin\scooper\ui\Sidebar.kt:74
+#: src\main\kotlin\scooper\ui\Sidebar.kt:227
+#: src\main\kotlin\scooper\ui\Sidebar.kt:234
+msgid "Settings"
+msgstr "设置"
 
-msgid "Console"
-msgstr "控制台"
+#: src\main\kotlin\scooper\ui\Navigation.kt:92
+#: src\main\kotlin\scooper\ui\Navigation.kt:94
+msgid "View Logs"
+msgstr "查看日志"
 
-msgid "Waiting"
-msgstr "等待中"
+#: src\main\kotlin\scooper\ui\Navigation.kt:102
+#: src\main\kotlin\scooper\ui\Navigation.kt:104
+#: src\main\kotlin\scooper\ui\Settings.kt:457
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:33
+msgid "About"
+msgstr "关于"
 
-msgid "Cancel"
-msgstr "取消"
+#: src\main\kotlin\scooper\ui\Output.kt:70
+msgid "Clear"
+msgstr "清除"
 
-msgid "Update"
+#: src\main\kotlin\scooper\ui\Search.kt:78
+msgid "Best Match"
+msgstr "最佳匹配"
+
+#: src\main\kotlin\scooper\ui\Search.kt:79
+#: src\main\kotlin\scooper\ui\Search.kt:85
+msgid "Recently Updated"
+msgstr "最近更新"
+
+#: src\main\kotlin\scooper\ui\Search.kt:80
+#: src\main\kotlin\scooper\ui\Search.kt:86
+msgid "Recently Added"
+msgstr "最近添加"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:55
+#: src\main\kotlin\scooper\ui\Search.kt:81
+#: src\main\kotlin\scooper\ui\Search.kt:87
+msgid "Name"
+msgstr "名称"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:228
+#: src\main\kotlin\scooper\ui\Search.kt:148
+msgid "Search"
+msgstr "搜索"
+
+#: src\main\kotlin\scooper\ui\Search.kt:156
+msgid "Search packages... (supports OR, -exclude)"
+msgstr "搜索软件包... (支持 OR、-排除)"
+
+#: src\main\kotlin\scooper\ui\Search.kt:257
+#: src\main\kotlin\scooper\ui\Search.kt:264
+msgid "List View"
+msgstr "列表视图"
+
+#: src\main\kotlin\scooper\ui\Search.kt:270
+#: src\main\kotlin\scooper\ui\Search.kt:277
+msgid "Grid View"
+msgstr "网格视图"
+
+#: src\main\kotlin\scooper\ui\Search.kt:293
+msgid "Waterfall Scroll"
+msgstr "瀑布流"
+
+#: src\main\kotlin\scooper\ui\Search.kt:300
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:126
+msgid "Waterfall"
+msgstr "瀑布流"
+
+#: src\main\kotlin\scooper\ui\Search.kt:306
+msgid "Paginated"
+msgstr "分页"
+
+#: src\main\kotlin\scooper\ui\Search.kt:313
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:127
+msgid "Pagination"
+msgstr "分页"
+
+#: src\main\kotlin\scooper\ui\Search.kt:352
+#: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:48
+msgid "All Installed"
+msgstr "全部已安装"
+
+#: src\main\kotlin\scooper\ui\Search.kt:366
+#: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:54
+msgid "Updates"
 msgstr "更新"
 
-msgid "Uninstall"
-msgstr "卸载"
+#: src\main\kotlin\scooper\ui\Search.kt:411
+#: src\main\kotlin\scooper\ui\Search.kt:456
+msgid "All Buckets"
+msgstr "所有仓库"
 
-msgid "Install Globally"
-msgstr "全局安装"
+#: src\main\kotlin\scooper\ui\Search.kt:595
+msgid "Ascending"
+msgstr "升序"
 
-msgid "Download Only"
-msgstr "仅下载"
+#: src\main\kotlin\scooper\ui\Search.kt:595
+msgid "Descending"
+msgstr "降序"
 
-msgid "Install Version..."
-msgstr "安装指定版本..."
-
-msgid "Open {{path}}"
-msgstr "打开 {{path}}"
-
-msgid "Rows per page:"
-msgstr "每页行数："
-
-msgid "OK"
-msgstr "确定"
-
+#: src\main\kotlin\scooper\ui\Settings.kt:163
 msgid "General Settings"
 msgstr "通用设置"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:163
 msgid "Manage core configuration for Scoop."
 msgstr "管理 Scoop 的核心配置。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:167
 msgid "Proxy"
 msgstr "代理"
 
-msgid "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."
+#: src\main\kotlin\scooper\ui\Settings.kt:168
+msgid ""
+"By default, Scoop will use the proxy settings from Internet Options, but "
+"with anonymous authentication."
 msgstr "默认情况下，Scoop 会使用 Internet 选项中的代理设置，但使用匿名认证。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:175
 msgid "Proxy Address:"
 msgstr "代理地址："
 
+#: src\main\kotlin\scooper\ui\Settings.kt:194
 msgid "Enable Aria2"
 msgstr "启用 Aria2"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:195
 msgid "Aria2c will be used for downloading of artifacts to speed up transfers."
 msgstr "Aria2c 将用于下载文件以加速传输。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:262
 msgid "UI Settings"
 msgstr "界面设置"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:262
 msgid "Customize the application appearance."
 msgstr "自定义应用程序外观。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:285
 msgid "Auto Refresh"
 msgstr "自动刷新"
 
-msgid "When enabled, Scooper will automatically run \"scoop update\" to check for updates."
+#: src\main\kotlin\scooper\ui\Settings.kt:286
+msgid ""
+"When enabled, Scooper will automatically run \"scoop update\" to check for "
+"updates."
 msgstr "启用后，Scooper 将自动运行 \"scoop update\" 来检查更新。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:300
 msgid "Refresh on Startup"
 msgstr "启动时刷新"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:301
 msgid "Run \"scoop update\" once after startup."
 msgstr "启动后运行一次 \"scoop update\"。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:314
 msgid "Periodic Refresh"
 msgstr "定时刷新"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:315
 msgid "Periodically run \"scoop update\" at a fixed interval."
 msgstr "按固定间隔定期运行 \"scoop update\"。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:329
 msgid "Interval"
 msgstr "间隔"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:330
 msgid "How often to check for updates."
 msgstr "多久检查一次更新。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:345
 msgid "Language"
 msgstr "语言"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:346
 msgid "Choose the display language."
 msgstr "选择显示语言。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:361
 msgid "Switch Theme"
 msgstr "切换主题"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:371
 msgid "Default View Mode"
 msgstr "默认视图模式"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:372
 msgid "Choose how packages are displayed in the list."
 msgstr "选择软件包在列表中的显示方式。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:383
 msgid "Default Pagination Mode"
 msgstr "默认分页模式"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:384
 msgid "Choose how packages are paginated."
 msgstr "选择软件包的分页方式。"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:396
 msgid "Font Size"
 msgstr "字体大小"
 
+#: src\main\kotlin\scooper\ui\Settings.kt:397
 msgid "Adjust the application font size. Changes take effect immediately."
 msgstr "调整应用程序字体大小。更改立即生效。"
 
-msgid "System Tray Icon"
-msgstr "系统托盘图标"
-
-msgid "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."
-msgstr "在任务栏保留托盘图标。关闭窗口时将隐藏到托盘而不是退出。"
-
-msgid "Show FPS"
-msgstr "显示帧率"
-
-msgid "Display frame rate in the status bar. This setting is not persisted."
-msgstr "在状态栏中显示帧率。此设置不会持久化。"
-
+#: src\main\kotlin\scooper\ui\Settings.kt:457
 msgid "Information about this application."
 msgstr "关于此应用程序的信息。"
 
-msgid "Version: {{version}}"
-msgstr "版本：{{version}}"
-
+#: src\main\kotlin\scooper\ui\Settings.kt:482
 msgid "GitHub"
 msgstr "GitHub"
 
-msgid "Discard"
-msgstr "放弃更改"
+#: src\main\kotlin\scooper\ui\Settings.kt:475
+#, java-format
+msgid "Version: {{version}}"
+msgstr "版本：{{version}}"
 
-msgid "Apply Changes"
-msgstr "应用更改"
+#: src\main\kotlin\scooper\ui\Sidebar.kt:67
+#: src\main\kotlin\scooper\ui\Sidebar.kt:162
+#: src\main\kotlin\scooper\ui\Sidebar.kt:169
+msgid "Discover"
+msgstr "发现"
 
-msgid "Back"
-msgstr "返回"
+#: src\main\kotlin\scooper\ui\Sidebar.kt:72
+#: src\main\kotlin\scooper\ui\Sidebar.kt:190
+#: src\main\kotlin\scooper\ui\Sidebar.kt:197
+msgid "Buckets"
+msgstr "仓库"
 
+#: src\main\kotlin\scooper\ui\Sidebar.kt:160
+msgid "LIBRARY"
+msgstr "库"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:188
+msgid "SOURCES"
+msgstr "源"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:203
+msgid "TOOLS"
+msgstr "工具"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:95
+#: src\main\kotlin\scooper\ui\Sidebar.kt:216
+#: src\main\kotlin\scooper\ui\Sidebar.kt:220
+msgid "Search Online"
+msgstr "在线搜索"
+
+#: src\main\kotlin\scooper\ui\StatusBar.kt:56
+msgid "Show Console Logs"
+msgstr "显示控制台日志"
+
+#: src\main\kotlin\scooper\ui\StatusBar.kt:76
+msgid "Console"
+msgstr "控制台"
+
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:56
+#, java-format
+msgid "Select Version — {{name}}"
+msgstr "选择版本 — {{name}}"
+
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:61
+#, java-format
+msgid "{{count}} version(s) available"
+msgstr "{{count}} 个可用版本"
+
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:91
+msgid "No versions available"
+msgstr "无可用版本"
+
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:164
+msgid "(installed)"
+msgstr "(已安装)"
+
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:185
+msgid "Git"
+msgstr "Git"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:299
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:305
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:331
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:217
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:201
+msgid "Install"
+msgstr "安装"
+
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:224
+msgid "Global"
+msgstr "全局"
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:206
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:253
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:125
+msgid "Close"
+msgstr "关闭"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:332
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:68
+#: src\main\kotlin\scooper\ui\components\ConfirmDialog.kt:59
+msgid "Cancel"
+msgstr "取消"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:68
+msgid "Waiting"
+msgstr "等待中"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:94
+msgid "Update"
+msgstr "更新"
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:289
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:353
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:656
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:130
+msgid "Open"
+msgstr "打开"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:166
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:251
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:272
+msgid "Uninstall"
+msgstr "卸载"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:262
+#, java-format
+msgid "Open {{path}}"
+msgstr "打开 {{path}}"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:230
+msgid "Install Globally"
+msgstr "全局安装"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:236
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:280
+msgid "Download Only"
+msgstr "仅下载"
+
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:243
+#: src\main\kotlin\scooper\ui\components\ActionButton.kt:289
+msgid "Install Version..."
+msgstr "安装指定版本..."
+
+#: src\main\kotlin\scooper\ui\components\ConfirmDialog.kt:71
+msgid "OK"
+msgstr "确定"
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:44
+msgid "Rows per page:"
+msgstr "每页行数："
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:274
 msgid "SETTINGS"
 msgstr "设置"
 
-msgid "{{name}} has been {{past}}."
-msgstr "{{name}} 已{{past}}。"
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:204
+msgid "Discard"
+msgstr "放弃更改"
 
-msgid "Failed to {{lower}} {{name}}."
-msgstr "{{name}} {{lower}}失败。"
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:217
+msgid "Apply Changes"
+msgstr "应用更改"
 
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:265
+msgid "Back"
+msgstr "返回"
+
+#: src\main\kotlin\scooper\service\ScoopSearchService.kt:105
+msgid "Invalid server response"
+msgstr "服务器响应无效"
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:286
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:350
+msgid "Open in editor"
+msgstr "在编辑器中打开"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:54
+msgid "Best match"
+msgstr "最佳匹配"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:56
+msgid "Newest"
+msgstr "最新"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:147
+#, java-format
+msgid "No results found for \"{{query}}\""
+msgstr "未找到 \"{{query}}\" 的结果"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:271
+msgid "Official buckets"
+msgstr "官方仓库"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:271
+msgid "All buckets"
+msgstr "所有仓库"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:288
+msgid "Search options"
+msgstr "搜索选项"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:305
+msgid "Sorting"
+msgstr "排序"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:329
+msgid "Filtering"
+msgstr "筛选"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:334
+msgid "Official buckets only"
+msgstr "仅官方仓库"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:339
+msgid "Distinct manifests only"
+msgstr "仅不同的清单"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:347
+msgid "Option"
+msgstr "选项"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:352
+msgid "Show bucket name"
+msgstr "显示仓库名称"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:414
+#, java-format
+msgid "Found {{count}} result for \"{{query}}\""
+msgid_plural "Found {{count}} results for \"{{query}}\""
+msgstr[0] "找到 \"{{query}}\" 的 {{count}} 个结果"
+msgstr[1] "找到 \"{{query}}\" 的 {{count}} 个结果"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:420
+#, java-format
+msgid "Found {{count}} result"
+msgid_plural "Found {{count}} results"
+msgstr[0] "找到 {{count}} 个结果"
+msgstr[1] "找到 {{count}} 个结果"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:631
+msgid "Updated today"
+msgstr "今天更新"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:632
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:633
+#, java-format
+msgid "Updated {{n}} day ago"
+msgid_plural "Updated {{n}} days ago"
+msgstr[0] "{{n}} 天前更新"
+msgstr[1] "{{n}} 天前更新"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:636
+#, java-format
+msgid "Updated {{n}} month ago"
+msgid_plural "Updated {{n}} months ago"
+msgstr[0] "{{n}} 个月前更新"
+msgstr[1] "{{n}} 个月前更新"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:640
+#, java-format
+msgid "Updated {{n}} year ago"
+msgid_plural "Updated {{n}} years ago"
+msgstr[0] "{{n}} 年前更新"
+msgstr[1] "{{n}} 年前更新"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:683
+msgid "Search packages curated by"
+msgstr "搜索由以下维护的软件包"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:692
+msgid "· Supported search syntax:"
+msgstr "· 支持的搜索语法："
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:697
+msgid "Search name and description"
+msgstr "搜索名称和描述"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:698
+msgid "Both terms required"
+msgstr "两个词都必须出现"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:699
+msgid "Either term"
+msgstr "任一条件满足"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:700
+msgid "Exclude term"
+msgstr "排除条件"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:701
+msgid "Exact phrase"
+msgstr "精确短语"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:702
+msgid "Limit to bucket"
+msgstr "限定仓库"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:703
+msgid "List all in bucket"
+msgstr "列出仓库中所有软件包"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:221
+msgid "Search packages..."
+msgstr "搜索软件包..."
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:62
+msgid "Changelog"
+msgstr "更新日志"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:134
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:139
+msgid "Manifest not available."
+msgstr "清单不可用。"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:266
+#, java-format
 msgid "scoop install {{bucket}}/{{name}}"
 msgstr "scoop install {{bucket}}/{{name}}"
 
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:293
 msgid "Installing..."
 msgstr "安装中..."
 
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:330
+#, java-format
+msgid "Install {{name}}"
+msgstr "安装 {{name}}"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:346
 msgid "This will install the app and its bucket if not already added."
 msgstr "这将安装应用并自动添加仓库（如果尚未添加）。"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:373
+msgid "Bucket name is required"
+msgstr "仓库名称必填"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:373
+msgid "Bucket name used locally by Scoop."
+msgstr "用作 Scoop 中的本地仓库别名。"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:382
+msgid "Commands"
+msgstr "命令"
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:267
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:585
+msgid "View releases on GitHub"
+msgstr "在 GitHub 上查看发布"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:653
+msgid "Open manifest page"
+msgstr "打开清单页面"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:696
+msgid "View manifest instead"
+msgstr "改为查看清单"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:768
+msgid "Loading manifest..."
+msgstr "正在加载清单..."
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:823
+msgid "Today"
+msgstr "今天"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:824
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:825
+#, java-format
+msgid "{{n}} day ago"
+msgid_plural "{{n}} days ago"
+msgstr[0] "{{n}} 天前"
+msgstr[1] "{{n}} 天前"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:828
+#, java-format
+msgid "{{n}} month ago"
+msgid_plural "{{n}} months ago"
+msgstr[0] "{{n}} 个月前"
+msgstr[1] "{{n}} 个月前"
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:832
+#, java-format
+msgid "{{n}} year ago"
+msgid_plural "{{n}} years ago"
+msgstr[0] "{{n}} 年前"
+msgstr[1] "{{n}} 年前"
+
+#: src\main\kotlin\scooper\ui\Search.kt:499
+msgid "Sort By"
+msgstr "排序方式"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:176
+msgid "[username:password@]host:port"
+msgstr "[用户名:密码@]主机:端口"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:420
+msgid "System Tray Icon"
+msgstr "系统托盘图标"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:421
+msgid ""
+"Keep a tray icon in the taskbar. Closing the window hides it to tray instead "
+"of exiting."
+msgstr "在任务栏保留托盘图标。关闭窗口时将隐藏到托盘而不是退出。"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:437
+msgid "Show FPS"
+msgstr "显示帧率"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:438
+msgid "Display frame rate in the status bar. This setting is not persisted."
+msgstr "在状态栏中显示帧率。此设置不会持久化。"
+
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:114
+msgid "View on GitHub"
+msgstr "在 GitHub 上查看"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:66
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:157
+msgid "Dropdown Arrow"
+msgstr "下拉箭头"
+
+#: src\main\kotlin\scooper\ui\components\Link.kt:93
+msgid "Open Link"
+msgstr "打开链接"
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:31
+msgid "General"
+msgstr "常规"
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:32
+msgid "UI"
+msgstr "界面"
+
+#: src\main\kotlin\scooper\util\TrayManager.kt:43
+msgid "Show Scooper"
+msgstr "显示 Scooper"
+
+#: src\main\kotlin\scooper\util\TrayManager.kt:52
+msgid "Exit"
+msgstr "退出"
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:335
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:148
+#, java-format
+msgid "Failed to add {{name}}."
+msgstr "添加 {{name}} 失败。"
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:337
+#, java-format
+msgid "{{name}} has been added."
+msgstr "{{name}} 已添加。"
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:461
+#, java-format
+msgid "Failed to get manifest for {{name}}@{{version}}."
+msgstr "获取 {{name}}@{{version}} 的清单失败。"
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:474
+#, java-format
+msgid "Failed to install {{name}}@{{version}}."
+msgstr "安装 {{name}}@{{version}} 失败。"
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:476
+#, java-format
+msgid "{{name}}@{{version}} has been installed."
+msgstr "{{name}}@{{version}} 已安装。"
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:222
+msgid "Unable to connect to search server. Please check your network."
+msgstr "无法连接到搜索服务器，请检查网络。"
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:223
+msgid "Unable to reach search server. Please check your network."
+msgstr "无法访问搜索服务器，请检查网络。"
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:224
+msgid "Search server timed out. Please try again."
+msgstr "搜索服务器超时，请重试。"
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:225
+msgid "Connection to search server failed. Please try again."
+msgstr "连接搜索服务器失败，请重试。"
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:226
+msgid "Search failed. Please try again."
+msgstr "搜索失败，请重试。"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:65
+msgid "Default"
+msgstr "默认"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:66
+msgid "None"
+msgstr "无"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:67
+msgid "Custom"
+msgstr "自定义"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:76
+msgid "Invalid proxy address."
+msgstr "无效的代理地址。"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:110
+#, java-format
+msgid "{{n}} min"
+msgstr "{{n}} 分钟"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:111
+#, java-format
+msgid "{{n}} hour"
+msgstr "{{n}} 小时"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:112
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:113
+#, java-format
+msgid "{{n}} hours"
+msgstr "{{n}} 小时"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:117
+msgid "Auto"
+msgstr "自动"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:118
+msgid "Light"
+msgstr "浅色"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:119
+msgid "Dark"
+msgstr "深色"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:122
+msgid "List"
+msgstr "列表"
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:123
+msgid "Grid"
+msgstr "网格"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:431
+msgid "Interface Font"
+msgstr "界面字体"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:432
+msgid "Choose the font used to render the interface. Changes take effect immediately."
+msgstr "选择界面使用的字体。更改立即生效。"
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:87
+msgid "First"
+msgstr "首页"
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:98
+msgid "Prev"
+msgstr "上一页"
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:151
+msgid "Next"
+msgstr "下一页"
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:160
+msgid "Last"
+msgstr "末页"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:22
+#, java-format
+msgid "{{name}} has been installed."
+msgstr "{{name}} 已安装。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:23
+#, java-format
+msgid "Failed to install {{name}}."
+msgstr "安装 {{name}} 失败。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:25
+#, java-format
+msgid "{{name}} has been uninstalled."
+msgstr "{{name}} 已卸载。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:26
+#, java-format
+msgid "Failed to uninstall {{name}}."
+msgstr "卸载 {{name}} 失败。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:28
+#, java-format
+msgid "{{name}} has been updated."
+msgstr "{{name}} 已更新。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:29
+#, java-format
+msgid "Failed to update {{name}}."
+msgstr "更新 {{name}} 失败。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:31
+#, java-format
+msgid "{{name}} has been downloaded."
+msgstr "{{name}} 已下载。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:32
+#, java-format
+msgid "Failed to download {{name}}."
+msgstr "下载 {{name}} 失败。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:34
+#, java-format
+msgid "{{name}} has been removed."
+msgstr "{{name}} 已移除。"
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:35
+#, java-format
+msgid "Failed to remove bucket {{name}}."
+msgstr "移除仓库 {{name}} 失败。"

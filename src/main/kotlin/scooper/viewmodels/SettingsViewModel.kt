@@ -15,6 +15,7 @@ import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
+import scooper.util.tr
 
 data class SettingsState(
     val uiConfig: UIConfig = UIConfig(),
@@ -53,17 +54,36 @@ class SettingsViewModel(
         reduce { state.copy(uiConfig = state.uiConfig.copy(showTrayIcon = enabled)) }
     }
 
+    /**
+     * Switch the interface language immediately: update the state and write
+     * through to the database (same pattern as switchFontFamily), so the
+     * choice survives restart without the Apply flow. Not part of
+     * uiFormState on purpose; writeUIConfig re-reads the live value from the
+     * state flow, so Apply never rolls the language back.
+     */
     fun switchLocale(localeTag: String) = intent {
         reduce { state.copy(uiConfig = state.uiConfig.copy(locale = localeTag)) }
+        configRepository.setConfig(configRepository.getConfig().copy(locale = localeTag))
+    }
+
+    /**
+     * Switch the user-selected interface font family immediately: update the
+     * state and write through to the database (same pattern as
+     * AppsViewModel.setViewMode), so the choice survives restart without the
+     * Apply flow. Not part of uiFormState/writeUIConfig on purpose.
+     */
+    fun switchFontFamily(name: String) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(fontFamily = name)) }
+        configRepository.setConfig(configRepository.getConfig().copy(fontFamily = name))
     }
 
     val scoopFormState = FormState(
         fields = listOf(
             ChoiceState(
                 "proxyType", initial = "default", validators = listOf(Validators.ValidChoice()), choices = mapOf(
-                    "default" to "Default",
-                    "none" to "None",
-                    "custom" to "Custom"
+                    "default" to tr("Default"),
+                    "none" to tr("None"),
+                    "custom" to tr("Custom")
                 )
             ),
             TextFieldState(
@@ -72,7 +92,7 @@ class SettingsViewModel(
                     transformProxy(it)
                 },
                 validators = listOf(
-                    Validators.Custom("Invalid proxy address.") {
+                    Validators.Custom(tr("Invalid proxy address.")) {
                         validateProxy(it as String)
                     },
                 )
@@ -87,15 +107,25 @@ class SettingsViewModel(
             SwitchState("periodicRefreshEnabled"),
             ChoiceState(
                 "autoRefreshIntervalMinutes", initial = "120", validators = listOf(), choices = mapOf(
-                    "30" to "30 min",
-                    "60" to "1 hour",
-                    "120" to "2 hours",
-                    "240" to "4 hours",
+                    "30" to tr("{{n}} min", "n" to "30"),
+                    "60" to tr("{{n}} hour", "n" to "1"),
+                    "120" to tr("{{n}} hours", "n" to "2"),
+                    "240" to tr("{{n}} hours", "n" to "4"),
                 )
             ),
-            ChoiceState("theme", validators = listOf(), choices = Theme.values().associate { it.name to it.name }),
-            ChoiceState("viewMode", validators = listOf(), choices = ViewMode.values().associate { it.name to it.name }),
-            ChoiceState("paginationMode", validators = listOf(), choices = PaginationMode.values().associate { it.name to it.name }),
+            ChoiceState("theme", validators = listOf(), choices = mapOf(
+                "Auto" to tr("Auto"),
+                "Light" to tr("Light"),
+                "Dark" to tr("Dark"),
+            )),
+            ChoiceState("viewMode", validators = listOf(), choices = mapOf(
+                "List" to tr("List"),
+                "Grid" to tr("Grid"),
+            )),
+            ChoiceState("paginationMode", validators = listOf(), choices = mapOf(
+                "Waterfall" to tr("Waterfall"),
+                "Pagination" to tr("Pagination"),
+            )),
             SwitchState("showTrayIcon"),
         )
     )

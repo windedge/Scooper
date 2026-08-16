@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
+import scooper.util.tr
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -43,10 +44,10 @@ data class ScoopSearchMetadata(
     }
 }
 
-enum class ScoopSearchSort(val label: String, val orderBy: String) {
-    BestMatch("Best match", "relevance"),
-    Name("Name", "name"),
-    Newest("Newest", "newest"),
+enum class ScoopSearchSort(val key: String, val orderBy: String) {
+    BestMatch("best_match", "relevance"),
+    Name("name", "name"),
+    Newest("newest", "newest"),
 }
 
 class ScoopSearchService : AutoCloseable {
@@ -101,7 +102,7 @@ class ScoopSearchService : AutoCloseable {
             json.decodeFromString<ScoopSearchResult>(responseBody)
         } catch (e: Exception) {
             logger.error("Failed to parse search response", e)
-            throw SearchException("Invalid server response")
+            throw SearchException(tr("Invalid server response"))
         }
     }
 

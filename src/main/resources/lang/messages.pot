@@ -13,74 +13,91 @@ msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \n\nPO-Revisi
 msgid "No Results"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:274
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:279
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:343
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:638
 msgid "Copy to clipboard"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:277
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:282
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:346
 #: src\main\kotlin\scooper\ui\Output.kt:63
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:444
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:460
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:641
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:162
 msgid "Copy"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:329
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:68
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:334
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:63
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:615
 msgid "Manifest"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:388
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:393
 msgid "Not a GitHub repository."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:408
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:413
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:710
 msgid "No releases found."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:432
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:437
 msgid "Manifest not found."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:485
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:490
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:491
 msgid "Version"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:510
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:515
 msgid "Status"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:512
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:517
 #: src\main\kotlin\scooper\ui\Sidebar.kt:68
 #: src\main\kotlin\scooper\ui\Sidebar.kt:173
 #: src\main\kotlin\scooper\ui\Sidebar.kt:182
 msgid "Installed"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:513
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:518
 msgid "Failed"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:514
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:519
 msgid "Update Available"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:515
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:520
 msgid "Not Installed"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:534
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:539
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:500
 msgid "Homepage"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:544
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:549
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:512
 msgid "License"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:554
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:559
 msgid "Added"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:562
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:567
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:554
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:521
 msgid "Updated"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\AppCard.kt:191
 #: src\main\kotlin\scooper\ui\AppGrid.kt:180
 msgid "No description available."
 msgstr ""
@@ -133,10 +150,12 @@ msgid "Add a custom Scoop bucket by name and repository URL."
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:194
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:354
 msgid "Bucket Name"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:205
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:367
 msgid "e.g. extras"
 msgstr ""
 
@@ -203,10 +222,12 @@ msgid "Great, old versions have been cleaned up."
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:346
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
 msgid "Show less"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:346
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
 msgid "Show more"
 msgstr ""
 
@@ -297,7 +318,8 @@ msgstr ""
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:102
 #: src\main\kotlin\scooper\ui\Navigation.kt:104
-#: src\main\kotlin\scooper\ui\Settings.kt:457
+#: src\main\kotlin\scooper\ui\Settings.kt:530
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:33
 msgid "About"
 msgstr ""
 
@@ -319,11 +341,13 @@ msgstr ""
 msgid "Recently Added"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:55
 #: src\main\kotlin\scooper\ui\Search.kt:81
 #: src\main\kotlin\scooper\ui\Search.kt:87
 msgid "Name"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:228
 #: src\main\kotlin\scooper\ui\Search.kt:148
 msgid "Search"
 msgstr ""
@@ -347,6 +371,7 @@ msgid "Waterfall Scroll"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Search.kt:300
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:126
 msgid "Waterfall"
 msgstr ""
 
@@ -355,14 +380,17 @@ msgid "Paginated"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Search.kt:313
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:127
 msgid "Pagination"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Search.kt:352
+#: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:48
 msgid "All Installed"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Search.kt:366
+#: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:54
 msgid "Updates"
 msgstr ""
 
@@ -379,119 +407,119 @@ msgstr ""
 msgid "Descending"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:163
+#: src\main\kotlin\scooper\ui\Settings.kt:168
 msgid "General Settings"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:163
+#: src\main\kotlin\scooper\ui\Settings.kt:168
 msgid "Manage core configuration for Scoop."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:167
+#: src\main\kotlin\scooper\ui\Settings.kt:172
 msgid "Proxy"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:168
+#: src\main\kotlin\scooper\ui\Settings.kt:173
 msgid "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:175
+#: src\main\kotlin\scooper\ui\Settings.kt:180
 msgid "Proxy Address:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:194
+#: src\main\kotlin\scooper\ui\Settings.kt:199
 msgid "Enable Aria2"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:195
+#: src\main\kotlin\scooper\ui\Settings.kt:200
 msgid "Aria2c will be used for downloading of artifacts to speed up transfers."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:262
+#: src\main\kotlin\scooper\ui\Settings.kt:276
 msgid "UI Settings"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:262
+#: src\main\kotlin\scooper\ui\Settings.kt:276
 msgid "Customize the application appearance."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:285
+#: src\main\kotlin\scooper\ui\Settings.kt:299
 msgid "Auto Refresh"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:286
+#: src\main\kotlin\scooper\ui\Settings.kt:300
 msgid "When enabled, Scooper will automatically run \"scoop update\" to check for updates."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:300
+#: src\main\kotlin\scooper\ui\Settings.kt:314
 msgid "Refresh on Startup"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:301
+#: src\main\kotlin\scooper\ui\Settings.kt:315
 msgid "Run \"scoop update\" once after startup."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:314
+#: src\main\kotlin\scooper\ui\Settings.kt:328
 msgid "Periodic Refresh"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:315
+#: src\main\kotlin\scooper\ui\Settings.kt:329
 msgid "Periodically run \"scoop update\" at a fixed interval."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:329
+#: src\main\kotlin\scooper\ui\Settings.kt:343
 msgid "Interval"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:330
+#: src\main\kotlin\scooper\ui\Settings.kt:344
 msgid "How often to check for updates."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:345
+#: src\main\kotlin\scooper\ui\Settings.kt:359
 msgid "Language"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:346
+#: src\main\kotlin\scooper\ui\Settings.kt:360
 msgid "Choose the display language."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:361
+#: src\main\kotlin\scooper\ui\Settings.kt:374
 msgid "Switch Theme"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:371
+#: src\main\kotlin\scooper\ui\Settings.kt:384
 msgid "Default View Mode"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:372
+#: src\main\kotlin\scooper\ui\Settings.kt:385
 msgid "Choose how packages are displayed in the list."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:383
+#: src\main\kotlin\scooper\ui\Settings.kt:396
 msgid "Default Pagination Mode"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:384
+#: src\main\kotlin\scooper\ui\Settings.kt:397
 msgid "Choose how packages are paginated."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:396
+#: src\main\kotlin\scooper\ui\Settings.kt:409
 msgid "Font Size"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:397
+#: src\main\kotlin\scooper\ui\Settings.kt:410
 msgid "Adjust the application font size. Changes take effect immediately."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:457
+#: src\main\kotlin\scooper\ui\Settings.kt:530
 msgid "Information about this application."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:482
+#: src\main\kotlin\scooper\ui\Settings.kt:555
 msgid "GitHub"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:475
+#: src\main\kotlin\scooper\ui\Settings.kt:548
 #, java-format
 msgid "Version: {{version}}"
 msgstr ""
@@ -520,6 +548,7 @@ msgstr ""
 msgid "TOOLS"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:95
 #: src\main\kotlin\scooper\ui\Sidebar.kt:216
 #: src\main\kotlin\scooper\ui\Sidebar.kt:220
 msgid "Search Online"
@@ -555,6 +584,9 @@ msgstr ""
 msgid "Git"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:299
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:305
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:331
 #: src\main\kotlin\scooper\ui\VersionPicker.kt:217
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:201
 msgid "Install"
@@ -564,10 +596,13 @@ msgstr ""
 msgid "Global"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:206
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:253
 #: src\main\kotlin\scooper\ui\VersionPicker.kt:125
 msgid "Close"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:332
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:68
 #: src\main\kotlin\scooper\ui\components\ConfirmDialog.kt:59
 msgid "Cancel"
@@ -581,6 +616,9 @@ msgstr ""
 msgid "Update"
 msgstr ""
 
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:294
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:358
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:656
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:130
 msgid "Open"
 msgstr ""
@@ -618,28 +656,465 @@ msgstr ""
 msgid "Rows per page:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:268
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:274
 msgid "SETTINGS"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:198
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:204
 msgid "Discard"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:211
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:217
 msgid "Apply Changes"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:259
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:265
 msgid "Back"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:28
+#: src\main\kotlin\scooper\service\ScoopSearchService.kt:105
+msgid "Invalid server response"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:291
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:355
+msgid "Open in editor"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:54
+msgid "Best match"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:56
+msgid "Newest"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:147
 #, java-format
-msgid "{{name}} has been {{past}}."
+msgid "No results found for \"{{query}}\""
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:271
+msgid "Official buckets"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:271
+msgid "All buckets"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:288
+msgid "Search options"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:305
+msgid "Sorting"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:329
+msgid "Filtering"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:334
+msgid "Official buckets only"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:339
+msgid "Distinct manifests only"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:347
+msgid "Option"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:352
+msgid "Show bucket name"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:414
+#, java-format
+msgid "Found {{count}} result for \"{{query}}\""
+msgid_plural "Found {{count}} results for \"{{query}}\""
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:420
+#, java-format
+msgid "Found {{count}} result"
+msgid_plural "Found {{count}} results"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:631
+msgid "Updated today"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:632
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:633
+#, java-format
+msgid "Updated {{n}} day ago"
+msgid_plural "Updated {{n}} days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:636
+#, java-format
+msgid "Updated {{n}} month ago"
+msgid_plural "Updated {{n}} months ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:640
+#, java-format
+msgid "Updated {{n}} year ago"
+msgid_plural "Updated {{n}} years ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:683
+msgid "Search packages curated by"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:692
+msgid "· Supported search syntax:"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:697
+msgid "Search name and description"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:698
+msgid "Both terms required"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:699
+msgid "Either term"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:700
+msgid "Exclude term"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:701
+msgid "Exact phrase"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:702
+msgid "Limit to bucket"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:703
+msgid "List all in bucket"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:221
+msgid "Search packages..."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:67
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:62
+msgid "Changelog"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:134
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:139
+msgid "Manifest not available."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:266
+#, java-format
+msgid "scoop install {{bucket}}/{{name}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:293
+msgid "Installing..."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:330
+#, java-format
+msgid "Install {{name}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:346
+msgid "This will install the app and its bucket if not already added."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:373
+msgid "Bucket name is required"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:373
+msgid "Bucket name used locally by Scoop."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:382
+msgid "Commands"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:272
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:585
+msgid "View releases on GitHub"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:653
+msgid "Open manifest page"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:696
+msgid "View manifest instead"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:768
+msgid "Loading manifest..."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:823
+msgid "Today"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:824
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:825
+#, java-format
+msgid "{{n}} day ago"
+msgid_plural "{{n}} days ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:828
+#, java-format
+msgid "{{n}} month ago"
+msgid_plural "{{n}} months ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:832
+#, java-format
+msgid "{{n}} year ago"
+msgid_plural "{{n}} years ago"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\ui\Search.kt:499
+msgid "Sort By"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:181
+msgid "[username:password@]host:port"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:493
+msgid "System Tray Icon"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:494
+msgid "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:510
+msgid "Show FPS"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:511
+msgid "Display frame rate in the status bar. This setting is not persisted."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:114
+msgid "View on GitHub"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:93
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:250
+msgid "Dropdown Arrow"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\Link.kt:93
+msgid "Open Link"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:31
+msgid "General"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:32
+msgid "UI"
+msgstr ""
+
+#: src\main\kotlin\scooper\util\TrayManager.kt:43
+msgid "Show Scooper"
+msgstr ""
+
+#: src\main\kotlin\scooper\util\TrayManager.kt:52
+msgid "Exit"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:335
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:148
+#, java-format
+msgid "Failed to add {{name}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:337
+#, java-format
+msgid "{{name}} has been added."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:461
+#, java-format
+msgid "Failed to get manifest for {{name}}@{{version}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:474
+#, java-format
+msgid "Failed to install {{name}}@{{version}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:476
+#, java-format
+msgid "{{name}}@{{version}} has been installed."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:222
+msgid "Unable to connect to search server. Please check your network."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:223
+msgid "Unable to reach search server. Please check your network."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:224
+msgid "Search server timed out. Please try again."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:225
+msgid "Connection to search server failed. Please try again."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:226
+msgid "Search failed. Please try again."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:436
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:84
+msgid "Default"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:85
+msgid "None"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:86
+msgid "Custom"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:95
+msgid "Invalid proxy address."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:433
+msgid "Interface Font"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\Settings.kt:434
+msgid "Choose the font used to render the interface. Changes take effect immediately."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:110
+#, java-format
+msgid "{{n}} min"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:111
+#, java-format
+msgid "{{n}} hour"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:112
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:113
+#, java-format
+msgid "{{n}} hours"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:117
+msgid "Auto"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:118
+msgid "Light"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:119
+msgid "Dark"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:122
+msgid "List"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:123
+msgid "Grid"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:87
+msgid "First"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:98
+msgid "Prev"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:151
+msgid "Next"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\PaginationBar.kt:160
+msgid "Last"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:22
+#, java-format
+msgid "{{name}} has been installed."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:23
+#, java-format
+msgid "Failed to install {{name}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:25
+#, java-format
+msgid "{{name}} has been uninstalled."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:26
+#, java-format
+msgid "Failed to uninstall {{name}}."
 msgstr ""
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:28
 #, java-format
-msgid "Failed to {{lower}} {{name}}."
+msgid "{{name}} has been updated."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:29
+#, java-format
+msgid "Failed to update {{name}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:31
+#, java-format
+msgid "{{name}} has been downloaded."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:32
+#, java-format
+msgid "Failed to download {{name}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:34
+#, java-format
+msgid "{{name}} has been removed."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:35
+#, java-format
+msgid "Failed to remove bucket {{name}}."
 msgstr ""

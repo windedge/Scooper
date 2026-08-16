@@ -496,7 +496,7 @@ private fun SortFilterDropdown(
             Icon(Lucide.ArrowUpDown, "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
-                sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
+                sortOptions.find { it.first == sortBy }?.second ?: tr("Sort By"),
                 style = typography.subtitle2.copy(color = colors.onSurface),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

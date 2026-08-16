@@ -47,6 +47,14 @@ import scooper.util.noRippleClickable
 import scooper.util.onHover
 import scooper.util.safeBrowse
 import scooper.viewmodels.ScoopSearchViewModel
+import scooper.util.tr
+import scooper.util.trn
+
+private fun ScoopSearchSort.displayLabel(): String = when (this) {
+    ScoopSearchSort.BestMatch -> tr("Best match")
+    ScoopSearchSort.Name -> tr("Name")
+    ScoopSearchSort.Newest -> tr("Newest")
+}
 
 @OptIn(FlowPreview::class)
 @Composable
@@ -84,7 +92,7 @@ fun ScoopSearchScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Search Online",
+                tr("Search Online"),
                 style = typography.h5.copy(
                     fontWeight = FontWeight.Bold,
                     color = colors.textTitle,
@@ -136,7 +144,7 @@ fun ScoopSearchScreen(
                                 )
                             } else {
                                 Text(
-                                    "No results found for \"${state.query}\"",
+                                    tr("No results found for \"{{query}}\"", "query" to state.query),
                                     style = typography.body1.copy(color = colors.textMuted),
                                 )
                             }
@@ -210,14 +218,14 @@ private fun SearchInput(
             },
         placeholder = {
             Text(
-                "Search packages...",
+                tr("Search packages..."),
                 style = typography.subtitle2.copy(color = colors.textPlaceholder),
             )
         },
         leadingIcon = {
             Icon(
                 Lucide.Search,
-                "Search",
+                tr("Search"),
                 modifier = Modifier.size(18.dp),
                 tint = colors.textPlaceholder,
             )
@@ -260,7 +268,7 @@ private fun SearchOptionsMenu(
     onShowBucketNameChange: (Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val bucketLabel = if (officialOnly) "Official buckets" else "All buckets"
+    val bucketLabel = if (officialOnly) tr("Official buckets") else tr("All buckets")
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Box {
@@ -277,12 +285,12 @@ private fun SearchOptionsMenu(
                 ) {
                     Icon(
                         Lucide.SlidersHorizontal,
-                        "Search options",
+                        tr("Search options"),
                         modifier = Modifier.size(14.dp),
                         tint = colors.textBody,
                     )
                     Text(
-                        "${sort.label}, $bucketLabel",
+                        "${sort.displayLabel()}, $bucketLabel",
                         style = typography.subtitle2.copy(color = colors.textTitle),
                     )
                 }
@@ -294,7 +302,7 @@ private fun SearchOptionsMenu(
                 modifier = Modifier.width(260.dp).background(colors.surface),
             ) {
                 Text(
-                    "Sorting",
+                    tr("Sorting"),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     style = typography.caption.copy(color = colors.textBody),
                 )
@@ -306,7 +314,7 @@ private fun SearchOptionsMenu(
                         },
                     ) {
                         Text(
-                            option.label,
+                            option.displayLabel(),
                             style = typography.body2.copy(
                                 color = if (option == sort) colors.primary else colors.onSurface,
                                 fontWeight = if (option == sort) FontWeight.SemiBold else FontWeight.Normal,
@@ -318,17 +326,17 @@ private fun SearchOptionsMenu(
                 Divider(color = colors.divider)
 
                 Text(
-                    "Filtering",
+                    tr("Filtering"),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     style = typography.caption.copy(color = colors.textBody),
                 )
                 ToggleMenuItem(
-                    text = "Official buckets only",
+                    text = tr("Official buckets only"),
                     checked = officialOnly,
                     onCheckedChange = onOfficialOnlyChange,
                 )
                 ToggleMenuItem(
-                    text = "Distinct manifests only",
+                    text = tr("Distinct manifests only"),
                     checked = distinctOnly,
                     onCheckedChange = onDistinctOnlyChange,
                 )
@@ -336,12 +344,12 @@ private fun SearchOptionsMenu(
                 Divider(color = colors.divider)
 
                 Text(
-                    "Option",
+                    tr("Option"),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     style = typography.caption.copy(color = colors.textBody),
                 )
                 ToggleMenuItem(
-                    text = "Show bucket name",
+                    text = tr("Show bucket name"),
                     checked = showBucketName,
                     onCheckedChange = onShowBucketNameChange,
                 )
@@ -402,8 +410,17 @@ private fun SearchResultsList(
             modifier = Modifier.fillMaxWidth().padding(end = 24.dp, bottom=6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val countLabel = if (query.isNotBlank()) {
+                trn(
+                    "Found {{count}} result for \"{{query}}\"",
+                    "Found {{count}} results for \"{{query}}\"",
+                    totalCount, "count" to "$totalCount", "query" to query,
+                )
+            } else {
+                trn("Found {{count}} result", "Found {{count}} results", totalCount, "count" to "$totalCount")
+            }
             Text(
-                "Found $totalCount result${if (totalCount != 1) "s" else ""}${if (query.isNotBlank()) " for \"$query\"" else ""}",
+                countLabel,
                 style = typography.body2.copy(color = colors.textBody),
             )
             Spacer(Modifier.weight(1f))
@@ -534,7 +551,7 @@ private fun SearchResultCard(
                         ) {
                             Icon(
                                 Lucide.Clock,
-                                "Updated",
+                                tr("Updated"),
                                 modifier = Modifier.size(11.dp),
                                 tint = colors.textMuted,
                             )
@@ -611,11 +628,17 @@ private fun formatCommittedDate(isoDate: String): String {
         val now = java.time.LocalDateTime.now()
         val days = java.time.Duration.between(date, now).toDays()
         when {
-            days < 1 -> "Updated today"
-            days == 1L -> "Updated 1 day ago"
-            days < 30 -> "Updated $days days ago"
-            days < 365 -> "Updated ${days / 30} month${if (days / 30 > 1) "s" else ""} ago"
-            else -> "Updated ${days / 365} year${if (days / 365 > 1) "s" else ""} ago"
+            days < 1 -> tr("Updated today")
+            days == 1L -> trn("Updated {{n}} day ago", "Updated {{n}} days ago", 1, "n" to "1")
+            days < 30 -> trn("Updated {{n}} day ago", "Updated {{n}} days ago", days.toInt(), "n" to "$days")
+            days < 365 -> {
+                val months = (days / 30).toInt()
+                trn("Updated {{n}} month ago", "Updated {{n}} months ago", months, "n" to "$months")
+            }
+            else -> {
+                val years = (days / 365).toInt()
+                trn("Updated {{n}} year ago", "Updated {{n}} years ago", years, "n" to "$years")
+            }
         }
     } catch (_: Exception) {
         ""
@@ -657,7 +680,7 @@ private fun SearchSyntaxGuide(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    "Search packages curated by",
+                    tr("Search packages curated by"),
                     style = typography.body2.copy(color = colors.textBody),
                 )
                 Link(
@@ -666,18 +689,18 @@ private fun SearchSyntaxGuide(modifier: Modifier = Modifier) {
                     onClicked = { safeBrowse("https://github.com/rasa/scoop-directory") },
                 )
                 Text(
-                    "· Supported search syntax:",
+                    tr("· Supported search syntax:"),
                     style = typography.body2.copy(color = colors.textBody),
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SyntaxRow("firefox", "Search name and description")
-                SyntaxRow("firefox portable", "Both terms required")
-                SyntaxRow("firefox OR chrome", "Either term")
-                SyntaxRow("firefox -esr", "Exclude term")
-                SyntaxRow("\"visual studio\"", "Exact phrase")
-                SyntaxRow("firefox bucket:Extras", "Limit to bucket")
-                SyntaxRow("bucket:Extras", "List all in bucket")
+                SyntaxRow("firefox", tr("Search name and description"))
+                SyntaxRow("firefox portable", tr("Both terms required"))
+                SyntaxRow("firefox OR chrome", tr("Either term"))
+                SyntaxRow("firefox -esr", tr("Exclude term"))
+                SyntaxRow("\"visual studio\"", tr("Exact phrase"))
+                SyntaxRow("firefox bucket:Extras", tr("Limit to bucket"))
+                SyntaxRow("bucket:Extras", tr("List all in bucket"))
             }
         }
     }

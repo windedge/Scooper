@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import scooper.service.GitHubRelease
 import scooper.ui.theme.*
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.safeBrowse
 import java.time.Instant
@@ -110,7 +111,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 Tooltip(release.html_url, position = TooltipPosition.Top) {
                     Icon(
                         Lucide.ExternalLink,
-                        "View on GitHub",
+                        tr("View on GitHub"),
                         modifier = Modifier.size(12.dp).cursorHand().clickable { safeBrowse(release.html_url) },
                         tint = colors.textMuted,
                     )
@@ -153,12 +154,12 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 ) {
                     val clipboardManager = LocalClipboardManager.current
                     Link(
-                        text = if (expanded) "Show less" else "Show more",
+                        text = if (expanded) tr("Show less") else tr("Show more"),
                         painter = null,
                         onClicked = { expanded = !expanded },
                     )
                     Text(
-                        "Copy",
+                        tr("Copy"),
                         style = typography.caption.copy(color = colors.primary),
                         modifier = Modifier.cursorHand().clickable {
                             clipboardManager.setText(AnnotatedString(fullBody))
