@@ -17,14 +17,23 @@ sealed class AppSideEffect {
 fun taskToast(action: String, name: String, resultCode: Int): AppSideEffect.Toast {
     val success = resultCode == 0
     val type = if (success) ToastType.SUCCESS else ToastType.ERROR
-    val (past, lower) = when (action) {
-        "Install" -> "installed" to "install"
-        "Uninstall" -> "uninstalled" to "uninstall"
-        "Update" -> "updated" to "update"
-        "Download" -> "downloaded" to "download"
-        "Remove bucket" -> "removed" to "remove bucket"
-        else -> action to action
+    val text = when (action) {
+        "Install" ->
+            if (success) tr("{{name}} has been installed.", "name" to name)
+            else tr("Failed to install {{name}}.", "name" to name)
+        "Uninstall" ->
+            if (success) tr("{{name}} has been uninstalled.", "name" to name)
+            else tr("Failed to uninstall {{name}}.", "name" to name)
+        "Update" ->
+            if (success) tr("{{name}} has been updated.", "name" to name)
+            else tr("Failed to update {{name}}.", "name" to name)
+        "Download" ->
+            if (success) tr("{{name}} has been downloaded.", "name" to name)
+            else tr("Failed to download {{name}}.", "name" to name)
+        "Remove bucket" ->
+            if (success) tr("{{name}} has been removed.", "name" to name)
+            else tr("Failed to remove bucket {{name}}.", "name" to name)
+        else -> error("Unknown task action: $action")
     }
-    val text = if (success) tr("{{name}} has been {{past}}.", "name" to name, "past" to past) else tr("Failed to {{lower}} {{name}}.", "lower" to lower, "name" to name)
     return AppSideEffect.Toast(text, type)
 }

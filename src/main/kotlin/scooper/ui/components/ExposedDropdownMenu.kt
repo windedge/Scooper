@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.colors
 import scooper.ui.icons.*
@@ -22,12 +24,17 @@ import scooper.ui.theme.inputBackground
 import scooper.ui.theme.inputBorder
 import scooper.ui.theme.primarySubtle
 import scooper.ui.theme.textMuted
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.onHover
 
 /**
  * A basic implementation of the Exposed Dropdown Menu component
  *
+ * @param itemContent optional custom rendering for a dropdown item (e.g. to
+ *   preview it with its own font); defaults to a plain [Text] with the
+ *   onSurface color.
+ * @param maxMenuHeight maximum height of the open menu; taller menus scroll.
  * @see https://material.io/components/menus#exposed-dropdown-menu
  * @source https://gist.github.com/jossiwolf/0f06894d2c07748041769c64510cd4d5
  */
@@ -37,6 +44,8 @@ fun ExposedDropdownMenu(
     modifier: Modifier = Modifier,
     selected: String = items[0],
     onItemSelected: (String) -> Unit,
+    itemContent: (@Composable (String) -> Unit)? = null,
+    maxMenuHeight: Dp = 320.dp,
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuStack(
@@ -62,7 +71,7 @@ fun ExposedDropdownMenu(
                         val rotation by animateFloatAsState(if (expanded) 180F else 0F)
                         Icon(
                             Lucide.ChevronDown,
-                            contentDescription = "Dropdown Arrow",
+                            contentDescription = tr("Dropdown Arrow"),
                             modifier = Modifier.rotate(rotation),
                             tint = colors.textMuted,
                         )
@@ -80,21 +89,27 @@ fun ExposedDropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
                 ) {
-                    items.forEach { item ->
-                        var hover by remember { mutableStateOf(false) }
-                        DropdownMenuItem(
-                            modifier = Modifier
-                                .height(itemHeight)
-                                .width(boxWidth)
-                                .background(if (hover) colors.primarySubtle else colors.surface)
-                                .onHover { hover = it }
-                                .cursorHand(),
-                            onClick = {
-                                expanded = false
-                                onItemSelected(item)
+                    Column(
+                        Modifier
+                            .heightIn(max = maxMenuHeight)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        items.forEach { item ->
+                            var hover by remember { mutableStateOf(false) }
+                            DropdownMenuItem(
+                                modifier = Modifier
+                                    .height(itemHeight)
+                                    .width(boxWidth)
+                                    .background(if (hover) colors.primarySubtle else colors.surface)
+                                    .onHover { hover = it }
+                                    .cursorHand(),
+                                onClick = {
+                                    expanded = false
+                                    onItemSelected(item)
+                                }
+                            ) {
+                                itemContent?.invoke(item) ?: Text(item, color = colors.onSurface)
                             }
-                        ) {
-                            Text(item, color = colors.onSurface)
                         }
                     }
                 }
@@ -153,7 +168,7 @@ fun ExposedDropdownMenuX(
                 val rotation by animateFloatAsState(if (expanded) 180F else 0F)
                 Icon(
                     Lucide.ChevronDown,
-                    contentDescription = "Dropdown Arrow",
+                    contentDescription = tr("Dropdown Arrow"),
                     modifier = Modifier.rotate(rotation),
                     tint = colors.textMuted,
                 )

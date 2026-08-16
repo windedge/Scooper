@@ -22,6 +22,7 @@ import scooper.service.ScoopService
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.logger
+import scooper.util.tr
 import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.ToastType
 import scooper.viewmodels.taskToast
@@ -144,7 +145,7 @@ class ScoopSearchViewModel(
             taskQueue.addTask(Task.AddBucket(bucketName) { blockingIntent {
                 val resultCode = scoopService.addBucket(bucketName, app.Metadata.Repository)
                 if (resultCode != 0) {
-                    postSideEffect(AppSideEffect.Toast("Failed to add $bucketName.", ToastType.ERROR))
+                    postSideEffect(AppSideEffect.Toast(tr("Failed to add {{name}}.", "name" to bucketName), ToastType.ERROR))
                     reduce { state.copy(installingApps = state.installingApps - appKey) }
                 }
             }})
@@ -218,11 +219,11 @@ class ScoopSearchViewModel(
     }
 
     private fun formatError(e: Exception): String = when (e) {
-        is java.net.ConnectException -> "Unable to connect to search server. Please check your network."
-        is java.net.UnknownHostException -> "Unable to reach search server. Please check your network."
-        is java.net.SocketTimeoutException -> "Search server timed out. Please try again."
-        is javax.net.ssl.SSLException -> "Connection to search server failed. Please try again."
-        else -> e.message ?: "Search failed. Please try again."
+        is java.net.ConnectException -> tr("Unable to connect to search server. Please check your network.")
+        is java.net.UnknownHostException -> tr("Unable to reach search server. Please check your network.")
+        is java.net.SocketTimeoutException -> tr("Search server timed out. Please try again.")
+        is javax.net.ssl.SSLException -> tr("Connection to search server failed. Please try again.")
+        else -> e.message ?: tr("Search failed. Please try again.")
     }
 
     private data class SearchOptions(

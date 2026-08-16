@@ -20,6 +20,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import scooper.ui.icons.*
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.noRippleClickable
 import scooper.util.onHover
@@ -89,7 +90,7 @@ fun Link(
 
             Icon(
                 painter!!,
-                contentDescription = "Open Link",
+                contentDescription = tr("Open Link"),
                 modifier = Modifier
                     .size(iconSize)
                     .offset { IntOffset(iconX.toInt(), iconY.toInt()) },

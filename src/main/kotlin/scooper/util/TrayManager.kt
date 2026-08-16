@@ -40,7 +40,7 @@ class TrayManager(
             javax.swing.BorderFactory.createEmptyBorder(4, 0, 4, 0),
         )
         val menuFont = Font("SansSerif", Font.PLAIN, 12)
-        add(JMenuItem("Show Scooper", showIcon).apply {
+        add(JMenuItem(tr("Show Scooper"), showIcon).apply {
             font = menuFont
             preferredSize = java.awt.Dimension(
                 preferredSize.width.coerceAtLeast(140),
@@ -49,7 +49,7 @@ class TrayManager(
             addActionListener { onShow() }
         })
         addSeparator()
-        add(JMenuItem("Exit", exitIcon).apply {
+        add(JMenuItem(tr("Exit"), exitIcon).apply {
             font = menuFont
             preferredSize = java.awt.Dimension(
                 preferredSize.width.coerceAtLeast(140),

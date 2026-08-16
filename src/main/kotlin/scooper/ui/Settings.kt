@@ -14,7 +14,9 @@ import scooper.ui.components.rememberPainterResource
 import scooper.ui.icons.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import scooper.data.PaginationMode
 import scooper.data.Theme
@@ -173,7 +175,7 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                                 value = proxyState.value,
                                 onValueChange = { proxyState.change(it) },
                                 label = tr("Proxy Address:"),
-                                placeholder = "[username:password@]host:port",
+                                placeholder = tr("[username:password@]host:port"),
                                 isError = proxyState.hasError,
                                 errorMessage = proxyState.errorMessage
                             )
@@ -249,6 +251,15 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     var fontSizeScale by remember { mutableStateOf(settingsState.uiConfig.fontSizeScale) }
     LaunchedEffect(fontSizeScale) {
         settingsViewModel.switchFontSizeScale(fontSizeScale)
+    }
+
+    // Installed CJK font families for the "Interface Font" dropdown; enumerated
+    // off the UI thread because it walks the whole system font manager.
+    var cjkFonts by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.Default) {
+            cjkFonts = listInstalledCjkFontFamilies()
+        }
     }
 
     SettingContainer(onApply = {
@@ -417,8 +428,35 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             Divider(color = colors.divider)
             PrefRow(
-                title = "System Tray Icon",
-                subtitle = "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting.",
+                title = tr("Interface Font"),
+                subtitle = tr("Choose the font used to render the interface. Changes take effect immediately."),
+            ) {
+                val defaultFontLabel = tr("Default")
+                val currentFontFamily = settingsState.uiConfig.fontFamily
+                ExposedDropdownMenu(
+                    items = listOf(defaultFontLabel) + cjkFonts,
+                    selected = currentFontFamily.ifBlank { defaultFontLabel },
+                    onItemSelected = { label ->
+                        if (label == defaultFontLabel) {
+                            settingsViewModel.switchFontFamily("")
+                        } else {
+                            settingsViewModel.switchFontFamily(label)
+                        }
+                    },
+                    itemContent = { label ->
+                        val previewFamily = if (label == defaultFontLabel) null else fontFamilyForPreview(label)
+                        if (previewFamily != null) {
+                            Text(label, color = colors.onSurface, fontFamily = previewFamily)
+                        } else {
+                            Text(label, color = colors.onSurface)
+                        }
+                    },
+                )
+            }
+            Divider(color = colors.divider)
+            PrefRow(
+                title = tr("System Tray Icon"),
+                subtitle = tr("Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."),
                 modifier = Modifier.cursorHand(),
                 onClick = { showTrayIconState.update(!showTrayIconState.value) }
             ) {
@@ -434,8 +472,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             val showFpsState = LocalShowFps.current
             val showFps by showFpsState
             PrefRow(
-                title = "Show FPS",
-                subtitle = "Display frame rate in the status bar. This setting is not persisted.",
+                title = tr("Show FPS"),
+                subtitle = tr("Display frame rate in the status bar. This setting is not persisted."),
                 modifier = Modifier.cursorHand(),
                 onClick = { showFpsState.value = !showFpsState.value }
             ) {
