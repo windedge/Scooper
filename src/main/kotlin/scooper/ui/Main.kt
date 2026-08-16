@@ -36,6 +36,7 @@ import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.navigation.Router
 import scooper.util.ProvideI18n
+import scooper.util.Strings
 import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
@@ -223,7 +224,12 @@ fun main() {
         val showFpsState = remember { mutableStateOf(false) }
 
         ProvideI18n(currentLocale) {
-        ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
+        ScooperTheme(
+            currentTheme = theme,
+            fontSizeScale = uiConfig.fontSizeScale,
+            uiLanguage = Strings.current.locale.language,
+            userFontFamilyName = uiConfig.fontFamily,
+        ) {
             CompositionLocalProvider(LocalShowFps provides showFpsState) {
                 // Snackbar overlay sits above Router so it survives route changes.
                 Box(Modifier.fillMaxSize()) {

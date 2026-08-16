@@ -1129,3 +1129,11 @@ msgstr "{{name}} 已移除。"
 #, java-format
 msgid "Failed to remove bucket {{name}}."
 msgstr "移除仓库 {{name}} 失败。"
+
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:65
+msgid "Unknown"
+msgstr "未知"
+
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:105
+msgid "pre-release"
+msgstr "预发布"

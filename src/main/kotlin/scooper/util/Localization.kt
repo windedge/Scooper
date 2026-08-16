@@ -1,12 +1,15 @@
 package scooper.util
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.Composable
 import name.kropp.kotlinx.gettext.Gettext
 import name.kropp.kotlinx.gettext.Locale
 import okio.source
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import java.util.Locale as SystemLocale
 
 /**
@@ -43,20 +46,26 @@ fun getDefaultLocale(): Locale {
     return supportedLocales.first().locale
 }
 
+private val logger: Logger = LoggerFactory.getLogger("Localization")
+
 /**
  * Load a [Gettext] instance from the `.po` file for the given locale.
- * Falls back to the current i18n instance on error.
+ * Never throws: on missing/failed resources it keeps the current i18n instance
+ * and only logs a warning.
  */
-fun loadLocale(locale: Locale): Gettext = runCatching {
+fun loadLocale(locale: Locale): Gettext {
     val resourcePath = "lang/$locale.po"
-    val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourcePath)
-        ?: error("Cannot find PO file for locale $locale at $resourcePath")
-    stream.use { s ->
-        Gettext.load(locale, s.source())
+    return try {
+        val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(resourcePath)
+            ?: error("Cannot find PO file for locale $locale at $resourcePath")
+        // stream is closed by use() in both the success and the failure path
+        stream.use { s ->
+            Gettext.load(locale, s.source())
+        }
+    } catch (e: Exception) {
+        logger.warn("Failed to load PO file for locale $locale, keeping current language", e)
+        Strings.current
     }
-}.getOrElse { e ->
-    e.printStackTrace()
-    Strings.current
 }
 
 /**
@@ -72,6 +81,10 @@ object Strings {
     val current: Gettext get() = _current.value
 
     fun update(locale: Locale) {
+        // java.util.Locale equality is identity-based, so compare by language tag.
+        // Guarding here prevents the .po file from being re-parsed on every
+        // recomposition when the locale did not actually change.
+        if (current.locale.toLanguageTag() == locale.toLanguageTag()) return
         _current.value = loadLocale(locale)
     }
 }
@@ -108,6 +121,11 @@ val LocalI18n = staticCompositionLocalOf { Strings.current }
  */
 @Composable
 fun ProvideI18n(locale: Locale, content: @Composable () -> Unit) {
-    Strings.update(locale)
+    // Perform the (potentially blocking) .po parse as a side effect after
+    // composition instead of during it. Strings.update() is a no-op for the
+    // already-active locale, so unrelated recompositions stay cheap.
+    SideEffect {
+        Strings.update(locale)
+    }
     CompositionLocalProvider(LocalI18n provides Strings.current, content = content)
 }

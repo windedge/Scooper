@@ -22,6 +22,7 @@ class ConfigRepository {
                     paginationMode = this[Configs.paginationMode],
                     pageSize = this[Configs.pageSize],
                     locale = this[Configs.locale].ifBlank { scooper.util.getDefaultLocale().toLanguageTag() },
+                    fontFamily = this[Configs.fontFamily],
                     windowX = this[Configs.windowX],
                     windowY = this[Configs.windowY],
                     windowWidth = this[Configs.windowWidth],
@@ -52,6 +53,7 @@ class ConfigRepository {
                 it[isMaximized] = config.isMaximized
                 it[showTrayIcon] = config.showTrayIcon
                 it[locale] = config.locale
+                it[fontFamily] = config.fontFamily
             }
         }
     }

@@ -4,6 +4,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.darkColors
 import androidx.compose.material.lightColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.skiko.SystemTheme
 import org.jetbrains.skiko.currentSystemTheme
@@ -37,12 +38,27 @@ private val lightColorPalette = lightColors(
 )
 
 @Composable
-fun ScooperTheme(currentTheme: SystemTheme = currentSystemTheme, fontSizeScale: Float = 1.0f, content: @Composable () -> Unit) {
+fun ScooperTheme(
+    currentTheme: SystemTheme = currentSystemTheme,
+    fontSizeScale: Float = 1.0f,
+    uiLanguage: String = "en",
+    userFontFamilyName: String? = null,
+    content: @Composable () -> Unit
+) {
     val colors = if (currentTheme == SystemTheme.DARK) darkColorPalette else lightColorPalette
+
+    // A user-selected "Interface Font" overrides the locale-mapped family;
+    // blank or unresolvable names fall back to the locale default (en -> Arial,
+    // CJK -> the language's UI font). A locale change is a snapshot-state read
+    // upstream (Strings.current), so this recomposes automatically and the
+    // typography rebuilds with the new family.
+    val fontFamily = remember(uiLanguage, userFontFamilyName) {
+        userFontFamilyName?.let { fontFamilyOverride(it) } ?: fontFamilyFor(uiLanguage)
+    }
 
     MaterialTheme(
         colors = colors,
-        typography = typography(fontSizeScale),
+        typography = typography(fontSizeScale, fontFamily),
         shapes = shapes,
         content = content
     )
