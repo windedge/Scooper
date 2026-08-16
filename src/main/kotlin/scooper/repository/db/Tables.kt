@@ -53,4 +53,5 @@ object Configs : IntIdTable(name = "configs") {
     val isMaximized = bool("is_maximized").default(false)
     val showTrayIcon = bool("show_tray_icon").default(false)
     val locale = varchar("locale", 20).default("")
+    val fontFamily = varchar("font_family", 100).default("")
 }

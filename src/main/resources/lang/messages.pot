@@ -252,13 +252,13 @@ msgstr ""
 msgid "Clean All"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Main.kt:401
+#: src\main\kotlin\scooper\ui\Main.kt:406
 #: src\main\kotlin\scooper\ui\Sidebar.kt:142
 #: src\main\kotlin\scooper\ui\Sidebar.kt:149
 msgid "Scooper"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Main.kt:409
+#: src\main\kotlin\scooper\ui\Main.kt:414
 msgid "Scoop Package Manager GUI"
 msgstr ""
 
@@ -318,7 +318,7 @@ msgstr ""
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:102
 #: src\main\kotlin\scooper\ui\Navigation.kt:104
-#: src\main\kotlin\scooper\ui\Settings.kt:530
+#: src\main\kotlin\scooper\ui\Settings.kt:512
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:33
 msgid "About"
 msgstr ""
@@ -407,119 +407,119 @@ msgstr ""
 msgid "Descending"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:168
+#: src\main\kotlin\scooper\ui\Settings.kt:167
 msgid "General Settings"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:168
+#: src\main\kotlin\scooper\ui\Settings.kt:167
 msgid "Manage core configuration for Scoop."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:172
+#: src\main\kotlin\scooper\ui\Settings.kt:171
 msgid "Proxy"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:173
+#: src\main\kotlin\scooper\ui\Settings.kt:172
 msgid "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:180
+#: src\main\kotlin\scooper\ui\Settings.kt:179
 msgid "Proxy Address:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:199
+#: src\main\kotlin\scooper\ui\Settings.kt:198
 msgid "Enable Aria2"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:200
+#: src\main\kotlin\scooper\ui\Settings.kt:199
 msgid "Aria2c will be used for downloading of artifacts to speed up transfers."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:276
+#: src\main\kotlin\scooper\ui\Settings.kt:275
 msgid "UI Settings"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:276
+#: src\main\kotlin\scooper\ui\Settings.kt:275
 msgid "Customize the application appearance."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:299
+#: src\main\kotlin\scooper\ui\Settings.kt:298
 msgid "Auto Refresh"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:300
+#: src\main\kotlin\scooper\ui\Settings.kt:299
 msgid "When enabled, Scooper will automatically run \"scoop update\" to check for updates."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:314
+#: src\main\kotlin\scooper\ui\Settings.kt:313
 msgid "Refresh on Startup"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:315
+#: src\main\kotlin\scooper\ui\Settings.kt:314
 msgid "Run \"scoop update\" once after startup."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:328
+#: src\main\kotlin\scooper\ui\Settings.kt:327
 msgid "Periodic Refresh"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:329
+#: src\main\kotlin\scooper\ui\Settings.kt:328
 msgid "Periodically run \"scoop update\" at a fixed interval."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:343
+#: src\main\kotlin\scooper\ui\Settings.kt:342
 msgid "Interval"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:344
+#: src\main\kotlin\scooper\ui\Settings.kt:343
 msgid "How often to check for updates."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:359
+#: src\main\kotlin\scooper\ui\Settings.kt:358
 msgid "Language"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:360
+#: src\main\kotlin\scooper\ui\Settings.kt:359
 msgid "Choose the display language."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:374
+#: src\main\kotlin\scooper\ui\Settings.kt:373
 msgid "Switch Theme"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:384
+#: src\main\kotlin\scooper\ui\Settings.kt:383
 msgid "Default View Mode"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:385
+#: src\main\kotlin\scooper\ui\Settings.kt:384
 msgid "Choose how packages are displayed in the list."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:396
+#: src\main\kotlin\scooper\ui\Settings.kt:395
 msgid "Default Pagination Mode"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:397
+#: src\main\kotlin\scooper\ui\Settings.kt:396
 msgid "Choose how packages are paginated."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:409
+#: src\main\kotlin\scooper\ui\Settings.kt:408
 msgid "Font Size"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:410
+#: src\main\kotlin\scooper\ui\Settings.kt:409
 msgid "Adjust the application font size. Changes take effect immediately."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:530
+#: src\main\kotlin\scooper\ui\Settings.kt:512
 msgid "Information about this application."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:555
+#: src\main\kotlin\scooper\ui\Settings.kt:537
 msgid "GitHub"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:548
+#: src\main\kotlin\scooper\ui\Settings.kt:530
 #, java-format
 msgid "Version: {{version}}"
 msgstr ""
@@ -897,23 +897,23 @@ msgstr[1] ""
 msgid "Sort By"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:181
+#: src\main\kotlin\scooper\ui\Settings.kt:180
 msgid "[username:password@]host:port"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:493
+#: src\main\kotlin\scooper\ui\Settings.kt:475
 msgid "System Tray Icon"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:494
+#: src\main\kotlin\scooper\ui\Settings.kt:476
 msgid "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:510
+#: src\main\kotlin\scooper\ui\Settings.kt:492
 msgid "Show FPS"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:511
+#: src\main\kotlin\scooper\ui\Settings.kt:493
 msgid "Display frame rate in the status bar. This setting is not persisted."
 msgstr ""
 
@@ -921,8 +921,8 @@ msgstr ""
 msgid "View on GitHub"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:93
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:250
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:91
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:245
 msgid "Dropdown Arrow"
 msgstr ""
 
@@ -992,7 +992,7 @@ msgstr ""
 msgid "Search failed. Please try again."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:436
+#: src\main\kotlin\scooper\ui\Settings.kt:435
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:84
 msgid "Default"
 msgstr ""
@@ -1009,11 +1009,11 @@ msgstr ""
 msgid "Invalid proxy address."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:433
+#: src\main\kotlin\scooper\ui\Settings.kt:432
 msgid "Interface Font"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:434
+#: src\main\kotlin\scooper\ui\Settings.kt:433
 msgid "Choose the font used to render the interface. Changes take effect immediately."
 msgstr ""
 
@@ -1117,4 +1117,12 @@ msgstr ""
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:35
 #, java-format
 msgid "Failed to remove bucket {{name}}."
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:65
+msgid "Unknown"
+msgstr ""
+
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:105
+msgid "pre-release"
 msgstr ""

@@ -58,9 +58,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 
-private enum class ContentTab(val key: String) {
-    Changelog("changelog"),
-    Manifest("manifest"),
+private enum class ContentTab {
+    Changelog,
+    Manifest,
 }
 
 private fun ContentTab.displayLabel(): String = when (this) {

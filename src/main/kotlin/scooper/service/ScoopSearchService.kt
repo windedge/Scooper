@@ -44,10 +44,10 @@ data class ScoopSearchMetadata(
     }
 }
 
-enum class ScoopSearchSort(val key: String, val orderBy: String) {
-    BestMatch("best_match", "relevance"),
-    Name("name", "name"),
-    Newest("newest", "newest"),
+enum class ScoopSearchSort(val orderBy: String) {
+    BestMatch("relevance"),
+    Name("name"),
+    Newest("newest"),
 }
 
 class ScoopSearchService : AutoCloseable {

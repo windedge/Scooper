@@ -10,9 +10,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import scooper.ui.components.rememberPainterResource
-import scooper.ui.icons.*
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -23,6 +24,7 @@ import scooper.data.Theme
 import scooper.data.UIConfig
 import scooper.data.ViewMode
 import scooper.ui.components.*
+import scooper.ui.icons.*
 import scooper.util.*
 import scooper.ui.components.SectionCard
 import scooper.util.tr
@@ -365,8 +367,74 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     onItemSelected = { label ->
                         val locale = locales.first { it.displayName == label }
                         settingsViewModel.switchLocale(locale.locale.toLanguageTag())
-                        formChangedState.hasChanged.value = true
                     })
+            }
+            Divider(color = colors.divider)
+            PrefRow(
+                title = tr("Interface Font"),
+                subtitle = tr("Choose the font used to render the interface. Changes take effect immediately."),
+            ) {
+                val defaultFontLabel = tr("Default")
+                val currentFontFamily = settingsState.uiConfig.fontFamily
+                val fontItems = listOf(defaultFontLabel) + cjkFonts
+                // Widen the menu so the longest font name fits on a single line:
+                // measured text width + DropdownMenuItem horizontal padding +
+                // scrollbar reserve + a small buffer.
+                val textMeasurer = rememberTextMeasurer()
+                val itemTextStyle = MaterialTheme.typography.subtitle1
+                val density = LocalDensity.current
+                val fontMenuMinWidth = remember(fontItems, itemTextStyle, textMeasurer, density) {
+                    with(density) {
+                        fontItems.maxOf { textMeasurer.measure(it, itemTextStyle).size.width }.toDp() +
+                                32.dp + 12.dp + 4.dp
+                    }
+                }
+                // +1 accounts for the leading "Default" entry; 0 when not found.
+                val selectedFontIndex = cjkFonts.indexOf(currentFontFamily) + 1
+                ExposedDropdownMenu(
+                    items = fontItems,
+                    selected = currentFontFamily.ifBlank { defaultFontLabel },
+                    onItemSelected = { label ->
+                        settingsViewModel.switchFontFamily(if (label == defaultFontLabel) "" else label)
+                    },
+                    itemContent = { label ->
+                        Text(
+                            label,
+                            color = colors.onSurface,
+                            fontFamily = if (label == defaultFontLabel) null else fontFamilyForPreview(label),
+                            softWrap = false,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    menuMinWidth = fontMenuMinWidth,
+                    showScrollbar = true,
+                    selectedIndex = selectedFontIndex,
+                )
+            }
+            Divider(color = colors.divider)
+            PrefRow(
+                title = tr("Font Size"),
+                subtitle = tr("Adjust the application font size. Changes take effect immediately."),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Slider(
+                        value = fontSizeScale,
+                        onValueChange = { fontSizeScale = (it * 10).roundToInt() / 10f },
+                        valueRange = 0.8f..1.5f,
+                        modifier = Modifier.width(120.dp),
+                        colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary),
+                    )
+                    Text(
+                        String.format("%.1fx", fontSizeScale),
+                        style = MaterialTheme.typography.body2,
+                        color = colors.onSurface,
+                        modifier = Modifier.width(36.dp),
+                    )
+                }
             }
             Divider(color = colors.divider)
             PrefRow(title = tr("Switch Theme")) {
@@ -401,57 +469,6 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     onItemSelected = { label ->
                         paginationModeState.value = choices.filterValues { it == label }.keys.first()
                     })
-            }
-            Divider(color = colors.divider)
-            PrefRow(
-                title = tr("Font Size"),
-                subtitle = tr("Adjust the application font size. Changes take effect immediately."),
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Slider(
-                        value = fontSizeScale,
-                        onValueChange = { fontSizeScale = (it * 10).roundToInt() / 10f },
-                        valueRange = 0.8f..1.5f,
-                        modifier = Modifier.width(120.dp),
-                        colors = SliderDefaults.colors(thumbColor = colors.primary, activeTrackColor = colors.primary),
-                    )
-                    Text(
-                        String.format("%.1fx", fontSizeScale),
-                        style = MaterialTheme.typography.body2,
-                        color = colors.onSurface,
-                        modifier = Modifier.width(36.dp),
-                    )
-                }
-            }
-            Divider(color = colors.divider)
-            PrefRow(
-                title = tr("Interface Font"),
-                subtitle = tr("Choose the font used to render the interface. Changes take effect immediately."),
-            ) {
-                val defaultFontLabel = tr("Default")
-                val currentFontFamily = settingsState.uiConfig.fontFamily
-                ExposedDropdownMenu(
-                    items = listOf(defaultFontLabel) + cjkFonts,
-                    selected = currentFontFamily.ifBlank { defaultFontLabel },
-                    onItemSelected = { label ->
-                        if (label == defaultFontLabel) {
-                            settingsViewModel.switchFontFamily("")
-                        } else {
-                            settingsViewModel.switchFontFamily(label)
-                        }
-                    },
-                    itemContent = { label ->
-                        val previewFamily = if (label == defaultFontLabel) null else fontFamilyForPreview(label)
-                        if (previewFamily != null) {
-                            Text(label, color = colors.onSurface, fontFamily = previewFamily)
-                        } else {
-                            Text(label, color = colors.onSurface)
-                        }
-                    },
-                )
             }
             Divider(color = colors.divider)
             PrefRow(

@@ -53,9 +53,9 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-private enum class SearchDetailTab(val key: String) {
-    Changelog("changelog"),
-    Manifest("manifest"),
+private enum class SearchDetailTab {
+    Changelog,
+    Manifest,
 }
 
 private fun SearchDetailTab.displayLabel(): String = when (this) {

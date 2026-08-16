@@ -62,7 +62,7 @@ fun DetailMetadataRow(label: String, content: @Composable () -> Unit) {
 @Composable
 fun ReleaseNoteCard(release: GitHubRelease) {
     val colors = MaterialTheme.colors
-    val tag = release.tag_name.ifBlank { release.name ?: "Unknown" }
+    val tag = release.tag_name.ifBlank { release.name ?: tr("Unknown") }
     val date = release.published_at?.let { parseIsoDate(it) }?.format(ReleaseDateFormatter)
 
     Column(
@@ -102,7 +102,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
             Spacer(Modifier.weight(1f))
             if (release.prerelease) {
                 Text(
-                    "pre-release",
+                    tr("pre-release"),
                     style = typography.overline.copy(color = colors.warningDefault),
                 )
             }
