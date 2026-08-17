@@ -365,6 +365,17 @@ class AppsRepository(
         }
     } }
 
+    /** Ensure a single bucket row exists; no full sync, no cleanup. */
+    fun ensureBucket(bucketName: String) = synchronized(writeLock) { transaction {
+        if (Buckets.selectAll().where { Buckets.name eq bucketName }.count() <= 0) {
+            val bucketDir = scoopClient.bucketsBaseDir.resolve(bucketName)
+            BucketEntity.new {
+                name = bucketName
+                url = scoopClient.getRepoUrl(bucketDir)
+            }
+        }
+    } }
+
     fun updateApp(app: App) = synchronized(writeLock) { transaction {
         val query = Apps.leftJoin(Buckets).selectAll().where { Apps.name eq app.name }
         if (app.bucket != null) {

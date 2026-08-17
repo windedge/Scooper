@@ -6,7 +6,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -15,7 +14,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +44,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
 import androidx.compose.material.CircularProgressIndicator
+import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
@@ -63,7 +62,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -78,14 +76,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogState
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import org.koin.compose.koinInject
 import scooper.ui.AppRoute
 import scooper.ui.components.ConfirmDialog
 import scooper.ui.components.DialogTextField
-import scooper.ui.icons.ChevronDown
+import scooper.ui.components.ExposedDropdownMenu
+import scooper.ui.icons.CircleCheck
+import scooper.ui.icons.CircleX
 import scooper.ui.icons.Lucide
 import scooper.ui.icons.Plus
 import scooper.ui.icons.Send
@@ -94,6 +94,7 @@ import scooper.ui.icons.X
 import scooper.ui.theme.borderDefault
 import scooper.ui.theme.dangerBg
 import scooper.ui.theme.dangerDefault
+import scooper.ui.theme.divider
 import scooper.ui.theme.inputBackground
 import scooper.ui.theme.inputBorder
 import scooper.ui.theme.primarySubtle
@@ -105,12 +106,14 @@ import scooper.ui.theme.updateDefault
 import scooper.ui.theme.warningDefault
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.parseAnsiColors
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.TestResult
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -126,8 +129,14 @@ fun CreateScreen(
     }
 
     // Auto-scroll chat when messages / manifest change
-    LaunchedEffect(state.messages.size, state.manifestJson, state.running) {
-        val itemCount = state.messages.size + if (state.manifestJson.isNotBlank()) 1 else 0
+    LaunchedEffect(state.messages.size, state.manifestJson, state.running, state.testResult) {
+        // Cards after the chat: manifest preview, plus the test result panel when present.
+        val cardItems = when {
+            state.manifestJson.isBlank() -> 0
+            state.testResult != null -> 2
+            else -> 1
+        }
+        val itemCount = state.messages.size + cardItems
         if (itemCount > 0) {
             listState.animateScrollToItem(itemCount - 1)
         }
@@ -207,143 +216,91 @@ private fun SaveToBucketDialog(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    ConfirmDialog(
-        title = "Save to Bucket",
-        confirmText = "Save",
-        onConfirm = onConfirm,
-        onCancel = onCancel,
-        state = DialogState(size = DpSize(420.dp, 360.dp)),
+    // Layer-based Dialog, not DialogWindow: the bucket dropdown Popup gets clipped inside an
+    // OS dialog window and had focus bugs (CMP-9439); on the main window layer it renders fully.
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+        ),
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            Text(
-                "App name",
-                style = typography.caption.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textTitle,
-                ),
-            )
-            Spacer(Modifier.height(8.dp))
-            DialogTextField(
-                value = appName,
-                onValueChange = onAppNameChange,
-                placeholder = "e.g. ripgrep",
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Letters, digits, '.', '_' and '-' only.",
-                style = typography.caption.copy(color = colors.textMuted),
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            Text(
-                "Bucket",
-                style = typography.caption.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textTitle,
-                ),
-            )
-            Spacer(Modifier.height(8.dp))
-            if (bucketOptions.isNotEmpty()) {
-                val selected = if (bucket in bucketOptions) bucket else bucketOptions.first()
-                InlineBucketPicker(
-                    selected = selected,
-                    options = bucketOptions,
-                    onSelectedChange = onBucketChange,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            } else {
-                Text(
-                    "No buckets available",
-                    style = typography.caption.copy(color = colors.dangerDefault),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun InlineBucketPicker(
-    selected: String,
-    options: List<String>,
-    onSelectedChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val rotation by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
-        label = "chevronRotation"
-    )
-
-    Column(modifier = modifier) {
-        // Trigger row (collapsed state)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .background(color = colors.inputBackground, shape = RoundedCornerShape(8.dp))
-                .border(1.dp, colors.inputBorder, RoundedCornerShape(8.dp))
-                .cursorHand()
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
+            color = colors.surface,
+            modifier = Modifier.width(420.dp).height(360.dp),
         ) {
-            Text(
-                selected,
-                style = typography.body2.copy(color = colors.textTitle),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                Lucide.ChevronDown,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(16.dp)
-                    .rotate(rotation),
-                tint = colors.textMuted,
-            )
-        }
-
-        // Expanded in-place list (no Popup)
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically(expandFrom = Alignment.Top),
-            exit = shrinkVertically(shrinkTowards = Alignment.Top),
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp)
-                    .heightIn(max = 140.dp)
-                    .verticalScroll(rememberScrollState())
-                    .background(colors.surface, shape = RoundedCornerShape(8.dp))
-                    .border(1.dp, colors.inputBorder, RoundedCornerShape(8.dp))
-                    .clip(RoundedCornerShape(8.dp)),
-            ) {
-                options.forEach { item ->
-                    val isSel = item == selected
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .cursorHand()
-                            .clickable {
-                                expanded = false
-                                onSelectedChange(item)
-                            }
-                            .background(if (isSel) colors.primarySubtle else Color.Transparent)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).padding(24.dp)) {
+                    Column(Modifier.fillMaxWidth()) {
                         Text(
-                            item,
-                            style = typography.body2.copy(
-                                color = if (isSel) colors.primary else colors.textTitle,
-                                fontWeight = if (isSel) FontWeight.Medium else FontWeight.Normal,
+                            "App name",
+                            style = typography.caption.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textTitle,
                             ),
                         )
+                        Spacer(Modifier.height(8.dp))
+                        DialogTextField(
+                            value = appName,
+                            onValueChange = onAppNameChange,
+                            placeholder = "e.g. ripgrep",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Letters, digits, '.', '_' and '-' only.",
+                            style = typography.caption.copy(color = colors.textMuted),
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+
+                        Text(
+                            "Bucket",
+                            style = typography.caption.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textTitle,
+                            ),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        if (bucketOptions.isNotEmpty()) {
+                            val selected = if (bucket in bucketOptions) bucket else bucketOptions.first()
+                            ExposedDropdownMenu(
+                                items = bucketOptions,
+                                selected = selected,
+                                onItemSelected = onBucketChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                textFill = true,
+                            )
+                        } else {
+                            Text(
+                                "No buckets available",
+                                style = typography.caption.copy(color = colors.dangerDefault),
+                            )
+                        }
+                    }
+                }
+
+                Divider(color = colors.divider)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onCancel, modifier = Modifier.cursorHand()) {
+                        Text("Cancel", color = colors.textBody)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = onConfirm,
+                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                        elevation = null,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.cursorHand(),
+                    ) {
+                        Text("Save", color = Color.White)
                     }
                 }
             }
@@ -571,6 +528,11 @@ private fun ChatWorkspace(
                             onRegenerate = onRegenerate,
                         )
                     }
+                    state.testResult?.let { result ->
+                        item(key = "test-result-panel") {
+                            TestResultPanel(result)
+                        }
+                    }
                 }
             }
             VerticalScrollbar(
@@ -662,13 +624,12 @@ private fun PhaseTag(phase: String, modifier: Modifier = Modifier) {
         style = typography.overline.copy(
             fontWeight = FontWeight.Bold,
             color = fg,
-            letterSpacing = typography.overline.letterSpacing,
         ),
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .background(bg)
             .border(1.dp, border, RoundedCornerShape(4.dp))
-            .padding(horizontal = 7.dp, vertical = 1.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
     )
 }
 
@@ -851,6 +812,115 @@ private fun ManifestPreviewCard(
                     onClick = onRegenerate,
                     enabled = enabled && !testing,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TestResultPanel(result: TestResult) {
+    val accent = if (result.success) colors.updateDefault else colors.dangerDefault
+    val icon = if (result.success) Lucide.CircleCheck else Lucide.CircleX
+    var expanded by remember { mutableStateOf(false) }
+    val logText = remember(result.log) {
+        result.log.lines().takeLast(100).joinToString("\n")
+    }
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f)),
+        color = colors.surface,
+        elevation = 0.dp,
+        modifier = Modifier.fillMaxWidth().widthIn(max = 760.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = accent,
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (result.success) {
+                            "Test install succeeded: ${result.testName} (uninstalled)"
+                        } else {
+                            "Test install failed: ${result.testName}"
+                        },
+                        style = typography.body2.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textTitle,
+                        ),
+                    )
+                    if (result.success && result.prewarmedCount > 0) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "${result.prewarmedCount} cache ${if (result.prewarmedCount == 1) "entry" else "entries"} reused",
+                            style = typography.caption.copy(color = colors.textMuted),
+                        )
+                    }
+                    if (!result.success && !result.errorMessage.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            parseAnsiColors(result.errorMessage),
+                            style = typography.caption.copy(
+                                color = colors.dangerDefault,
+                                fontFamily = FontFamily.Monospace,
+                                lineHeight = typography.caption.fontSize * 1.45f,
+                            ),
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+
+            if (result.log.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.cursorLink().height(28.dp),
+                ) {
+                    Text(
+                        if (expanded) "Hide log" else "View log",
+                        style = typography.caption.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = accent,
+                        ),
+                    )
+                }
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = expandVertically(expandFrom = Alignment.Top),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.inputBackground)
+                            .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp)),
+                    ) {
+                        Text(
+                            parseAnsiColors(logText),
+                            style = typography.caption.copy(
+                                color = colors.onSurface,
+                                fontFamily = FontFamily.Monospace,
+                                lineHeight = typography.caption.fontSize * 1.45f,
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(10.dp),
+                        )
+                    }
+                }
             }
         }
     }

@@ -206,6 +206,25 @@ class ScoopClientPrewarmCacheTest {
     }
 
     @Test
+    fun `ignores aria2 partial control files when prewarming from finalized entries`() {
+        val cacheDir = tempDir.resolve("cache8").toFile().also { it.mkdirs() }
+        val url = "https://example.com/tool2.zip#/inner.7z"
+        val hash = ScoopCacheManager.urlHash(url)
+        val mExt = ScoopCacheManager.urlExtension(url)
+        // both a valid finalized entry and an interrupted aria2 control file with the same hash
+        File(cacheDir, "realtool#2.5#$hash$mExt.aria2").writeText("ARIA2-PARTIAL-DATA")
+        File(cacheDir, "realtool#2.5#$hash$mExt").writeText("GOOD-DATA")
+
+        val manifest = writeManifest("2.5", url)
+        val count = client.prewarmTestInstallCache("tool2-test", manifest, cacheDir)
+
+        assertEquals(1, count)
+        val target = File(cacheDir, computeTargetName("tool2-test", "2.5", url))
+        assertTrue(target.exists(), "target must be created from the valid entry, not the aria2 control file")
+        assertEquals("GOOD-DATA", target.readText(), "must link the real cache file, not the .aria2 partial")
+    }
+
+    @Test
     fun `returns 0 gracefully on malformed manifest (no crash)`() {
         val cacheDir = tempDir.resolve("cache7").toFile().also { it.mkdirs() }
         val bad = tempDir.resolve("bad.json").toFile()

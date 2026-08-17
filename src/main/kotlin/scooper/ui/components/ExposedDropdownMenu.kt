@@ -37,6 +37,12 @@ fun ExposedDropdownMenu(
     modifier: Modifier = Modifier,
     selected: String = items[0],
     onItemSelected: (String) -> Unit,
+    /**
+     * When true the text area expands with [Modifier.weight] to fill the field width, pushing the
+     * chevron to the right edge (used by full-width fields such as the Save to Bucket dialog).
+     * Default false wraps the text naturally so the field does not eat the whole row (Settings).
+     */
+    textFill: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuStack(
@@ -57,7 +63,7 @@ fun ExposedDropdownMenu(
                             .padding(horizontal = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        innerTextField()
+                        Box(if (textFill) Modifier.weight(1f) else Modifier) { innerTextField() }
                         Spacer(modifier = Modifier.width(8.dp))
                         val rotation by animateFloatAsState(if (expanded) 180F else 0F)
                         Icon(
@@ -124,53 +130,3 @@ private fun ExposedDropdownMenuStack(
 }
 
 private enum class ExposedDropdownMenuSlot { TextField, Dropdown }
-
-@Suppress("unused")
-@Composable
-fun ExposedDropdownMenuX(
-    items: List<String>,
-    selected: String = items[0],
-    onItemSelected: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    BasicTextField(
-        value = selected,
-        onValueChange = { },
-        modifier = Modifier,
-        readOnly = true,
-        textStyle = TextStyle(color = colors.onSurface),
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier.height(36.dp)
-                    .background(color = colors.inputBackground, shape = RoundedCornerShape(8.dp))
-                    .border(1.dp, colors.inputBorder, RoundedCornerShape(8.dp))
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                innerTextField()
-                Spacer(modifier = Modifier.width(8.dp))
-                val rotation by animateFloatAsState(if (expanded) 180F else 0F)
-                Icon(
-                    Lucide.ChevronDown,
-                    contentDescription = "Dropdown Arrow",
-                    modifier = Modifier.rotate(rotation),
-                    tint = colors.textMuted,
-                )
-                DropdownMenu(
-                    expanded,
-                    onDismissRequest = { expanded = false },
-                ) {
-                    items.forEach { label ->
-                        DropdownMenuItem(onClick = {
-                            onItemSelected(label)
-                            expanded = false
-                        }) {
-                            Text(label, color = colors.onSurface)
-                        }
-                    }
-                }
-            }
-        }
-    )
-}

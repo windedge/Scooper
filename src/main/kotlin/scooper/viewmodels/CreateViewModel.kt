@@ -15,6 +15,7 @@ import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
 import scooper.data.App
+import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.service.GithubUrlParser
 import scooper.service.ScoopAiBridge
@@ -37,6 +38,14 @@ data class ChatMessage(
     val isTyping: Boolean = false,
 )
 
+data class TestResult(
+    val success: Boolean,
+    val testName: String,
+    val errorMessage: String? = null,
+    val prewarmedCount: Int = 0,
+    val log: String = "",
+)
+
 data class CreateState(
     val messages: List<ChatMessage> = emptyList(),
     val inputUrl: String = "",
@@ -56,6 +65,7 @@ data class CreateState(
     val saveBucket: String = "",
     val bucketOptions: List<String> = emptyList(),
     val overwriteConfirmOpen: Boolean = false,
+    val testResult: TestResult? = null,
 ) {
     val isEmpty: Boolean get() = messages.isEmpty()
 }
@@ -156,11 +166,13 @@ class CreateViewModel(
         reduce {
             state.copy(
                 testing = true,
+                testResult = null,
                 messages = state.messages + startMsg,
             )
         }
 
         var resultMsg: ChatMessage? = null
+        var testResult: TestResult? = null
         try {
             val content = rewriteManifestName(manifestJson, testName)
             withContext(Dispatchers.IO) {
@@ -172,16 +184,22 @@ class CreateViewModel(
             }
             logger.info(
                 "Test install finished for $testName: exitCode=${result.exitCode}, " +
-                    "isSuccess=${result.isSuccess}, errorMessage=${result.errorMessage}",
+                    "isSuccess=${result.isSuccess}, errorMessage=${result.errorMessage}, " +
+                    "prewarmed=${result.prewarmedCount}",
             )
+
+            val log = tailLines(result.output, MAX_TEST_LOG_LINES)
 
             if (result.isSuccess) {
                 resultMsg = agentMessage(
                     "Test install passed for $testName. Package installed successfully.",
                     "done",
                 )
-                postSideEffect(
-                    AppSideEffect.Toast("Test install succeeded: $testName", ToastType.SUCCESS),
+                testResult = TestResult(
+                    success = true,
+                    testName = testName,
+                    prewarmedCount = result.prewarmedCount,
+                    log = log,
                 )
             } else {
                 val detail = result.errorMessage?.takeIf { it.isNotBlank() }
@@ -191,8 +209,15 @@ class CreateViewModel(
                     "Test install failed for $testName: $safe",
                     "error",
                 )
-                postSideEffect(
-                    AppSideEffect.Toast("Test install failed: $testName", ToastType.ERROR),
+                val summary = sanitizeError(
+                    errorSummary(result.errorMessage, result.output, MAX_ERROR_SUMMARY_LINES),
+                )
+                testResult = TestResult(
+                    success = false,
+                    testName = testName,
+                    errorMessage = summary.ifBlank { safe },
+                    prewarmedCount = result.prewarmedCount,
+                    log = log,
                 )
             }
         } catch (e: Exception) {
@@ -203,7 +228,11 @@ class CreateViewModel(
             logger.error("Test install failed: $message")
             val safe = sanitizeError(message)
             resultMsg = agentMessage(safe, "error")
-            postSideEffect(AppSideEffect.Toast(safe, ToastType.ERROR))
+            testResult = TestResult(
+                success = false,
+                testName = testName,
+                errorMessage = safe,
+            )
         } finally {
             try {
                 withContext(Dispatchers.IO) {
@@ -220,6 +249,7 @@ class CreateViewModel(
             reduce {
                 state.copy(
                     testing = false,
+                    testResult = testResult,
                     messages = state.messages + listOfNotNull(resultMsg, cleanupMsg),
                 )
             }
@@ -334,8 +364,20 @@ class CreateViewModel(
         try {
             withContext(Dispatchers.IO) {
                 targetCanonical.parentFile?.mkdirs()
-                targetCanonical.writeText(manifestJson)
-                appsRepository.loadApps()
+                targetCanonical.writeText(formatForBucket(manifestJson))
+                // Index the newly saved manifest immediately so Discover sees it
+                // without waiting for a git commit / full reload.
+                appsRepository.ensureBucket(bucket)
+                val installed = scoopClient.installedSnapshot()
+                val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
+                val indexed = scoopClient.buildAppsFromManifestNames(
+                    bucketDir,
+                    setOf("$name.json"),
+                    Bucket(name = bucket, url = ""),
+                    installed,
+                )
+                indexed.firstOrNull()?.let { appsRepository.upsertApp(it) }
+                    ?: logger.warn("Saved manifest could not be indexed: $name.json")
             }
             reduce {
                 state.copy(
@@ -362,6 +404,8 @@ class CreateViewModel(
 
     companion object {
         private val APP_NAME_REGEX = Regex("^[a-zA-Z0-9._-]+$")
+        private const val MAX_TEST_LOG_LINES = 200
+        private const val MAX_ERROR_SUMMARY_LINES = 5
     }
 
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startGeneration(
@@ -406,6 +450,7 @@ class CreateViewModel(
                 lastNote = userPrompt.orEmpty(),
                 manifestJson = "",
                 suggestedAppName = appGuess,
+                testResult = null,
                 error = null,
                 aiConfigured = true,
                 configHint = null,
@@ -547,9 +592,9 @@ class CreateViewModel(
         }
     }
 
-    private fun sanitizeError(message: String): String {
-        return message.replace(Regex("""sk-[A-Za-z0-9_-]{8,}"""), "sk-***")
-    }
+    private fun sanitizeError(message: String): String =
+        message.replace(skRegex, "sk-***")
+
 
     private fun agentMessage(text: String, phase: String) = ChatMessage(
         role = ChatRole.Agent,
@@ -591,4 +636,51 @@ class CreateViewModel(
         scoopAiBridge.cancel()
         supervisorJob.cancel()
     }
+}
+
+/** Keep only the last [maxLines] lines of a log to avoid huge panels. */
+internal fun tailLines(text: String, maxLines: Int): String {
+    val lines = text.lines()
+    if (lines.size <= maxLines) return text
+    return lines.takeLast(maxLines).joinToString("\n")
+}
+
+/**
+ * Build a short failure summary: the detected error line plus the tail of the install log.
+ *
+ * The detected line is prepended (it is usually NOT in the log tail), so the tail is capped
+ * at [maxLines] - 1 to guarantee the detected line survives the final cut.
+ */
+internal fun errorSummary(errorMessage: String?, log: String, maxLines: Int): String {
+    val detected = errorMessage?.trim().orEmpty()
+    if (detected.isEmpty()) return tailLines(log, maxLines)
+    val tail = tailLines(log, maxLines - 1)
+    val combined = if (detected in tail) tail else "$detected\n$tail"
+    return tailLines(combined, maxLines)
+}
+
+private val bucketPrettyJson = Json {
+    prettyPrint = true
+    prettyPrintIndent = "    "
+}
+private val trailingWsRegex = Regex("[ \t]+$")
+private val skRegex = Regex("""sk-[A-Za-z0-9_-]{8,}""")
+
+/**
+ * Normalizes a manifest to Scoop bucket file style: 4-space indent, CRLF, no trailing
+ * whitespace, exactly one trailing CRLF. Returns input unchanged when it is not valid JSON.
+ */
+internal fun formatForBucket(json: String): String {
+    if (json.isBlank()) return json
+    val pretty = try {
+        val element = bucketPrettyJson.parseToJsonElement(json)
+        bucketPrettyJson.encodeToString(JsonElement.serializer(), element)
+    } catch (_: Exception) {
+        return json
+    }
+    val normalized = pretty.replace("\r\n", "\n")
+        .lines()
+        .joinToString("\n") { it.replace(trailingWsRegex, "") }
+        .replace("\n", "\r\n")
+    return normalized.trimEnd('\r', '\n') + "\r\n"
 }

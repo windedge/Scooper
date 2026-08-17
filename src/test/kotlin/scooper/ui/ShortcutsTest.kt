@@ -67,8 +67,8 @@ class ShortcutsTest {
     }
 
     @Test
-    fun `Escape matches GoBack`() {
-        assertEquals(ShortcutAction.GoBack, matchShortcutKey(Key.Escape))
+    fun `Escape does not match any shortcut`() {
+        assertNull(matchShortcutKey(Key.Escape))
     }
 
     @Test

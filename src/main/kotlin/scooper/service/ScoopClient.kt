@@ -436,13 +436,13 @@ class ScoopClient(
      * Install a local manifest as [testAppName] for validation.
      * Only uninstalls an existing install of the same test name - never the real app.
      */
-    override suspend fun testInstallManifest(testAppName: String, manifestFile: File): CommandResult {
+    override suspend fun testInstallManifest(testAppName: String, manifestFile: File): TestInstallResult {
         val alreadyInstalled = localInstalledAppDirs.any {
             it.name.equals(testAppName, ignoreCase = true)
         }
         if (alreadyInstalled) {
             logStream.emit("Uninstalling existing test app $testAppName before test install...")
-            val uninstallResult = executeAndLog(mutableListOf("scoop", "uninstall", testAppName))
+            val uninstallResult = executeAndLogCapture(mutableListOf("scoop", "uninstall", testAppName))
             if (uninstallResult.exitCode != 0) return uninstallResult
         }
 
@@ -452,7 +452,8 @@ class ScoopClient(
         val installArgs = mutableListOf(
             "scoop", "install", manifestFile.absolutePath, "-s",
         )
-        return executeAndLog(installArgs)
+        val installResult = executeAndLogCapture(installArgs)
+        return installResult.copy(prewarmedCount = prewarmed)
     }
 
     /**
@@ -627,9 +628,8 @@ class ScoopClient(
      * Does not strip query/fragment, to stay consistent with scoop.
      */
     private fun scoopCacheExtension(url: String): String {
-        val normalized = url.replace('\\', '/')
-        val ext = File(normalized).extension
-        return if (ext.isNotEmpty()) ".${ext}" else ""
+        val ext = File(url.replace('\\', '/')).extension
+        return if (ext.isNotEmpty()) ".$ext" else ""
     }
 
     /** Collect every download URL from a manifest: top-level `url` plus each architecture block. */
@@ -695,7 +695,9 @@ class ScoopClient(
         if (!cacheDir.isDirectory) return null
         val suffix = "#${ScoopCacheManager.urlHash(url)}${ScoopCacheManager.urlExtension(url)}"
         return cacheDir.listFiles { f ->
-            f.isFile && f.name.contains(suffix)
+            // Exclude aria2 control files: an interrupted download leaves `{name}.aria2` which
+            // also matches the suffix via contains(), and linking it would produce a broken cache.
+            f.isFile && f.name.contains(suffix) && !f.name.endsWith(".aria2")
         }?.firstOrNull()
     }
 
@@ -767,6 +769,11 @@ class ScoopClient(
     }
 
     private suspend fun executeAndLog(args: List<String>): CommandResult {
+        val result = executeAndLogCapture(args)
+        return CommandResult(result.exitCode, result.errorMessage)
+    }
+
+    private suspend fun executeAndLogCapture(args: List<String>): TestInstallResult {
         val outputLines = mutableListOf<String>()
         val result = executeSuspend(
             args,
@@ -780,7 +787,7 @@ class ScoopClient(
         )
         val errorMessage = outputLines.find { " ERROR " in it || it.trimStart().startsWith("ERROR ") }
         val exitCode = if (errorMessage != null && result.resultCode == 0) 1 else result.resultCode
-        return CommandResult(exitCode, errorMessage)
+        return TestInstallResult(exitCode, errorMessage, outputLines.joinToString("\n"))
     }
 
     private fun isLocalManifestInstall(appName: String): Boolean {

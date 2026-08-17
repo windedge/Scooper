@@ -22,7 +22,6 @@ enum class ShortcutAction(val label: String, val keys: String) {
     NavCreate("Navigate to Create", "Ctrl+5"),
     OpenSettings("Open Settings", "Ctrl+,"),
     OpenOutput("View Logs / Output", "Ctrl+L / Ctrl+`"),
-    GoBack("Go Back", "Esc"),
 }
 
 /**
@@ -37,9 +36,6 @@ fun matchShortcut(event: KeyEvent): ShortcutAction? =
  * without a real Compose [KeyEvent] (which requires a native backend).
  */
 fun matchShortcutKey(key: Key, ctrl: Boolean = false, shift: Boolean = false): ShortcutAction? {
-    // Esc — always handle (back / dismiss)
-    if (key == Key.Escape) return ShortcutAction.GoBack
-
     // Ctrl+Shift+R — reload local apps
     if (ctrl && shift && key == Key.R) return ShortcutAction.ReloadApps
 
@@ -140,6 +136,5 @@ fun handleWindowShortcut(
             }
             true
         }
-        ShortcutAction.GoBack -> nav.pop()
     }
 }
