@@ -27,12 +27,6 @@ import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.tr
 
-private fun AppRoute.Settings.displayLabel(): String = when (this) {
-    AppRoute.Settings.General -> tr("General")
-    AppRoute.Settings.UI -> tr("UI")
-    AppRoute.Settings.About -> tr("About")
-}
-
 @Composable
 fun PrefTextField(
     value: String,
@@ -287,7 +281,7 @@ fun NavBar(
                     Spacer(Modifier.height(8.dp))
                 }
                 SettingsNavItem(
-                    route.displayLabel(),
+                    route.displayName(),
                     selected = activeRoute == route,
                     onClick = { onClick(route) }
                 )

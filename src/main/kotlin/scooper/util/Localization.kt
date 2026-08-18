@@ -94,6 +94,20 @@ object Strings {
 // keywords.set(listOf("tr", "trc:1c,2"))
 // ---------------------------------------------------------------------------
 
+/**
+ * Marker interface for types whose display strings are translated at render
+ * time (e.g. enums shown in dropdowns or tabs).
+ *
+ * - [displayName] reads [Strings.current] on every call, so invoking it inside
+ *   a Composable registers a snapshot read and the caller recomposes
+ *   automatically when the language changes.
+ * - The `tr(...)` calls in the implementing body are plain source calls, so
+ *   the gettext Gradle plugin extracts their msgids as usual.
+ */
+interface Translatable {
+    fun displayName(): String
+}
+
 /** Simple translation. */
 fun tr(msgid: String): String = Strings.current.tr(msgid)
 

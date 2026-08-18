@@ -40,6 +40,7 @@ import scooper.data.ViewMode
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
+import scooper.util.Strings
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.tr
@@ -72,7 +73,9 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     var sortOrder by rememberSaveable { mutableStateOf("desc") }
     var queryText by rememberSaveable { mutableStateOf("") }
 
-    val sortOptions = remember(queryText) {
+    // Strings.current as remember key: tr() results are re-evaluated when the
+    // language changes so the sort dropdown labels stay current.
+    val sortOptions = remember(queryText, Strings.current) {
         if (queryText.isNotBlank()) {
             listOf(
                 "bestmatch" to tr("Best Match"),

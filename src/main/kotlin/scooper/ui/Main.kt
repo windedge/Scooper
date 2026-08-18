@@ -353,7 +353,13 @@ private fun SystemTrayIcon(
             onExit = onExit
         )
     }
-    
+
+    // Rebuild the tray popup labels whenever the UI language changes.
+    // Reading Strings.current here subscribes this composable to locale switches.
+    LaunchedEffect(Strings.current) {
+        trayManager.refreshMenu()
+    }
+
     DisposableEffect(trayManager) {
         trayManager.install()
         onDispose { trayManager.remove() }

@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
+import scooper.util.Translatable
 import scooper.util.tr
 import java.net.URI
 import java.net.http.HttpClient
@@ -44,10 +45,16 @@ data class ScoopSearchMetadata(
     }
 }
 
-enum class ScoopSearchSort(val orderBy: String) {
+enum class ScoopSearchSort(val orderBy: String) : Translatable {
     BestMatch("relevance"),
     Name("name"),
-    Newest("newest"),
+    Newest("newest");
+
+    override fun displayName(): String = when (this) {
+        BestMatch -> tr("Best match")
+        Name -> tr("Name")
+        Newest -> tr("Newest")
+    }
 }
 
 class ScoopSearchService : AutoCloseable {

@@ -919,7 +919,7 @@ msgstr "系统托盘图标"
 msgid ""
 "Keep a tray icon in the taskbar. Closing the window hides it to tray instead "
 "of exiting."
-msgstr "在任务栏保留托盘图标。关闭窗口时将隐藏到托盘而不是退出。"
+msgstr "在任务栏保留托盘图标。关闭窗口会将其隐藏到托盘，而不是直接退出。"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:437
 msgid "Show FPS"
@@ -1137,3 +1137,43 @@ msgstr "未知"
 #: src\main\kotlin\scooper\ui\components\DetailComponents.kt:105
 msgid "pre-release"
 msgstr "预发布"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:33
+msgid "Focus Search"
+msgstr "聚焦搜索"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:34
+msgid "Refresh Scoop"
+msgstr "刷新 Scoop"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:35
+msgid "Reload Local Apps"
+msgstr "重新加载本地应用"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:36
+msgid "Navigate to Discover"
+msgstr "前往发现"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:37
+msgid "Navigate to Installed"
+msgstr "前往已安装"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:38
+msgid "Navigate to Buckets"
+msgstr "前往仓库"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:39
+msgid "Navigate to Cleanup"
+msgstr "前往清理"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:40
+msgid "Open Settings"
+msgstr "打开设置"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:41
+msgid "View Logs / Output"
+msgstr "查看日志 / 输出"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:42
+msgid "Go Back"
+msgstr "返回"

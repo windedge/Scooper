@@ -148,6 +148,16 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
 
     val formChangedState = rememberFormChanged(formState)
     val hasChanged by formChangedState.hasChanged
+
+    // Localized dropdown labels: ChoiceState.choices in the ViewModel stores
+    // raw msgids, so re-run tr() here; tr() reads Strings.current (a Compose
+    // state), so the labels follow locale switches automatically.
+    val proxyTypeChoices = mapOf(
+        "default" to tr("Default"),
+        "none" to tr("None"),
+        "custom" to tr("Custom"),
+    )
+
     LaunchedEffect(proxyTypeState.value) {
         proxyState.value = when (proxyTypeState.value) {
             "default" -> ""
@@ -179,13 +189,22 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                                 label = tr("Proxy Address:"),
                                 placeholder = tr("[username:password@]host:port"),
                                 isError = proxyState.hasError,
-                                errorMessage = proxyState.errorMessage
+                                // errorMessage holds a raw msgid (see SettingsViewModel
+                                // scoopFormState comment); translate it at render time so
+                                // the message follows locale switches. The literal
+                                // comparison keeps the msgid extractable by gettext
+                                // (tr(proxyState.errorMessage) alone would not).
+                                errorMessage = if (proxyState.errorMessage == "Invalid proxy address.") {
+                                    tr("Invalid proxy address.")
+                                } else {
+                                    tr(proxyState.errorMessage)
+                                }
                             )
                         }
                     }
                 }
             ) {
-                val choices = proxyTypeState.choices
+                val choices = proxyTypeChoices
                 ExposedDropdownMenu(
                     choices.values.toList(),
                     selected = choices[proxyTypeState.value]!!,
@@ -226,6 +245,19 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val refreshOnStartupState: SwitchState = formState.getState("refreshOnStartup")
     val periodicRefreshState: SwitchState = formState.getState("periodicRefreshEnabled")
     val intervalState: ChoiceState = formState.getState("autoRefreshIntervalMinutes")
+
+    // Localized dropdown labels: ChoiceState.choices in the ViewModel stores
+    // raw msgids, so re-run tr()/displayName() here; both read Strings.current
+    // (a Compose state), so the labels follow locale switches automatically.
+    val themeChoices = Theme.entries.associate { it.name to it.displayName() }
+    val viewModeChoices = ViewMode.entries.associate { it.name to it.displayName() }
+    val paginationModeChoices = PaginationMode.entries.associate { it.name to it.displayName() }
+    val intervalChoices = mapOf(
+        "30" to tr("{{n}} min", "n" to "30"),
+        "60" to tr("{{n}} hour", "n" to "1"),
+        "120" to tr("{{n}} hours", "n" to "2"),
+        "240" to tr("{{n}} hours", "n" to "4"),
+    )
 
     LaunchedEffect(themeState.value) {
         val theme = Theme.valueOf(themeState.value)
@@ -342,7 +374,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                             title = tr("Interval"),
                             subtitle = tr("How often to check for updates."),
                         ) {
-                            val choices = intervalState.choices
+                            val choices = intervalChoices
                             ExposedDropdownMenu(
                                 choices.values.toList(),
                                 selected = choices[intervalState.value]!!,
@@ -438,7 +470,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             Divider(color = colors.divider)
             PrefRow(title = tr("Switch Theme")) {
-                val choices = themeState.choices
+                val choices = themeChoices
                 ExposedDropdownMenu(
                     choices.values.toList(),
                     selected = choices[themeState.value]!!,
@@ -450,7 +482,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             PrefRow(title = tr("Default View Mode"),
                 subtitle = tr("Choose how packages are displayed in the list."),
             ) {
-                val choices = viewModeState.choices
+                val choices = viewModeChoices
                 ExposedDropdownMenu(
                     choices.values.toList(),
                     selected = choices[viewModeState.value]!!,
@@ -462,7 +494,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             PrefRow(title = tr("Default Pagination Mode"),
                 subtitle = tr("Choose how packages are paginated."),
             ) {
-                val choices = paginationModeState.choices
+                val choices = paginationModeChoices
                 ExposedDropdownMenu(
                     choices.values.toList(),
                     selected = choices[paginationModeState.value]!!,

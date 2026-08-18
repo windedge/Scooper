@@ -4,6 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.skiko.SystemTheme
 import scooper.util.PAGE_SIZE
+import scooper.util.Translatable
+import scooper.util.tr
 import org.jetbrains.skiko.currentSystemTheme
 
 @Serializable
@@ -26,12 +28,33 @@ data class ScoopConfig(
 }
 
 
-enum class Theme() {
-    Auto, Light, Dark
+enum class Theme : Translatable {
+    Auto, Light, Dark;
+
+    override fun displayName(): String = when (this) {
+        Auto -> tr("Auto")
+        Light -> tr("Light")
+        Dark -> tr("Dark")
+    }
 }
 
-enum class ViewMode { List, Grid }
-enum class PaginationMode { Waterfall, Pagination }
+enum class ViewMode : Translatable {
+    List, Grid;
+
+    override fun displayName(): String = when (this) {
+        List -> tr("List")
+        Grid -> tr("Grid")
+    }
+}
+
+enum class PaginationMode : Translatable {
+    Waterfall, Pagination;
+
+    override fun displayName(): String = when (this) {
+        Waterfall -> tr("Waterfall")
+        Pagination -> tr("Pagination")
+    }
+}
 
 const val DEFAULT_WINDOW_WIDTH = 1280
 const val DEFAULT_WINDOW_HEIGHT = 800
