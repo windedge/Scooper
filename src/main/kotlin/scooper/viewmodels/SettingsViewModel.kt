@@ -15,7 +15,6 @@ import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
-import scooper.util.tr
 
 data class SettingsState(
     val uiConfig: UIConfig = UIConfig(),
@@ -77,13 +76,19 @@ class SettingsViewModel(
         configRepository.setConfig(configRepository.getConfig().copy(fontFamily = name))
     }
 
+    // ChoiceState.choices values are raw English msgids, NOT the output of
+    // tr(...): labels are produced at render time (Settings.kt) by re-running
+    // tr()/displayName(), so they follow locale switches and are never frozen
+    // by the locale active when this ViewModel is constructed. Keys are stable
+    // identifiers, so ChoiceState validators and the dropdown reverse lookup
+    // (filter by label) keep working.
     val scoopFormState = FormState(
         fields = listOf(
             ChoiceState(
                 "proxyType", initial = "default", validators = listOf(Validators.ValidChoice()), choices = mapOf(
-                    "default" to tr("Default"),
-                    "none" to tr("None"),
-                    "custom" to tr("Custom")
+                    "default" to "Default",
+                    "none" to "None",
+                    "custom" to "Custom",
                 )
             ),
             TextFieldState(
@@ -92,7 +97,10 @@ class SettingsViewModel(
                     transformProxy(it)
                 },
                 validators = listOf(
-                    Validators.Custom(tr("Invalid proxy address.")) {
+                    // Store the raw msgid (translation happens at the display
+                    // layer in Settings.kt via tr(proxyState.errorMessage)), so
+                    // the message is not frozen at ViewModel construction.
+                    Validators.Custom("Invalid proxy address.") {
                         validateProxy(it as String)
                     },
                 )
@@ -107,24 +115,24 @@ class SettingsViewModel(
             SwitchState("periodicRefreshEnabled"),
             ChoiceState(
                 "autoRefreshIntervalMinutes", initial = "120", validators = listOf(), choices = mapOf(
-                    "30" to tr("{{n}} min", "n" to "30"),
-                    "60" to tr("{{n}} hour", "n" to "1"),
-                    "120" to tr("{{n}} hours", "n" to "2"),
-                    "240" to tr("{{n}} hours", "n" to "4"),
+                    "30" to "{{n}} min",
+                    "60" to "{{n}} hour",
+                    "120" to "{{n}} hours",
+                    "240" to "{{n}} hours",
                 )
             ),
             ChoiceState("theme", validators = listOf(), choices = mapOf(
-                "Auto" to tr("Auto"),
-                "Light" to tr("Light"),
-                "Dark" to tr("Dark"),
+                "Auto" to "Auto",
+                "Light" to "Light",
+                "Dark" to "Dark",
             )),
             ChoiceState("viewMode", validators = listOf(), choices = mapOf(
-                "List" to tr("List"),
-                "Grid" to tr("Grid"),
+                "List" to "List",
+                "Grid" to "Grid",
             )),
             ChoiceState("paginationMode", validators = listOf(), choices = mapOf(
-                "Waterfall" to tr("Waterfall"),
-                "Pagination" to tr("Pagination"),
+                "Waterfall" to "Waterfall",
+                "Pagination" to "Pagination",
             )),
             SwitchState("showTrayIcon"),
         )

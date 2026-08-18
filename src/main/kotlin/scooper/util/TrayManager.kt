@@ -34,30 +34,44 @@ class TrayManager(
 ) {
     private var trayIcon: TrayIcon? = null
 
-    private val popupMenu = JPopupMenu().apply {
-        border = javax.swing.BorderFactory.createCompoundBorder(
-            javax.swing.BorderFactory.createLineBorder(java.awt.Color(200, 200, 200), 1),
-            javax.swing.BorderFactory.createEmptyBorder(4, 0, 4, 0),
-        )
-        val menuFont = Font("SansSerif", Font.PLAIN, 12)
-        add(JMenuItem(tr("Show Scooper"), showIcon).apply {
-            font = menuFont
-            preferredSize = java.awt.Dimension(
-                preferredSize.width.coerceAtLeast(140),
-                28,
-            )
-            addActionListener { onShow() }
-        })
-        addSeparator()
-        add(JMenuItem(tr("Exit"), exitIcon).apply {
-            font = menuFont
-            preferredSize = java.awt.Dimension(
-                preferredSize.width.coerceAtLeast(140),
-                28,
-            )
-            addActionListener { onExit() }
-        })
+    private var popupMenu: JPopupMenu = buildPopupMenu()
+
+    /**
+     * Rebuild the popup menu with fresh translations, then swap it in.
+     * Called from the Compose side (LaunchedEffect(Strings.current)) whenever the
+     * UI language changes. Runs on the EDT to avoid touching Swing off-thread.
+     */
+    fun refreshMenu() {
+        SwingUtilities.invokeLater {
+            popupMenu = buildPopupMenu()
+        }
     }
+
+    private fun buildPopupMenu(): JPopupMenu =
+        JPopupMenu().apply {
+            border = javax.swing.BorderFactory.createCompoundBorder(
+                javax.swing.BorderFactory.createLineBorder(java.awt.Color(200, 200, 200), 1),
+                javax.swing.BorderFactory.createEmptyBorder(4, 0, 4, 0),
+            )
+            val menuFont = Font("SansSerif", Font.PLAIN, 12)
+            add(JMenuItem(tr("Show Scooper"), showIcon).apply {
+                font = menuFont
+                preferredSize = java.awt.Dimension(
+                    preferredSize.width.coerceAtLeast(140),
+                    28,
+                )
+                addActionListener { onShow() }
+            })
+            addSeparator()
+            add(JMenuItem(tr("Exit"), exitIcon).apply {
+                font = menuFont
+                preferredSize = java.awt.Dimension(
+                    preferredSize.width.coerceAtLeast(140),
+                    28,
+                )
+                addActionListener { onExit() }
+            })
+        }
 
     private fun handlePopupTrigger(e: MouseEvent) {
         if (e.isPopupTrigger || e.button == MouseEvent.BUTTON3) {
@@ -99,6 +113,11 @@ class TrayManager(
      * before displaying the popup.
      */
     private fun showPopupMenu(screenX: Int, screenY: Int) {
+        // Snapshot the menu once. refreshMenu() can swap the popupMenu field
+        // (locale change) while this popup is being shown; reading the field
+        // repeatedly would attach the listener to a new menu while showing an
+        // old one, leaking the JWindow (the popup could never dismiss).
+        val menu = popupMenu
         val invoker = JWindow().apply {
             bounds = Rectangle(screenX - 8, screenY - 8, 16, 16)
             isAlwaysOnTop = true
@@ -106,22 +125,22 @@ class TrayManager(
         invoker.isVisible = true
 
         SwingUtilities.invokeLater {
-            popupMenu.pack()
-            popupMenu.show(invoker, 0, -popupMenu.preferredSize.height)
+            menu.pack()
+            menu.show(invoker, 0, -menu.preferredSize.height)
         }
 
         val listener = object : PopupMenuListener {
             override fun popupMenuWillBecomeVisible(e: PopupMenuEvent?) {}
             override fun popupMenuWillBecomeInvisible(e: PopupMenuEvent?) {
-                popupMenu.removePopupMenuListener(this)
+                menu.removePopupMenuListener(this)
                 invoker.dispose()
             }
             override fun popupMenuCanceled(e: PopupMenuEvent?) {
-                popupMenu.removePopupMenuListener(this)
+                menu.removePopupMenuListener(this)
                 invoker.dispose()
             }
         }
-        popupMenu.addPopupMenuListener(listener)
+        menu.addPopupMenuListener(listener)
     }
 
     fun remove() {

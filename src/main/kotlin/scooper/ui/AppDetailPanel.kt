@@ -45,6 +45,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.components.SelectableContainer
 import scooper.ui.theme.*
+import scooper.util.Translatable
 import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.onHover
@@ -58,14 +59,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 
-private enum class ContentTab {
+private enum class ContentTab : Translatable {
     Changelog,
-    Manifest,
-}
+    Manifest;
 
-private fun ContentTab.displayLabel(): String = when (this) {
-    ContentTab.Changelog -> tr("Changelog")
-    ContentTab.Manifest -> tr("Manifest")
+    override fun displayName(): String = when (this) {
+        Changelog -> tr("Changelog")
+        Manifest -> tr("Manifest")
+    }
 }
 
 @Composable
@@ -253,7 +254,7 @@ private fun ContentTabSection(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            tab.displayLabel(),
+                            tab.displayName(),
                             style = typography.body2.copy(
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = textColor,

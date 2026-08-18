@@ -46,6 +46,7 @@ import scooper.util.onHover
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.ui.theme.*
+import scooper.util.Strings
 import scooper.util.tr
 
 @Suppress("UNCHECKED_CAST")
@@ -61,8 +62,9 @@ fun SidebarNav(
     val focusRequesters = remember { List(5) { FocusRequester() } }
     var focusedIndex by remember { mutableStateOf(-1) }
 
-    // Sidebar items in visual order
-    val items = remember(updateCount) {
+    // Sidebar items in visual order. Strings.current as key so labels are
+    // re-translated (and recomposed) when the language changes.
+    val items = remember(updateCount, Strings.current) {
         listOf(
             SidebarItem(tr("Discover")) { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
             SidebarItem(tr("Installed"), badge = if (updateCount > 0) updateCount.toInt() else null,

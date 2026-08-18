@@ -42,6 +42,7 @@ import scooper.ui.components.SelectableContainer
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.theme.*
+import scooper.util.Translatable
 import scooper.util.tr
 import scooper.util.trn
 import scooper.util.cursorHand
@@ -53,14 +54,14 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-private enum class SearchDetailTab {
+private enum class SearchDetailTab : Translatable {
     Changelog,
-    Manifest,
-}
+    Manifest;
 
-private fun SearchDetailTab.displayLabel(): String = when (this) {
-    SearchDetailTab.Changelog -> tr("Changelog")
-    SearchDetailTab.Manifest -> tr("Manifest")
+    override fun displayName(): String = when (this) {
+        Changelog -> tr("Changelog")
+        Manifest -> tr("Manifest")
+    }
 }
 
 @Composable
@@ -568,7 +569,7 @@ private fun SearchDetailContentSection(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            tab.displayLabel(),
+                            tab.displayName(),
                             style = typography.body2.copy(
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = textColor,

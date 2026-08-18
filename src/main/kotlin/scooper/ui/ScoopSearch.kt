@@ -50,12 +50,6 @@ import scooper.viewmodels.ScoopSearchViewModel
 import scooper.util.tr
 import scooper.util.trn
 
-private fun ScoopSearchSort.displayLabel(): String = when (this) {
-    ScoopSearchSort.BestMatch -> tr("Best match")
-    ScoopSearchSort.Name -> tr("Name")
-    ScoopSearchSort.Newest -> tr("Newest")
-}
-
 @OptIn(FlowPreview::class)
 @Composable
 fun ScoopSearchScreen(
@@ -290,7 +284,7 @@ private fun SearchOptionsMenu(
                         tint = colors.textBody,
                     )
                     Text(
-                        "${sort.displayLabel()}, $bucketLabel",
+                        "${sort.displayName()}, $bucketLabel",
                         style = typography.subtitle2.copy(color = colors.textTitle),
                     )
                 }
@@ -314,7 +308,7 @@ private fun SearchOptionsMenu(
                         },
                     ) {
                         Text(
-                            option.displayLabel(),
+                            option.displayName(),
                             style = typography.body2.copy(
                                 color = if (option == sort) colors.primary else colors.onSurface,
                                 fontWeight = if (option == sort) FontWeight.SemiBold else FontWeight.Normal,
