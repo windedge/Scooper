@@ -287,12 +287,16 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
         settingsViewModel.switchFontSizeScale(fontSizeScale)
     }
 
-    // Installed CJK font families for the "Interface Font" dropdown; enumerated
-    // off the UI thread because it walks the whole system font manager.
-    var cjkFonts by remember { mutableStateOf<List<String>>(emptyList()) }
-    LaunchedEffect(Unit) {
+    // Installed font families for the "Interface Font" dropdown, filtered by the
+    // active UI language (CJK locales keep only families that render that
+    // language's glyphs, non-CJK locales get the full family list); enumerated
+    // off the UI thread because it walks the whole system font manager. Keyed on
+    // the locale tag so switching language and re-entering the screen re-enumerates.
+    val localeTag = Strings.current.locale.toLanguageTag()
+    var fontFamilies by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(localeTag) {
         withContext(Dispatchers.Default) {
-            cjkFonts = listInstalledCjkFontFamilies()
+            fontFamilies = listInstalledFontFamilies(localeTag)
         }
     }
 
@@ -393,11 +397,13 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 val locales = scooper.util.supportedLocales
                 val currentLocaleTag = settingsState.uiConfig.locale
                 val selectedLocale = locales.find { it.locale.toLanguageTag() == currentLocaleTag } ?: locales.first()
+                val selectables = locales.map { it.locale.getDisplayName(it.locale) }
+                val selectedLocaleValue = selectedLocale.locale.getDisplayName(selectedLocale.locale)
                 ExposedDropdownMenu(
-                    locales.map { it.displayName },
-                    selected = selectedLocale.displayName,
+                    selectables,
+                    selected = selectedLocaleValue,
                     onItemSelected = { label ->
-                        val locale = locales.first { it.displayName == label }
+                        val locale = locales.first { it.locale.getDisplayName(it.locale) == label }
                         settingsViewModel.switchLocale(locale.locale.toLanguageTag())
                     })
             }
@@ -408,7 +414,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             ) {
                 val defaultFontLabel = tr("Default")
                 val currentFontFamily = settingsState.uiConfig.fontFamily
-                val fontItems = listOf(defaultFontLabel) + cjkFonts
+                val fontItems = listOf(defaultFontLabel) + fontFamilies
                 // Widen the menu so the longest font name fits on a single line:
                 // measured text width + DropdownMenuItem horizontal padding +
                 // scrollbar reserve + a small buffer.
@@ -422,7 +428,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     }
                 }
                 // +1 accounts for the leading "Default" entry; 0 when not found.
-                val selectedFontIndex = cjkFonts.indexOf(currentFontFamily) + 1
+                val selectedFontIndex = fontFamilies.indexOf(currentFontFamily) + 1
                 ExposedDropdownMenu(
                     items = fontItems,
                     selected = currentFontFamily.ifBlank { defaultFontLabel },
@@ -442,6 +448,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     menuMinWidth = fontMenuMinWidth,
                     showScrollbar = true,
                     selectedIndex = selectedFontIndex,
+                    searchable = true,
                 )
             }
             Divider(color = colors.divider)

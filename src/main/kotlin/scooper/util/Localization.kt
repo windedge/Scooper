@@ -25,7 +25,13 @@ data class SupportedLocale(
  */
 val supportedLocales = listOf(
     SupportedLocale(Locale.ENGLISH, "English"),
-    SupportedLocale(Locale.SIMPLIFIED_CHINESE, "中文 (简体)"),
+    SupportedLocale(Locale.SIMPLIFIED_CHINESE, "简体中文"),
+    SupportedLocale(Locale.TRADITIONAL_CHINESE, "繁體中文"),
+    SupportedLocale(Locale.JAPANESE, "日本語"),
+    SupportedLocale(Locale.GERMAN, "Deutsch"),
+    SupportedLocale(Locale.FRENCH, "Français"),
+    SupportedLocale(Locale("es"), "Español"),
+    SupportedLocale(Locale("ru"), "Русский"),
 )
 
 /**

@@ -25,10 +25,11 @@ import org.jetbrains.skia.FontWeight as SkiaFontWeight
  * on SimSun (Songti) - thin, blurry-edged glyphs that look wrong next to
  * Segoe UI. To fix this we map the active UI language to a Windows system
  * family and pass it as [Typography.defaultFontFamily]: CJK languages get
- * their standard Windows UI font (YaHei for zh, Yu Gothic UI for ja, Malgun
- * Gothic for ko - those families include Latin glyphs themselves), while
- * every non-CJK language - currently "en" - gets Arial, which is what the
- * app loaded explicitly before i18n; using Segoe UI instead would subtly
+ * their standard Windows UI font (JhengHei for zh-TW with YaHei fallback,
+ * YaHei for zh/zh-CN, Yu Gothic UI for ja, Malgun Gothic for ko - those
+ * families include Latin glyphs themselves), while every non-CJK language
+ * (e.g. "en", "de", "fr", "es", "ru") gets Arial, which is what the app
+ * loaded explicitly before i18n; using Segoe UI instead would subtly
  * change metrics and rendering of the historical English UI.
  *
  * Loading a font file explicitly (e.g. Arial from C:\Windows\Fonts) bypasses
@@ -46,23 +47,28 @@ private val isWindows: Boolean =
     System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
 
 /**
- * Resolve the system [FontFamily] for [language] (ISO 639-1 code such as
- * "en", "zh", "ja" or "ko"), or null to keep [FontFamily.Default].
+ * Resolve the system [FontFamily] for [localeTag] (BCP-47 language tag such
+ * as "en", "zh-CN", "zh-TW", "ja" or "ko"), or null to keep
+ * [FontFamily.Default].
  *
- * CJK languages map to their Windows UI font; every other language (the
- * non-CJK default, currently "en") maps to Arial to preserve the pre-i18n
- * English UI look. Each candidate family is validated against the actual
- * system font manager (see [matchInstalledTypeface]); when no candidate is
- * installed (e.g. Arial stripped from the system) this returns null and
+ * CJK languages map to their Windows UI font (Traditional Chinese uses
+ * JhengHei with YaHei as fallback, Simplified Chinese uses YaHei); every
+ * other language (the non-CJK default, e.g. "en", "de", "fr", "es", "ru")
+ * maps to Arial to preserve the pre-i18n English UI look. Each candidate
+ * family is validated against the actual system font manager (see
+ * [matchInstalledTypeface]); when no candidate is installed (e.g. Arial
+ * stripped from the system) this returns null and
  * [Typography.defaultFontFamily] falls back to [FontFamily.Default].
  *
  * Non-Windows platforms return null and keep [FontFamily.Default] (system
  * fallback chain); the app does not target macOS.
  */
-fun fontFamilyFor(language: String): FontFamily? {
+fun fontFamilyFor(localeTag: String): FontFamily? {
     if (!isWindows) return null
-    val candidates = when (language) {
-        "zh" -> listOf("Microsoft YaHei UI", "Microsoft YaHei")
+    val candidates = when (localeTag) {
+        "zh-TW" -> listOf("Microsoft JhengHei UI", "Microsoft JhengHei", "Microsoft YaHei UI", "Microsoft YaHei")
+        // Bare "zh" and "zh-CN" both resolve to Simplified Chinese (YaHei).
+        "zh", "zh-CN" -> listOf("Microsoft YaHei UI", "Microsoft YaHei")
         "ja" -> listOf("Yu Gothic UI")
         "ko" -> listOf("Malgun Gothic")
         // Non-CJK languages keep the pre-i18n look: Arial, with a safe
@@ -147,16 +153,39 @@ fun fontFamilyOverride(name: String): FontFamily? {
 }
 
 /**
- * Enumerate installed font families that actually cover CJK characters.
+ * Probe character used by [listInstalledFontFamilies] to detect glyph coverage
+ * for [localeTag], or null to skip the coverage filter and list every installed
+ * family.
+ *
+ * The language part of the tag decides the probe: Chinese (including zh-TW,
+ * zh-CN, zh-Hans/zh-Hant) uses 已, Japanese uses 配, Korean uses 한. Every
+ * other language (en/de/fr/es/ru/...) returns null, which means no glyph check
+ * at all: the whole system family list is offered, not just CJK families.
+ */
+private fun cjkProbeChar(localeTag: String): Char? = when (localeTag.substringBefore('-')) {
+    // zh-TW, zh-CN and bare zh all fall under the zh language code.
+    "zh" -> '已'
+    "ja" -> '配'  // a common Kanji; pure kana-only typefaces are excluded by design
+    "ko" -> '한'
+    else -> null
+}
+
+/**
+ * Enumerate installed font families that can fully render text in [localeTag].
  *
  * Used to populate the "Interface Font" dropdown. Every family name reported
  * by [FontMgr] is re-validated through [matchInstalledTypeface] to guard
- * against silent fallbacks, then checked for CJK coverage via
- * [Typeface.getUTF32Glyph] (glyph id 0 means the character has no glyph in
- * this typeface). Non-Windows platforms return an empty list.
+ * against silent fallbacks. For CJK locales the family is then checked for
+ * glyph coverage via [Typeface.getUTF32Glyph] (glyph id 0 means the character
+ * has no glyph in this typeface) using the probe from [cjkProbeChar] (已 for
+ * Chinese, 配 for Japanese, 한 for Korean), so the list contains exactly the
+ * families that render the language correctly. For non-CJK locales the probe
+ * is null and every installed family is returned without a coverage filter.
+ * Non-Windows platforms return an empty list.
  */
-fun listInstalledCjkFontFamilies(): List<String> {
+fun listInstalledFontFamilies(localeTag: String): List<String> {
     if (!isWindows) return emptyList()
+    val probe = cjkProbeChar(localeTag)
     val fontMgr = FontMgr.default
     val families = mutableListOf<String>()
     for (i in 0 until fontMgr.familiesCount) {
@@ -167,7 +196,7 @@ fun listInstalledCjkFontFamilies(): List<String> {
         }
         val typeface = matchInstalledTypeface(familyName, SkiaFontWeight.NORMAL) ?: continue
         try {
-            if (typeface.getUTF32Glyph('已'.code) != 0.toShort()) {
+            if (probe == null || typeface.getUTF32Glyph(probe.code) != 0.toShort()) {
                 families.add(familyName)
             }
         } finally {
