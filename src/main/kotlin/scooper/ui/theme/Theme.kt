@@ -41,7 +41,7 @@ private val lightColorPalette = lightColors(
 fun ScooperTheme(
     currentTheme: SystemTheme = currentSystemTheme,
     fontSizeScale: Float = 1.0f,
-    uiLanguage: String = "en",
+    localeTag: String = "en",
     userFontFamilyName: String? = null,
     content: @Composable () -> Unit
 ) {
@@ -52,8 +52,8 @@ fun ScooperTheme(
     // CJK -> the language's UI font). A locale change is a snapshot-state read
     // upstream (Strings.current), so this recomposes automatically and the
     // typography rebuilds with the new family.
-    val fontFamily = remember(uiLanguage, userFontFamilyName) {
-        userFontFamilyName?.let { fontFamilyOverride(it) } ?: fontFamilyFor(uiLanguage)
+    val fontFamily = remember(localeTag, userFontFamilyName) {
+        userFontFamilyName?.let { fontFamilyOverride(it) } ?: fontFamilyFor(localeTag)
     }
 
     MaterialTheme(

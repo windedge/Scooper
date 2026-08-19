@@ -227,7 +227,7 @@ fun main() {
         ScooperTheme(
             currentTheme = theme,
             fontSizeScale = uiConfig.fontSizeScale,
-            uiLanguage = Strings.current.locale.language,
+            localeTag = Strings.current.locale.toLanguageTag(),
             userFontFamilyName = uiConfig.fontFamily,
         ) {
             CompositionLocalProvider(LocalShowFps provides showFpsState) {

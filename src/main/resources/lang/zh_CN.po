@@ -361,7 +361,7 @@ msgstr "搜索"
 
 #: src\main\kotlin\scooper\ui\Search.kt:156
 msgid "Search packages... (supports OR, -exclude)"
-msgstr "搜索软件包... (支持 OR、-排除)"
+msgstr "搜索软件包...（支持 OR 和 -exclude 排除）"
 
 #: src\main\kotlin\scooper\ui\Search.kt:257
 #: src\main\kotlin\scooper\ui\Search.kt:264
@@ -944,7 +944,7 @@ msgstr "打开链接"
 
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:31
 msgid "General"
-msgstr "常规"
+msgstr "通用"
 
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:32
 msgid "UI"
@@ -1177,3 +1177,7 @@ msgstr "查看日志 / 输出"
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:42
 msgid "Go Back"
 msgstr "返回"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:254
+msgid "No matches found."
+msgstr "未找到匹配项。"
