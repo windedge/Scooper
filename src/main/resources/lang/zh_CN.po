@@ -65,10 +65,15 @@ msgstr "版本"
 msgid "Status"
 msgstr "状态"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:512
-#: src\main\kotlin\scooper\ui\Sidebar.kt:68
-#: src\main\kotlin\scooper\ui\Sidebar.kt:173
-#: src\main\kotlin\scooper\ui\Sidebar.kt:182
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
+msgctxt "status"
+msgid "Installed"
+msgstr "已安装"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:71
+#: src\main\kotlin\scooper\ui\Sidebar.kt:176
+#: src\main\kotlin\scooper\ui\Sidebar.kt:185
+msgctxt "navigation"
 msgid "Installed"
 msgstr "已安装"
 
@@ -359,7 +364,7 @@ msgstr "名称"
 msgid "Search"
 msgstr "搜索"
 
-#: src\main\kotlin\scooper\ui\Search.kt:156
+#: src\main\kotlin\scooper\ui\Search.kt:159
 msgid "Search packages... (supports OR, -exclude)"
 msgstr "搜索软件包...（支持 OR 和 -exclude 排除）"
 

@@ -1,0 +1,39 @@
+name: i18n-check
+
+on:
+  push:
+    paths:
+      - 'src/main/resources/lang/**'
+      - '.github/workflows/i18n-check.yml'
+  pull_request:
+    paths:
+      - 'src/main/resources/lang/**'
+      - '.github/workflows/i18n-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: PO health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install gettext (msgfmt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext
+
+      - name: Run PO health checks
+        run: |
+          python3 scripts/check_po.py
+
+      - name: "Fallback: msgfmt --check over all po files"
+        run: |
+          set -e
+          for po in src/main/resources/lang/*.po; do
+            echo "== msgfmt --check ${po} =="
+            msgfmt --check -o /dev/null "$po"
+          done

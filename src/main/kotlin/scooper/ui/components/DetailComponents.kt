@@ -30,13 +30,11 @@ import scooper.service.GitHubRelease
 import scooper.ui.theme.*
 import scooper.util.tr
 import scooper.util.cursorHand
+import scooper.util.formatDate
 import scooper.util.safeBrowse
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-private val ReleaseDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 @Composable
 fun DetailMetadataRow(label: String, content: @Composable () -> Unit) {
@@ -63,7 +61,7 @@ fun DetailMetadataRow(label: String, content: @Composable () -> Unit) {
 fun ReleaseNoteCard(release: GitHubRelease) {
     val colors = MaterialTheme.colors
     val tag = release.tag_name.ifBlank { release.name ?: tr("Unknown") }
-    val date = release.published_at?.let { parseIsoDate(it) }?.format(ReleaseDateFormatter)
+    val date = release.published_at?.let { parseIsoDate(it) }?.let { formatDate(it) }
 
     Column(
         modifier = Modifier.fillMaxWidth()

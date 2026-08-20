@@ -15,6 +15,7 @@ import org.jetbrains.skia.FontWidth
 import org.jetbrains.skia.Typeface
 import org.jetbrains.skia.FontStyle as SkiaFontStyle
 import org.jetbrains.skia.FontWeight as SkiaFontWeight
+import scooper.util.localeAwareComparator
 
 /**
  * App typography with an optional locale-mapped system [FontFamily].
@@ -203,7 +204,7 @@ fun listInstalledFontFamilies(localeTag: String): List<String> {
             typeface.close()
         }
     }
-    return families.sortedWith(String.CASE_INSENSITIVE_ORDER)
+    return families.sortedWith(localeAwareComparator())
 }
 
 /**

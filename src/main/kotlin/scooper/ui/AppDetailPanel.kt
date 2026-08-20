@@ -46,17 +46,15 @@ import scooper.ui.components.TooltipPosition
 import scooper.ui.components.SelectableContainer
 import scooper.ui.theme.*
 import scooper.util.Translatable
+import scooper.util.formatDate
 import scooper.util.tr
+import scooper.util.trc
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse
 import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 
 private enum class ContentTab : Translatable {
@@ -515,7 +513,7 @@ private fun MetadataSection(app: App) {
         // Status
         DetailMetadataRow(tr("Status")) {
             val statusText = when {
-                app.status == AppStatus.INSTALLED -> tr("Installed")
+                app.status == AppStatus.INSTALLED -> trc("status", "Installed")
                 app.status == AppStatus.FAILED -> tr("Failed")
                 app.updatable -> tr("Update Available")
                 else -> tr("Not Installed")
@@ -559,7 +557,7 @@ private fun MetadataSection(app: App) {
         app.createAt?.let {
             DetailMetadataRow(tr("Added")) {
                 Text(
-                    it.format(DateFormatter),
+                    formatDate(it),
                     style = typography.body2.copy(color = colors.textBody),
                 )
             }
@@ -567,7 +565,7 @@ private fun MetadataSection(app: App) {
         app.updateAt?.let {
             DetailMetadataRow(tr("Updated")) {
                 Text(
-                    it.format(DateFormatter),
+                    formatDate(it),
                     style = typography.body2.copy(color = colors.textBody),
                 )
             }

@@ -48,6 +48,7 @@ import scooper.util.navigation.core.BackStack
 import scooper.ui.theme.*
 import scooper.util.Strings
 import scooper.util.tr
+import scooper.util.trc
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -67,7 +68,7 @@ fun SidebarNav(
     val items = remember(updateCount, Strings.current) {
         listOf(
             SidebarItem(tr("Discover")) { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
-            SidebarItem(tr("Installed"), badge = if (updateCount > 0) updateCount.toInt() else null,
+            SidebarItem(trc("navigation", "Installed"), badge = if (updateCount > 0) updateCount.toInt() else null,
                 onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) }) {
                 navigator.popupAllAndPush(AppRoute.Apps(scope = "installed"))
             },
@@ -172,7 +173,7 @@ fun SidebarNav(
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
-            label = tr("Installed"),
+            label = trc("navigation", "Installed"),
             badge = if (updateCount > 0) updateCount.toInt() else null,
             selected = currentRoute is AppRoute.Apps && (currentRoute.scope == "installed" || currentRoute.scope == "updates"),
             focused = focusedIndex == 1,
@@ -181,7 +182,7 @@ fun SidebarNav(
             onClick = { items[1].action() },
             onBadgeClick = { navigator.popupAllAndPush(AppRoute.Apps(scope = "updates")) },
         ) {
-            Icon(Lucide.PackageCheck, tr("Installed"), modifier = Modifier.size(18.dp))
+            Icon(Lucide.PackageCheck, trc("navigation", "Installed"), modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.height(16.dp))
