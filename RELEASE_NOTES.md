@@ -1,5 +1,11 @@
 # Release Notes
 
+## v1.2.5 (2026-08-20)
+
+### ✨ New Feature
+
+- **Internationalization**: The app is now fully localized with 9 locales: English, 简体中文, 繁體中文, 日本語, Deutsch, Français, Español, Русский, Slovenščina.
+
 ## v1.2.4 (2026-08-15)
 
 ### 🐛 Bug Fixes
