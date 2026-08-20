@@ -18,6 +18,7 @@ import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.service.GithubUrlParser
+import scooper.service.GitHistoryService
 import scooper.service.ScoopAiBridge
 import scooper.service.ScoopClient
 import scooper.util.logger
@@ -46,6 +47,23 @@ data class TestResult(
     val log: String = "",
 )
 
+/** Git commit hint shown on the SaveResultPanel when the bucket is a Git repository. */
+data class SaveGitHint(
+    val bucketDir: String,
+    val command: String,
+)
+
+/** Outcome of a successful Save to Bucket, driving the SaveResultPanel result card. */
+data class SaveResult(
+    val success: Boolean,
+    val appName: String,
+    val bucket: String,
+    val targetPath: String,
+    val overwritten: Boolean,
+    val indexedOk: Boolean,
+    val gitHint: SaveGitHint? = null,
+)
+
 data class CreateState(
     val messages: List<ChatMessage> = emptyList(),
     val inputUrl: String = "",
@@ -66,6 +84,14 @@ data class CreateState(
     val bucketOptions: List<String> = emptyList(),
     val overwriteConfirmOpen: Boolean = false,
     val testResult: TestResult? = null,
+    val saveResult: SaveResult? = null,
+    /** True when generation finished but the manifest is not ready (refine exhausted or invalid JSON). */
+    val manifestExhausted: Boolean = false,
+    /** True when the finished manifest is not valid Scoop manifest JSON (blank counts as invalid).
+     *  Drives Test Install / Save to Bucket button gating (see [C2 exhausted escape door]). */
+    val manifestInvalidJson: Boolean = false,
+    /** Unresolved validation/review issues when [manifestExhausted] is true. */
+    val manifestIssues: List<String> = emptyList(),
 ) {
     val isEmpty: Boolean get() = messages.isEmpty()
 }
@@ -74,6 +100,7 @@ class CreateViewModel(
     private val scoopAiBridge: ScoopAiBridge,
     private val scoopClient: ScoopClient,
     private val appsRepository: AppsRepository,
+    private val gitHistoryService: GitHistoryService,
 ) : ContainerHost<CreateState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
@@ -142,6 +169,10 @@ class CreateViewModel(
 
     fun onCopyDone() = intent {
         postSideEffect(AppSideEffect.Toast("Manifest copied to clipboard", ToastType.SUCCESS))
+    }
+
+    fun onDismissSaveResult() = intent {
+        reduce { state.copy(saveResult = null) }
     }
 
     fun onTestInstall() = intent {
@@ -278,6 +309,9 @@ class CreateViewModel(
                 saveBucket = defaultBucket,
                 bucketOptions = buckets,
                 overwriteConfirmOpen = false,
+                // C2: reopening the dialog clears the previous result card so it does not
+                // linger under the new dialog; a re-save starts from a blank result.
+                saveResult = null,
             )
         }
     }
@@ -356,42 +390,22 @@ class CreateViewModel(
             return
         }
 
-        if (targetCanonical.exists() && !allowOverwrite) {
+        val overwritten = targetCanonical.exists()
+        if (overwritten && !allowOverwrite) {
             reduce { state.copy(overwriteConfirmOpen = true) }
             return
         }
 
+        var indexedOk = false
+        var gitHint: SaveGitHint? = null
+        // C2: writing the manifest file is the ONLY fatal step. A failure here is a real
+        // save failure: error toast, dialog stays open for retry, and no result card is
+        // written (onSave already cleared any previous card).
         try {
             withContext(Dispatchers.IO) {
                 targetCanonical.parentFile?.mkdirs()
                 targetCanonical.writeText(formatForBucket(manifestJson))
-                // Index the newly saved manifest immediately so Discover sees it
-                // without waiting for a git commit / full reload.
-                appsRepository.ensureBucket(bucket)
-                val installed = scoopClient.installedSnapshot()
-                val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-                val indexed = scoopClient.buildAppsFromManifestNames(
-                    bucketDir,
-                    setOf("$name.json"),
-                    Bucket(name = bucket, url = ""),
-                    installed,
-                )
-                indexed.firstOrNull()?.let { appsRepository.upsertApp(it) }
-                    ?: logger.warn("Saved manifest could not be indexed: $name.json")
             }
-            reduce {
-                state.copy(
-                    saveDialogOpen = false,
-                    overwriteConfirmOpen = false,
-                    suggestedAppName = name,
-                )
-            }
-            postSideEffect(
-                AppSideEffect.Toast(
-                    "Saved $name.json to bucket/$bucket",
-                    ToastType.SUCCESS,
-                ),
-            )
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             val message = e.message?.takeIf { it.isNotBlank() }
@@ -399,7 +413,63 @@ class CreateViewModel(
                 ?: "Failed to save manifest"
             logger.error("Save to bucket failed: $message")
             postSideEffect(AppSideEffect.Toast(sanitizeError(message), ToastType.ERROR))
+            return
         }
+
+        // C2: the file is written; the post-save indexing / git-hint steps are best-effort
+        // only. If they throw, degrade to a "saved but not indexed" card instead of failing
+        // the whole save (the file IS on disk, so a fat error toast would be misleading).
+        try {
+            withContext(Dispatchers.IO) {
+                // Index the newly saved manifest immediately so Discover sees it
+                // without waiting for a git commit / full reload.
+                appsRepository.ensureBucket(bucket)
+                val installed = scoopClient.installedSnapshot()
+                val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
+                indexedOk = scoopClient.buildAppsFromManifestNames(
+                    bucketDir,
+                    setOf("$name.json"),
+                    Bucket(name = bucket, url = ""),
+                    installed,
+                ).firstOrNull()?.let { app ->
+                    appsRepository.upsertApp(app)
+                    true
+                } ?: false.also {
+                    logger.warn("Saved manifest could not be indexed: $name.json")
+                }
+                gitHint = buildSaveGitHint(
+                    isGitBucket = gitHistoryService.isGitBucket(bucketDir),
+                    bucketDirPath = bucketDir.path,
+                    appName = name,
+                )
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logger.warn("Post-save indexing / git-hint failed; file still saved: ${e.message}")
+        }
+
+        reduce {
+            state.copy(
+                saveDialogOpen = false,
+                overwriteConfirmOpen = false,
+                suggestedAppName = name,
+                saveResult = classifySaveOutcome(
+                    writeOk = true,
+                    indexOk = indexedOk,
+                    gitHint = gitHint,
+                    appName = name,
+                    bucket = bucket,
+                    targetPath = targetPath,
+                    overwritten = overwritten,
+                ),
+            )
+        }
+        postSideEffect(
+            AppSideEffect.Toast(
+                "Saved $name.json to bucket/$bucket",
+                ToastType.SUCCESS,
+            ),
+        )
     }
 
     companion object {
@@ -451,7 +521,11 @@ class CreateViewModel(
                 manifestJson = "",
                 suggestedAppName = appGuess,
                 testResult = null,
+                saveResult = null,
                 error = null,
+                manifestExhausted = false,
+                manifestInvalidJson = false,
+                manifestIssues = emptyList(),
                 aiConfigured = true,
                 configHint = null,
                 inputUrl = urlFromField,
@@ -503,18 +577,51 @@ class CreateViewModel(
                 val name = manifestResult.suggestedAppName
                     ?: state.suggestedAppName
                     ?: GithubUrlParser.deriveAppName(state.lastUrl)
+
+                val classification = classifyManifestFinish(
+                    manifest = manifestResult.manifest,
+                    exhausted = manifestResult.exhausted,
+                )
+                val finishedWithIssues = classification.finishedWithIssues
+                val invalidJson = classification.invalidJson
+                val issues = if (finishedWithIssues) {
+                    when {
+                        manifestResult.issues.isNotEmpty() -> manifestResult.issues
+                        invalidJson -> listOf("Manifest output is not valid JSON.")
+                        else -> listOf("Generation finished with unresolved issues.")
+                    }
+                } else {
+                    emptyList()
+                }
+
                 reduce {
                     state.finishGeneration(
                         messages = withoutTyping + agentMessage(
-                            "Done. Suggested name: $name. Manifest ready (see card below).",
-                            "done",
+                            if (finishedWithIssues) {
+                                "Generation finished with issues. See card below for details."
+                            } else {
+                                "Done. Suggested name: $name. Manifest ready (see card below)."
+                            },
+                            if (finishedWithIssues) "error" else "done",
                         ),
                         error = null,
                         manifestJson = pretty,
                         suggestedAppName = name,
+                        manifestExhausted = finishedWithIssues,
+                        manifestInvalidJson = invalidJson,
+                        manifestIssues = issues,
                     )
                 }
-                postSideEffect(AppSideEffect.Toast("Manifest generated: $name", ToastType.SUCCESS))
+                postSideEffect(
+                    AppSideEffect.Toast(
+                        if (finishedWithIssues) {
+                            "Generation finished with issues"
+                        } else {
+                            "Manifest generated: $name"
+                        },
+                        if (finishedWithIssues) ToastType.ERROR else ToastType.SUCCESS,
+                    ),
+                )
             },
             onFailure = { error ->
                 if (error is CancellationException) {
@@ -614,6 +721,9 @@ class CreateViewModel(
         error: String? = this.error,
         manifestJson: String = this.manifestJson,
         suggestedAppName: String? = this.suggestedAppName,
+        manifestExhausted: Boolean = this.manifestExhausted,
+        manifestInvalidJson: Boolean = this.manifestInvalidJson,
+        manifestIssues: List<String> = this.manifestIssues,
     ) = copy(
         running = false,
         currentPhase = null,
@@ -621,6 +731,9 @@ class CreateViewModel(
         error = error,
         manifestJson = manifestJson,
         suggestedAppName = suggestedAppName,
+        manifestExhausted = manifestExhausted,
+        manifestInvalidJson = manifestInvalidJson,
+        manifestIssues = manifestIssues,
     )
 
     private fun phaseMessage(phase: String): String = when (phase.lowercase()) {
@@ -663,8 +776,111 @@ private val bucketPrettyJson = Json {
     prettyPrint = true
     prettyPrintIndent = "    "
 }
+
+/**
+ * Builds the `git add && git commit` command for saving a manifest into a Git bucket,
+ * for cmd.exe on Windows (Scoop / Git for Windows run from cmd; `&&` is NOT supported by
+ * Windows PowerShell 5.1, so this is a single-syntax cmd command).
+ *
+ * The bucket path is ALWAYS double-quoted: cmd has no backslash escape inside double
+ * quotes, so backslashes (e.g. `C:\Users\...`) and `&` inside the quotes stay literal and
+ * the `&&` chain survives. The path is kept as-is (forward or back slashes both work in
+ * Git for Windows, and normalizing could break UNC). App names are already validated to
+ * [A-Za-z0-9._-] by the save dialog, so no escaping is needed inside the double-quoted
+ * strings. Uses the `--` separator so a leading-dash app name can never be parsed as an
+ * option by git.
+ */
+internal fun gitCommitCommand(bucketDirPath: String, appName: String): String {
+    // cmd rule for an embedded literal double quote is to double it (`""`); Windows
+    // paths cannot contain `"`, so this is purely defensive.
+    val dir = "\"${bucketDirPath.replace("\"", "\"\"")}\""
+    return "git -C $dir add -- bucket/$appName.json && git -C $dir commit -m \"Add $appName.json\""
+}
+
+/**
+ * Builds the git commit hint for a saved manifest, or null when the bucket is not a Git
+ * repository. Discover visibility does not depend on a commit (save already indexes the
+ * app via upsertApp), so the hint is purely informational.
+ */
+internal fun buildSaveGitHint(
+    isGitBucket: Boolean,
+    bucketDirPath: String,
+    appName: String,
+): SaveGitHint? {
+    if (!isGitBucket) return null
+    return SaveGitHint(
+        bucketDir = bucketDirPath,
+        command = gitCommitCommand(bucketDirPath, appName),
+    )
+}
+
+/**
+ * Classify the save attempt into the SaveResult card.
+ *
+ * A failed write (`writeOk=false`) is the ONLY fatal failure: the caller shows an error
+ * toast and keeps the dialog open, and no card is rendered. Once the file is written
+ * (`writeOk=true`), the save is always a success even when the best-effort Discover
+ * indexing / git-hint step broke (`indexOk=false`): such a card degrades to
+ * indexedOk=false / gitHint=null instead of failing the whole save, so the user is never
+ * told the save failed just because indexing hiccuped. `success` stays on the data class
+ * for future failure cards; today the UI only renders cards from writeOk=true outcomes.
+ */
+internal fun classifySaveOutcome(
+    writeOk: Boolean,
+    indexOk: Boolean,
+    gitHint: SaveGitHint?,
+    appName: String,
+    bucket: String,
+    targetPath: String,
+    overwritten: Boolean,
+): SaveResult = SaveResult(
+    success = writeOk,
+    appName = appName,
+    bucket = bucket,
+    targetPath = targetPath,
+    overwritten = overwritten,
+    indexedOk = writeOk && indexOk,
+    gitHint = if (writeOk) gitHint else null,
+)
 private val trailingWsRegex = Regex("[ \t]+$")
 private val skRegex = Regex("""sk-[A-Za-z0-9_-]{8,}""")
+
+/**
+ * Whether [text] is a valid Scoop manifest, using the same bar as the CLI
+ * ([com.scoopai.tools.manifest.FileManifestIo.validate]): it must parse with kotlinx
+ * Json and the root element must be a [JsonObject]. Blank text counts as invalid.
+ */
+internal fun isScoopManifestJson(text: String): Boolean {
+    if (text.isBlank()) return false
+    return try {
+        Json.parseToJsonElement(text) is JsonObject
+    } catch (_: Exception) {
+        false
+    }
+}
+
+/** Classification of a finished generation, splitting refine exhaustion from invalid JSON. */
+data class FinishClassification(
+    /** True when the manifest is not valid Scoop manifest JSON. */
+    val invalidJson: Boolean,
+    /** True when the run ended with issues (refine exhausted and/or invalid JSON). Drives badge/toast. */
+    val finishedWithIssues: Boolean,
+)
+
+/**
+ * Classify a finished generation result.
+ *
+ * The exhausted flag alone must NOT disable Test Install / Save: a valid JSON manifest
+ * with unresolved refine issues can still be test-installed (the UI keeps the buttons
+ * enabled and only [invalidJson] gates them).
+ */
+internal fun classifyManifestFinish(manifest: String, exhausted: Boolean): FinishClassification {
+    val invalidJson = !isScoopManifestJson(manifest)
+    return FinishClassification(
+        invalidJson = invalidJson,
+        finishedWithIssues = exhausted || invalidJson,
+    )
+}
 
 /**
  * Normalizes a manifest to Scoop bucket file style: 4-space indent, CRLF, no trailing

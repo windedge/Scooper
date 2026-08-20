@@ -84,8 +84,10 @@ import scooper.ui.AppRoute
 import scooper.ui.components.ConfirmDialog
 import scooper.ui.components.DialogTextField
 import scooper.ui.components.ExposedDropdownMenu
+import scooper.ui.components.SelectableContainer
 import scooper.ui.icons.CircleCheck
 import scooper.ui.icons.CircleX
+import scooper.ui.icons.Info
 import scooper.ui.icons.Lucide
 import scooper.ui.icons.Plus
 import scooper.ui.icons.Send
@@ -113,6 +115,7 @@ import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.SaveResult
 import scooper.viewmodels.TestResult
 
 @Suppress("UNCHECKED_CAST")
@@ -129,12 +132,11 @@ fun CreateScreen(
     }
 
     // Auto-scroll chat when messages / manifest change
-    LaunchedEffect(state.messages.size, state.manifestJson, state.running, state.testResult) {
-        // Cards after the chat: manifest preview, plus the test result panel when present.
+    LaunchedEffect(state.messages.size, state.manifestJson, state.running, state.testResult, state.saveResult) {
+        // Cards after the chat: manifest preview, plus the test result and save result panels.
         val cardItems = when {
             state.manifestJson.isBlank() -> 0
-            state.testResult != null -> 2
-            else -> 1
+            else -> 1 + (if (state.testResult != null) 1 else 0) + (if (state.saveResult != null) 1 else 0)
         }
         val itemCount = state.messages.size + cardItems
         if (itemCount > 0) {
@@ -179,6 +181,8 @@ fun CreateScreen(
                 onTestInstall = { viewModel.onTestInstall() },
                 onSave = { viewModel.onSave() },
                 onRegenerate = viewModel::onRegenerate,
+                onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
+                onDismissSaveResult = viewModel::onDismissSaveResult,
             )
         }
     }
@@ -498,6 +502,8 @@ private fun ChatWorkspace(
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
     onRegenerate: () -> Unit,
+    onGoToDiscover: () -> Unit,
+    onDismissSaveResult: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Box(
@@ -522,6 +528,9 @@ private fun ChatWorkspace(
                             manifestJson = state.manifestJson,
                             enabled = !state.running && !state.testing,
                             testing = state.testing,
+                            issues = state.manifestIssues,
+                            exhausted = state.manifestExhausted,
+                            invalidJson = state.manifestInvalidJson,
                             onCopyDone = onCopyDone,
                             onTestInstall = onTestInstall,
                             onSave = onSave,
@@ -531,6 +540,15 @@ private fun ChatWorkspace(
                     state.testResult?.let { result ->
                         item(key = "test-result-panel") {
                             TestResultPanel(result)
+                        }
+                    }
+                    state.saveResult?.let { result ->
+                        item(key = "save-result-panel") {
+                            SaveResultPanel(
+                                result = result,
+                                onGoToDiscover = onGoToDiscover,
+                                onDismiss = onDismissSaveResult,
+                            )
                         }
                     }
                 }
@@ -594,21 +612,28 @@ private fun ChatBubble(message: ChatMessage) {
                 if (message.isTyping) {
                     TypingDots()
                 } else {
-                    Text(
-                        message.text,
-                        style = typography.caption.copy(
-                            color = colors.onSurface,
-                            fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
-                            lineHeight = typography.caption.fontSize * 1.5f,
-                        ),
-                    )
-                    if (!message.note.isNullOrBlank()) {
-                        Text(
-                            message.note,
-                            style = typography.caption.copy(
-                                color = colors.textMuted,
-                            ),
-                        )
+                    // Bubble has no click handler, so selecting text inside it is safe.
+                    // S1: the URL and the optional user note share one SelectableContainer
+                    // so both can be drag-selected/copied together as a single block.
+                    SelectableContainer {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                message.text,
+                                style = typography.caption.copy(
+                                    color = colors.onSurface,
+                                    fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
+                                    lineHeight = typography.caption.fontSize * 1.5f,
+                                ),
+                            )
+                            if (!message.note.isNullOrBlank()) {
+                                Text(
+                                    message.note,
+                                    style = typography.caption.copy(
+                                        color = colors.textMuted,
+                                    ),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -697,6 +722,9 @@ private fun ManifestPreviewCard(
     manifestJson: String,
     enabled: Boolean,
     testing: Boolean,
+    issues: List<String> = emptyList(),
+    exhausted: Boolean = false,
+    invalidJson: Boolean = false,
     onCopyDone: () -> Unit,
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
@@ -731,9 +759,18 @@ private fun ManifestPreviewCard(
                             color = colors.textTitle,
                         ),
                     )
-                    val statusColor = if (testing) colors.primary else colors.updateDefault
+                    val statusColor = when {
+                        testing -> colors.primary
+                        exhausted -> colors.warningDefault
+                        else -> colors.updateDefault
+                    }
+                    val statusText = when {
+                        testing -> "Installing"
+                        exhausted -> "Issues"
+                        else -> "Ready"
+                    }
                     Text(
-                        if (testing) "Installing" else "Ready",
+                        statusText,
                         style = typography.overline.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = statusColor,
@@ -761,18 +798,72 @@ private fun ManifestPreviewCard(
                     .heightIn(min = 200.dp, max = if (expanded) 2000.dp else 360.dp)
                     .background(colors.inputBackground),
             ) {
-                Text(
-                    manifestJson,
-                    style = typography.body2.copy(
-                        color = colors.onSurface,
-                        fontFamily = FontFamily.Monospace,
-                        lineHeight = typography.body2.fontSize * 1.55f,
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(scroll)
-                        .padding(14.dp),
-                )
+                SelectableContainer {
+                    Text(
+                        manifestJson,
+                        style = typography.body2.copy(
+                            color = colors.onSurface,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = typography.body2.fontSize * 1.55f,
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scroll)
+                            .padding(14.dp),
+                    )
+                }
+            }
+
+            if (issues.isNotEmpty()) {
+                SelectableContainer {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.warningDefault.copy(alpha = 0.08f))
+                            .border(
+                                1.dp,
+                                colors.warningDefault.copy(alpha = 0.35f),
+                                RoundedCornerShape(12.dp),
+                            )
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            "Generation finished with issues:",
+                            style = typography.caption.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.warningDefault,
+                            ),
+                        )
+                        issues.forEach { issue ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Text(
+                                    "•",
+                                    style = typography.caption.copy(color = colors.warningDefault),
+                                )
+                                Text(
+                                    issue,
+                                    style = typography.caption.copy(
+                                        color = colors.textBody,
+                                        lineHeight = typography.caption.fontSize * 1.45f,
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                        if (!invalidJson) {
+                            Text(
+                                "Manifest is valid JSON; you may still test / install it.",
+                                style = typography.caption.copy(color = colors.textMuted),
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
             }
 
             Row(
@@ -798,14 +889,14 @@ private fun ManifestPreviewCard(
                 SmallActionButton(
                     label = "Test Install",
                     onClick = onTestInstall,
-                    enabled = enabled && !testing,
+                    enabled = enabled && !testing && !invalidJson,
                     primary = true,
                     loading = testing,
                 )
                 SmallActionButton(
                     label = "Save to Bucket",
                     onClick = onSave,
-                    enabled = enabled && !testing,
+                    enabled = enabled && !testing && !invalidJson,
                 )
                 SmallActionButton(
                     label = "Regenerate",
@@ -865,16 +956,21 @@ private fun TestResultPanel(result: TestResult) {
                     }
                     if (!result.success && !result.errorMessage.isNullOrBlank()) {
                         Spacer(Modifier.height(6.dp))
-                        Text(
-                            parseAnsiColors(result.errorMessage),
-                            style = typography.caption.copy(
-                                color = colors.dangerDefault,
-                                fontFamily = FontFamily.Monospace,
-                                lineHeight = typography.caption.fontSize * 1.45f,
-                            ),
-                            maxLines = 5,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        // SelectionContainer can only copy laid-out text: ellipsized lines past
+                        // maxLines are not selectable, so keep maxLines generous enough that the
+                        // visible error stays fully copyable while the panel stays bounded.
+                        SelectableContainer {
+                            Text(
+                                parseAnsiColors(result.errorMessage),
+                                style = typography.caption.copy(
+                                    color = colors.dangerDefault,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = typography.caption.fontSize * 1.45f,
+                                ),
+                                maxLines = 12,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -907,20 +1003,172 @@ private fun TestResultPanel(result: TestResult) {
                             .background(colors.inputBackground)
                             .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp)),
                     ) {
-                        Text(
-                            parseAnsiColors(logText),
-                            style = typography.caption.copy(
-                                color = colors.onSurface,
-                                fontFamily = FontFamily.Monospace,
-                                lineHeight = typography.caption.fontSize * 1.45f,
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
-                                .padding(10.dp),
-                        )
+                        SelectableContainer {
+                            Text(
+                                parseAnsiColors(logText),
+                                style = typography.caption.copy(
+                                    color = colors.onSurface,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = typography.caption.fontSize * 1.45f,
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(10.dp),
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CopyableText(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    // Static console-style box: monospace + background/border, no click-to-copy.
+    // Text selection (drag to select, Ctrl+C to copy) via SelectableContainer,
+    // matching the console output / terminal pattern (components/SelectableContainer).
+    val shape = RoundedCornerShape(6.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(shape)
+            .background(colors.inputBackground)
+            .border(1.dp, colors.borderDefault, shape)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            SelectableContainer {
+                Text(
+                    text,
+                    style = typography.caption.copy(
+                        color = colors.onSurface,
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = typography.caption.fontSize * 1.4f,
+                    ),
+                    // Wrap instead of ellipsis so long paths/commands stay fully selectable.
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SaveResultPanel(
+    result: SaveResult,
+    onGoToDiscover: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // The file is saved either way; failure is only about Discover indexing, so the
+    // header shows a success check when indexed and a warning (no success check) when
+    // indexedOk=false, matching the warning-colored note below the title.
+    val accent = if (result.indexedOk) colors.updateDefault else colors.warningDefault
+    val headerIcon = if (result.indexedOk) Lucide.CircleCheck else Lucide.Info
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.45f)),
+        color = colors.surface,
+        elevation = 0.dp,
+        modifier = Modifier.fillMaxWidth().widthIn(max = 760.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(
+                    headerIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = accent,
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Saved ${result.appName}.json to bucket \"${result.bucket}\"" +
+                            if (result.overwritten) " (overwritten)" else "",
+                        style = typography.body2.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textTitle,
+                        ),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    CopyableText(
+                        text = result.targetPath,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.cursorHand().size(28.dp),
+                ) {
+                    Icon(
+                        Lucide.X,
+                        contentDescription = "Dismiss",
+                        modifier = Modifier.size(16.dp),
+                        tint = colors.textMuted,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (result.indexedOk) {
+                    "Indexed for Discover. The app is searchable now."
+                } else {
+                    "File saved, but Discover indexing failed. The app may not appear in search until reindex."
+                },
+                style = typography.caption.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = if (result.indexedOk) colors.updateDefault else colors.warningDefault,
+                ),
+            )
+
+            result.gitHint?.let { hint ->
+                Spacer(Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.warningDefault.copy(alpha = 0.08f))
+                        .border(1.dp, colors.warningDefault.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        "This bucket is a Git repository. Commit to keep the change in history:",
+                        style = typography.caption.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.warningDefault,
+                        ),
+                    )
+                    CopyableText(
+                        text = hint.command,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmallActionButton(
+                    label = "Open in Discover",
+                    onClick = onGoToDiscover,
+                    // Indexing failed, so there is nothing searchable to jump to yet.
+                    enabled = result.indexedOk,
+                    primary = true,
+                )
+                SmallActionButton(
+                    label = "Done",
+                    onClick = onDismiss,
+                    enabled = true,
+                )
             }
         }
     }
