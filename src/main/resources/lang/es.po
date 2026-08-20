@@ -67,12 +67,17 @@ msgstr "Versión"
 msgid "Status"
 msgstr "Estado"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:518
-#: src\main\kotlin\scooper\ui\Sidebar.kt:70
-#: src\main\kotlin\scooper\ui\Sidebar.kt:175
-#: src\main\kotlin\scooper\ui\Sidebar.kt:184
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
+msgctxt "status"
 msgid "Installed"
 msgstr "Instalado"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:71
+#: src\main\kotlin\scooper\ui\Sidebar.kt:176
+#: src\main\kotlin\scooper\ui\Sidebar.kt:185
+msgctxt "navigation"
+msgid "Installed"
+msgstr "Instalados"
 
 #: src\main\kotlin\scooper\ui\AppDetailPanel.kt:519
 msgid "Failed"

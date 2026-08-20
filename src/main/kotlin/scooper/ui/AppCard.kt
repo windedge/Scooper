@@ -32,10 +32,10 @@ import scooper.ui.components.TooltipPosition
 import scooper.ui.theme.*
 import scooper.util.tr
 import scooper.util.cursorHand
+import scooper.util.formatDate
 import scooper.util.onHover
 import scooper.util.safeBrowse
 import scooper.viewmodels.AppsFilter
-import java.time.format.DateTimeFormatter
 
 // Shared text styles used by both list and grid card views
 internal val AppNameStyle @Composable get() = typography.h6.copy(color = colors.onSurface)
@@ -45,7 +45,6 @@ internal val OldVersionStyle @Composable get() = typography.body2.copy(color = c
 internal val NewVersionStyle @Composable get() = typography.body2.copy(fontWeight = FontWeight.Medium, color = colors.updateDefault)
 internal val CurrentVersionStyle @Composable get() = typography.body2.copy(fontWeight = FontWeight.Medium, color = Slate700)
 internal val DateStyle @Composable get() = typography.caption.copy(color = colors.textMuted)
-internal val DateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 @Composable
 fun AppList(
@@ -231,7 +230,7 @@ fun AppCard(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            app.updateAt?.format(DateFormatter) ?: "",
+                            app.updateAt?.let { formatDate(it) } ?: "",
                             style = DateStyle
                         )
                     }

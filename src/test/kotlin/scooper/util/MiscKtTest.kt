@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.nio.file.Path
+import java.util.Locale
 
 class MiscKtTest {
 
@@ -53,10 +54,11 @@ class MiscKtTest {
 
     @Test
     fun `readableSize formats common sizes`() {
-        assertEquals("0 bytes", 0.0.readableSize())
-        assertEquals("2 kB", 2048.0.readableSize())
-        assertEquals("0 bytes", 0L.readableSize())
-        assertEquals("2 kB", 2048L.readableSize())
-        assertEquals("2.0 MB", (2L * 1024 * 1024).readableSize())
+        // Locale pinned so the expectations hold regardless of the machine's default locale.
+        assertEquals("0 bytes", 0.0.readableSize(Locale.US))
+        assertEquals("2 kB", 2048.0.readableSize(Locale.US))
+        assertEquals("0 bytes", 0L.readableSize(Locale.US))
+        assertEquals("2 kB", 2048L.readableSize(Locale.US))
+        assertEquals("2.0 MB", (2L * 1024 * 1024).readableSize(Locale.US))
     }
 }

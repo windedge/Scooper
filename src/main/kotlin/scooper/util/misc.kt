@@ -12,16 +12,13 @@ import java.awt.Desktop
 import java.io.File
 import java.net.URI
 import java.nio.file.Files
+import java.util.Locale
 
-fun Double.readableSize() = when {
-    this >= 1 shl 30 -> "%.1f GB".format(this / (1 shl 30))
-    this >= 1 shl 20 -> "%.1f MB".format(this / (1 shl 20))
-    this >= 1 shl 10 -> "%.0f kB".format(this / (1 shl 10))
-    this == 0.0 -> "0 bytes"
-    else -> "$this bytes"
-}
+/** Locale-aware file size; see [formatFileSize] for thresholds and units. */
+fun Double.readableSize(locale: Locale = currentLocale()): String = formatFileSize(this, locale)
 
-fun Long.readableSize() = this.toDouble().readableSize()
+/** Locale-aware file size; see [formatFileSize] for thresholds and units. */
+fun Long.readableSize(locale: Locale = currentLocale()): String = formatFileSize(this, locale)
 
 fun File.dirSize(noFollowLink: Boolean = true): Long {
     var treeWalk = this.walkTopDown()

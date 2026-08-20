@@ -40,6 +40,7 @@ import scooper.ui.components.Link
 import scooper.ui.components.OnBottomReached
 import scooper.ui.components.Tooltip
 import scooper.ui.theme.*
+import scooper.util.formatNumber
 import scooper.ui.components.SelectableContainer
 import scooper.util.bottomBorder
 import scooper.util.cursorHand
@@ -408,10 +409,10 @@ private fun SearchResultsList(
                 trn(
                     "Found {{count}} result for \"{{query}}\"",
                     "Found {{count}} results for \"{{query}}\"",
-                    totalCount, "count" to "$totalCount", "query" to query,
+                    totalCount, "count" to formatNumber(totalCount.toLong()), "query" to query,
                 )
             } else {
-                trn("Found {{count}} result", "Found {{count}} results", totalCount, "count" to "$totalCount")
+                trn("Found {{count}} result", "Found {{count}} results", totalCount, "count" to formatNumber(totalCount.toLong()))
             }
             Text(
                 countLabel,

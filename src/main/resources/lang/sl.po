@@ -1,4 +1,4 @@
-# French translations for Scooper
+# Slovenian translations for Scooper
 # This file is auto-generated, DO NOT EDIT manually
 msgid ""
 msgstr ""
@@ -7,12 +7,12 @@ msgstr ""
 "POT-Creation-Date: 2025-05-29 10:00+0800\n"
 "PO-Revision-Date: 2025-05-29 10:00+0800\n"
 "Last-Translator: Scooper\n"
-"Language-Team: fr\n"
-"Language: fr\n"
+"Language-Team: sl\n"
+"Language: sl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"Plural-Forms: nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);\n"
 "X-Generator: Scooper\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-KeywordsList: tr;trn:1,2;trc:1c,2\n"
@@ -20,189 +20,177 @@ msgstr ""
 #: src\main\kotlin\scooper\ui\App.kt:149
 #: src\main\kotlin\scooper\ui\App.kt:153
 msgid "No Results"
-msgstr "Aucun résultat"
+msgstr "Ni rezultatov"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:280
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:344
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:278
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:342
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:639
 msgid "Copy to clipboard"
-msgstr "Copier dans le presse-papiers"
+msgstr "Kopiraj v odložišče"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:283
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:347
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:281
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:345
 #: src\main\kotlin\scooper\ui\Output.kt:63
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:445
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:461
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:642
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:162
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:160
 msgid "Copy"
-msgstr "Copier"
+msgstr "Kopiraj"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:68
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:335
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:66
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:333
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:63
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:616
 msgid "Manifest"
-msgstr "Manifeste"
+msgstr "Manifest"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:394
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:392
 msgid "Not a GitHub repository."
-msgstr "Ce n'est pas un dépôt GitHub."
+msgstr "Ni GitHub repozitorij."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:414
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:412
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:711
 msgid "No releases found."
-msgstr "Aucune version trouvée."
+msgstr "Ni najdenih izdaj."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:438
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:436
 msgid "Manifest not found."
-msgstr "Manifeste introuvable."
+msgstr "Manifest ni bil najden."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:491
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:489
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:492
 msgid "Version"
-msgstr "Version"
+msgstr "Različica"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:514
 msgid "Status"
-msgstr "Statut"
+msgstr "Stanje"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
-msgctxt "status"
-msgid "Installed"
-msgstr "Installé"
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:517
+msgid "Failed"
+msgstr "Neuspešno"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:71
-#: src\main\kotlin\scooper\ui\Sidebar.kt:176
-#: src\main\kotlin\scooper\ui\Sidebar.kt:185
-msgctxt "navigation"
-msgid "Installed"
-msgstr "Installés"
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:518
+msgid "Update Available"
+msgstr "Posodobitev na voljo"
 
 #: src\main\kotlin\scooper\ui\AppDetailPanel.kt:519
-msgid "Failed"
-msgstr "Échec"
-
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:520
-msgid "Update Available"
-msgstr "Mise à jour disponible"
-
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:521
 msgid "Not Installed"
-msgstr "Non installé"
+msgstr "Ni nameščeno"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:540
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:538
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:501
 msgid "Homepage"
-msgstr "Page d'accueil"
+msgstr "Domača stran"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:550
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:548
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:513
 msgid "License"
-msgstr "Licence"
+msgstr "Licenca"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:560
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:558
 msgid "Added"
-msgstr "Ajouté"
+msgstr "Dodano"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:568
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:548
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:566
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:549
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:522
 msgid "Updated"
-msgstr "Mis à jour"
+msgstr "Posodobljeno"
 
-#: src\main\kotlin\scooper\ui\AppCard.kt:191
-#: src\main\kotlin\scooper\ui\AppGrid.kt:180
+#: src\main\kotlin\scooper\ui\AppCard.kt:190
+#: src\main\kotlin\scooper\ui\AppGrid.kt:181
 msgid "No description available."
-msgstr "Aucune description disponible."
+msgstr "Opis ni na voljo."
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:64
 msgid "Configured Buckets"
-msgstr "Dépôts configurés"
+msgstr "Konfigurirani repozitoriji"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:71
 msgid "Manage repositories where Scoop looks for packages."
-msgstr "Gérez les dépôts dans lesquels Scoop recherche des paquets."
+msgstr "Upravljajte repozitorije, v katerih Scoop išče pakete."
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:120
 msgid "KNOWN BUCKETS"
-msgstr "DÉPÔTS CONNUS"
+msgstr "ZNANI REPOZITORIJI"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:144
 #, java-format
 msgid "Are you sure you want to delete '{{name}}'?"
-msgstr "Voulez-vous vraiment supprimer '{{name}}' ?"
+msgstr "Ali res želite izbrisati '{{name}}'?"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:145
 msgid "Delete Bucket"
-msgstr "Supprimer le dépôt"
+msgstr "Izbriši repozitorij"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:146
 #: src\main\kotlin\scooper\ui\Cleanup.kt:404
 msgid "Delete"
-msgstr "Supprimer"
+msgstr "Izbriši"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:90
 #: src\main\kotlin\scooper\ui\Bucket.kt:157
 msgid "Add Bucket"
-msgstr "Ajouter un dépôt"
+msgstr "Dodaj repozitorij"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:163
 msgid "Repository URL is required"
-msgstr "L'URL du dépôt est requise"
+msgstr "URL repozitorija je obvezen"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:164
 msgid "URL must start with http:// or https://"
-msgstr "L'URL doit commencer par http:// ou https://"
+msgstr "URL se mora začeti z http:// ali https://"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:178
 msgid "Add"
-msgstr "Ajouter"
+msgstr "Dodaj"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:187
 msgid "Add a custom Scoop bucket by name and repository URL."
-msgstr "Ajoutez un dépôt Scoop personnalisé avec un nom et une URL de dépôt."
+msgstr "Dodajte lastni repozitorij Scoop z imenom in URL-jem."
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:194
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:355
 msgid "Bucket Name"
-msgstr "Nom du dépôt"
+msgstr "Ime repozitorija"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:205
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:368
 msgid "e.g. extras"
-msgstr "p. ex. extras"
+msgstr "npr. extras"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:211
 msgid "Name is required"
-msgstr "Le nom est requis"
+msgstr "Ime je obvezno"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:211
 msgid "Used as the local bucket alias in Scoop."
-msgstr "Utilisé comme alias de dépôt local dans Scoop."
+msgstr "Uporablja se kot lokalni vzdevek repozitorija v Scoopu."
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:219
 msgid "Repository URL"
-msgstr "URL du dépôt"
+msgstr "URL repozitorija"
 
 #: src\main\kotlin\scooper\ui\Bucket.kt:230
 msgid "https://github.com/..."
 msgstr "https://github.com/..."
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:66
-#: src\main\kotlin\scooper\ui\Sidebar.kt:75
-#: src\main\kotlin\scooper\ui\Sidebar.kt:207
-#: src\main\kotlin\scooper\ui\Sidebar.kt:214
+#: src\main\kotlin\scooper\ui\Sidebar.kt:76
+#: src\main\kotlin\scooper\ui\Sidebar.kt:208
+#: src\main\kotlin\scooper\ui\Sidebar.kt:215
 msgid "Cleanup"
-msgstr "Nettoyage"
+msgstr "Čiščenje"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:74
 msgid "Free up disk space by removing old versions and downloaded cache files."
-msgstr "Libérez de l'espace disque en supprimant les anciennes versions et les fichiers de cache téléchargés."
+msgstr "Sprostite prostor na disku z odstranitvijo starih različic in prenesenih predpomnilniških datotek."
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:88
 msgid "Download Cache"
-msgstr "Cache de téléchargement"
+msgstr "Predpomnilnik prenosov"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:94
 #: src\main\kotlin\scooper\ui\Cleanup.kt:101
@@ -210,45 +198,45 @@ msgstr "Cache de téléchargement"
 #: src\main\kotlin\scooper\ui\Cleanup.kt:154
 #: src\main\kotlin\scooper\ui\Cleanup.kt:237
 msgid "Rescan"
-msgstr "Analyser à nouveau"
+msgstr "Ponovno preišči"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:117
 #: src\main\kotlin\scooper\ui\Cleanup.kt:303
 #, java-format
 msgid "Total Size: {{size}}"
-msgstr "Taille totale : {{size}}"
+msgstr "Skupna velikost: {{size}}"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:140
 msgid "Old Versions"
-msgstr "Anciennes versions"
+msgstr "Stare različice"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:220
 #: src\main\kotlin\scooper\ui\Cleanup.kt:224
 msgid "Clear Cache"
-msgstr "Vider le cache"
+msgstr "Počisti predpomnilnik"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:247
 msgid "Open Directory"
-msgstr "Ouvrir le dossier"
+msgstr "Odpri mapo"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:288
 msgid "Great, old versions have been cleaned up."
-msgstr "Les anciennes versions ont été nettoyées."
+msgstr "Odlično, stare različice so bile počiščene."
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:346
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:155
 msgid "Show less"
-msgstr "Afficher moins"
+msgstr "Pokaži manj"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:346
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:155
 msgid "Show more"
-msgstr "Afficher plus"
+msgstr "Pokaži več"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:383
 #, java-format
 msgid "{{count}} old versions"
-msgstr "Anciennes versions : {{count}}"
+msgstr "Stare različice: {{count}}"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:392
 msgid "*global*"
@@ -256,184 +244,186 @@ msgstr "*global*"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:196
 msgid "Cleaning..."
-msgstr "Nettoyage en cours..."
+msgstr "Čiščenje..."
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:204
 msgid "Scanning..."
-msgstr "Analyse en cours..."
+msgstr "Pregledujem..."
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:317
 msgid "Clean All"
-msgstr "Tout nettoyer"
+msgstr "Počisti vse"
 
 #: src\main\kotlin\scooper\ui\Main.kt:412
-#: src\main\kotlin\scooper\ui\Sidebar.kt:144
-#: src\main\kotlin\scooper\ui\Sidebar.kt:151
+#: src\main\kotlin\scooper\ui\Sidebar.kt:145
+#: src\main\kotlin\scooper\ui\Sidebar.kt:152
 msgid "Scooper"
 msgstr "Scooper"
 
 #: src\main\kotlin\scooper\ui\Main.kt:420
 msgid "Scoop Package Manager GUI"
-msgstr "Interface graphique du gestionnaire de paquets Scoop"
+msgstr "Grafični vmesnik upravitelja paketov Scoop"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:75
 msgid "More Actions"
-msgstr "Plus d'actions"
+msgstr "Več dejanj"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:183
 msgid "Refreshing Scoop (Ctrl+Click: Full Reload)"
-msgstr "Actualisation de Scoop (Ctrl+Clic : rechargement complet)"
+msgstr "Osveževanje Scoopa (Ctrl+Klik: popolno znova nalaganje)"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:214
 msgid "Refreshing"
-msgstr "Actualisation"
+msgstr "Osveževanje"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:216
 msgid "Add Bucket: "
-msgstr "Ajouter un dépôt : "
+msgstr "Dodaj repozitorij: "
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:220
 msgid "Remove Bucket: "
-msgstr "Supprimer un dépôt : "
+msgstr "Odstrani repozitorij: "
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:224
 msgid "Download: "
-msgstr "Télécharger : "
+msgstr "Prenos: "
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:228
 #: src\main\kotlin\scooper\ui\Navigation.kt:232
 msgid "Install: "
-msgstr "Installer : "
+msgstr "Namesti: "
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:236
 msgid "Uninstall: "
-msgstr "Désinstaller : "
+msgstr "Odstrani: "
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:240
 msgid "Update: "
-msgstr "Mettre à jour : "
+msgstr "Posodobi: "
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:260
 msgid "Reorder Task"
-msgstr "Réordonner la tâche"
+msgstr "Znova razporedi nalogo"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:82
 #: src\main\kotlin\scooper\ui\Navigation.kt:84
-#: src\main\kotlin\scooper\ui\Sidebar.kt:76
-#: src\main\kotlin\scooper\ui\Sidebar.kt:229
-#: src\main\kotlin\scooper\ui\Sidebar.kt:236
+#: src\main\kotlin\scooper\ui\Sidebar.kt:77
+#: src\main\kotlin\scooper\ui\Sidebar.kt:230
+#: src\main\kotlin\scooper\ui\Sidebar.kt:237
 msgid "Settings"
-msgstr "Paramètres"
+msgstr "Nastavitve"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:92
 #: src\main\kotlin\scooper\ui\Navigation.kt:94
 msgid "View Logs"
-msgstr "Voir les journaux"
+msgstr "Prikaži dnevnike"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:102
 #: src\main\kotlin\scooper\ui\Navigation.kt:104
 #: src\main\kotlin\scooper\ui\Route.kt:20
-#: src\main\kotlin\scooper\ui\Settings.kt:544
+#: src\main\kotlin\scooper\ui\Settings.kt:551
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:33
 msgid "About"
-msgstr "À propos"
+msgstr "O programu"
 
 #: src\main\kotlin\scooper\ui\Output.kt:70
 msgid "Clear"
-msgstr "Effacer"
+msgstr "Počisti"
 
 #: src\main\kotlin\scooper\ui\Search.kt:81
 msgid "Best Match"
-msgstr "Meilleure correspondance"
+msgstr "Najboljše ujemanje"
 
 #: src\main\kotlin\scooper\ui\Search.kt:82
 #: src\main\kotlin\scooper\ui\Search.kt:88
 msgid "Recently Updated"
-msgstr "Récemment mis à jour"
+msgstr "Nedavno posodobljeno"
 
 #: src\main\kotlin\scooper\ui\Search.kt:83
 #: src\main\kotlin\scooper\ui\Search.kt:89
 msgid "Recently Added"
-msgstr "Récemment ajoutés"
+msgstr "Nedavno dodano"
 
 #: src\main\kotlin\scooper\service\ScoopSearchService.kt:55
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:55
 #: src\main\kotlin\scooper\ui\Search.kt:84
 #: src\main\kotlin\scooper\ui\Search.kt:90
 msgid "Name"
-msgstr "Nom"
+msgstr "Ime"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:222
-#: src\main\kotlin\scooper\ui\Search.kt:151
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:223
+#: src\main\kotlin\scooper\ui\Search.kt:152
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:204
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:212
 msgid "Search"
-msgstr "Rechercher"
+msgstr "Išči"
 
 #: src\main\kotlin\scooper\ui\Search.kt:159
 msgid "Search packages... (supports OR, -exclude)"
-msgstr "Rechercher des paquets... (prend en charge OR et -exclude)"
+msgstr "Išči pakete... (podpira OR in -exclude)"
 
-#: src\main\kotlin\scooper\ui\Search.kt:260
-#: src\main\kotlin\scooper\ui\Search.kt:267
+#: src\main\kotlin\scooper\ui\Search.kt:261
+#: src\main\kotlin\scooper\ui\Search.kt:268
 msgid "List View"
-msgstr "Vue en liste"
+msgstr "Pogled seznama"
 
-#: src\main\kotlin\scooper\ui\Search.kt:273
-#: src\main\kotlin\scooper\ui\Search.kt:280
+#: src\main\kotlin\scooper\ui\Search.kt:274
+#: src\main\kotlin\scooper\ui\Search.kt:281
 msgid "Grid View"
-msgstr "Vue en grille"
+msgstr "Pogled mreže"
 
-#: src\main\kotlin\scooper\ui\Search.kt:296
+#: src\main\kotlin\scooper\ui\Search.kt:297
 msgid "Waterfall Scroll"
-msgstr "Défilement en cascade"
+msgstr "Vodopadni pomik"
 
 #: src\main\kotlin\scooper\data\Config.kt:54
-#: src\main\kotlin\scooper\ui\Search.kt:303
+#: src\main\kotlin\scooper\ui\Search.kt:304
 #: src\main\kotlin\scooper\ui\Settings.kt:271
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:126
 msgid "Waterfall"
-msgstr "Cascade"
+msgstr "Vodopad"
 
-#: src\main\kotlin\scooper\ui\Search.kt:309
+#: src\main\kotlin\scooper\ui\Search.kt:310
 msgid "Paginated"
-msgstr "Paginé"
+msgstr "Paginirano"
 
 #: src\main\kotlin\scooper\data\Config.kt:55
-#: src\main\kotlin\scooper\ui\Search.kt:316
+#: src\main\kotlin\scooper\ui\Search.kt:317
 #: src\main\kotlin\scooper\ui\Settings.kt:272
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:127
 msgid "Pagination"
-msgstr "Pagination"
+msgstr "Paginacija"
 
-#: src\main\kotlin\scooper\ui\Search.kt:355
+#: src\main\kotlin\scooper\ui\Search.kt:363
 #: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:48
 msgid "All Installed"
-msgstr "Installés"
+msgstr "Vsi nameščeni"
 
-#: src\main\kotlin\scooper\ui\Search.kt:369
+#: src\main\kotlin\scooper\ui\Search.kt:377
 #: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:54
 msgid "Updates"
-msgstr "Mises à jour"
+msgstr "Posodobitve"
 
-#: src\main\kotlin\scooper\ui\Search.kt:414
-#: src\main\kotlin\scooper\ui\Search.kt:459
+#: src\main\kotlin\scooper\ui\Search.kt:422
+#: src\main\kotlin\scooper\ui\Search.kt:467
 msgid "All Buckets"
-msgstr "Tous les dépôts"
+msgstr "Vsi repozitoriji"
 
-#: src\main\kotlin\scooper\ui\Search.kt:598
+#: src\main\kotlin\scooper\ui\Search.kt:606
 msgid "Ascending"
-msgstr "Croissant"
+msgstr "Naraščajoče"
 
-#: src\main\kotlin\scooper\ui\Search.kt:598
+#: src\main\kotlin\scooper\ui\Search.kt:606
 msgid "Descending"
-msgstr "Décroissant"
+msgstr "Padajoče"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:177
 msgid "General Settings"
-msgstr "Paramètres généraux"
+msgstr "Splošne nastavitve"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:177
 msgid "Manage core configuration for Scoop."
-msgstr "Gérez la configuration de base de Scoop."
+msgstr "Upravljajte osnovno konfiguracijo za Scoop."
 
 #: src\main\kotlin\scooper\ui\Settings.kt:181
 msgid "Proxy"
@@ -441,406 +431,416 @@ msgstr "Proxy"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:182
 msgid "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."
-msgstr "Par défaut, Scoop utilise les paramètres de proxy des options Internet, mais avec une authentification anonyme."
+msgstr "Scoop bo privzeto uporabil nastavitve posredniškega strežnika iz internetnih možnosti, vendar z anonimno overitvijo."
 
 #: src\main\kotlin\scooper\ui\Settings.kt:189
 msgid "Proxy Address:"
-msgstr "Adresse du proxy :"
+msgstr "Naslov posredniškega strežnika:"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:217
 msgid "Enable Aria2"
-msgstr "Activer Aria2"
+msgstr "Omogoči Aria2"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:218
 msgid "Aria2c will be used for downloading of artifacts to speed up transfers."
-msgstr "Aria2c servira à télécharger les artefacts afin d'accélérer les transferts."
+msgstr "Aria2c bo uporabljen za prenos datotek, da bi pospešil prenose."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:307
+#: src\main\kotlin\scooper\ui\Settings.kt:311
 msgid "UI Settings"
-msgstr "Paramètres de l'interface"
+msgstr "Nastavitve vmesnika"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:307
+#: src\main\kotlin\scooper\ui\Settings.kt:311
 msgid "Customize the application appearance."
-msgstr "Personnalisez l'apparence de l'application."
+msgstr "Prilagodite videz aplikacije."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:330
+#: src\main\kotlin\scooper\ui\Settings.kt:334
 msgid "Auto Refresh"
-msgstr "Actualisation automatique"
+msgstr "Samodejno osveževanje"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:331
+#: src\main\kotlin\scooper\ui\Settings.kt:335
 msgid "When enabled, Scooper will automatically run \"scoop update\" to check for updates."
-msgstr "Une fois activé, Scooper exécute automatiquement \"scoop update\" pour vérifier les mises à jour."
+msgstr "Ko je omogočeno, bo Scooper samodejno zagnal \"scoop update\" za preverjanje posodobitev."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:345
+#: src\main\kotlin\scooper\ui\Settings.kt:349
 msgid "Refresh on Startup"
-msgstr "Actualiser au démarrage"
+msgstr "Osveži ob zagonu"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:346
+#: src\main\kotlin\scooper\ui\Settings.kt:350
 msgid "Run \"scoop update\" once after startup."
-msgstr "Exécutez \"scoop update\" une fois après le démarrage."
+msgstr "Po zagonu enkrat zaženite \"scoop update\"."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:359
+#: src\main\kotlin\scooper\ui\Settings.kt:363
 msgid "Periodic Refresh"
-msgstr "Actualisation périodique"
+msgstr "Občasno osveževanje"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:360
+#: src\main\kotlin\scooper\ui\Settings.kt:364
 msgid "Periodically run \"scoop update\" at a fixed interval."
-msgstr "Exécutez périodiquement \"scoop update\" à intervalle fixe."
+msgstr "Občasno zaganjajte \"scoop update\" v fiksnih intervalih."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:374
+#: src\main\kotlin\scooper\ui\Settings.kt:378
 msgid "Interval"
-msgstr "Intervalle"
+msgstr "Interval"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:375
+#: src\main\kotlin\scooper\ui\Settings.kt:379
 msgid "How often to check for updates."
-msgstr "À quelle fréquence vérifier les mises à jour."
+msgstr "Kako pogosto preverjati posodobitve."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:390
+#: src\main\kotlin\scooper\ui\Settings.kt:394
 msgid "Language"
-msgstr "Langue"
+msgstr "Jezik"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:391
+#: src\main\kotlin\scooper\ui\Settings.kt:395
 msgid "Choose the display language."
-msgstr "Choisissez la langue d'affichage."
+msgstr "Izberite jezik vmesnika."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:472
+#: src\main\kotlin\scooper\ui\Settings.kt:479
 msgid "Switch Theme"
-msgstr "Changer de thème"
+msgstr "Preklopi temo"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:482
+#: src\main\kotlin\scooper\ui\Settings.kt:489
 msgid "Default View Mode"
-msgstr "Mode d'affichage par défaut"
+msgstr "Privzeti način prikaza"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:483
+#: src\main\kotlin\scooper\ui\Settings.kt:490
 msgid "Choose how packages are displayed in the list."
-msgstr "Choisissez comment les paquets sont affichés dans la liste."
+msgstr "Izberite, kako so paketi prikazani na seznamu."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:494
+#: src\main\kotlin\scooper\ui\Settings.kt:501
 msgid "Default Pagination Mode"
-msgstr "Mode de pagination par défaut"
+msgstr "Privzeti način paginacije"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:495
+#: src\main\kotlin\scooper\ui\Settings.kt:502
 msgid "Choose how packages are paginated."
-msgstr "Choisissez comment paginer les paquets."
+msgstr "Izberite, kako so paketi razdeljeni po straneh."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:449
+#: src\main\kotlin\scooper\ui\Settings.kt:456
 msgid "Font Size"
-msgstr "Taille de police"
+msgstr "Velikost pisave"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:450
+#: src\main\kotlin\scooper\ui\Settings.kt:457
 msgid "Adjust the application font size. Changes take effect immediately."
-msgstr "Ajustez la taille de police de l'application. Les modifications prennent effet immédiatement."
+msgstr "Prilagodite velikost pisave aplikacije. Spremembe začnejo veljati takoj."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:544
+#: src\main\kotlin\scooper\ui\Settings.kt:551
 msgid "Information about this application."
-msgstr "Informations sur cette application."
+msgstr "Informacije o tej aplikaciji."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:569
+#: src\main\kotlin\scooper\ui\Settings.kt:576
 msgid "GitHub"
 msgstr "GitHub"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:562
+#: src\main\kotlin\scooper\ui\Settings.kt:569
 #, java-format
 msgid "Version: {{version}}"
-msgstr "Version : {{version}}"
+msgstr "Različica: {{version}}"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:69
-#: src\main\kotlin\scooper\ui\Sidebar.kt:164
-#: src\main\kotlin\scooper\ui\Sidebar.kt:171
+#: src\main\kotlin\scooper\ui\Sidebar.kt:70
+#: src\main\kotlin\scooper\ui\Sidebar.kt:165
+#: src\main\kotlin\scooper\ui\Sidebar.kt:172
 msgid "Discover"
-msgstr "Découvrir"
+msgstr "Odkrij"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:74
-#: src\main\kotlin\scooper\ui\Sidebar.kt:192
-#: src\main\kotlin\scooper\ui\Sidebar.kt:199
+#: src\main\kotlin\scooper\ui\Sidebar.kt:75
+#: src\main\kotlin\scooper\ui\Sidebar.kt:193
+#: src\main\kotlin\scooper\ui\Sidebar.kt:200
 msgid "Buckets"
-msgstr "Dépôts"
+msgstr "Repozitoriji"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:162
+#: src\main\kotlin\scooper\ui\Sidebar.kt:163
 msgid "LIBRARY"
-msgstr "BIBLIOTHÈQUE"
+msgstr "KNJIŽNICA"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:190
+#: src\main\kotlin\scooper\ui\Sidebar.kt:191
 msgid "SOURCES"
-msgstr "SOURCES"
+msgstr "VIRI"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:205
+#: src\main\kotlin\scooper\ui\Sidebar.kt:206
 msgid "TOOLS"
-msgstr "OUTILS"
+msgstr "ORODJA"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:89
-#: src\main\kotlin\scooper\ui\Sidebar.kt:218
-#: src\main\kotlin\scooper\ui\Sidebar.kt:222
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:90
+#: src\main\kotlin\scooper\ui\Sidebar.kt:219
+#: src\main\kotlin\scooper\ui\Sidebar.kt:223
 msgid "Search Online"
-msgstr "Rechercher en ligne"
+msgstr "Iskanje na spletu"
 
 #: src\main\kotlin\scooper\ui\StatusBar.kt:56
 msgid "Show Console Logs"
-msgstr "Afficher les journaux de la console"
+msgstr "Prikaži dnevnik konzole"
 
 #: src\main\kotlin\scooper\ui\StatusBar.kt:76
 msgid "Console"
-msgstr "Console"
+msgstr "Konzola"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:56
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:54
 #, java-format
 msgid "Select Version — {{name}}"
-msgstr "Sélectionner la version — {{name}}"
+msgstr "Izberi različico — {{name}}"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:61
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:59
 #, java-format
 msgid "{{count}} version(s) available"
-msgstr "Versions disponibles : {{count}}"
+msgstr "Razpoložljive različice: {{count}}"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:91
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:89
 msgid "No versions available"
-msgstr "Aucune version disponible"
+msgstr "Ni razpoložljivih različic"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:164
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:162
 msgid "(installed)"
-msgstr "(installé)"
+msgstr "(nameščeno)"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:185
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:183
 msgid "Git"
 msgstr "Git"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:300
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:306
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:332
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:217
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:215
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:201
 msgid "Install"
-msgstr "Installer"
+msgstr "Namesti"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:224
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:222
 msgid "Global"
-msgstr "Global"
+msgstr "Globalno"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:207
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:205
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:254
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:125
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:123
 msgid "Close"
-msgstr "Fermer"
+msgstr "Zapri"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:333
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:68
 #: src\main\kotlin\scooper\ui\components\ConfirmDialog.kt:59
 msgid "Cancel"
-msgstr "Annuler"
+msgstr "Prekliči"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:68
 msgid "Waiting"
-msgstr "En attente"
+msgstr "Čakanje"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:94
 msgid "Update"
-msgstr "Mettre à jour"
+msgstr "Posodobi"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:295
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:359
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:293
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:357
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:657
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:130
 msgid "Open"
-msgstr "Ouvrir"
+msgstr "Odpri"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:166
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:251
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:272
 msgid "Uninstall"
-msgstr "Désinstaller"
+msgstr "Odstrani"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:262
 #, java-format
 msgid "Open {{path}}"
-msgstr "Ouvrir {{path}}"
+msgstr "Odpri {{path}}"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:230
 msgid "Install Globally"
-msgstr "Installer globalement"
+msgstr "Namesti globalno"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:236
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:280
 msgid "Download Only"
-msgstr "Télécharger uniquement"
+msgstr "Samo prenos"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:243
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:289
 msgid "Install Version..."
-msgstr "Installer une version..."
+msgstr "Namesti različico..."
 
 #: src\main\kotlin\scooper\ui\components\ConfirmDialog.kt:71
 msgid "OK"
-msgstr "OK"
+msgstr "V redu"
 
 #: src\main\kotlin\scooper\ui\components\PaginationBar.kt:44
 msgid "Rows per page:"
-msgstr "Lignes par page :"
+msgstr "Vrstic na stran:"
 
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:268
 msgid "SETTINGS"
-msgstr "PARAMÈTRES"
+msgstr "NASTAVITVE"
 
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:198
 msgid "Discard"
-msgstr "Abandonner"
+msgstr "Zavrzi"
 
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:211
 msgid "Apply Changes"
-msgstr "Appliquer les modifications"
+msgstr "Uporabi spremembe"
 
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:259
 msgid "Back"
-msgstr "Retour"
+msgstr "Nazaj"
 
 #: src\main\kotlin\scooper\service\ScoopSearchService.kt:112
 msgid "Invalid server response"
-msgstr "Réponse du serveur invalide"
+msgstr "Neveljaven odgovor strežnika"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:292
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:356
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:290
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:354
 msgid "Open in editor"
-msgstr "Ouvrir dans l'éditeur"
+msgstr "Odpri v urejevalniku"
 
 #: src\main\kotlin\scooper\service\ScoopSearchService.kt:54
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:54
 msgid "Best match"
-msgstr "Meilleure correspondance"
+msgstr "Najboljše ujemanje"
 
 #: src\main\kotlin\scooper\service\ScoopSearchService.kt:56
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:56
 msgid "Newest"
-msgstr "Plus récents"
+msgstr "Najnovejše"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:141
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:142
 #, java-format
 msgid "No results found for \"{{query}}\""
-msgstr "Aucun résultat trouvé pour \"{{query}}\""
+msgstr "Za \"{{query}}\" ni bilo najdenih rezultatov"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:265
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:266
 msgid "Official buckets"
-msgstr "Dépôts officiels"
+msgstr "Uradni repozitoriji"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:265
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:266
 msgid "All buckets"
-msgstr "Tous les dépôts"
+msgstr "Vsi repozitoriji"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:282
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:283
 msgid "Search options"
-msgstr "Options de recherche"
+msgstr "Možnosti iskanja"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:299
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:300
 msgid "Sorting"
-msgstr "Tri"
+msgstr "Razvrščanje"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:323
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:324
 msgid "Filtering"
-msgstr "Filtrage"
+msgstr "Filtriranje"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:328
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:329
 msgid "Official buckets only"
-msgstr "Dépôts officiels uniquement"
+msgstr "Samo uradni repozitoriji"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:333
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:334
 msgid "Distinct manifests only"
-msgstr "Manifestes distincts uniquement"
+msgstr "Samo edinstveni manifesti"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:341
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:342
 msgid "Option"
-msgstr "Option"
+msgstr "Možnost"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:346
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:347
 msgid "Show bucket name"
-msgstr "Afficher le nom du dépôt"
+msgstr "Prikaži ime repozitorija"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:408
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:409
 #, java-format
 msgid "Found {{count}} result for \"{{query}}\""
 msgid_plural "Found {{count}} results for \"{{query}}\""
-msgstr[0] "{{count}} résultat trouvé pour \"{{query}}\""
-msgstr[1] "{{count}} résultats trouvés pour \"{{query}}\""
+msgstr[0] "Za \"{{query}}\" je bil najden {{count}} rezultat"
+msgstr[1] "Za \"{{query}}\" sta bila najdena {{count}} rezultata"
+msgstr[2] "Za \"{{query}}\" so bili najdeni {{count}} rezultati"
+msgstr[3] "Za \"{{query}}\" je bilo najdenih {{count}} rezultatov"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:414
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:415
 #, java-format
 msgid "Found {{count}} result"
 msgid_plural "Found {{count}} results"
-msgstr[0] "{{count}} résultat trouvé"
-msgstr[1] "{{count}} résultats trouvés"
-
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:625
-msgid "Updated today"
-msgstr "Mis à jour aujourd'hui"
+msgstr[0] "Najden je bil {{count}} rezultat"
+msgstr[1] "Najdena sta bila {{count}} rezultata"
+msgstr[2] "Najdeni so bili {{count}} rezultati"
+msgstr[3] "Najdenih je bilo {{count}} rezultatov"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:626
+msgid "Updated today"
+msgstr "Posodobljeno danes"
+
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:627
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:628
 #, java-format
 msgid "Updated {{n}} day ago"
 msgid_plural "Updated {{n}} days ago"
-msgstr[0] "Mis à jour il y a {{n}} jour"
-msgstr[1] "Mis à jour il y a {{n}} jours"
+msgstr[0] "Posodobljeno pred {{n}} dnevom"
+msgstr[1] "Posodobljeno pred {{n}} dnevoma"
+msgstr[2] "Posodobljeno pred {{n}} dnevi"
+msgstr[3] "Posodobljeno pred {{n}} dnevi"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:630
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:631
 #, java-format
 msgid "Updated {{n}} month ago"
 msgid_plural "Updated {{n}} months ago"
-msgstr[0] "Mis à jour il y a {{n}} mois"
-msgstr[1] "Mis à jour il y a {{n}} mois"
+msgstr[0] "Posodobljeno pred {{n}} mesecem"
+msgstr[1] "Posodobljeno pred {{n}} mesecema"
+msgstr[2] "Posodobljeno pred {{n}} meseci"
+msgstr[3] "Posodobljeno pred {{n}} meseci"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:634
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:635
 #, java-format
 msgid "Updated {{n}} year ago"
 msgid_plural "Updated {{n}} years ago"
-msgstr[0] "Mis à jour il y a {{n}} an"
-msgstr[1] "Mis à jour il y a {{n}} ans"
+msgstr[0] "Posodobljeno pred {{n}} letom"
+msgstr[1] "Posodobljeno pred {{n}} letoma"
+msgstr[2] "Posodobljeno pred {{n}} leti"
+msgstr[3] "Posodobljeno pred {{n}} leti"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:677
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:678
 msgid "Search packages curated by"
-msgstr "Sources de paquets maintenues par "
+msgstr "Iskanje paketov, ki jih pripravlja"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:686
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:687
 msgid "· Supported search syntax:"
-msgstr "· Syntaxe de recherche prise en charge :"
-
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:691
-msgid "Search name and description"
-msgstr "Rechercher dans le nom et la description"
+msgstr "· Podprta sintaksa iskanja:"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:692
-msgid "Both terms required"
-msgstr "Les deux termes sont requis"
+msgid "Search name and description"
+msgstr "Išči po imenu in opisu"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:693
-msgid "Either term"
-msgstr "L'un ou l'autre terme"
+msgid "Both terms required"
+msgstr "Obvezna sta oba izraza"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:694
-msgid "Exclude term"
-msgstr "Exclure le terme"
+msgid "Either term"
+msgstr "Katerikoli izraz"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:695
-msgid "Exact phrase"
-msgstr "Expression exacte"
+msgid "Exclude term"
+msgstr "Izključi izraz"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:696
-msgid "Limit to bucket"
-msgstr "Limiter au dépôt"
+msgid "Exact phrase"
+msgstr "Natančna fraza"
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:697
+msgid "Limit to bucket"
+msgstr "Omeji na repozitorij"
+
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:698
 msgid "List all in bucket"
-msgstr "Tout lister dans le dépôt"
+msgstr "Prikaži vse v repozitoriju"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:215
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:216
 msgid "Search packages..."
-msgstr "Rechercher des paquets..."
+msgstr "Išči pakete..."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:67
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:65
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:62
 msgid "Changelog"
-msgstr "Journal des modifications"
+msgstr "Dnevnik sprememb"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:135
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:140
 msgid "Manifest not available."
-msgstr "Manifeste indisponible."
+msgstr "Manifest ni na voljo."
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:267
 #, java-format
@@ -849,201 +849,207 @@ msgstr "scoop install {{bucket}}/{{name}}"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:294
 msgid "Installing..."
-msgstr "Installation en cours..."
+msgstr "Nameščanje..."
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:331
 #, java-format
 msgid "Install {{name}}"
-msgstr "Installer {{name}}"
+msgstr "Namesti {{name}}"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:347
 msgid "This will install the app and its bucket if not already added."
-msgstr "Cette action installera l'application et son dépôt s'il n'est pas déjà ajouté."
+msgstr "To bo namestilo aplikacijo in njen repozitorij, če ta ni bil že dodan."
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:374
 msgid "Bucket name is required"
-msgstr "Le nom du dépôt est requis"
+msgstr "Ime repozitorija je obvezno"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:374
 msgid "Bucket name used locally by Scoop."
-msgstr "Nom de dépôt utilisé localement par Scoop."
+msgstr "Ime repozitorija, ki ga Scoop uporablja lokalno."
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:383
 msgid "Commands"
-msgstr "Commandes"
+msgstr "Ukazi"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:273
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:271
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:586
 msgid "View releases on GitHub"
-msgstr "Voir les versions sur GitHub"
+msgstr "Prikaži izdaje na GitHubu"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:654
 msgid "Open manifest page"
-msgstr "Ouvrir la page du manifeste"
+msgstr "Odpri stran manifesta"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:697
 msgid "View manifest instead"
-msgstr "Voir le manifeste à la place"
+msgstr "Namesto tega prikaži manifest"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:769
 msgid "Loading manifest..."
-msgstr "Chargement du manifeste..."
+msgstr "Nalaganje manifesta..."
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:824
 msgid "Today"
-msgstr "Aujourd'hui"
+msgstr "Danes"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:825
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:826
 #, java-format
 msgid "{{n}} day ago"
 msgid_plural "{{n}} days ago"
-msgstr[0] "Il y a {{n}} jour"
-msgstr[1] "Il y a {{n}} jours"
+msgstr[0] "Pred {{n}} dnevom"
+msgstr[1] "Pred {{n}} dnevoma"
+msgstr[2] "Pred {{n}} dnevi"
+msgstr[3] "Pred {{n}} dnevi"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:829
 #, java-format
 msgid "{{n}} month ago"
 msgid_plural "{{n}} months ago"
-msgstr[0] "Il y a {{n}} mois"
-msgstr[1] "Il y a {{n}} mois"
+msgstr[0] "Pred {{n}} mesecem"
+msgstr[1] "Pred {{n}} mesecema"
+msgstr[2] "Pred {{n}} meseci"
+msgstr[3] "Pred {{n}} meseci"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:833
 #, java-format
 msgid "{{n}} year ago"
 msgid_plural "{{n}} years ago"
-msgstr[0] "Il y a {{n}} an"
-msgstr[1] "Il y a {{n}} ans"
+msgstr[0] "Pred {{n}} letom"
+msgstr[1] "Pred {{n}} letoma"
+msgstr[2] "Pred {{n}} leti"
+msgstr[3] "Pred {{n}} leti"
 
-#: src\main\kotlin\scooper\ui\Search.kt:502
+#: src\main\kotlin\scooper\ui\Search.kt:510
 msgid "Sort By"
-msgstr "Trier par"
+msgstr "Razvrsti po"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:190
 msgid "[username:password@]host:port"
-msgstr "[utilisateur:mot_de_passe@]hôte:port"
+msgstr "[username:password@]host:port"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:507
+#: src\main\kotlin\scooper\ui\Settings.kt:514
 msgid "System Tray Icon"
-msgstr "Icône de la zone de notification"
+msgstr "Ikona v sistemski vrstici"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:508
+#: src\main\kotlin\scooper\ui\Settings.kt:515
 msgid "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."
-msgstr "Conservez une icône dans la zone de notification. Fermer la fenêtre l'y masque au lieu de quitter."
+msgstr "Ohranite ikono v sistemski vrstici. Zapiranje okna skrije aplikacijo v sistemsko vrstico namesto, da bi jo zaprlo."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:524
+#: src\main\kotlin\scooper\ui\Settings.kt:531
 msgid "Show FPS"
-msgstr "Afficher les FPS"
+msgstr "Prikaži fps"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:525
+#: src\main\kotlin\scooper\ui\Settings.kt:532
 msgid "Display frame rate in the status bar. This setting is not persisted."
-msgstr "Affichez la fréquence d'images dans la barre d'état. Ce paramètre n'est pas conservé."
+msgstr "Prikaži hitrost sličic v vrstici stanja. Ta nastavitev ni shranjena."
 
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:114
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:112
 msgid "View on GitHub"
-msgstr "Voir sur GitHub"
+msgstr "Poglej na GitHubu"
 
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:91
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:245
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:104
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:371
 msgid "Dropdown Arrow"
-msgstr "Flèche de liste déroulante"
+msgstr "Puščica spustnega seznama"
 
 #: src\main\kotlin\scooper\ui\components\Link.kt:93
 msgid "Open Link"
-msgstr "Ouvrir le lien"
+msgstr "Odpri povezavo"
 
 #: src\main\kotlin\scooper\ui\Route.kt:18
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:31
 msgid "General"
-msgstr "Général"
+msgstr "Splošno"
 
 #: src\main\kotlin\scooper\ui\Route.kt:19
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:32
 msgid "UI"
-msgstr "Interface"
+msgstr "Vmesnik"
 
 #: src\main\kotlin\scooper\util\TrayManager.kt:57
 msgid "Show Scooper"
-msgstr "Afficher Scooper"
+msgstr "Prikaži Scooper"
 
 #: src\main\kotlin\scooper\util\TrayManager.kt:66
 msgid "Exit"
-msgstr "Quitter"
+msgstr "Izhod"
 
 #: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:335
 #: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:148
 #, java-format
 msgid "Failed to add {{name}}."
-msgstr "Échec de l'ajout de {{name}}."
+msgstr "Napaka pri dodajanju {{name}}."
 
 #: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:337
 #, java-format
 msgid "{{name}} has been added."
-msgstr "{{name}} a été ajouté."
+msgstr "{{name}} je bil dodan."
 
 #: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:461
 #, java-format
 msgid "Failed to get manifest for {{name}}@{{version}}."
-msgstr "Échec de la récupération du manifeste pour {{name}}@{{version}}."
+msgstr "Napaka pri pridobivanju manifesta za {{name}}@{{version}}."
 
 #: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:474
 #, java-format
 msgid "Failed to install {{name}}@{{version}}."
-msgstr "Échec de l'installation de {{name}}@{{version}}."
+msgstr "Napaka pri nameščanju {{name}}@{{version}}."
 
 #: src\main\kotlin\scooper\viewmodels\AppsViewModel.kt:476
 #, java-format
 msgid "{{name}}@{{version}} has been installed."
-msgstr "{{name}}@{{version}} a été installé."
+msgstr "{{name}}@{{version}} je bil nameščen."
 
 #: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:222
 msgid "Unable to connect to search server. Please check your network."
-msgstr "Impossible de se connecter au serveur de recherche. Vérifiez votre réseau."
+msgstr "Ni se mogoče povezati s strežnikom za iskanje. Preverite svojo omrežno povezavo."
 
 #: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:223
 msgid "Unable to reach search server. Please check your network."
-msgstr "Serveur de recherche inaccessible. Vérifiez votre réseau."
+msgstr "Strežnik za iskanje ni dosegljiv. Preverite svojo omrežno povezavo."
 
 #: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:224
 msgid "Search server timed out. Please try again."
-msgstr "Délai d'attente du serveur de recherche dépassé. Veuillez réessayer."
+msgstr "Strežnik za iskanje je prekoračil časovno omejitev. Poskusite znova."
 
 #: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:225
 msgid "Connection to search server failed. Please try again."
-msgstr "Échec de la connexion au serveur de recherche. Veuillez réessayer."
+msgstr "Povezava s strežnikom za iskanje je spodletela. Poskusite znova."
 
 #: src\main\kotlin\scooper\viewmodels\ScoopSearchViewModel.kt:226
 msgid "Search failed. Please try again."
-msgstr "Échec de la recherche. Veuillez réessayer."
+msgstr "Iskanje je spodletelo. Poskusite znova."
 
 #: src\main\kotlin\scooper\ui\Settings.kt:156
-#: src\main\kotlin\scooper\ui\Settings.kt:409
+#: src\main\kotlin\scooper\ui\Settings.kt:415
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:84
 msgid "Default"
-msgstr "Par défaut"
+msgstr "Privzeto"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:157
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:85
 msgid "None"
-msgstr "Aucun"
+msgstr "Brez"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:158
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:86
 msgid "Custom"
-msgstr "Personnalisé"
+msgstr "Po meri"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:198
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:101
 msgid "Invalid proxy address."
-msgstr "Adresse de proxy invalide."
+msgstr "Neveljaven naslov posredniškega strežnika."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:406
+#: src\main\kotlin\scooper\ui\Settings.kt:412
 msgid "Interface Font"
-msgstr "Police de l'interface"
+msgstr "Pisava vmesnika"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:407
+#: src\main\kotlin\scooper\ui\Settings.kt:413
 msgid "Choose the font used to render the interface. Changes take effect immediately."
-msgstr "Choisissez la police utilisée pour le rendu de l'interface. Les modifications prennent effet immédiatement."
+msgstr "Izberite pisavo, s katero se prikazuje vmesnik. Spremembe začnejo veljati takoj."
 
 #: src\main\kotlin\scooper\ui\Settings.kt:256
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:110
@@ -1055,7 +1061,7 @@ msgstr "{{n}} min"
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:111
 #, java-format
 msgid "{{n}} hour"
-msgstr "{{n}} h"
+msgstr "{{n}} ura"
 
 #: src\main\kotlin\scooper\ui\Settings.kt:258
 #: src\main\kotlin\scooper\ui\Settings.kt:259
@@ -1063,152 +1069,164 @@ msgstr "{{n}} h"
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:113
 #, java-format
 msgid "{{n}} hours"
-msgstr "{{n}} h"
+msgstr "{{n}} ur"
 
 #: src\main\kotlin\scooper\data\Config.kt:35
 #: src\main\kotlin\scooper\ui\Settings.kt:258
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:117
 msgid "Auto"
-msgstr "Auto"
+msgstr "Samodejno"
 
 #: src\main\kotlin\scooper\data\Config.kt:36
 #: src\main\kotlin\scooper\ui\Settings.kt:259
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:118
 msgid "Light"
-msgstr "Clair"
+msgstr "Svetlo"
 
 #: src\main\kotlin\scooper\data\Config.kt:37
 #: src\main\kotlin\scooper\ui\Settings.kt:260
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:119
 msgid "Dark"
-msgstr "Sombre"
+msgstr "Temno"
 
 #: src\main\kotlin\scooper\data\Config.kt:45
 #: src\main\kotlin\scooper\ui\Settings.kt:265
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:122
 msgid "List"
-msgstr "Liste"
+msgstr "Seznam"
 
 #: src\main\kotlin\scooper\data\Config.kt:46
 #: src\main\kotlin\scooper\ui\Settings.kt:266
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:123
 msgid "Grid"
-msgstr "Grille"
+msgstr "Mreža"
 
 #: src\main\kotlin\scooper\ui\components\PaginationBar.kt:87
 msgid "First"
-msgstr "Première"
+msgstr "Prva"
 
 #: src\main\kotlin\scooper\ui\components\PaginationBar.kt:98
 msgid "Prev"
-msgstr "Précédent"
+msgstr "Prejšnja"
 
 #: src\main\kotlin\scooper\ui\components\PaginationBar.kt:151
 msgid "Next"
-msgstr "Suivant"
+msgstr "Naslednja"
 
 #: src\main\kotlin\scooper\ui\components\PaginationBar.kt:160
 msgid "Last"
-msgstr "Dernière"
+msgstr "Zadnja"
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:22
 #, java-format
 msgid "{{name}} has been installed."
-msgstr "{{name}} a été installé."
+msgstr "{{name}} je bil nameščen."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:23
 #, java-format
 msgid "Failed to install {{name}}."
-msgstr "Échec de l'installation de {{name}}."
+msgstr "Napaka pri nameščanju {{name}}."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:25
 #, java-format
 msgid "{{name}} has been uninstalled."
-msgstr "{{name}} a été désinstallé."
+msgstr "{{name}} je bil odstranjen."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:26
 #, java-format
 msgid "Failed to uninstall {{name}}."
-msgstr "Échec de la désinstallation de {{name}}."
+msgstr "Napaka pri odstranjevanju {{name}}."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:28
 #, java-format
 msgid "{{name}} has been updated."
-msgstr "{{name}} a été mis à jour."
+msgstr "{{name}} je bil posodobljen."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:29
 #, java-format
 msgid "Failed to update {{name}}."
-msgstr "Échec de la mise à jour de {{name}}."
+msgstr "Napaka pri posodabljanju {{name}}."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:31
 #, java-format
 msgid "{{name}} has been downloaded."
-msgstr "{{name}} a été téléchargé."
+msgstr "{{name}} je bil prenesen."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:32
 #, java-format
 msgid "Failed to download {{name}}."
-msgstr "Échec du téléchargement de {{name}}."
+msgstr "Napaka pri prenosu {{name}}."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:34
 #, java-format
 msgid "{{name}} has been removed."
-msgstr "{{name}} a été supprimé."
+msgstr "{{name}} je bil odstranjen."
 
 #: src\main\kotlin\scooper\viewmodels\SideEffect.kt:35
 #, java-format
 msgid "Failed to remove bucket {{name}}."
-msgstr "Échec de la suppression du dépôt {{name}}."
+msgstr "Napaka pri odstranjevanju repozitorija {{name}}."
 
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:65
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:63
 msgid "Unknown"
-msgstr "Inconnu"
+msgstr "Neznano"
 
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:105
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:103
 msgid "pre-release"
-msgstr "préversion"
+msgstr "predizdaja"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:33
 msgid "Focus Search"
-msgstr "Activer la recherche"
+msgstr "Osredotoči na iskanje"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:34
 msgid "Refresh Scoop"
-msgstr "Actualiser Scoop"
+msgstr "Osveži Scoop"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:35
 msgid "Reload Local Apps"
-msgstr "Recharger les applications locales"
+msgstr "Znova naloži lokalne aplikacije"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:36
 msgid "Navigate to Discover"
-msgstr "Aller à Découvrir"
+msgstr "Pojdi na Odkrij"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:37
 msgid "Navigate to Installed"
-msgstr "Aller à Installé"
+msgstr "Pojdi na Nameščeno"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:38
 msgid "Navigate to Buckets"
-msgstr "Aller aux Dépôts"
+msgstr "Pojdi na Repozitorije"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:39
 msgid "Navigate to Cleanup"
-msgstr "Aller au Nettoyage"
+msgstr "Pojdi na Čiščenje"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:40
 msgid "Open Settings"
-msgstr "Ouvrir les paramètres"
+msgstr "Odpri nastavitve"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:41
 msgid "View Logs / Output"
-msgstr "Voir les journaux / la sortie"
+msgstr "Prikaži dnevnike / izpis"
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:42
 msgid "Go Back"
-msgstr "Retour"
+msgstr "Nazaj"
 
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:254
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:257
 msgid "No matches found."
-msgstr "Aucun résultat trouvé."
+msgstr "Ni najdenih ujemanj."
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
+msgctxt "status"
+msgid "Installed"
+msgstr "Nameščeno"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:71
+#: src\main\kotlin\scooper\ui\Sidebar.kt:176
+#: src\main\kotlin\scooper\ui\Sidebar.kt:185
+msgctxt "navigation"
+msgid "Installed"
+msgstr "Nameščeno"
