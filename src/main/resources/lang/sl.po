@@ -374,14 +374,14 @@ msgstr "Pogled mreže"
 
 #: src\main\kotlin\scooper\ui\Search.kt:297
 msgid "Waterfall Scroll"
-msgstr "Vodopadni pomik"
+msgstr "Neskončni pomik"
 
 #: src\main\kotlin\scooper\data\Config.kt:54
 #: src\main\kotlin\scooper\ui\Search.kt:304
 #: src\main\kotlin\scooper\ui\Settings.kt:271
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:126
 msgid "Waterfall"
-msgstr "Vodopad"
+msgstr "Slap"
 
 #: src\main\kotlin\scooper\ui\Search.kt:310
 msgid "Paginated"
