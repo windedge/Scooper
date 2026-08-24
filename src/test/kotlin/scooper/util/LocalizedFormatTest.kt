@@ -46,6 +46,37 @@ class LocalizedFormatTest {
     }
 
     @Test
+    fun `formatDate renders Chinese dates`() {
+        val instant = LocalDateTime.of(2026, 8, 23, 15, 45).atZone(ZoneId.systemDefault()).toInstant()
+
+        assertEquals("2026年8月23日", formatDate(instant, Locale.SIMPLIFIED_CHINESE))
+        assertEquals("2026年8月23日", formatDate(instant, Locale.TRADITIONAL_CHINESE))
+    }
+
+    @Test
+    fun `formatDate renders medium style per locale`() {
+        val instant = LocalDateTime.of(2026, 8, 23, 15, 45).atZone(ZoneId.systemDefault()).toInstant()
+
+        assertEquals("2026/08/23", formatDate(instant, Locale.JAPANESE))
+        assertEquals("23.08.2026", formatDate(instant, Locale.GERMANY))
+        assertEquals("23 août 2026", formatDate(instant, Locale.FRENCH))
+        assertEquals("23 ago 2026", formatDate(instant, Locale("es")))
+        assertEquals("23 авг. 2026 г.", formatDate(instant, Locale("ru")))
+        assertEquals("23. avg. 2026", formatDate(instant, Locale("sl")))
+    }
+
+    @Test
+    fun `formatDateTime renders medium date and short time per locale`() {
+        val dateTime = LocalDateTime.of(2026, 8, 23, 15, 45)
+
+        assertEquals("2026年8月23日 下午3:45", formatDateTime(dateTime, Locale.SIMPLIFIED_CHINESE))
+        assertEquals("2026/08/23 15:45", formatDateTime(dateTime, Locale.JAPANESE))
+        assertEquals("23.08.2026, 15:45", formatDateTime(dateTime, Locale.GERMANY))
+        assertEquals("23 août 2026 15:45", formatDateTime(dateTime, Locale.FRENCH))
+        assertEquals("23. avg. 2026 15:45", formatDateTime(dateTime, Locale("sl")))
+    }
+
+    @Test
     fun `localeAwareComparator sorts alphabetically per locale`() {
         val us = localeAwareComparator(Locale.ENGLISH)
         assertTrue(us.compare("abc", "abd") < 0)
