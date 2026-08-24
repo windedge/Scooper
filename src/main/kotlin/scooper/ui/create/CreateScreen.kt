@@ -109,6 +109,7 @@ import scooper.ui.theme.warningDefault
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.parseAnsiColors
+import scooper.service.AiErrorAction
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.ChatMessage
@@ -183,6 +184,13 @@ fun CreateScreen(
                 onRegenerate = viewModel::onRegenerate,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
+                onAction = { action ->
+                    if (action == AiErrorAction.OPEN_SETTINGS) {
+                        navigator.push(AppRoute.Settings.AI)
+                    } else {
+                        viewModel.onAction(action)
+                    }
+                },
             )
         }
     }
@@ -369,9 +377,9 @@ private fun StatusPill(running: Boolean) {
 
     Row(
         modifier = Modifier
+            .border(1.dp, border, RoundedCornerShape(4.dp))
             .clip(RoundedCornerShape(4.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(4.dp))
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -405,9 +413,9 @@ private fun AiConfigBanner(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 12.dp)
+            .border(1.dp, border, RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(8.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -450,9 +458,9 @@ private fun EmptyWorkspace(
         Box(
             modifier = Modifier
                 .size(48.dp)
+                .border(1.dp, colors.primary.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp))
-                .background(colors.primarySubtle)
-                .border(1.dp, colors.primary.copy(alpha = 0.25f), RoundedCornerShape(12.dp)),
+                .background(colors.primarySubtle),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -504,6 +512,7 @@ private fun ChatWorkspace(
     onRegenerate: () -> Unit,
     onGoToDiscover: () -> Unit,
     onDismissSaveResult: () -> Unit,
+    onAction: (AiErrorAction) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Box(
@@ -519,7 +528,7 @@ private fun ChatWorkspace(
                 contentPadding = PaddingValues(vertical = 4.dp),
             ) {
                 items(state.messages, key = { it.id }) { message ->
-                    ChatBubble(message)
+                    ChatBubble(message, onAction = onAction)
                 }
                 if (state.manifestJson.isNotBlank()) {
                     item(key = "manifest-card") {
@@ -572,7 +581,10 @@ private fun ChatWorkspace(
 }
 
 @Composable
-private fun ChatBubble(message: ChatMessage) {
+private fun ChatBubble(
+    message: ChatMessage,
+    onAction: (AiErrorAction) -> Unit,
+) {
     val isUser = message.role == ChatRole.User
     val bubbleShape = RoundedCornerShape(
         topStart = 12.dp,
@@ -630,15 +642,37 @@ private fun ChatBubble(message: ChatMessage) {
                                     message.note,
                                     style = typography.caption.copy(
                                         color = colors.textMuted,
+                                        lineHeight = typography.caption.fontSize * 1.45f,
                                     ),
                                 )
                             }
                         }
                     }
                 }
+                if (!message.isTyping && message.actions.isNotEmpty()) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(top = 6.dp),
+                    ) {
+                        message.actions.forEach { action ->
+                            SmallActionButton(
+                                label = actionLabel(action),
+                                onClick = { onAction(action) },
+                                enabled = true,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+private fun actionLabel(action: AiErrorAction): String = when (action) {
+    AiErrorAction.OPEN_SETTINGS -> "Open Settings"
+    AiErrorAction.RETRY_FULL -> "Retry"
+    AiErrorAction.RETRY_FROM_ANALYZE -> "Retry from Analyze"
+    AiErrorAction.RETRY_FROM_GENERATE -> "Retry from Generate"
 }
 
 @Composable
@@ -651,9 +685,9 @@ private fun PhaseTag(phase: String, modifier: Modifier = Modifier) {
             color = fg,
         ),
         modifier = modifier
+            .border(1.dp, border, RoundedCornerShape(4.dp))
             .clip(RoundedCornerShape(4.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(4.dp))
             .padding(horizontal = 12.dp, vertical = 5.dp),
     )
 }
@@ -776,9 +810,9 @@ private fun ManifestPreviewCard(
                             color = statusColor,
                         ),
                         modifier = Modifier
+                            .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(4.dp))
                             .clip(RoundedCornerShape(4.dp))
                             .background(statusColor.copy(alpha = 0.12f))
-                            .border(1.dp, statusColor.copy(alpha = 0.35f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
@@ -819,13 +853,13 @@ private fun ManifestPreviewCard(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(colors.warningDefault.copy(alpha = 0.08f))
                             .border(
                                 1.dp,
                                 colors.warningDefault.copy(alpha = 0.35f),
                                 RoundedCornerShape(12.dp),
                             )
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.warningDefault.copy(alpha = 0.08f))
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -999,9 +1033,9 @@ private fun TestResultPanel(result: TestResult) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 240.dp)
+                            .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
                             .clip(RoundedCornerShape(8.dp))
-                            .background(colors.inputBackground)
-                            .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp)),
+                            .background(colors.inputBackground),
                     ) {
                         SelectableContainer {
                             Text(
@@ -1036,9 +1070,9 @@ private fun CopyableText(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
+            .border(1.dp, colors.borderDefault, shape)
             .clip(shape)
             .background(colors.inputBackground)
-            .border(1.dp, colors.borderDefault, shape)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
         Box(modifier = Modifier.weight(1f)) {
@@ -1135,9 +1169,9 @@ private fun SaveResultPanel(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .border(1.dp, colors.warningDefault.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                         .clip(RoundedCornerShape(8.dp))
                         .background(colors.warningDefault.copy(alpha = 0.08f))
-                        .border(1.dp, colors.warningDefault.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                         .padding(10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -1271,13 +1305,13 @@ private fun Composer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(colors.surface)
                 .border(
                     width = 1.dp,
                     color = if (focused) colors.primary else colors.inputBorder,
                     shape = RoundedCornerShape(12.dp),
-                ),
+                )
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.surface),
         ) {
             BasicTextField(
                 value = urlText,

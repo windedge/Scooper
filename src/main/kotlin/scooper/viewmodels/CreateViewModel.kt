@@ -17,9 +17,15 @@ import org.orbitmvi.orbit.container
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
+import scooper.service.AiErrorAction
+import scooper.service.AiErrorPresentation
+import scooper.service.AiErrorTranslator
 import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
+import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
+import scooper.service.resolveErrorActions
+import scooper.service.resumableStagesOf
 import scooper.service.ScoopClient
 import scooper.util.logger
 import java.io.File
@@ -37,6 +43,8 @@ data class ChatMessage(
     val phase: String? = null,
     val note: String? = null,
     val isTyping: Boolean = false,
+    /** Suggested recovery actions for an error bubble; empty for non-error messages. */
+    val actions: List<AiErrorAction> = emptyList(),
 )
 
 data class TestResult(
@@ -85,6 +93,8 @@ data class CreateState(
     val overwriteConfirmOpen: Boolean = false,
     val testResult: TestResult? = null,
     val saveResult: SaveResult? = null,
+    /** Suggested resume stages currently available from the in-memory checkpoint. */
+    val resumableStages: Set<AiErrorAction> = emptySet(),
     /** True when generation finished but the manifest is not ready (refine exhausted or invalid JSON). */
     val manifestExhausted: Boolean = false,
     /** True when the finished manifest is not valid Scoop manifest JSON (blank counts as invalid).
@@ -98,6 +108,7 @@ data class CreateState(
 
 class CreateViewModel(
     private val scoopAiBridge: ScoopAiBridge,
+    private val checkpointService: InMemoryAiCheckpointService,
     private val scoopClient: ScoopClient,
     private val appsRepository: AppsRepository,
     private val gitHistoryService: GitHistoryService,
@@ -141,6 +152,36 @@ class CreateViewModel(
         // Keep state in sync so regenerate / future reads see the latest values
         reduce { state.copy(inputUrl = rawUrl, inputNote = rawNote, error = null) }
         startGeneration(rawUrlInput = rawUrl, noteInput = rawNote)
+    }
+
+    /**
+     * Handle a recovery action offered on an AI error bubble.
+     * OPEN_SETTINGS navigation is owned by the UI layer (the VM has no navigator).
+     * RETRY_FULL restarts the full generation; RETRY_FROM_ANALYZE / RETRY_FROM_GENERATE
+     * resume from a later phase when the in-memory checkpoint has the required stage
+     * (otherwise they degrade to a full retry).
+     */
+    fun onAction(action: AiErrorAction) = intent {
+        when (action) {
+            AiErrorAction.OPEN_SETTINGS -> {
+                // Handled by the UI layer (opens Settings.AI).
+            }
+            AiErrorAction.RETRY_FULL,
+            AiErrorAction.RETRY_FROM_ANALYZE,
+            AiErrorAction.RETRY_FROM_GENERATE,
+            -> {
+                if (state.running) return@intent
+                val url = state.lastUrl.ifBlank { state.inputUrl }
+                if (url.isBlank()) {
+                    postSideEffect(AppSideEffect.Toast("Nothing to retry", ToastType.ERROR))
+                    return@intent
+                }
+                // Resume only when the checkpoint covers the requested stage (RETRY_FULL
+                // never matches), otherwise degrade to a full retry.
+                val resumeFrom = action.takeIf { it in state.resumableStages }
+                startGeneration(rawUrlInput = url, noteInput = state.lastNote, resumeFrom = resumeFrom)
+            }
+        }
     }
 
     fun onRegenerate() = intent {
@@ -235,12 +276,12 @@ class CreateViewModel(
             } else {
                 val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                     ?: "exit code ${result.exitCode}"
-                val safe = sanitizeError(detail)
+                val safe = AiErrorTranslator.maskSecrets(detail)
                 resultMsg = agentMessage(
                     "Test install failed for $testName: $safe",
                     "error",
                 )
-                val summary = sanitizeError(
+                val summary = AiErrorTranslator.maskSecrets(
                     errorSummary(result.errorMessage, result.output, MAX_ERROR_SUMMARY_LINES),
                 )
                 testResult = TestResult(
@@ -257,7 +298,7 @@ class CreateViewModel(
                 ?: e::class.simpleName
                 ?: "Test install failed"
             logger.error("Test install failed: $message")
-            val safe = sanitizeError(message)
+            val safe = AiErrorTranslator.maskSecrets(message)
             resultMsg = agentMessage(safe, "error")
             testResult = TestResult(
                 success = false,
@@ -412,7 +453,7 @@ class CreateViewModel(
                 ?: e::class.simpleName
                 ?: "Failed to save manifest"
             logger.error("Save to bucket failed: $message")
-            postSideEffect(AppSideEffect.Toast(sanitizeError(message), ToastType.ERROR))
+            postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(message), ToastType.ERROR))
             return
         }
 
@@ -481,6 +522,7 @@ class CreateViewModel(
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startGeneration(
         rawUrlInput: String,
         noteInput: String,
+        resumeFrom: AiErrorAction? = null,
     ) {
         val missing = scoopAiBridge.readSettings().missingReason()
         if (missing != null) {
@@ -536,6 +578,7 @@ class CreateViewModel(
         scoopAiBridge.startGenerate(
             url = urlFromField,
             userPrompt = userPrompt,
+            resumeFrom = resumeFrom,
             onPhase = { phase -> handlePhase(phase) },
             onFinished = { result -> handleFinished(result) },
         )
@@ -635,15 +678,18 @@ class CreateViewModel(
                     return@fold
                 }
 
-                val message = error.message?.takeIf { it.isNotBlank() }
-                    ?: error::class.simpleName
-                    ?: "Generation failed"
-                logger.error("Create generate failed: $message")
-                val safe = sanitizeError(message)
+                val presentation = AiErrorTranslator.translate(error)
+                logger.error("Create generate failed: ${error.message}")
+                val safe = AiErrorTranslator.maskSecrets(presentation.detail)
+                // Refresh available resume stages from the checkpoint and hide
+                // resume buttons whose stage has no checkpoint data.
+                val resumableStages = resumableStagesOf(checkpointService.snapshot())
+                val filteredActions = resolveErrorActions(presentation.actions, resumableStages)
                 reduce {
                     state.finishGeneration(
-                        messages = withoutTyping + agentMessage(safe, "error"),
+                        messages = withoutTyping + agentError(presentation.copy(actions = filteredActions)),
                         error = safe,
+                        resumableStages = resumableStages,
                     )
                 }
                 postSideEffect(AppSideEffect.Toast(safe, ToastType.ERROR))
@@ -699,9 +745,13 @@ class CreateViewModel(
         }
     }
 
-    private fun sanitizeError(message: String): String =
-        message.replace(skRegex, "sk-***")
-
+    private fun agentError(presentation: AiErrorPresentation): ChatMessage = ChatMessage(
+        role = ChatRole.Agent,
+        text = presentation.title,
+        phase = "error",
+        note = AiErrorTranslator.maskSecrets(presentation.detail),
+        actions = presentation.actions,
+    )
 
     private fun agentMessage(text: String, phase: String) = ChatMessage(
         role = ChatRole.Agent,
@@ -721,6 +771,7 @@ class CreateViewModel(
         error: String? = this.error,
         manifestJson: String = this.manifestJson,
         suggestedAppName: String? = this.suggestedAppName,
+        resumableStages: Set<AiErrorAction> = this.resumableStages,
         manifestExhausted: Boolean = this.manifestExhausted,
         manifestInvalidJson: Boolean = this.manifestInvalidJson,
         manifestIssues: List<String> = this.manifestIssues,
@@ -731,6 +782,7 @@ class CreateViewModel(
         error = error,
         manifestJson = manifestJson,
         suggestedAppName = suggestedAppName,
+        resumableStages = resumableStages,
         manifestExhausted = manifestExhausted,
         manifestInvalidJson = manifestInvalidJson,
         manifestIssues = manifestIssues,
@@ -843,7 +895,6 @@ internal fun classifySaveOutcome(
     gitHint = if (writeOk) gitHint else null,
 )
 private val trailingWsRegex = Regex("[ \t]+$")
-private val skRegex = Regex("""sk-[A-Za-z0-9_-]{8,}""")
 
 /**
  * Whether [text] is a valid Scoop manifest, using the same bar as the CLI

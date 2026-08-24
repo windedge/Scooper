@@ -10,6 +10,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import scooper.repository.ConfigRepository
 import scooper.util.logger
+import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -19,6 +20,8 @@ import kotlin.coroutines.cancellation.CancellationException
  */
 class ScoopAiBridge(
     private val configRepository: ConfigRepository,
+    private val checkpointService: InMemoryAiCheckpointService,
+    private val connectionTester: AiConnectionTester = AiConnectionTester(),
 ) : AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
@@ -109,10 +112,18 @@ class ScoopAiBridge(
     /**
      * Start generation on the bridge IO scope. Previous job is cancelled.
      * [onPhase] and [onFinished] may be invoked from a background thread.
+     *
+     * When [resumeFrom] is null, a fresh run starts: the checkpoint is reset to
+     * a new instance for this url/prompt and phase outputs are captured as the
+     * run progresses. When [resumeFrom] is a RETRY_FROM_* action, the existing
+     * checkpoint is reused to build [ResumeData]; if the checkpoint cannot
+     * satisfy the requested stage it degrades to a full regeneration (the
+     * checkpoint is kept, never cleared, on failure or cancel).
      */
     fun startGenerate(
         url: String,
         userPrompt: String?,
+        resumeFrom: AiErrorAction? = null,
         onPhase: (String) -> Unit,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
@@ -126,12 +137,31 @@ class ScoopAiBridge(
                     return@launch
                 }
 
+                val resumeData = if (resumeFrom != null) {
+                    val data = buildResumeData(
+                        cp = checkpointService.snapshot(),
+                        from = resumeFrom,
+                        runId = UUID.randomUUID().toString(),
+                    )
+                    if (data != null) {
+                        logger.info("Resuming from $resumeFrom (runId=${data.runId})")
+                    } else {
+                        logger.warn("Checkpoint cannot resume from $resumeFrom; falling back to full regeneration")
+                    }
+                    data
+                } else {
+                    // Fresh run: start a new checkpoint for this url/prompt.
+                    checkpointService.beginRun(url, userPrompt.orEmpty())
+                    null
+                }
+
                 val generator = DefaultScoopAiFactory.createGenerator(
                     config = toScoopAiConfig(settings),
                     onPhase = onPhase,
+                    onPhaseOutput = { phase, output -> checkpointService.update(phase, output) },
                 )
                 logger.info("Scoop AI generate start: $url")
-                val result = generator.generate(url = url, userPrompt = userPrompt)
+                val result = generator.generate(url = url, userPrompt = userPrompt, resumeData = resumeData)
                 onFinished(Result.success(result))
             } catch (e: CancellationException) {
                 onFinished(Result.failure(e))
@@ -139,6 +169,39 @@ class ScoopAiBridge(
             } catch (e: Exception) {
                 logger.error("Scoop AI generate failed: ${e.message}")
                 onFinished(Result.failure(e))
+            }
+        }
+    }
+
+    /**
+     * Run a one-shot connectivity probe for the given (possibly unsaved)
+     * AI form values without going through scoop-ai. Started on the bridge
+     * IO scope; [onResult] is invoked from a background thread with the probe
+     * result.
+     */
+    fun testConnection(
+        provider: String,
+        apiKey: String,
+        baseUrl: String?,
+        model: String?,
+        onResult: (AiConnectionTestResult) -> Unit,
+    ) {
+        scope.launch {
+            try {
+                val result = connectionTester.test(provider, apiKey, baseUrl, model)
+                onResult(result)
+            } catch (e: Exception) {
+                // Probe already swallows its own failures into a result; this is a safety net.
+                logger.error("AI connection test failed unexpectedly: ${e.message}")
+                onResult(
+                    AiConnectionTestResult(
+                        ok = false,
+                        category = AiErrorCategory.UNKNOWN,
+                        detail = e.message ?: "Unknown test failure",
+                        latencyMs = 0,
+                        testedEndpoint = "",
+                    ),
+                )
             }
         }
     }

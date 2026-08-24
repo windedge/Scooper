@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
@@ -14,16 +15,25 @@ import scooper.data.UIConfig
 import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
+import scooper.service.AiConnectionTestResult
 import scooper.service.ScoopAiBridge
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
 
 data class SettingsState(
     val uiConfig: UIConfig = UIConfig(),
+    val aiTest: AiTestUiState = AiTestUiState(),
+)
+
+/** UI state backing the Settings.AI "Test Connection" row. */
+data class AiTestUiState(
+    val testing: Boolean = false,
+    val result: AiConnectionTestResult? = null,
 )
 
 class SettingsViewModel(
     private val configRepository: ConfigRepository,
+    private val scoopAiBridge: ScoopAiBridge,
 ) : ContainerHost<SettingsState, AppSideEffect>, AutoCloseable {
 
     private val supervisorJob = SupervisorJob()
@@ -193,6 +203,26 @@ class SettingsViewModel(
         intent {
             reduce { state.copy(uiConfig = config) }
             postSideEffect(AppSideEffect.Toast("AI settings saved", ToastType.SUCCESS))
+        }
+    }
+
+    /**
+     * Probe the current (possibly unsaved) AI form values with the bridge's
+     * connection tester. Flips [AiTestUiState.testing] on, runs the probe off
+     * the UI thread, then publishes the [AiConnectionTestResult].
+     */
+    fun testConnection(provider: String, apiKey: String, baseUrl: String?, model: String?) {
+        intent {
+            reduce { state.copy(aiTest = state.aiTest.copy(testing = true, result = null)) }
+        }
+        scoopAiBridge.testConnection(provider, apiKey, baseUrl, model) { result ->
+            coroutineScope.launch {
+                intent {
+                    reduce {
+                        state.copy(aiTest = state.aiTest.copy(testing = false, result = result))
+                    }
+                }
+            }
         }
     }
 

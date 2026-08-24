@@ -5,8 +5,10 @@ import org.koin.dsl.module
 import scooper.repository.AppsRepository
 import scooper.repository.CleanupRepository
 import scooper.repository.ConfigRepository
+import scooper.service.AiConnectionTester
 import scooper.service.GitHistoryService
 import scooper.service.GitHubService
+import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
 import scooper.service.ScoopCli
 import scooper.service.ScoopLogStream
@@ -31,13 +33,15 @@ val system = module {
     single { AppsRepository(get(), get()) }
     single { CleanupRepository(get()) }
     single { ScoopService(get(), get()) }
-    single { ScoopAiBridge(get()) }
+    single { AiConnectionTester() }
+    single { InMemoryAiCheckpointService() }
+    single { ScoopAiBridge(get(), get(), get()) }
 }
 
 val viewModels = module {
     single { AppsViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
-    single { SettingsViewModel(get()) }
+    single { SettingsViewModel(get(), get()) }
     single { ScoopSearchViewModel(get(), get<ScoopClient>(), get(), get(), get()) }
     single { CleanupViewModel(get()) }
-    single { CreateViewModel(get(), get(), get(), get()) }
+    single { CreateViewModel(get(), get(), get(), get(), get()) }
 }

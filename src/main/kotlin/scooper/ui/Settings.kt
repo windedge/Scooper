@@ -22,6 +22,7 @@ import scooper.data.UIConfig
 import scooper.data.ViewMode
 import scooper.ui.components.*
 import scooper.util.*
+import scooper.service.AiConnectionTestResult
 import scooper.ui.components.SectionCard
 import scooper.ui.theme.*
 import scooper.util.form_builder.*
@@ -442,6 +443,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
 fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val colors = MaterialTheme.colors
     val formState = settingsViewModel.aiFormState
+    val settingsState by settingsViewModel.container.stateFlow.collectAsState()
+    val aiTest = settingsState.aiTest
 
     LaunchedEffect(Unit) {
         settingsViewModel.reloadAiConfig()
@@ -523,8 +526,67 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 state = githubTokenState,
                 placeholder = "ghp_...",
             )
+            Divider(color = colors.divider)
+            PrefRow(
+                title = "Test Connection",
+                subtitle = "Probe the endpoint with the current form values. No need to save first.",
+                nestedContent = {
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Button(
+                                onClick = {
+                                    settingsViewModel.testConnection(
+                                        provider = providerState.value,
+                                        apiKey = apiKeyState.value,
+                                        baseUrl = baseUrlState.value,
+                                        model = modelState.value,
+                                    )
+                                },
+                                enabled = !aiTest.testing,
+                                modifier = Modifier.height(32.dp).cursorHand(),
+                                shape = RoundedCornerShape(6.dp),
+                                elevation = null,
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = if (!aiTest.testing) colors.primary else colors.textMuted
+                                ),
+                            ) {
+                                Text("Test", color = Color.White, fontWeight = FontWeight.Medium)
+                            }
+                            if (aiTest.testing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = colors.primary,
+                                )
+                            }
+                        }
+                        aiTest.result?.let { result ->
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = formatTestResult(result),
+                                style = MaterialTheme.typography.body2,
+                                color = if (result.ok) Emerald500 else Red500,
+                            )
+                        }
+                    }
+                },
+            )
         }
     }
+}
+
+/** Format a connection-test result as a single, compact status line. */
+private fun formatTestResult(result: AiConnectionTestResult): String {
+    if (!result.ok) return "${result.category.name}: ${result.detail}"
+    val models = when {
+        result.modelCount == null -> "chat completions reachable"
+        result.configuredModelAvailable == true -> "${result.modelCount} models, current model available"
+        else -> "${result.modelCount} models, current model NOT in list"
+    }
+    return "OK - $models, ${result.latencyMs}ms, ${result.testedEndpoint}"
 }
 
 @Composable
