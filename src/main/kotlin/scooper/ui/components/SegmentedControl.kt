@@ -37,9 +37,9 @@ fun SegmentedControl(
         // Pill container
         Row(
             modifier = Modifier
+                .border(width = 1.dp, color = colors.borderDefault.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .background(color = colors.borderDefault.copy(alpha = 0.6f))
-                .border(width = 1.dp, color = colors.borderDefault.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                 .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -79,9 +79,9 @@ fun SegmentedTab(
     Row(
         modifier = modifier
             .then(if (selected) Modifier.shadow(1.dp, RoundedCornerShape(6.dp)) else Modifier)
+            .then(if (selected) Modifier.border(BorderStroke(1.dp, selectedBorderColor), RoundedCornerShape(6.dp)) else Modifier)
             .clip(RoundedCornerShape(6.dp))
             .background(color = bgColor)
-            .then(if (selected) Modifier.border(BorderStroke(1.dp, selectedBorderColor), RoundedCornerShape(6.dp)) else Modifier)
             .cursorHand()
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 5.dp),

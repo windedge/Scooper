@@ -56,9 +56,9 @@ fun StatusBar(statusText: String) {
                     Box(
                         modifier = Modifier
                             .height(20.dp)
+                            .border(1.dp, colors.borderDefault, RoundedCornerShape(4.dp))
                             .clip(RoundedCornerShape(4.dp))
                             .background(colors.surface)
-                            .border(1.dp, colors.borderDefault, RoundedCornerShape(4.dp))
                             .cursorHand()
                             .noRippleClickable {
                                 if (navigator.current.value != AppRoute.Output) {

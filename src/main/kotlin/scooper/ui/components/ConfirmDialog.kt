@@ -94,9 +94,9 @@ fun DialogTextField(
     Box(
         modifier = modifier
             .height(42.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(colors.inputBackground)
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {

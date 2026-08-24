@@ -136,9 +136,9 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
         // Search input with icon
         Row(
             modifier = Modifier.widthIn(min = 140.dp, max = 320.dp).height(36.dp)
+                .border(width = 1.dp, color = borderColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.inputBackground)
-                .border(width = 1.dp, color = borderColor, RoundedCornerShape(8.dp))
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -248,9 +248,9 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             // View mode toggle
             Row(
                 modifier = Modifier
+                    .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.inputBackground)
-                    .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
                     .padding(3.dp),
             ) {
                 Tooltip("List View", position = TooltipPosition.Top) {
@@ -284,9 +284,9 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             // Pagination mode toggle
             Row(
                 modifier = Modifier
+                    .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.inputBackground)
-                    .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
                     .padding(3.dp),
             ) {
                 Tooltip("Waterfall Scroll", position = TooltipPosition.Top) {
@@ -333,9 +333,9 @@ private fun InstalledUpdatesToggle(
     Row(
         modifier = Modifier
             .height(36.dp)
+            .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(colors.inputBackground)
-            .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
             .padding(horizontal = 4.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -396,9 +396,9 @@ private fun BucketFilterDropdown(
     Box {
         Row(
             modifier = Modifier.height(36.dp).width(140.dp)
+                .border(width = 1.dp, color = colors.inputBorder, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.inputBackground)
-                .border(width = 1.dp, color = colors.inputBorder, RoundedCornerShape(8.dp))
                 .cursorHand()
                 .clickable { onExpandedChange(!expanded) }
                 .padding(horizontal = 10.dp),
@@ -484,9 +484,9 @@ private fun SortFilterDropdown(
     Box {
         Row(
             modifier = Modifier.height(36.dp).width(180.dp)
+                .border(width = 1.dp, color = colors.inputBorder, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.inputBackground)
-                .border(width = 1.dp, color = colors.inputBorder, RoundedCornerShape(8.dp))
                 .cursorHand()
                 .clickable { onExpandedChange(!expanded) }
                 .padding(horizontal = 10.dp),

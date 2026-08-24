@@ -53,9 +53,9 @@ fun PrefTextField(
             Box(
                 modifier = Modifier
                     .height(36.dp)
+                    .border(1.dp, borderColor, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
                     .background(colors.inputBackground)
-                    .border(1.dp, borderColor, RoundedCornerShape(8.dp))
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
@@ -318,9 +318,9 @@ private fun SettingsNavItem(
             .fillMaxWidth()
             .height(40.dp)
             .padding(horizontal = 12.dp)
+            .border(1.dp, border, RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(8.dp))
             .cursorHand()
             .onHover { hovered = it }
             .clickable(onClick = onClick)

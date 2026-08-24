@@ -374,9 +374,9 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
         transparent = true,
     ) {
         Box(
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).fillMaxSize()
-                .background(Slate50)
-                .border(1.dp, Slate200, RoundedCornerShape(16.dp)),
+            modifier = Modifier.border(1.dp, Slate200, RoundedCornerShape(16.dp)).fillMaxSize()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Slate50),
             contentAlignment = Alignment.Center,
         ) {
             Column(
