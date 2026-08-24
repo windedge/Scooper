@@ -64,8 +64,7 @@ compose.desktop {
         mainClass = "scooper.ui.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
-            modules("java.instrument", "java.sql", "jdk.unsupported", "jdk.accessibility", "java.net.http")
-            // includeAllModules = true
+            modules("java.instrument", "java.sql", "jdk.unsupported", "jdk.accessibility", "java.net.http", "jdk.localedata")
             packageName = group.toString()
             packageVersion = version.toString()
             vendor = "xujl"
