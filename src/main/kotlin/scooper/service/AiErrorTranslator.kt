@@ -60,12 +60,14 @@ object AiErrorTranslator {
     /** Matches OpenAI-style `sk-...` API key tokens (both plain and dummy ones). */
     private val skRegex = Regex("""sk-[A-Za-z0-9_-]{8,}""")
     private val serverErrorRegex = Regex("""\b5\d{2}\b""")
+    private val clientPrefixRegex = Regex("""(?:Error from client:\s*[^:]+:\s*)+""")
 
     fun translate(error: Throwable): AiErrorPresentation {
-        val (messages, isCapability) = collect(error)
-        val detail = if (messages.isEmpty()) "(no error detail)" else messages.joinToString("\n")
+        val (rawMessages, isCapability) = collect(error)
+        val cleanedMessages = rawMessages.map(::cleanMessage).filter { it.isNotBlank() }.distinct()
+        val detail = if (cleanedMessages.isEmpty()) "(no error detail)" else cleanedMessages.joinToString("\n")
         // Lowercased for case-insensitive keyword matching; status codes stay intact.
-        val text = messages.joinToString("\n").lowercase()
+        val text = (rawMessages + cleanedMessages).joinToString("\n").lowercase()
 
         return when {
             isCapability -> presentation(
@@ -85,22 +87,28 @@ object AiErrorTranslator {
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
-            "404" in text -> if ("model" in text) {
-                presentation(
-                    title = "Model not found",
-                    detail = "The configured model was not found on this provider. Check the model " +
-                        "name in Settings.AI. Original error: $detail",
-                    actions = listOf(AiErrorAction.OPEN_SETTINGS),
-                )
-            } else {
-                presentation(
-                    title = "Resource not found (404)",
-                    detail = "The server returned 404, which may mean an incorrect base URL or an " +
-                        "unsupported endpoint. Check your base URL in Settings.AI. " +
-                        "Original error: $detail",
-                    actions = listOf(AiErrorAction.OPEN_SETTINGS),
-                )
-            }
+            ("404" in text || "400" in text) && ("model" in text || "unknown provider" in text || "model_not_found" in text) ||
+                "model_not_found" in text || "unknown provider for model" in text -> presentation(
+                title = "Model not found",
+                detail = "The configured model was not found on this provider. Check the model " +
+                    "name in Settings.AI. Original error: $detail",
+                actions = listOf(AiErrorAction.OPEN_SETTINGS),
+            )
+
+            "404" in text -> presentation(
+                title = "Resource not found (404)",
+                detail = "The server returned 404, which may mean an incorrect base URL or an " +
+                    "unsupported endpoint. Check your base URL in Settings.AI. " +
+                    "Original error: $detail",
+                actions = listOf(AiErrorAction.OPEN_SETTINGS),
+            )
+
+            "400" in text -> presentation(
+                title = "Bad request (400)",
+                detail = "The AI endpoint returned 400 Bad Request. Check your model and parameters in Settings.AI. " +
+                    "Original error: $detail",
+                actions = listOf(AiErrorAction.OPEN_SETTINGS),
+            )
 
             "429" in text -> presentation(
                 title = "Rate limit exceeded",
@@ -174,6 +182,9 @@ object AiErrorTranslator {
         }
         return messages to isCapability
     }
+
+    private fun cleanMessage(msg: String): String =
+        msg.replace(clientPrefixRegex, "").trim()
 
     private fun presentation(
         title: String,

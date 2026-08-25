@@ -5,6 +5,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -24,6 +27,7 @@ import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
+import scooper.service.ToolActivityFormatter
 import scooper.service.resolveErrorActions
 import scooper.service.resumableStagesOf
 import scooper.service.ScoopClient
@@ -102,6 +106,8 @@ data class CreateState(
     val manifestInvalidJson: Boolean = false,
     /** Unresolved validation/review issues when [manifestExhausted] is true. */
     val manifestIssues: List<String> = emptyList(),
+    /** Real-time human-readable tool activity line (e.g. "Querying repository info..."). */
+    val currentActivity: String? = null,
 ) {
     val isEmpty: Boolean get() = messages.isEmpty()
 }
@@ -116,10 +122,26 @@ class CreateViewModel(
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
+    private val activityChannel = kotlinx.coroutines.channels.Channel<com.scoopai.core.ToolActivity>(
+        kotlinx.coroutines.channels.Channel.CONFLATED,
+    )
 
     private val prettyJson = Json {
         prettyPrint = true
         prettyPrintIndent = "  "
+    }
+
+    init {
+        coroutineScope.launch {
+            activityChannel.receiveAsFlow().collectLatest { activity ->
+                val text = ToolActivityFormatter.format(activity)
+                intent {
+                    if (state.running) {
+                        reduce { state.copy(currentActivity = text) }
+                    }
+                }
+            }
+        }
     }
 
     override val container: Container<CreateState, AppSideEffect> =
@@ -201,6 +223,7 @@ class CreateViewModel(
             state.copy(
                 running = false,
                 currentPhase = null,
+                currentActivity = null,
                 messages = state.messages.filterNot { it.isTyping } +
                     agentMessage("Generation cancelled by user.", "error"),
             )
@@ -580,6 +603,7 @@ class CreateViewModel(
             userPrompt = userPrompt,
             resumeFrom = resumeFrom,
             onPhase = { phase -> handlePhase(phase) },
+            onToolActivity = { act -> activityChannel.trySend(act) },
             onFinished = { result -> handleFinished(result) },
         )
     }
@@ -590,6 +614,7 @@ class CreateViewModel(
         reduce {
             state.copy(
                 currentPhase = phase,
+                currentActivity = null,
                 messages = withoutTyping +
                     agentMessage(phaseMessage(phase), phase) +
                     typingMessage(phase),
@@ -778,6 +803,7 @@ class CreateViewModel(
     ) = copy(
         running = false,
         currentPhase = null,
+        currentActivity = null,
         messages = messages,
         error = error,
         manifestJson = manifestJson,

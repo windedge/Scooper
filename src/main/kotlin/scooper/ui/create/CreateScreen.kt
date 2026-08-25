@@ -528,7 +528,11 @@ private fun ChatWorkspace(
                 contentPadding = PaddingValues(vertical = 4.dp),
             ) {
                 items(state.messages, key = { it.id }) { message ->
-                    ChatBubble(message, onAction = onAction)
+                    ChatBubble(
+                        message = message,
+                        currentActivity = if (message.isTyping) state.currentActivity else null,
+                        onAction = onAction,
+                    )
                 }
                 if (state.manifestJson.isNotBlank()) {
                     item(key = "manifest-card") {
@@ -583,6 +587,7 @@ private fun ChatWorkspace(
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
+    currentActivity: String? = null,
     onAction: (AiErrorAction) -> Unit,
 ) {
     val isUser = message.role == ChatRole.User
@@ -622,7 +627,20 @@ private fun ChatBubble(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 if (message.isTyping) {
-                    TypingDots()
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        TypingDots()
+                        if (!currentActivity.isNullOrBlank()) {
+                            Text(
+                                currentActivity,
+                                style = typography.caption.copy(
+                                    color = colors.textMuted,
+                                ),
+                            )
+                        }
+                    }
                 } else {
                     // Bubble has no click handler, so selecting text inside it is safe.
                     // S1: the URL and the optional user note share one SelectableContainer

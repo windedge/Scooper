@@ -85,6 +85,26 @@ class AiErrorTranslatorTest {
     }
 
     @Test
+    fun `400 with unknown provider for model maps to MODEL_NOT_FOUND with OPEN_SETTINGS`() {
+        val message = "Error from client: OpenAICompatibleLLMClient: Error from client: OpenAILLMClient: " +
+            "Status code: 400. Body: {\"error\":\"unknown provider for model gemini-3.5-flash-lite\"}"
+        val p = AiErrorTranslator.translate(IllegalStateException(message))
+
+        assertEquals("Model not found", p.title)
+        assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
+        assertFalse(p.detail.contains("Error from client: OpenAICompatibleLLMClient: Error from client: OpenAILLMClient"))
+    }
+
+    @Test
+    fun `400 with model_not_found in body maps to MODEL_NOT_FOUND with OPEN_SETTINGS`() {
+        val message = "Status code: 400. Body: {\"error\":{\"code\":\"model_not_found\",\"message\":\"Model foo not found\"}}"
+        val p = AiErrorTranslator.translate(IllegalStateException(message))
+
+        assertEquals("Model not found", p.title)
+        assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
+    }
+
+    @Test
     fun `plain 404 without a model name maps to BAD_PATH with OPEN_SETTINGS`() {
         val p = AiErrorTranslator.translate(IllegalStateException("404 Not Found"))
 
