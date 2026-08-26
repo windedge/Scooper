@@ -32,16 +32,16 @@ class CreateViewModelSaveResultTest {
     fun `git commit command always quotes the path even without spaces`() {
         assertEquals(
             "git -C \"C:/scoop/buckets/main\" add -- bucket/ripgrep.json && " +
-                "git -C \"C:/scoop/buckets/main\" commit -m \"Add ripgrep.json\"",
-            gitCommitCommand("C:/scoop/buckets/main", "ripgrep"),
+                "git -C \"C:/scoop/buckets/main\" commit -m \"ripgrep: Add version 14.1.0\"",
+            gitCommitCommand("C:/scoop/buckets/main", "ripgrep", version = "14.1.0"),
         )
     }
 
     @Test
     fun `git commit command quotes a path containing spaces`() {
-        val command = gitCommitCommand("C:/Users/My Name/scoop/buckets/main", "fd")
+        val command = gitCommitCommand("C:/Users/My Name/scoop/buckets/main", "fd", version = "10.2.0")
         assertTrue(command.startsWith("git -C \"C:/Users/My Name/scoop/buckets/main\" add"), command)
-        assertTrue(command.contains("commit -m \"Add fd.json\""), command)
+        assertTrue(command.contains("commit -m \"fd: Add version 10.2.0\""), command)
     }
 
     @Test
@@ -52,6 +52,7 @@ class CreateViewModelSaveResultTest {
             command,
         )
         assertTrue(command.contains(" -C \"C:\\Users\\xujl\\scoop\\buckets\\main\" commit"), command)
+        assertTrue(command.contains("commit -m \"fd: Add manifest\""), command)
     }
 
     @Test
@@ -76,7 +77,7 @@ class CreateViewModelSaveResultTest {
     fun `git commit command handles legal app-name chars digits dot underscore hyphen`() {
         val command = gitCommitCommand("C:/scoop/buckets/main", "my.app_2-tool")
         assertTrue(command.contains("bucket/my.app_2-tool.json"), command)
-        assertTrue(command.contains("-m \"Add my.app_2-tool.json\""), command)
+        assertTrue(command.contains("-m \"my.app_2-tool: Add manifest\""), command)
     }
 
     // ---------------------------------------------------------------
@@ -94,7 +95,7 @@ class CreateViewModelSaveResultTest {
     fun `git commit command chains add and commit with &&`() {
         val command = gitCommitCommand("C:/scoop/buckets/main", "fd")
         val add = "git -C \"C:/scoop/buckets/main\" add -- bucket/fd.json"
-        val commit = "git -C \"C:/scoop/buckets/main\" commit -m \"Add fd.json\""
+        val commit = "git -C \"C:/scoop/buckets/main\" commit -m \"fd: Add manifest\""
         assertEquals("$add && $commit", command)
     }
 
@@ -133,6 +134,7 @@ class CreateViewModelSaveResultTest {
         val r = classifySaveOutcome(
             writeOk = true,
             indexOk = true,
+            gitCommitted = false,
             gitHint = hint,
             appName = "fd",
             bucket = "main",
@@ -141,7 +143,27 @@ class CreateViewModelSaveResultTest {
         )
         assertTrue(r.success)
         assertTrue(r.indexedOk)
+        assertEquals(false, r.gitCommitted)
         assertEquals(hint, r.gitHint)
+    }
+
+    @Test
+    fun `classifySaveOutcome with git committed true sets flag and clears git hint`() {
+        val hint = SaveGitHint(bucketDir = "C:/scoop/buckets/main", command = "git add")
+        val r = classifySaveOutcome(
+            writeOk = true,
+            indexOk = true,
+            gitCommitted = true,
+            gitHint = hint,
+            appName = "fd",
+            bucket = "main",
+            targetPath = "p",
+            overwritten = false,
+        )
+        assertTrue(r.success)
+        assertTrue(r.indexedOk)
+        assertTrue(r.gitCommitted)
+        assertNull(r.gitHint)
     }
 
     @Test
@@ -151,6 +173,7 @@ class CreateViewModelSaveResultTest {
         val r = classifySaveOutcome(
             writeOk = true,
             indexOk = false,
+            gitCommitted = false,
             gitHint = null,
             appName = "fd",
             bucket = "main",
@@ -159,6 +182,7 @@ class CreateViewModelSaveResultTest {
         )
         assertTrue(r.success)
         assertEquals(false, r.indexedOk)
+        assertEquals(false, r.gitCommitted)
         assertNull(r.gitHint)
     }
 
@@ -169,6 +193,7 @@ class CreateViewModelSaveResultTest {
         val r = classifySaveOutcome(
             writeOk = false,
             indexOk = true,
+            gitCommitted = true,
             gitHint = SaveGitHint(bucketDir = "d", command = "g"),
             appName = "fd",
             bucket = "main",
@@ -177,6 +202,7 @@ class CreateViewModelSaveResultTest {
         )
         assertEquals(false, r.success)
         assertEquals(false, r.indexedOk)
+        assertEquals(false, r.gitCommitted)
         assertNull(r.gitHint)
     }
 
@@ -214,5 +240,35 @@ class CreateViewModelSaveResultTest {
         assertEquals(hint, r.gitHint)
         assertTrue(r.overwritten)
         assertEquals(false, r.indexedOk)
+    }
+
+    // ---------------------------------------------------------------
+    // isNameConflictOnly
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `isNameConflictOnly returns true when all issues are name conflict notices`() {
+        val issues = listOf(
+            "App name 'minke' conflicts with an existing manifest in a local Scoop bucket. Choose a different name.",
+        )
+        assertTrue(isNameConflictOnly(issues, invalidJson = false))
+    }
+
+    @Test
+    fun `isNameConflictOnly returns false when invalidJson is true or issues contain other errors`() {
+        val conflictIssues = listOf(
+            "App name 'minke' conflicts with an existing manifest in a local Scoop bucket.",
+        )
+        // Invalid JSON overrides conflict notice
+        assertEquals(false, isNameConflictOnly(conflictIssues, invalidJson = true))
+
+        val mixedIssues = listOf(
+            "App name 'minke' conflicts with an existing manifest in a local Scoop bucket.",
+            "Schema error: checkver is missing",
+        )
+        assertEquals(false, isNameConflictOnly(mixedIssues, invalidJson = false))
+
+        // Empty issues
+        assertEquals(false, isNameConflictOnly(emptyList(), invalidJson = false))
     }
 }

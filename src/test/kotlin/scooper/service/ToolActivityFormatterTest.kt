@@ -29,6 +29,14 @@ class ToolActivityFormatterTest {
             "Scanning executables...",
             ToolActivityFormatter.format(ToolActivity.Started("findExecutables", """{"url":"https://..."}""")),
         )
+        assertEquals(
+            "Listing release assets...",
+            ToolActivityFormatter.format(ToolActivity.Started("listReleaseAssets", "{}")),
+        )
+        assertEquals(
+            "Reviewing manifest...",
+            ToolActivityFormatter.format(ToolActivity.Started("__review_manifest__", "{}")),
+        )
     }
 
     @Test
@@ -40,14 +48,22 @@ class ToolActivityFormatterTest {
     }
 
     @Test
-    fun `Completed event formats cleanly`() {
+    fun `Completed event formats cleanly in English`() {
         assertEquals(
             "Repository info fetched",
             ToolActivityFormatter.format(ToolActivity.Completed("fetchRepoInfo", """{"name":"fd"}""")),
         )
         assertEquals(
-            "Hash computed",
+            "SHA256 hash computed",
             ToolActivityFormatter.format(ToolActivity.Completed("computeSha256FromUrl", "abc123")),
+        )
+        assertEquals(
+            "Manifest reviewed",
+            ToolActivityFormatter.format(ToolActivity.Completed("__review_manifest__", "ok")),
+        )
+        assertEquals(
+            "Release assets listed",
+            ToolActivityFormatter.format(ToolActivity.Completed("listReleaseAssets", "ok")),
         )
     }
 

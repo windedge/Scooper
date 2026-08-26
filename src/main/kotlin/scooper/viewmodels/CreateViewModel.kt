@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
@@ -26,6 +27,7 @@ import scooper.service.AiErrorTranslator
 import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
+import scooper.service.PhaseSummaryFormatter
 import scooper.service.ScoopAiBridge
 import scooper.service.ToolActivityFormatter
 import scooper.service.resolveErrorActions
@@ -47,6 +49,8 @@ data class ChatMessage(
     val phase: String? = null,
     val note: String? = null,
     val isTyping: Boolean = false,
+    val toolActivities: List<String> = emptyList(),
+    val summary: String? = null,
     /** Suggested recovery actions for an error bubble; empty for non-error messages. */
     val actions: List<AiErrorAction> = emptyList(),
 )
@@ -73,6 +77,7 @@ data class SaveResult(
     val targetPath: String,
     val overwritten: Boolean,
     val indexedOk: Boolean,
+    val gitCommitted: Boolean = false,
     val gitHint: SaveGitHint? = null,
 )
 
@@ -94,6 +99,8 @@ data class CreateState(
     val saveAppName: String = "",
     val saveBucket: String = "",
     val bucketOptions: List<String> = emptyList(),
+    val saveCommitToGit: Boolean = true,
+    val saveBucketIsGit: Boolean = true,
     val overwriteConfirmOpen: Boolean = false,
     val testResult: TestResult? = null,
     val saveResult: SaveResult? = null,
@@ -122,8 +129,9 @@ class CreateViewModel(
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
+    private var refineAttemptCount = 0
     private val activityChannel = kotlinx.coroutines.channels.Channel<com.scoopai.core.ToolActivity>(
-        kotlinx.coroutines.channels.Channel.CONFLATED,
+        kotlinx.coroutines.channels.Channel.UNLIMITED,
     )
 
     private val prettyJson = Json {
@@ -133,11 +141,36 @@ class CreateViewModel(
 
     init {
         coroutineScope.launch {
-            activityChannel.receiveAsFlow().collectLatest { activity ->
+            activityChannel.receiveAsFlow().collect { activity ->
                 val text = ToolActivityFormatter.format(activity)
                 intent {
                     if (state.running) {
-                        reduce { state.copy(currentActivity = text) }
+                        val currentPhase = state.currentPhase
+                        val updatedMessages = if (activity is com.scoopai.core.ToolActivity.Completed ||
+                            activity is com.scoopai.core.ToolActivity.Failed
+                        ) {
+                            val logItem = if (activity is com.scoopai.core.ToolActivity.Completed) {
+                                "✔ $text"
+                            } else {
+                                "✖ $text"
+                            }
+                            state.messages.map { msg ->
+                                if (msg.role == ChatRole.Agent && !msg.isTyping && msg.phase.equals(currentPhase, ignoreCase = true)) {
+                                    if (logItem !in msg.toolActivities) {
+                                        msg.copy(toolActivities = msg.toolActivities + logItem)
+                                    } else msg
+                                } else msg
+                            }
+                        } else {
+                            state.messages
+                        }
+
+                        reduce {
+                            state.copy(
+                                currentActivity = text,
+                                messages = updatedMessages,
+                            )
+                        }
                     }
                 }
             }
@@ -287,7 +320,7 @@ class CreateViewModel(
 
             if (result.isSuccess) {
                 resultMsg = agentMessage(
-                    "Test install passed for $testName. Package installed successfully.",
+                    "Test install passed for $testName. Package installed successfully and cleaned up.",
                     "done",
                 )
                 testResult = TestResult(
@@ -336,16 +369,12 @@ class CreateViewModel(
             } catch (e: Exception) {
                 logger.warn("Test install cleanup threw for $testName: ${e.message}")
             }
-            val cleanupMsg = agentMessage(
-                "Test install cleanup finished for $testName.",
-                "test-install",
-            )
             // Single reduce at end so intermediate success/error is not lost to Orbit races.
             reduce {
                 state.copy(
                     testing = false,
                     testResult = testResult,
-                    messages = state.messages + listOfNotNull(resultMsg, cleanupMsg),
+                    messages = state.messages + listOfNotNull(resultMsg),
                 )
             }
         }
@@ -366,12 +395,16 @@ class CreateViewModel(
             "main" in buckets -> "main"
             else -> buckets.first()
         }
+        val defaultBucketDir = scoopClient.bucketsBaseDir.resolve(defaultBucket)
+        val isGit = gitHistoryService.isGitBucket(defaultBucketDir)
         reduce {
             state.copy(
                 saveDialogOpen = true,
                 saveAppName = state.suggestedAppName.orEmpty(),
                 saveBucket = defaultBucket,
                 bucketOptions = buckets,
+                saveBucketIsGit = isGit,
+                saveCommitToGit = isGit,
                 overwriteConfirmOpen = false,
                 // C2: reopening the dialog clears the previous result card so it does not
                 // linger under the new dialog; a re-save starts from a blank result.
@@ -385,7 +418,18 @@ class CreateViewModel(
     }
 
     fun onSaveBucketChange(bucket: String) = intent {
-        reduce { state.copy(saveBucket = bucket) }
+        val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
+        val isGit = gitHistoryService.isGitBucket(bucketDir)
+        reduce {
+            state.copy(
+                saveBucket = bucket,
+                saveBucketIsGit = isGit,
+            )
+        }
+    }
+
+    fun onSaveCommitToGitChange(commit: Boolean) = intent {
+        reduce { state.copy(saveCommitToGit = commit) }
     }
 
     fun onDismissSaveDialog() = intent {
@@ -461,6 +505,7 @@ class CreateViewModel(
         }
 
         var indexedOk = false
+        var gitCommitted = false
         var gitHint: SaveGitHint? = null
         // C2: writing the manifest file is the ONLY fatal step. A failure here is a real
         // save failure: error toast, dialog stays open for retry, and no result card is
@@ -501,11 +546,37 @@ class CreateViewModel(
                 } ?: false.also {
                     logger.warn("Saved manifest could not be indexed: $name.json")
                 }
-                gitHint = buildSaveGitHint(
-                    isGitBucket = gitHistoryService.isGitBucket(bucketDir),
-                    bucketDirPath = bucketDir.path,
-                    appName = name,
-                )
+
+                val isGit = gitHistoryService.isGitBucket(bucketDir)
+                val manifestVersion = try {
+                    (Json.parseToJsonElement(manifestJson) as? JsonObject)?.get("version")?.jsonPrimitive?.content
+                } catch (_: Exception) {
+                    null
+                }
+
+                if (state.saveCommitToGit && isGit) {
+                    val commitRes = gitHistoryService.commitManifest(
+                        bucketDir = bucketDir,
+                        appName = name,
+                        isUpdate = overwritten,
+                        version = manifestVersion,
+                    )
+                    if (commitRes.isSuccess) {
+                        gitCommitted = true
+                    } else {
+                        logger.warn("Auto git commit failed for $name.json: ${commitRes.exceptionOrNull()?.message}")
+                    }
+                }
+
+                if (!gitCommitted) {
+                    gitHint = buildSaveGitHint(
+                        isGitBucket = isGit,
+                        bucketDirPath = bucketDir.path,
+                        appName = name,
+                        version = manifestVersion,
+                        isUpdate = overwritten,
+                    )
+                }
             }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -520,6 +591,7 @@ class CreateViewModel(
                 saveResult = classifySaveOutcome(
                     writeOk = true,
                     indexOk = indexedOk,
+                    gitCommitted = gitCommitted,
                     gitHint = gitHint,
                     appName = name,
                     bucket = bucket,
@@ -598,28 +670,49 @@ class CreateViewModel(
             )
         }
 
+        refineAttemptCount = 0
         scoopAiBridge.startGenerate(
             url = urlFromField,
             userPrompt = userPrompt,
             resumeFrom = resumeFrom,
             onPhase = { phase -> handlePhase(phase) },
             onToolActivity = { act -> activityChannel.trySend(act) },
+            onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
             onFinished = { result -> handleFinished(result) },
         )
     }
 
     private fun handlePhase(phase: String) = intent {
         if (!state.running) return@intent
+        if (phase.equals("refine", ignoreCase = true)) {
+            refineAttemptCount++
+        }
         val withoutTyping = state.messages.filterNot { it.isTyping }
+        val titleText = PhaseSummaryFormatter.formatPhaseStart(
+            phase = phase,
+            appName = state.suggestedAppName,
+            refineAttempt = refineAttemptCount,
+        )
         reduce {
             state.copy(
                 currentPhase = phase,
                 currentActivity = null,
                 messages = withoutTyping +
-                    agentMessage(phaseMessage(phase), phase) +
+                    agentMessage(titleText, phase) +
                     typingMessage(phase),
             )
         }
+    }
+
+    private fun handlePhaseOutput(phase: String, outputJson: String) = intent {
+        if (!state.running) return@intent
+        val summary = PhaseSummaryFormatter.formatPhaseOutput(phase, outputJson) ?: return@intent
+        val updatedMessages = state.messages.map { msg ->
+            if (msg.role == ChatRole.Agent && !msg.isTyping && msg.phase.equals(phase, ignoreCase = true)) {
+                msg.copy(summary = summary)
+            } else msg
+        }
+        reduce { state.copy(messages = updatedMessages) }
     }
 
     private fun handleFinished(result: Result<ManifestResult>) = intent {
@@ -662,16 +755,33 @@ class CreateViewModel(
                     emptyList()
                 }
 
+                val isConflictOnly = isNameConflictOnly(issues, invalidJson)
+
+                val bubbleText = when {
+                    isConflictOnly -> "Done with notice: App name '$name' conflicts with an existing local manifest. See card below."
+                    finishedWithIssues -> "Generation finished with issues. See card below for details."
+                    else -> "Done. Suggested name: $name. Manifest ready (see card below)."
+                }
+                val bubblePhase = when {
+                    isConflictOnly -> "notice"
+                    finishedWithIssues -> "error"
+                    else -> "done"
+                }
+
+                val toastText = when {
+                    isConflictOnly -> "Manifest generated with name conflict: $name"
+                    finishedWithIssues -> "Generation finished with issues"
+                    else -> "Manifest generated: $name"
+                }
+                val toastType = when {
+                    isConflictOnly -> ToastType.INFO
+                    finishedWithIssues -> ToastType.ERROR
+                    else -> ToastType.SUCCESS
+                }
+
                 reduce {
                     state.finishGeneration(
-                        messages = withoutTyping + agentMessage(
-                            if (finishedWithIssues) {
-                                "Generation finished with issues. See card below for details."
-                            } else {
-                                "Done. Suggested name: $name. Manifest ready (see card below)."
-                            },
-                            if (finishedWithIssues) "error" else "done",
-                        ),
+                        messages = withoutTyping + agentMessage(bubbleText, bubblePhase),
                         error = null,
                         manifestJson = pretty,
                         suggestedAppName = name,
@@ -681,14 +791,7 @@ class CreateViewModel(
                     )
                 }
                 postSideEffect(
-                    AppSideEffect.Toast(
-                        if (finishedWithIssues) {
-                            "Generation finished with issues"
-                        } else {
-                            "Manifest generated: $name"
-                        },
-                        if (finishedWithIssues) ToastType.ERROR else ToastType.SUCCESS,
-                    ),
+                    AppSideEffect.Toast(toastText, toastType),
                 )
             },
             onFailure = { error ->
@@ -868,11 +971,17 @@ private val bucketPrettyJson = Json {
  * strings. Uses the `--` separator so a leading-dash app name can never be parsed as an
  * option by git.
  */
-internal fun gitCommitCommand(bucketDirPath: String, appName: String): String {
+internal fun gitCommitCommand(
+    bucketDirPath: String,
+    appName: String,
+    version: String? = null,
+    isUpdate: Boolean = false,
+): String {
     // cmd rule for an embedded literal double quote is to double it (`""`); Windows
     // paths cannot contain `"`, so this is purely defensive.
     val dir = "\"${bucketDirPath.replace("\"", "\"\"")}\""
-    return "git -C $dir add -- bucket/$appName.json && git -C $dir commit -m \"Add $appName.json\""
+    val commitMsg = GitHistoryService.buildCommitMessage(appName, version, isUpdate)
+    return "git -C $dir add -- bucket/$appName.json && git -C $dir commit -m \"$commitMsg\""
 }
 
 /**
@@ -884,11 +993,13 @@ internal fun buildSaveGitHint(
     isGitBucket: Boolean,
     bucketDirPath: String,
     appName: String,
+    version: String? = null,
+    isUpdate: Boolean = false,
 ): SaveGitHint? {
     if (!isGitBucket) return null
     return SaveGitHint(
         bucketDir = bucketDirPath,
-        command = gitCommitCommand(bucketDirPath, appName),
+        command = gitCommitCommand(bucketDirPath, appName, version, isUpdate),
     )
 }
 
@@ -906,6 +1017,7 @@ internal fun buildSaveGitHint(
 internal fun classifySaveOutcome(
     writeOk: Boolean,
     indexOk: Boolean,
+    gitCommitted: Boolean,
     gitHint: SaveGitHint?,
     appName: String,
     bucket: String,
@@ -918,7 +1030,8 @@ internal fun classifySaveOutcome(
     targetPath = targetPath,
     overwritten = overwritten,
     indexedOk = writeOk && indexOk,
-    gitHint = if (writeOk) gitHint else null,
+    gitCommitted = writeOk && gitCommitted,
+    gitHint = if (writeOk && !gitCommitted) gitHint else null,
 )
 private val trailingWsRegex = Regex("[ \t]+$")
 
@@ -943,6 +1056,19 @@ data class FinishClassification(
     /** True when the run ended with issues (refine exhausted and/or invalid JSON). Drives badge/toast. */
     val finishedWithIssues: Boolean,
 )
+
+internal fun isNameConflictIssue(issue: String): Boolean {
+    val text = issue.lowercase()
+    return text.contains("conflicts with an existing manifest") ||
+        text.contains("conflicts with an existing") ||
+        text.contains("already exists in") ||
+        text.contains("already used")
+}
+
+internal fun isNameConflictOnly(issues: List<String>, invalidJson: Boolean): Boolean {
+    if (invalidJson || issues.isEmpty()) return false
+    return issues.all { isNameConflictIssue(it) }
+}
 
 /**
  * Classify a finished generation result.

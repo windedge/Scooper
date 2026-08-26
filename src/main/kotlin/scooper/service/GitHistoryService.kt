@@ -30,6 +30,15 @@ class GitHistoryService {
         fun isCurrentIndexState(indexState: String?, headCommit: String): Boolean {
             return indexState == indexStateFor(headCommit)
         }
+
+        fun buildCommitMessage(appName: String, version: String?, isUpdate: Boolean): String {
+            val v = version?.trim()?.removePrefix("v")?.removePrefix("V")?.takeIf { it.isNotBlank() }
+            return if (isUpdate) {
+                if (v != null) "$appName: Update to version $v" else "$appName: Update manifest"
+            } else {
+                if (v != null) "$appName: Add version $v" else "$appName: Add manifest"
+            }
+        }
     }
 
     data class ManifestChanges(
@@ -357,5 +366,59 @@ class GitHistoryService {
         }
 
         return times
+    }
+
+    /**
+     * Staged and commit a manifest into the bucket Git repository.
+     *
+     * @param bucketDir The bucket directory (must contain `.git`).
+     * @param appName The app name (manifest file name is `$appName.json`).
+     * @param isUpdate True if updating an existing manifest, false if adding new.
+     * @return Result with commit summary text on success, or failure with error.
+     */
+    fun commitManifest(
+        bucketDir: File,
+        appName: String,
+        isUpdate: Boolean,
+        version: String? = null,
+    ): Result<String> {
+        if (!isGitBucket(bucketDir)) {
+            return Result.failure(IllegalStateException("Not a git repository"))
+        }
+
+        val manifestRelPath = "bucket/$appName.json"
+        return try {
+            // 1. git add -- bucket/<appName>.json
+            val addResult = execute(
+                "git", "add", "--", manifestRelPath,
+                asShell = false,
+                workingDir = bucketDir,
+            )
+            if (addResult.resultCode != 0) {
+                val errMsg = addResult.output.joinToString("\n").ifBlank { "git add failed with exit code ${addResult.resultCode}" }
+                logger.warn("git add failed for $manifestRelPath in ${bucketDir.name}: $errMsg")
+                return Result.failure(IllegalStateException(errMsg))
+            }
+
+            // 2. git commit -m "<appName>: Add/Update version <version>"
+            val message = buildCommitMessage(appName, version, isUpdate)
+            val commitResult = execute(
+                "git", "commit", "-m", message,
+                asShell = false,
+                workingDir = bucketDir,
+            )
+            if (commitResult.resultCode != 0) {
+                val errMsg = commitResult.output.joinToString("\n").ifBlank { "git commit failed with exit code ${commitResult.resultCode}" }
+                logger.warn("git commit failed for $manifestRelPath in ${bucketDir.name}: $errMsg")
+                return Result.failure(IllegalStateException(errMsg))
+            }
+
+            val summary = commitResult.output.firstOrNull()?.trim() ?: message
+            logger.info("Committed $manifestRelPath in ${bucketDir.name}: $summary")
+            Result.success(summary)
+        } catch (e: Exception) {
+            logger.error("Failed to commit manifest $manifestRelPath in ${bucketDir.name}: ${e.message}")
+            Result.failure(e)
+        }
     }
 }

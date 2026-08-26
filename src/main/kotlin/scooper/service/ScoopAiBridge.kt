@@ -126,6 +126,7 @@ class ScoopAiBridge(
         resumeFrom: AiErrorAction? = null,
         onPhase: (String) -> Unit,
         onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)? = null,
+        onPhaseOutput: ((String, String) -> Unit)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
         generateJob?.cancel()
@@ -159,7 +160,10 @@ class ScoopAiBridge(
                 val generator = DefaultScoopAiFactory.createGenerator(
                     config = toScoopAiConfig(settings),
                     onPhase = onPhase,
-                    onPhaseOutput = { phase, output -> checkpointService.update(phase, output) },
+                    onPhaseOutput = { phase, output ->
+                        checkpointService.update(phase, output)
+                        onPhaseOutput?.invoke(phase, output)
+                    },
                     onToolActivity = onToolActivity,
                 )
                 logger.info("Scoop AI generate start: $url")

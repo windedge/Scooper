@@ -14,6 +14,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Button
 import androidx.compose.material.ButtonDefaults
+import androidx.compose.material.Checkbox
+import androidx.compose.material.CheckboxDefaults
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
@@ -116,8 +119,10 @@ import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.SaveGitHint
 import scooper.viewmodels.SaveResult
 import scooper.viewmodels.TestResult
+import scooper.viewmodels.isNameConflictOnly
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -200,8 +205,11 @@ fun CreateScreen(
             appName = state.saveAppName,
             bucket = state.saveBucket,
             bucketOptions = state.bucketOptions,
+            commitToGit = state.saveCommitToGit,
+            isGitBucket = state.saveBucketIsGit,
             onAppNameChange = viewModel::onSaveAppNameChange,
             onBucketChange = viewModel::onSaveBucketChange,
+            onCommitToGitChange = viewModel::onSaveCommitToGitChange,
             onConfirm = viewModel::onConfirmSave,
             onCancel = viewModel::onDismissSaveDialog,
         )
@@ -223,8 +231,11 @@ private fun SaveToBucketDialog(
     appName: String,
     bucket: String,
     bucketOptions: List<String>,
+    commitToGit: Boolean,
+    isGitBucket: Boolean,
     onAppNameChange: (String) -> Unit,
     onBucketChange: (String) -> Unit,
+    onCommitToGitChange: (Boolean) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -240,7 +251,7 @@ private fun SaveToBucketDialog(
     ) {
         Surface(
             color = colors.surface,
-            modifier = Modifier.width(420.dp).height(360.dp),
+            modifier = Modifier.width(420.dp).height(410.dp),
         ) {
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).padding(24.dp)) {
@@ -289,6 +300,45 @@ private fun SaveToBucketDialog(
                                 "No buckets available",
                                 style = typography.caption.copy(color = colors.dangerDefault),
                             )
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable(enabled = isGitBucket) { onCommitToGitChange(!commitToGit) }
+                                .padding(vertical = 2.dp),
+                        ) {
+                            Checkbox(
+                                checked = commitToGit && isGitBucket,
+                                onCheckedChange = onCommitToGitChange,
+                                enabled = isGitBucket,
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = colors.primary,
+                                    checkmarkColor = Color.White,
+                                ),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Column {
+                                Text(
+                                    "Commit to Git repository",
+                                    style = typography.caption.copy(
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isGitBucket) colors.textTitle else colors.textMuted,
+                                    ),
+                                )
+                                if (!isGitBucket) {
+                                    Text(
+                                        "Selected bucket is not a Git repository",
+                                        style = typography.caption.copy(
+                                            color = colors.textMuted,
+                                            fontSize = typography.caption.fontSize * 0.9f,
+                                        ),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -664,6 +714,38 @@ private fun ChatBubble(
                                     ),
                                 )
                             }
+                            if (message.toolActivities.isNotEmpty()) {
+                                Spacer(Modifier.height(2.dp))
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp),
+                                ) {
+                                    message.toolActivities.forEach { toolLog ->
+                                        Text(
+                                            toolLog,
+                                            style = typography.caption.copy(
+                                                color = colors.textMuted,
+                                                fontSize = typography.caption.fontSize * 0.92f,
+                                                fontFamily = FontFamily.Monospace,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                            if (!message.summary.isNullOrBlank()) {
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "• ${message.summary}",
+                                    style = typography.caption.copy(
+                                        color = colors.textBody,
+                                        fontWeight = FontWeight.Normal,
+                                        fontSize = typography.caption.fontSize * 0.95f,
+                                    ),
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -723,7 +805,7 @@ private fun phaseColors(phase: String): Triple<Color, Color, Color> {
             colors.updateDefault,
             colors.updateDefault.copy(alpha = 0.35f),
         )
-        "generate", "refine" -> Triple(
+        "generate", "refine", "notice", "warning" -> Triple(
             colors.warningDefault.copy(alpha = 0.12f),
             colors.warningDefault,
             colors.warningDefault.copy(alpha = 0.35f),
@@ -811,14 +893,16 @@ private fun ManifestPreviewCard(
                             color = colors.textTitle,
                         ),
                     )
+                    val hasNameConflictOnly = isNameConflictOnly(issues, invalidJson)
                     val statusColor = when {
                         testing -> colors.primary
-                        exhausted -> colors.warningDefault
+                        hasNameConflictOnly || exhausted || invalidJson -> colors.warningDefault
                         else -> colors.updateDefault
                     }
                     val statusText = when {
                         testing -> "Installing"
-                        exhausted -> "Issues"
+                        hasNameConflictOnly -> "Notice"
+                        exhausted || invalidJson -> "Issues"
                         else -> "Ready"
                     }
                     Text(
@@ -867,22 +951,24 @@ private fun ManifestPreviewCard(
             }
 
             if (issues.isNotEmpty()) {
+                val hasNameConflictOnly = isNameConflictOnly(issues, invalidJson)
                 SelectableContainer {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                             .border(
                                 1.dp,
                                 colors.warningDefault.copy(alpha = 0.35f),
-                                RoundedCornerShape(12.dp),
+                                RoundedCornerShape(8.dp),
                             )
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(colors.warningDefault.copy(alpha = 0.08f))
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
-                            "Generation finished with issues:",
+                            if (hasNameConflictOnly) "Notice: Name conflict detected:" else "Generation finished with issues:",
                             style = typography.caption.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.warningDefault,
@@ -909,7 +995,11 @@ private fun ManifestPreviewCard(
                         }
                         if (!invalidJson) {
                             Text(
-                                "Manifest is valid JSON; you may still test / install it.",
+                                if (hasNameConflictOnly) {
+                                    "Manifest is valid JSON; choose a different name when saving to a bucket."
+                                } else {
+                                    "Manifest is valid JSON; you may still test / install it."
+                                },
                                 style = typography.caption.copy(color = colors.textMuted),
                                 modifier = Modifier.padding(top = 4.dp),
                             )
@@ -918,10 +1008,10 @@ private fun ManifestPreviewCard(
                 }
             }
 
+            Divider(color = colors.borderDefault)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(BorderStroke(1.dp, colors.borderDefault))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -1170,12 +1260,18 @@ private fun SaveResultPanel(
             }
 
             Spacer(Modifier.height(8.dp))
-            Text(
-                if (result.indexedOk) {
+            val statusNote = when {
+                result.indexedOk && result.gitCommitted ->
+                    "Indexed for Discover and committed to Git. The app is searchable now."
+                result.indexedOk && !result.gitCommitted ->
                     "Indexed for Discover. The app is searchable now."
-                } else {
+                !result.indexedOk && result.gitCommitted ->
+                    "Committed to Git, but Discover indexing failed."
+                else ->
                     "File saved, but Discover indexing failed. The app may not appear in search until reindex."
-                },
+            }
+            Text(
+                statusNote,
                 style = typography.caption.copy(
                     fontWeight = FontWeight.Medium,
                     color = if (result.indexedOk) colors.updateDefault else colors.warningDefault,
