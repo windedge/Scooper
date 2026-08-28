@@ -48,11 +48,12 @@ data class ChatMessage(
     val text: String,
     val phase: String? = null,
     val note: String? = null,
-    val isTyping: Boolean = false,
     val toolActivities: List<String> = emptyList(),
     val summary: String? = null,
     /** Suggested recovery actions for an error bubble; empty for non-error messages. */
     val actions: List<AiErrorAction> = emptyList(),
+    /** Detailed technical log/stack for error bubbles (collapsible). */
+    val technicalDetails: String? = null,
 )
 
 data class TestResult(
@@ -115,6 +116,12 @@ data class CreateState(
     val manifestIssues: List<String> = emptyList(),
     /** Real-time human-readable tool activity line (e.g. "Querying repository info..."). */
     val currentActivity: String? = null,
+    /** Model selected for generation in Create workspace. */
+    val selectedModel: String = "",
+    /** Available models fetched from remote endpoint. */
+    val availableModels: List<String> = emptyList(),
+    /** True while fetching available models. */
+    val fetchingModels: Boolean = false,
 ) {
     val isEmpty: Boolean get() = messages.isEmpty()
 }
@@ -154,13 +161,17 @@ class CreateViewModel(
                             } else {
                                 "✖ $text"
                             }
-                            state.messages.map { msg ->
-                                if (msg.role == ChatRole.Agent && !msg.isTyping && msg.phase.equals(currentPhase, ignoreCase = true)) {
-                                    if (logItem !in msg.toolActivities) {
-                                        msg.copy(toolActivities = msg.toolActivities + logItem)
-                                    } else msg
-                                } else msg
+                            val targetIndex = state.messages.indexOfLast {
+                                it.role == ChatRole.Agent && it.phase.equals(currentPhase, ignoreCase = true)
                             }
+                            if (targetIndex != -1) {
+                                val target = state.messages[targetIndex]
+                                if (logItem !in target.toolActivities) {
+                                    state.messages.toMutableList().apply {
+                                        this[targetIndex] = target.copy(toolActivities = target.toolActivities + logItem)
+                                    }
+                                } else state.messages
+                            } else state.messages
                         } else {
                             state.messages
                         }
@@ -183,12 +194,42 @@ class CreateViewModel(
         }
 
     fun refreshAiConfig() = intent {
-        val missing = scoopAiBridge.readSettings().missingReason()
+        val settings = scoopAiBridge.readSettings()
+        val missing = settings.missingReason()
         reduce {
             state.copy(
                 aiConfigured = missing == null,
                 configHint = missing,
+                selectedModel = if (state.selectedModel.isBlank()) settings.model else state.selectedModel,
             )
+        }
+        if (missing == null && state.availableModels.isEmpty()) {
+            fetchAvailableModels(settings.provider, settings.apiKey, settings.baseUrl)
+        }
+    }
+
+    fun onModelChange(model: String) = intent {
+        reduce { state.copy(selectedModel = model) }
+    }
+
+    fun onFetchModels() = intent {
+        val settings = scoopAiBridge.readSettings()
+        fetchAvailableModels(settings.provider, settings.apiKey, settings.baseUrl)
+    }
+
+    private fun fetchAvailableModels(provider: String, apiKey: String, baseUrl: String?) = intent {
+        reduce { state.copy(fetchingModels = true) }
+        scoopAiBridge.fetchModels(provider, apiKey, baseUrl) { result ->
+            coroutineScope.launch {
+                intent {
+                    reduce {
+                        state.copy(
+                            fetchingModels = false,
+                            availableModels = if (result.ok) result.models else state.availableModels,
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -257,8 +298,7 @@ class CreateViewModel(
                 running = false,
                 currentPhase = null,
                 currentActivity = null,
-                messages = state.messages.filterNot { it.isTyping } +
-                    agentMessage("Generation cancelled by user.", "error"),
+                messages = state.messages + agentMessage("Generation cancelled by user.", "error"),
             )
         }
         postSideEffect(AppSideEffect.Toast("Cancelled", ToastType.INFO))
@@ -646,13 +686,19 @@ class CreateViewModel(
         ).joinToString(" ").ifBlank { null }
         val appGuess = GithubUrlParser.deriveAppName(urlFromField)
 
+        val initialPhase = when (resumeFrom) {
+            AiErrorAction.RETRY_FROM_ANALYZE -> "analyze"
+            AiErrorAction.RETRY_FROM_GENERATE -> "generate"
+            else -> "research"
+        }
+        val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(initialPhase, appGuess, 0)
         reduce {
             state.copy(
                 messages = state.messages +
                     ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt) +
-                    typingMessage("research"),
+                    agentMessage(startPhaseTitle, initialPhase),
                 running = true,
-                currentPhase = "research",
+                currentPhase = initialPhase,
                 lastUrl = urlFromField,
                 lastNote = userPrompt.orEmpty(),
                 manifestJson = "",
@@ -671,10 +717,12 @@ class CreateViewModel(
         }
 
         refineAttemptCount = 0
+        val modelToUse = state.selectedModel
         scoopAiBridge.startGenerate(
             url = urlFromField,
             userPrompt = userPrompt,
             resumeFrom = resumeFrom,
+            overrideModel = modelToUse,
             onPhase = { phase -> handlePhase(phase) },
             onToolActivity = { act -> activityChannel.trySend(act) },
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
@@ -687,19 +735,30 @@ class CreateViewModel(
         if (phase.equals("refine", ignoreCase = true)) {
             refineAttemptCount++
         }
-        val withoutTyping = state.messages.filterNot { it.isTyping }
         val titleText = PhaseSummaryFormatter.formatPhaseStart(
             phase = phase,
             appName = state.suggestedAppName,
             refineAttempt = refineAttemptCount,
         )
+        val lastUserIdx = state.messages.indexOfLast { it.role == ChatRole.User }
+        val currentRoundMessages = if (lastUserIdx >= 0) {
+            state.messages.subList(lastUserIdx, state.messages.size)
+        } else {
+            state.messages
+        }
+        val hasPhaseMessage = currentRoundMessages.any {
+            it.role == ChatRole.Agent && it.phase.equals(phase, ignoreCase = true)
+        }
+        val updatedMessages = if (hasPhaseMessage) {
+            state.messages
+        } else {
+            state.messages + agentMessage(titleText, phase)
+        }
         reduce {
             state.copy(
                 currentPhase = phase,
                 currentActivity = null,
-                messages = withoutTyping +
-                    agentMessage(titleText, phase) +
-                    typingMessage(phase),
+                messages = updatedMessages,
             )
         }
     }
@@ -707,24 +766,25 @@ class CreateViewModel(
     private fun handlePhaseOutput(phase: String, outputJson: String) = intent {
         if (!state.running) return@intent
         val summary = PhaseSummaryFormatter.formatPhaseOutput(phase, outputJson) ?: return@intent
-        val updatedMessages = state.messages.map { msg ->
-            if (msg.role == ChatRole.Agent && !msg.isTyping && msg.phase.equals(phase, ignoreCase = true)) {
-                msg.copy(summary = summary)
-            } else msg
+        val targetIndex = state.messages.indexOfLast {
+            it.role == ChatRole.Agent && it.phase.equals(phase, ignoreCase = true)
         }
+        val updatedMessages = if (targetIndex != -1) {
+            state.messages.toMutableList().apply {
+                this[targetIndex] = this[targetIndex].copy(summary = summary)
+            }
+        } else state.messages
         reduce { state.copy(messages = updatedMessages) }
     }
 
     private fun handleFinished(result: Result<ManifestResult>) = intent {
-        val withoutTyping = state.messages.filterNot { it.isTyping }
-
         result.fold(
             onSuccess = { manifestResult ->
                 if (manifestResult.noAssets) {
                     val name = manifestResult.suggestedAppName ?: state.suggestedAppName ?: "app"
                     reduce {
                         state.finishGeneration(
-                            messages = withoutTyping +
+                            messages = state.messages +
                                 agentMessage("No Windows assets found for this repository.", "error"),
                             error = "No Windows assets found",
                             suggestedAppName = name,
@@ -781,7 +841,7 @@ class CreateViewModel(
 
                 reduce {
                     state.finishGeneration(
-                        messages = withoutTyping + agentMessage(bubbleText, bubblePhase),
+                        messages = state.messages + agentMessage(bubbleText, bubblePhase),
                         error = null,
                         manifestJson = pretty,
                         suggestedAppName = name,
@@ -799,7 +859,7 @@ class CreateViewModel(
                     if (state.running) {
                         reduce {
                             state.finishGeneration(
-                                messages = withoutTyping + agentMessage("Generation cancelled.", "error"),
+                                messages = state.messages + agentMessage("Generation cancelled.", "error"),
                             )
                         }
                     }
@@ -815,7 +875,7 @@ class CreateViewModel(
                 val filteredActions = resolveErrorActions(presentation.actions, resumableStages)
                 reduce {
                     state.finishGeneration(
-                        messages = withoutTyping + agentError(presentation.copy(actions = filteredActions)),
+                        messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
                         error = safe,
                         resumableStages = resumableStages,
                     )
@@ -861,7 +921,6 @@ class CreateViewModel(
                     global = false,
                 )
             }
-            scoopClient.removeCache(testName)
         } catch (e: Exception) {
             logger.warn("Test install cleanup failed for $testName: ${e.message}")
         } finally {
@@ -878,6 +937,7 @@ class CreateViewModel(
         text = presentation.title,
         phase = "error",
         note = AiErrorTranslator.maskSecrets(presentation.detail),
+        technicalDetails = presentation.technicalDetails?.let(AiErrorTranslator::maskSecrets),
         actions = presentation.actions,
     )
 
@@ -885,13 +945,6 @@ class CreateViewModel(
         role = ChatRole.Agent,
         text = text,
         phase = phase,
-    )
-
-    private fun typingMessage(phase: String) = ChatMessage(
-        role = ChatRole.Agent,
-        text = "",
-        phase = phase,
-        isTyping = true,
     )
 
     private fun CreateState.finishGeneration(

@@ -22,6 +22,7 @@ class ScoopAiBridge(
     private val configRepository: ConfigRepository,
     private val checkpointService: InMemoryAiCheckpointService,
     private val connectionTester: AiConnectionTester = AiConnectionTester(),
+    private val modelsFetcher: AiModelsFetcher = AiModelsFetcher(),
 ) : AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
@@ -37,13 +38,13 @@ class ScoopAiBridge(
     ) {
         fun missingReason(): String? {
             if (provider !in SUPPORTED_PROVIDERS) {
-                return "Provider must be openai-compatible or deepseek."
+                return "Provider must be openai-compatible."
             }
             if (apiKey.isBlank()) {
-                return "API key is missing. Fill it in Settings.AI, or set SCOOP_AI_API_KEY / DEEPSEEK_API_KEY environment variable."
+                return "API key is missing. Fill it in Settings > AI, or set SCOOP_AI_API_KEY environment variable."
             }
-            if (provider == "openai-compatible" && baseUrl.isBlank()) {
-                return "Base URL is required for openai-compatible. Fill it in Settings.AI, or set SCOOP_AI_BASE_URL environment variable."
+            if (baseUrl.isBlank()) {
+                return "Base URL is required for openai-compatible. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable."
             }
             return null
         }
@@ -124,6 +125,7 @@ class ScoopAiBridge(
         url: String,
         userPrompt: String?,
         resumeFrom: AiErrorAction? = null,
+        overrideModel: String? = null,
         onPhase: (String) -> Unit,
         onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)? = null,
         onPhaseOutput: ((String, String) -> Unit)? = null,
@@ -132,7 +134,10 @@ class ScoopAiBridge(
         generateJob?.cancel()
         generateJob = scope.launch {
             try {
-                val settings = readSettings()
+                val rawSettings = readSettings()
+                val settings = if (!overrideModel.isNullOrBlank()) {
+                    rawSettings.copy(model = overrideModel.trim())
+                } else rawSettings
                 val missing = settings.missingReason()
                 if (missing != null) {
                     onFinished(Result.failure(IllegalStateException(missing)))
@@ -212,6 +217,31 @@ class ScoopAiBridge(
         }
     }
 
+    /**
+     * Query remote /models endpoint for available model names.
+     */
+    fun fetchModels(
+        provider: String,
+        apiKey: String,
+        baseUrl: String?,
+        onResult: (FetchModelsResult) -> Unit,
+    ) {
+        scope.launch {
+            try {
+                val result = modelsFetcher.fetchModels(provider, apiKey, baseUrl)
+                onResult(result)
+            } catch (e: Exception) {
+                logger.error("AI fetch models failed unexpectedly: ${e.message}")
+                onResult(
+                    FetchModelsResult(
+                        ok = false,
+                        errorMessage = e.message ?: "Unknown failure when fetching models",
+                    ),
+                )
+            }
+        }
+    }
+
     fun cancel() {
         generateJob?.cancel()
         generateJob = null
@@ -227,7 +257,7 @@ class ScoopAiBridge(
 
     companion object {
         const val DEFAULT_PROVIDER = "openai-compatible"
-        val SUPPORTED_PROVIDERS = setOf("openai-compatible", "deepseek")
+        val SUPPORTED_PROVIDERS = setOf("openai-compatible")
 
         /**
          * Strip trailing `/v1` (and `/v1/chat/completions`) so openai-compatible

@@ -39,7 +39,7 @@ class InMemoryAiCheckpointTest {
     }
 
     @Test
-    fun `resumableStagesOf with research and analyze allows both resumes`() {
+    fun `resumableStagesOf with research and analyze returns latest generate resume`() {
         val cp = InMemoryAiCheckpoint(
             url = "https://github.com/o/r",
             userPrompt = "",
@@ -47,7 +47,7 @@ class InMemoryAiCheckpointTest {
             analyzeJson = analyzeJson,
         )
         assertEquals(
-            setOf(AiErrorAction.RETRY_FROM_ANALYZE, AiErrorAction.RETRY_FROM_GENERATE),
+            setOf(AiErrorAction.RETRY_FROM_GENERATE),
             resumableStagesOf(cp),
         )
     }

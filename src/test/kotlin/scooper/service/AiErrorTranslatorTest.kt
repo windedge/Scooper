@@ -29,7 +29,8 @@ class AiErrorTranslatorTest {
         val p = AiErrorTranslator.translate(e)
 
         assertEquals("Model capability issue", p.title)
-        assertEquals(original, p.detail)
+        assertTrue(p.detail.contains("function calling"))
+        assertEquals(original, p.technicalDetails)
         assertEquals(
             listOf(
                 AiErrorAction.RETRY_FULL,
@@ -64,7 +65,7 @@ class AiErrorTranslatorTest {
         val p = AiErrorTranslator.translate(e)
 
         assertEquals("Authentication failed", p.title)
-        assertTrue(p.detail.contains("401"))
+        assertTrue(p.technicalDetails!!.contains("401"))
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -113,19 +114,33 @@ class AiErrorTranslatorTest {
     }
 
     @Test
-    fun `429 maps to RATE_LIMIT with RETRY_FULL`() {
+    fun `429 maps to RATE_LIMIT with resumable retry actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("429 Too Many Requests"))
 
         assertEquals("Rate limit exceeded", p.title)
-        assertEquals(listOf(AiErrorAction.RETRY_FULL), p.actions)
+        assertEquals(
+            listOf(
+                AiErrorAction.RETRY_FULL,
+                AiErrorAction.RETRY_FROM_ANALYZE,
+                AiErrorAction.RETRY_FROM_GENERATE,
+            ),
+            p.actions,
+        )
     }
 
     @Test
-    fun `502 maps to SERVER with RETRY_FULL`() {
+    fun `502 maps to SERVER with resumable retry actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("502 Bad Gateway"))
 
         assertEquals("Server error", p.title)
-        assertEquals(listOf(AiErrorAction.RETRY_FULL), p.actions)
+        assertEquals(
+            listOf(
+                AiErrorAction.RETRY_FULL,
+                AiErrorAction.RETRY_FROM_ANALYZE,
+                AiErrorAction.RETRY_FROM_GENERATE,
+            ),
+            p.actions,
+        )
     }
 
     // ---------------------------------------------------------------
@@ -141,11 +156,18 @@ class AiErrorTranslatorTest {
     }
 
     @Test
-    fun `timed out maps to TIMEOUT with RETRY_FULL`() {
+    fun `timed out maps to TIMEOUT with resumable retry actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("Connect timeout: 30s elapsed"))
 
         assertEquals("Request timed out", p.title)
-        assertEquals(listOf(AiErrorAction.RETRY_FULL), p.actions)
+        assertEquals(
+            listOf(
+                AiErrorAction.RETRY_FULL,
+                AiErrorAction.RETRY_FROM_ANALYZE,
+                AiErrorAction.RETRY_FROM_GENERATE,
+            ),
+            p.actions,
+        )
     }
 
     @Test
@@ -179,15 +201,29 @@ class AiErrorTranslatorTest {
         val p = AiErrorTranslator.translate(object : Exception() {})
 
         assertEquals("Generation failed", p.title)
-        assertEquals(listOf(AiErrorAction.RETRY_FULL), p.actions)
+        assertEquals(
+            listOf(
+                AiErrorAction.RETRY_FULL,
+                AiErrorAction.RETRY_FROM_ANALYZE,
+                AiErrorAction.RETRY_FROM_GENERATE,
+            ),
+            p.actions,
+        )
     }
 
     @Test
-    fun `unrecognized message maps to UNKNOWN with RETRY_FULL`() {
+    fun `unrecognized message maps to UNKNOWN with resumable actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("some random failure"))
 
         assertEquals("Generation failed", p.title)
-        assertEquals(listOf(AiErrorAction.RETRY_FULL), p.actions)
+        assertEquals(
+            listOf(
+                AiErrorAction.RETRY_FULL,
+                AiErrorAction.RETRY_FROM_ANALYZE,
+                AiErrorAction.RETRY_FROM_GENERATE,
+            ),
+            p.actions,
+        )
     }
 
     @Test

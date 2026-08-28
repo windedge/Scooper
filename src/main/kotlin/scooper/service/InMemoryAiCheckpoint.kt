@@ -23,9 +23,10 @@ data class InMemoryAiCheckpoint(
 /**
  * Which [AiErrorAction] resume stages are currently available for [cp].
  *
+ * Returns at most one latest available resume stage:
  * - null / no research output -> nothing to resume (full run only).
  * - research only -> can skip research, resume from analyze.
- * - research + analyze -> can also skip analyze, resume from generate.
+ * - research + analyze -> can skip both research & analyze, resume from generate.
  */
 internal fun resumableStagesOf(cp: InMemoryAiCheckpoint?): Set<AiErrorAction> {
     val research = cp?.researchJson
@@ -33,7 +34,7 @@ internal fun resumableStagesOf(cp: InMemoryAiCheckpoint?): Set<AiErrorAction> {
     if (cp.analyzeJson.isNullOrBlank()) {
         return setOf(AiErrorAction.RETRY_FROM_ANALYZE)
     }
-    return setOf(AiErrorAction.RETRY_FROM_ANALYZE, AiErrorAction.RETRY_FROM_GENERATE)
+    return setOf(AiErrorAction.RETRY_FROM_GENERATE)
 }
 
 /**

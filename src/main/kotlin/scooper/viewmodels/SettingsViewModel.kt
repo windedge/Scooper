@@ -23,12 +23,20 @@ import scooper.util.form_builder.*
 data class SettingsState(
     val uiConfig: UIConfig = UIConfig(),
     val aiTest: AiTestUiState = AiTestUiState(),
+    val modelsState: FetchModelsUiState = FetchModelsUiState(),
 )
 
 /** UI state backing the Settings.AI "Test Connection" row. */
 data class AiTestUiState(
     val testing: Boolean = false,
     val result: AiConnectionTestResult? = null,
+)
+
+/** UI state backing the Settings.AI Model dropdown. */
+data class FetchModelsUiState(
+    val loading: Boolean = false,
+    val models: List<String> = emptyList(),
+    val error: String? = null,
 )
 
 class SettingsViewModel(
@@ -117,7 +125,6 @@ class SettingsViewModel(
                 validators = listOf(Validators.ValidChoice()),
                 choices = mapOf(
                     "openai-compatible" to "OpenAI Compatible",
-                    "deepseek" to "DeepSeek",
                 )
             ),
             TextFieldState("aiApiKey"),
@@ -220,6 +227,30 @@ class SettingsViewModel(
                 intent {
                     reduce {
                         state.copy(aiTest = state.aiTest.copy(testing = false, result = result))
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Fetch available model list from the configured endpoint.
+     */
+    fun fetchModels(provider: String, apiKey: String, baseUrl: String?) {
+        intent {
+            reduce { state.copy(modelsState = state.modelsState.copy(loading = true, error = null)) }
+        }
+        scoopAiBridge.fetchModels(provider, apiKey, baseUrl) { result ->
+            coroutineScope.launch {
+                intent {
+                    reduce {
+                        state.copy(
+                            modelsState = state.modelsState.copy(
+                                loading = false,
+                                models = if (result.ok) result.models else state.modelsState.models,
+                                error = if (!result.ok) result.errorMessage else null,
+                            ),
+                        )
                     }
                 }
             }

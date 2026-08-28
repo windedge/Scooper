@@ -487,7 +487,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
         SectionCard {
             PrefRow(
                 title = "Provider",
-                subtitle = "DeepSeek or any OpenAI-compatible API endpoint.",
+                subtitle = "OpenAI-compatible API endpoint.",
             ) {
                 val choices = providerState.choices
                 ExposedDropdownMenu(
@@ -504,20 +504,85 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 subtitle = "Stored locally. Never written to logs or toast messages.",
                 state = apiKeyState,
                 placeholder = "sk-...",
+                isPassword = true,
             )
             Divider(color = colors.divider)
             AiTextFieldPref(
                 title = "Base URL",
-                subtitle = "Required for openai-compatible. Do not append /v1; client adds /v1/chat/completions. Leave empty for DeepSeek default.",
+                subtitle = "Required for openai-compatible. Do not append /v1; client adds /v1/chat/completions.",
                 state = baseUrlState,
                 placeholder = "http://192.168.40.130:8317",
             )
             Divider(color = colors.divider)
-            AiTextFieldPref(
+            PrefRow(
                 title = "Model",
-                subtitle = "Model id sent to the provider. Empty uses provider default.",
-                state = modelState,
-                placeholder = "deepseek-chat",
+                subtitle = "Model id sent to the provider. Fetch from endpoint, type manually, or probe connection.",
+                nestedContent = {
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        SearchableModelDropdown(
+                            value = modelState.value,
+                            onValueChange = { modelState.change(it) },
+                            models = settingsState.modelsState.models,
+                            loading = settingsState.modelsState.loading,
+                            error = settingsState.modelsState.error,
+                            onFetchModels = {
+                                settingsViewModel.fetchModels(
+                                    provider = providerState.value,
+                                    apiKey = apiKeyState.value,
+                                    baseUrl = baseUrlState.value,
+                                )
+                            },
+                            placeholder = "deepseek-chat",
+                            trailingContent = {
+                                OutlinedButton(
+                                    onClick = {
+                                        settingsViewModel.testConnection(
+                                            provider = providerState.value,
+                                            apiKey = apiKeyState.value,
+                                            baseUrl = baseUrlState.value,
+                                            model = modelState.value,
+                                        )
+                                    },
+                                    enabled = !aiTest.testing,
+                                    modifier = Modifier.height(36.dp).cursorHand(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, colors.inputBorder),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        backgroundColor = colors.inputBackground,
+                                        contentColor = colors.textTitle,
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 10.dp),
+                                ) {
+                                    if (aiTest.testing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(14.dp),
+                                            strokeWidth = 2.dp,
+                                            color = colors.primary,
+                                        )
+                                    } else {
+                                        Icon(
+                                            Lucide.CircleCheck,
+                                            contentDescription = "Test connection",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = colors.primary,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Test", style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                                }
+                            },
+                        )
+
+                        aiTest.result?.let { result ->
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = formatTestResult(result),
+                                style = MaterialTheme.typography.caption,
+                                color = if (result.ok) Emerald500 else Red500,
+                            )
+                        }
+                    }
+                },
             )
             Divider(color = colors.divider)
             AiTextFieldPref(
@@ -525,54 +590,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 subtitle = "Optional. Raises GitHub API rate limits when researching releases.",
                 state = githubTokenState,
                 placeholder = "ghp_...",
-            )
-            Divider(color = colors.divider)
-            PrefRow(
-                title = "Test Connection",
-                subtitle = "Probe the endpoint with the current form values. No need to save first.",
-                nestedContent = {
-                    Column(modifier = Modifier.padding(top = 12.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Button(
-                                onClick = {
-                                    settingsViewModel.testConnection(
-                                        provider = providerState.value,
-                                        apiKey = apiKeyState.value,
-                                        baseUrl = baseUrlState.value,
-                                        model = modelState.value,
-                                    )
-                                },
-                                enabled = !aiTest.testing,
-                                modifier = Modifier.height(32.dp).cursorHand(),
-                                shape = RoundedCornerShape(6.dp),
-                                elevation = null,
-                                colors = ButtonDefaults.buttonColors(
-                                    backgroundColor = if (!aiTest.testing) colors.primary else colors.textMuted
-                                ),
-                            ) {
-                                Text("Test", color = Color.White, fontWeight = FontWeight.Medium)
-                            }
-                            if (aiTest.testing) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = colors.primary,
-                                )
-                            }
-                        }
-                        aiTest.result?.let { result ->
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = formatTestResult(result),
-                                style = MaterialTheme.typography.body2,
-                                color = if (result.ok) Emerald500 else Red500,
-                            )
-                        }
-                    }
-                },
+                isPassword = true,
             )
         }
     }
@@ -595,6 +613,7 @@ private fun AiTextFieldPref(
     subtitle: String,
     state: TextFieldState,
     placeholder: String,
+    isPassword: Boolean = false,
 ) {
     PrefRow(
         title = title,
@@ -605,6 +624,7 @@ private fun AiTextFieldPref(
                     value = state.value,
                     onValueChange = { state.change(it) },
                     placeholder = placeholder,
+                    isPassword = isPassword,
                 )
             }
         },

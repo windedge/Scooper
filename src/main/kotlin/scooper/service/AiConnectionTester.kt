@@ -65,9 +65,7 @@ class AiConnectionTester(
      * `/v1/models` without a doubled path.
      */
     internal fun resolveBaseUrl(provider: String, baseUrl: String?): String? {
-        if (baseUrl.isNullOrBlank()) {
-            return if (provider == "deepseek") "https://api.deepseek.com" else null
-        }
+        if (baseUrl.isNullOrBlank()) return null
         return ScoopAiBridge.normalizeAiBaseUrl(baseUrl).ifEmpty { null }
     }
 
@@ -82,7 +80,7 @@ class AiConnectionTester(
         if (apiKey.isBlank()) {
             return@withContext fail(
                 category = AiErrorCategory.CONFIG,
-                detail = "API key is empty. Fill it in Settings.AI.",
+                detail = "API key is empty. Fill it in Settings > AI.",
                 endpoint = "",
                 start = start,
             )
@@ -92,7 +90,7 @@ class AiConnectionTester(
         if (base == null) {
             return@withContext fail(
                 category = AiErrorCategory.CONFIG,
-                detail = "Base URL is required for provider '$provider'. Fill it in Settings.AI.",
+                detail = "Base URL is required for provider '$provider'. Fill it in Settings > AI.",
                 endpoint = "",
                 start = start,
             )

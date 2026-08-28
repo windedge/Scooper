@@ -49,6 +49,7 @@ import androidx.compose.material.CheckboxDefaults
 import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.MaterialTheme.colors
 import androidx.compose.material.MaterialTheme.typography
 import androidx.compose.material.OutlinedButton
@@ -67,12 +68,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.IconButton
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +88,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.koin.compose.koinInject
@@ -87,27 +99,12 @@ import scooper.ui.AppRoute
 import scooper.ui.components.ConfirmDialog
 import scooper.ui.components.DialogTextField
 import scooper.ui.components.ExposedDropdownMenu
+import scooper.ui.components.CompactModelSelector
 import scooper.ui.components.SelectableContainer
-import scooper.ui.icons.CircleCheck
-import scooper.ui.icons.CircleX
-import scooper.ui.icons.Info
-import scooper.ui.icons.Lucide
-import scooper.ui.icons.Plus
-import scooper.ui.icons.Send
-import scooper.ui.icons.Settings
-import scooper.ui.icons.X
-import scooper.ui.theme.borderDefault
-import scooper.ui.theme.dangerBg
-import scooper.ui.theme.dangerDefault
-import scooper.ui.theme.divider
-import scooper.ui.theme.inputBackground
-import scooper.ui.theme.inputBorder
-import scooper.ui.theme.primarySubtle
-import scooper.ui.theme.textBody
-import scooper.ui.theme.textMuted
-import scooper.ui.theme.textPlaceholder
-import scooper.ui.theme.textTitle
-import scooper.ui.theme.updateDefault
+import scooper.ui.icons.*
+import scooper.ui.theme.*
+import scooper.util.cursorHand
+import scooper.util.onHover
 import scooper.ui.theme.warningDefault
 import scooper.util.cursorHand
 import scooper.util.cursorLink
@@ -172,6 +169,8 @@ fun CreateScreen(
                 state = state,
                 onUrlChange = viewModel::onUrlChange,
                 onNoteChange = viewModel::onNoteChange,
+                onModelChange = viewModel::onModelChange,
+                onFetchModels = viewModel::onFetchModels,
                 onSend = { url, note -> viewModel.onSend(url, note) },
                 onCancel = { viewModel.onCancel() },
             )
@@ -181,6 +180,8 @@ fun CreateScreen(
                 listState = listState,
                 onUrlChange = viewModel::onUrlChange,
                 onNoteChange = viewModel::onNoteChange,
+                onModelChange = viewModel::onModelChange,
+                onFetchModels = viewModel::onFetchModels,
                 onSend = { url, note -> viewModel.onSend(url, note) },
                 onCancel = { viewModel.onCancel() },
                 onCopyDone = viewModel::onCopyDone,
@@ -473,7 +474,7 @@ private fun AiConfigBanner(
         Text("!", style = typography.caption.copy(fontWeight = FontWeight.Bold, color = textColor))
         Column(Modifier.weight(1f)) {
             Text(
-                configHint ?: "AI is not configured. Fill Settings.AI, or set SCOOP_AI_API_KEY / SCOOP_AI_BASE_URL environment variables.",
+                configHint ?: "AI is not configured. Configure it in Settings > AI, or set SCOOP_AI_API_KEY / SCOOP_AI_BASE_URL environment variables.",
                 style = typography.caption.copy(color = textColor, lineHeight = typography.caption.fontSize * 1.45f),
             )
             TextButton(
@@ -482,7 +483,7 @@ private fun AiConfigBanner(
                 modifier = Modifier.cursorLink().height(28.dp),
             ) {
                 Text(
-                    "Go to Settings.AI",
+                    "Go to AI Settings",
                     style = typography.caption.copy(fontWeight = FontWeight.Bold, color = textColor),
                 )
             }
@@ -495,6 +496,8 @@ private fun EmptyWorkspace(
     state: CreateState,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onFetchModels: () -> Unit,
     onSend: (url: String, note: String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -505,45 +508,54 @@ private fun EmptyWorkspace(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .border(1.dp, colors.primary.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp))
-                .background(colors.primarySubtle),
-            contentAlignment = Alignment.Center,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
         ) {
-            Icon(
-                Lucide.Plus,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = colors.primary,
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .border(1.dp, colors.primary.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.primarySubtle),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Lucide.Plus,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = colors.primary,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "Create a Scoop manifest with AI",
+                style = typography.h6.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textTitle,
+                ),
             )
         }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Create a Scoop manifest with AI",
-            style = typography.subtitle1.copy(
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textTitle,
-            ),
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "Paste a GitHub repository URL and press Send.\nAfter the manifest is ready, you can Test Install / Save.",
-            style = typography.body2.copy(color = colors.textBody),
-            textAlign = TextAlign.Center,
-        )
         Spacer(Modifier.height(20.dp))
         Composer(
             state = state,
             centered = true,
             onUrlChange = onUrlChange,
             onNoteChange = onNoteChange,
+            onModelChange = onModelChange,
+            onFetchModels = onFetchModels,
             onSend = onSend,
             onCancel = onCancel,
             modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+        )
+        Spacer(Modifier.height(24.dp))
+        Text(
+            "Paste a GitHub repository URL and press Send.\nAfter the manifest is ready, you can Test Install / Save.",
+            style = typography.caption.copy(
+                color = colors.textMuted,
+                lineHeight = 20.sp,
+            ),
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -554,6 +566,8 @@ private fun ChatWorkspace(
     listState: androidx.compose.foundation.lazy.LazyListState,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onFetchModels: () -> Unit,
     onSend: (url: String, note: String) -> Unit,
     onCancel: () -> Unit,
     onCopyDone: () -> Unit,
@@ -578,9 +592,16 @@ private fun ChatWorkspace(
                 contentPadding = PaddingValues(vertical = 4.dp),
             ) {
                 items(state.messages, key = { it.id }) { message ->
+                    val isRunningPhase = state.running &&
+                        message.role == ChatRole.Agent &&
+                        message.phase != null &&
+                        message.phase.equals(state.currentPhase, ignoreCase = true) &&
+                        message.id == state.messages.lastOrNull { it.role == ChatRole.Agent }?.id
+
                     ChatBubble(
                         message = message,
-                        currentActivity = if (message.isTyping) state.currentActivity else null,
+                        currentActivity = if (isRunningPhase) state.currentActivity else null,
+                        isRunning = isRunningPhase,
                         onAction = onAction,
                     )
                 }
@@ -627,6 +648,8 @@ private fun ChatWorkspace(
             centered = false,
             onUrlChange = onUrlChange,
             onNoteChange = onNoteChange,
+            onModelChange = onModelChange,
+            onFetchModels = onFetchModels,
             onSend = onSend,
             onCancel = onCancel,
             modifier = Modifier.fillMaxWidth(),
@@ -638,6 +661,7 @@ private fun ChatWorkspace(
 private fun ChatBubble(
     message: ChatMessage,
     currentActivity: String? = null,
+    isRunning: Boolean = false,
     onAction: (AiErrorAction) -> Unit,
 ) {
     val isUser = message.role == ChatRole.User
@@ -676,80 +700,117 @@ private fun ChatBubble(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                if (message.isTyping) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        TypingDots()
-                        if (!currentActivity.isNullOrBlank()) {
+                // Bubble has no click handler, so selecting text inside it is safe.
+                // S1: the URL and the optional user note share one SelectableContainer
+                // so both can be drag-selected/copied together as a single block.
+                SelectableContainer {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            message.text,
+                            style = typography.caption.copy(
+                                color = colors.onSurface,
+                                fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
+                                lineHeight = typography.caption.fontSize * 1.5f,
+                            ),
+                        )
+                        if (!message.note.isNullOrBlank()) {
                             Text(
-                                currentActivity,
+                                message.note,
                                 style = typography.caption.copy(
                                     color = colors.textMuted,
+                                    lineHeight = typography.caption.fontSize * 1.45f,
                                 ),
                             )
                         }
-                    }
-                } else {
-                    // Bubble has no click handler, so selecting text inside it is safe.
-                    // S1: the URL and the optional user note share one SelectableContainer
-                    // so both can be drag-selected/copied together as a single block.
-                    SelectableContainer {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                message.text,
-                                style = typography.caption.copy(
-                                    color = colors.onSurface,
-                                    fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
-                                    lineHeight = typography.caption.fontSize * 1.5f,
-                                ),
-                            )
-                            if (!message.note.isNullOrBlank()) {
-                                Text(
-                                    message.note,
-                                    style = typography.caption.copy(
-                                        color = colors.textMuted,
-                                        lineHeight = typography.caption.fontSize * 1.45f,
-                                    ),
-                                )
-                            }
-                            if (message.toolActivities.isNotEmpty()) {
-                                Spacer(Modifier.height(2.dp))
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                        if (!message.technicalDetails.isNullOrBlank()) {
+                            var detailsExpanded by remember { mutableStateOf(false) }
+                            Spacer(Modifier.height(2.dp))
+                            androidx.compose.foundation.text.selection.DisableSelection {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 2.dp),
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .cursorHand()
+                                        .clickable { detailsExpanded = !detailsExpanded }
+                                        .padding(vertical = 2.dp, horizontal = 2.dp),
                                 ) {
-                                    message.toolActivities.forEach { toolLog ->
-                                        Text(
-                                            toolLog,
-                                            style = typography.caption.copy(
-                                                color = colors.textMuted,
-                                                fontSize = typography.caption.fontSize * 0.92f,
-                                                fontFamily = FontFamily.Monospace,
-                                            ),
-                                        )
-                                    }
+                                    Icon(
+                                        if (detailsExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                                        contentDescription = "Details",
+                                        modifier = Modifier.size(12.dp),
+                                        tint = colors.textMuted,
+                                    )
+                                    Text(
+                                        if (detailsExpanded) "Hide details" else "Details",
+                                        style = typography.caption.copy(
+                                            color = colors.textMuted,
+                                            fontSize = typography.caption.fontSize * 0.9f,
+                                        ),
+                                    )
                                 }
                             }
-                            if (!message.summary.isNullOrBlank()) {
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    "• ${message.summary}",
-                                    style = typography.caption.copy(
-                                        color = colors.textBody,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = typography.caption.fontSize * 0.95f,
-                                    ),
-                                    modifier = Modifier.padding(top = 2.dp),
-                                )
+                            if (detailsExpanded) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(colors.surface.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                                        .border(1.dp, colors.divider, RoundedCornerShape(4.dp))
+                                        .padding(8.dp),
+                                ) {
+                                    Text(
+                                        message.technicalDetails,
+                                        style = typography.caption.copy(
+                                            color = colors.textMuted,
+                                            fontSize = typography.caption.fontSize * 0.88f,
+                                            fontFamily = FontFamily.Monospace,
+                                            lineHeight = typography.caption.fontSize * 1.35f,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                        if (message.toolActivities.isNotEmpty()) {
+                            Spacer(Modifier.height(2.dp))
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                            ) {
+                                message.toolActivities.forEach { toolLog ->
+                                    Text(
+                                        toolLog,
+                                        style = typography.caption.copy(
+                                            color = colors.textMuted,
+                                            fontSize = typography.caption.fontSize * 0.92f,
+                                            fontFamily = FontFamily.Monospace,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                        if (!message.summary.isNullOrBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "• ${message.summary}",
+                                style = typography.caption.copy(
+                                    color = colors.textBody,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = typography.caption.fontSize * 0.95f,
+                                ),
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
+                        if (isRunning) {
+                            Spacer(Modifier.height(4.dp))
+                            Box(modifier = Modifier.padding(top = 2.dp)) {
+                                TypingDots()
                             }
                         }
                     }
                 }
-                if (!message.isTyping && message.actions.isNotEmpty()) {
+                if (message.actions.isNotEmpty()) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.padding(top = 6.dp),
@@ -770,9 +831,9 @@ private fun ChatBubble(
 
 private fun actionLabel(action: AiErrorAction): String = when (action) {
     AiErrorAction.OPEN_SETTINGS -> "Open Settings"
-    AiErrorAction.RETRY_FULL -> "Retry"
-    AiErrorAction.RETRY_FROM_ANALYZE -> "Retry from Analyze"
-    AiErrorAction.RETRY_FROM_GENERATE -> "Retry from Generate"
+    AiErrorAction.RETRY_FULL -> "Restart"
+    AiErrorAction.RETRY_FROM_ANALYZE -> "Continue"
+    AiErrorAction.RETRY_FROM_GENERATE -> "Continue"
 }
 
 @Composable
@@ -1375,6 +1436,8 @@ private fun Composer(
     centered: Boolean,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onModelChange: (String) -> Unit,
+    onFetchModels: () -> Unit,
     onSend: (url: String, note: String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -1516,70 +1579,75 @@ private fun Composer(
         Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (state.running) {
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.cursorHand().height(34.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.dangerDefault),
-                    border = BorderStroke(1.dp, colors.dangerDefault),
-                    elevation = null,
-                ) {
-                    Icon(
-                        Lucide.X,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = colors.dangerDefault,
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    Text(
-                        "Cancel",
-                        style = typography.button.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = colors.dangerDefault,
-                        ),
-                    )
-                }
-            } else {
-                Button(
-                    onClick = { submit() },
-                    enabled = urlText.isNotBlank(),
-                    modifier = Modifier.cursorHand().height(34.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
-                    shape = RoundedCornerShape(6.dp),
-                    elevation = null,
-                ) {
-                    Icon(
-                        Lucide.Send,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color.White,
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    Text(
-                        "Send",
-                        style = typography.button.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                        ),
-                    )
+            CompactModelSelector(
+                selectedModel = state.selectedModel,
+                availableModels = state.availableModels,
+                loading = state.fetchingModels,
+                onModelChange = onModelChange,
+                onFetchModels = onFetchModels,
+                enabled = !state.running,
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (state.running) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.cursorHand().height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.dangerDefault),
+                        border = BorderStroke(1.dp, colors.dangerDefault),
+                        elevation = null,
+                    ) {
+                        Icon(
+                            Lucide.X,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = colors.dangerDefault,
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            "Cancel",
+                            style = typography.button.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = colors.dangerDefault,
+                            ),
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = { submit() },
+                        enabled = urlText.isNotBlank(),
+                        modifier = Modifier.cursorHand().height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
+                        shape = RoundedCornerShape(6.dp),
+                        elevation = null,
+                    ) {
+                        Icon(
+                            Lucide.Send,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.White,
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            "Send",
+                            style = typography.button.copy(
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White,
+                            ),
+                        )
+                    }
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            if (centered) {
-                "Paste a GitHub URL and press Send. Configure provider under Settings.AI."
-            } else {
-                "Enter a GitHub URL (optional note). Generation uses nonInteractive mode."
-            },
-            style = typography.caption.copy(color = colors.textMuted),
-            modifier = if (centered) Modifier.fillMaxWidth() else Modifier,
-            textAlign = if (centered) TextAlign.Center else TextAlign.Start,
-        )
     }
 }
+

@@ -7,8 +7,8 @@ import org.jetbrains.exposed.sql.update
 import scooper.data.UIConfig
 import scooper.repository.db.Configs
 
-class ConfigRepository {
-    fun getConfig(): UIConfig {
+open class ConfigRepository {
+    open fun getConfig(): UIConfig {
         createIfNone()
         return transaction {
             Configs.selectAll().first().run {
@@ -37,7 +37,7 @@ class ConfigRepository {
         }
     }
 
-    fun setConfig(config: UIConfig) {
+    open fun setConfig(config: UIConfig) {
         createIfNone()
         transaction {
             Configs.update({ Configs.id eq Configs.selectAll().first()[Configs.id] }) {

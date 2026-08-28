@@ -260,20 +260,7 @@ class AiConnectionTesterTest {
     // ---------------------------------------------------------------
 
     @Test
-    fun `resolveBaseUrl gives deepseek default when baseUrl empty`() {
-        val tester = tester()
-        assertEquals(
-            "https://api.deepseek.com",
-            tester.resolveBaseUrl(provider = "deepseek", baseUrl = ""),
-        )
-        assertEquals(
-            "https://api.deepseek.com",
-            tester.resolveBaseUrl(provider = "deepseek", baseUrl = null),
-        )
-    }
-
-    @Test
-    fun `resolveBaseUrl returns null for openai-compatible empty baseUrl`() {
+    fun `resolveBaseUrl returns null when baseUrl empty`() {
         val tester = tester()
         assertNull(tester.resolveBaseUrl(provider = "openai-compatible", baseUrl = ""))
         assertNull(tester.resolveBaseUrl(provider = "openai-compatible", baseUrl = null))

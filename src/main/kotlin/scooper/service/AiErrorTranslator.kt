@@ -29,6 +29,7 @@ enum class AiErrorCategory {
 data class AiErrorPresentation(
     val title: String,
     val detail: String,
+    val technicalDetails: String? = null,
     val actions: List<AiErrorAction>,
 )
 
@@ -65,100 +66,103 @@ object AiErrorTranslator {
     fun translate(error: Throwable): AiErrorPresentation {
         val (rawMessages, isCapability) = collect(error)
         val cleanedMessages = rawMessages.map(::cleanMessage).filter { it.isNotBlank() }.distinct()
-        val detail = if (cleanedMessages.isEmpty()) "(no error detail)" else cleanedMessages.joinToString("\n")
+        val rawDetail = if (cleanedMessages.isEmpty()) "(no error detail)" else cleanedMessages.joinToString("\n")
         // Lowercased for case-insensitive keyword matching; status codes stay intact.
         val text = (rawMessages + cleanedMessages).joinToString("\n").lowercase()
 
         return when {
             isCapability -> presentation(
                 title = "Model capability issue",
-                detail = detail,
-                actions = listOf(
-                    AiErrorAction.RETRY_FULL,
-                    AiErrorAction.RETRY_FROM_ANALYZE,
-                    AiErrorAction.RETRY_FROM_GENERATE,
-                ),
+                detail = "The model does not support function calling (tool_calls). Please switch to a tool-capable model (e.g. deepseek-chat, gpt-4o, claude) in Settings > AI.",
+                technicalDetails = rawDetail,
+                actions = RESUMABLE_ACTIONS,
             )
 
             "401" in text || "403" in text -> presentation(
                 title = "Authentication failed",
-                detail = "Your API key may be invalid or expired. Check it in Settings.AI. " +
-                    "Original error: $detail",
+                detail = "Your API key may be invalid or expired. Check it in Settings > AI.",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             ("404" in text || "400" in text) && ("model" in text || "unknown provider" in text || "model_not_found" in text) ||
                 "model_not_found" in text || "unknown provider for model" in text -> presentation(
                 title = "Model not found",
-                detail = "The configured model was not found on this provider. Check the model " +
-                    "name in Settings.AI. Original error: $detail",
+                detail = "The configured model was not found on this provider. Check the model name in Settings > AI.",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             "404" in text -> presentation(
                 title = "Resource not found (404)",
-                detail = "The server returned 404, which may mean an incorrect base URL or an " +
-                    "unsupported endpoint. Check your base URL in Settings.AI. " +
-                    "Original error: $detail",
+                detail = "The server returned 404. Check your base URL in Settings > AI.",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             "400" in text -> presentation(
                 title = "Bad request (400)",
-                detail = "The AI endpoint returned 400 Bad Request. Check your model and parameters in Settings.AI. " +
-                    "Original error: $detail",
+                detail = "The AI endpoint returned 400 Bad Request. Check your model and parameters in Settings > AI.",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             "429" in text -> presentation(
                 title = "Rate limit exceeded",
-                detail = "The provider rate-limited the request. Wait a moment and retry. " +
-                    "Original error: $detail",
-                actions = listOf(AiErrorAction.RETRY_FULL),
+                detail = "The provider rate-limited the request. Wait a moment and retry, or switch to another model.",
+                technicalDetails = rawDetail,
+                actions = RESUMABLE_ACTIONS,
             )
 
             serverErrorRegex.containsMatchIn(text) -> presentation(
                 title = "Server error",
-                detail = "The provider returned a server error. This is usually transient; retry later. " +
-                    "Original error: $detail",
-                actions = listOf(AiErrorAction.RETRY_FULL),
+                detail = "The provider returned a temporary server error. This is usually transient; retry later.",
+                technicalDetails = rawDetail,
+                actions = RESUMABLE_ACTIONS,
             )
 
             "unknownhost" in text -> presentation(
                 title = "Cannot resolve host",
-                detail = "The AI endpoint host could not be resolved. Check your network connection and " +
-                    "the base URL in Settings.AI. Original error: $detail",
+                detail = "The AI endpoint host could not be resolved. Check your network connection and the base URL in Settings > AI.",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             "timed out" in text || "timeout" in text -> presentation(
                 title = "Request timed out",
-                detail = "The request timed out. Check your network connection and retry. " +
-                    "Original error: $detail",
-                actions = listOf(AiErrorAction.RETRY_FULL),
+                detail = "The request timed out. Check your network connection and retry.",
+                technicalDetails = rawDetail,
+                actions = RESUMABLE_ACTIONS,
             )
 
             "connection refused" in text -> presentation(
                 title = "Connection refused",
-                detail = "The connection to the AI endpoint was refused. Check that the server is " +
-                    "running and the base URL is correct in Settings.AI. Original error: $detail",
+                detail = "The connection to the AI endpoint was refused. Check that the server is running and the base URL is correct in Settings > AI.",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             "base url" in text || "baseurl" in text || "--base-url" in text -> presentation(
                 title = "Configuration error",
-                detail = "Check your AI configuration in Settings.AI (base URL / model / provider). " +
-                    "Original error: $detail",
+                detail = "Check your AI configuration in Settings > AI (base URL / model / provider).",
+                technicalDetails = rawDetail,
                 actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             else -> presentation(
                 title = "Generation failed",
-                detail = detail,
-                actions = listOf(AiErrorAction.RETRY_FULL),
+                detail = if (cleanedMessages.isNotEmpty()) cleanedMessages.first() else "An unexpected error occurred during generation.",
+                technicalDetails = rawDetail,
+                actions = RESUMABLE_ACTIONS,
             )
         }
     }
+
+    private val RESUMABLE_ACTIONS = listOf(
+        AiErrorAction.RETRY_FULL,
+        AiErrorAction.RETRY_FROM_ANALYZE,
+        AiErrorAction.RETRY_FROM_GENERATE,
+    )
 
     /** Mask `sk-...` API key tokens in [text], leaving everything else untouched. */
     fun maskSecrets(text: String): String = text.replace(skRegex, "sk-***")
@@ -189,10 +193,12 @@ object AiErrorTranslator {
     private fun presentation(
         title: String,
         detail: String,
+        technicalDetails: String? = null,
         actions: List<AiErrorAction>,
     ) = AiErrorPresentation(
         title = title,
         detail = detail,
+        technicalDetails = technicalDetails?.ifBlank { null },
         actions = actions,
     )
 }

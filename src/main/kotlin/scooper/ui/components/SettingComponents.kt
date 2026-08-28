@@ -26,6 +26,9 @@ import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.onHover
 
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+
 @Composable
 fun PrefTextField(
     value: String,
@@ -35,8 +38,10 @@ fun PrefTextField(
     modifier: Modifier = Modifier,
     isError: Boolean = false,
     errorMessage: String? = null,
+    isPassword: Boolean = false,
 ) {
     val colors = MaterialTheme.colors
+    var passwordVisible by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val borderColor = when {
@@ -59,21 +64,33 @@ fun PrefTextField(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                if (value.isEmpty()) {
-                    Text(
-                        placeholder,
-                        style = MaterialTheme.typography.body2.copy(color = colors.textPlaceholder)
-                    )
+                Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (value.isEmpty()) {
+                            Text(
+                                placeholder,
+                                style = MaterialTheme.typography.body2.copy(color = colors.textPlaceholder)
+                            )
+                        }
+                        BasicTextField(
+                            value = value,
+                            onValueChange = onValueChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+                            textStyle = MaterialTheme.typography.body2.copy(color = colors.textTitle),
+                            interactionSource = interactionSource,
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(if (isError) colors.error else colors.primary)
+                        )
+                    }
+                    if (isPassword && value.isNotEmpty()) {
+                        Text(
+                            text = if (passwordVisible) "Hide" else "Show",
+                            style = MaterialTheme.typography.caption.copy(color = colors.textMuted, fontWeight = FontWeight.Medium),
+                            modifier = Modifier.cursorHand().clickable { passwordVisible = !passwordVisible }.padding(start = 4.dp),
+                        )
+                    }
                 }
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.body2.copy(color = colors.textTitle),
-                    interactionSource = interactionSource,
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(if (isError) colors.error else colors.primary)
-                )
             }
             if (isError && errorMessage != null) {
                 Spacer(Modifier.height(4.dp))

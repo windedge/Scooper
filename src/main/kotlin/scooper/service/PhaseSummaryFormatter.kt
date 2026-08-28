@@ -63,8 +63,7 @@ object PhaseSummaryFormatter {
         val countText = if (count == 1) "1 Windows asset$typeSuffix" else "$count Windows assets$typeSuffix"
 
         return if (version != null) {
-            val vPrefix = if (version.startsWith("v", ignoreCase = true)) version else "v$version"
-            "Found release $vPrefix with $countText"
+            "Found release ${formatVersion(version)} with $countText"
         } else {
             "Found $countText"
         }
@@ -103,14 +102,48 @@ object PhaseSummaryFormatter {
         }
 
         return if (version != null) {
-            val vPrefix = if (version.startsWith("v", ignoreCase = true)) version else "v$version"
-            "Generated manifest $vPrefix ($archs, $rulesText)"
+            "Generated manifest ${formatVersion(version)} ($archs, $rulesText)"
         } else {
             "Generated manifest ($archs, $rulesText)"
         }
     }
 
     private fun formatRefineSummary(root: JsonObject): String {
-        return "Updated manifest fields (resolved validation & review feedback)"
+        val version = root["version"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+        val archObj = root["architecture"]?.jsonObject
+        val archs = archObj?.keys?.filter { it.isNotBlank() }?.sorted()?.joinToString("/")
+            ?: if (root.containsKey("url")) "64bit" else null
+
+        val features = mutableListOf<String>()
+        if (archs != null) features.add(archs)
+
+        val hasPreInstall = root.containsKey("pre_install")
+        val hasShortcuts = root.containsKey("shortcuts")
+        val hasPersist = root.containsKey("persist")
+        val hasEnv = root.containsKey("env_set") || root.containsKey("env_add_path")
+        val hasAutoupdate = root.containsKey("autoupdate")
+        val hasBin = root.containsKey("bin")
+
+        when {
+            hasPreInstall && hasShortcuts -> features.add("pre_install script & shortcuts configured")
+            hasPreInstall -> features.add("pre_install script configured")
+            hasPersist && hasEnv -> features.add("persist & environment configured")
+            hasPersist -> features.add("persist configured")
+            hasShortcuts -> features.add("shortcuts configured")
+            hasEnv -> features.add("environment configured")
+            hasAutoupdate -> features.add("autoupdate rules resolved")
+            hasBin -> features.add("bin & schema resolved")
+            else -> features.add("resolved validation & review feedback")
+        }
+
+        val details = features.joinToString(", ")
+        return if (version != null) {
+            "Updated manifest ${formatVersion(version)} ($details)"
+        } else {
+            "Updated manifest ($details)"
+        }
     }
+
+    private fun formatVersion(version: String): String =
+        if (version.startsWith("v", ignoreCase = true)) version else "v$version"
 }

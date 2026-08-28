@@ -115,10 +115,44 @@ class PhaseSummaryFormatterTest {
     }
 
     @Test
-    fun `formatPhaseOutput summarizes refine manifest json`() {
+    fun `formatPhaseOutput summarizes refine manifest with pre_install and shortcuts`() {
+        val manifestJson = """
+            {
+                "version": "0.3.0",
+                "architecture": {
+                    "64bit": {"url": "https://...", "hash": "abc"}
+                },
+                "shortcuts": [["Minke.exe", "Minke"]],
+                "pre_install": ["Expand-7zipArchive ..."]
+            }
+        """.trimIndent()
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("refine", manifestJson)
+        assertTrue(summary!!.contains("Updated manifest v0.3.0"))
+        assertTrue(summary.contains("64bit"))
+        assertTrue(summary.contains("pre_install"))
+        assertTrue(summary.contains("shortcuts"))
+    }
+
+    @Test
+    fun `formatPhaseOutput summarizes refine manifest with persist and environment`() {
+        val manifestJson = """
+            {
+                "version": "1.2.0",
+                "persist": ["data", "config"],
+                "env_set": {"APP_HOME": "${'$'}dir"}
+            }
+        """.trimIndent()
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("refine", manifestJson)
+        assertTrue(summary!!.contains("Updated manifest v1.2.0"))
+        assertTrue(summary.contains("persist"))
+        assertTrue(summary.contains("environment"))
+    }
+
+    @Test
+    fun `formatPhaseOutput summarizes refine minimal manifest json`() {
         val manifestJson = """{"version": "10.2.0"}"""
         val summary = PhaseSummaryFormatter.formatPhaseOutput("refine", manifestJson)
-        assertEquals("Updated manifest fields (resolved validation & review feedback)", summary)
+        assertTrue(summary!!.contains("Updated manifest v10.2.0"))
     }
 
     @Test
