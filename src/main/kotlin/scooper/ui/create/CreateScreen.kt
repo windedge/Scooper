@@ -60,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -87,8 +88,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogState
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -98,16 +109,17 @@ import org.koin.compose.koinInject
 import scooper.ui.AppRoute
 import scooper.ui.components.ConfirmDialog
 import scooper.ui.components.DialogTextField
-import scooper.ui.components.ExposedDropdownMenu
 import scooper.ui.components.CompactModelSelector
+import scooper.ui.components.ExposedDropdownMenu
 import scooper.ui.components.SelectableContainer
 import scooper.ui.icons.*
 import scooper.ui.theme.*
-import scooper.util.cursorHand
-import scooper.util.onHover
-import scooper.ui.theme.warningDefault
+import scooper.viewmodels.AskUserRequest
+import scooper.viewmodels.QuestionnaireOption
+import scooper.viewmodels.QuestionnaireQuestion
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.onHover
 import scooper.util.parseAnsiColors
 import scooper.service.AiErrorAction
 import scooper.util.navigation.LocalBackStack
@@ -134,13 +146,24 @@ fun CreateScreen(
         viewModel.refreshAiConfig()
     }
 
-    // Auto-scroll chat when messages / manifest change
-    LaunchedEffect(state.messages.size, state.manifestJson, state.running, state.testResult, state.saveResult) {
-        // Cards after the chat: manifest preview, plus the test result and save result panels.
+    // Auto-scroll chat when messages / manifest / tool activities change
+    LaunchedEffect(
+        state.messages.size,
+        state.manifestJson,
+        state.running,
+        state.testResult,
+        state.saveResult,
+        state.askUserRequest,
+        state.currentActivity,
+        state.messages.lastOrNull()?.toolActivities?.size,
+    ) {
+        // Cards after the chat: manifest preview, plus the test result and save result panels, plus active askUser card.
         val cardItems = when {
-            state.manifestJson.isBlank() -> 0
-            else -> 1 + (if (state.testResult != null) 1 else 0) + (if (state.saveResult != null) 1 else 0)
-        }
+            state.manifestJson.isNotBlank() && !state.running -> {
+                1 + (if (state.testResult != null) 1 else 0) + (if (state.saveResult != null) 1 else 0)
+            }
+            else -> 0
+        } + (if (state.askUserRequest != null) 1 else 0)
         val itemCount = state.messages.size + cardItems
         if (itemCount > 0) {
             listState.animateScrollToItem(itemCount - 1)
@@ -154,6 +177,8 @@ fun CreateScreen(
     ) {
         CreateTopBar(
             running = state.running,
+            canReset = !state.isEmpty,
+            onReset = viewModel::onReset,
             onOpenAiSettings = { navigator.push(AppRoute.Settings.AI) },
         )
 
@@ -190,6 +215,9 @@ fun CreateScreen(
                 onRegenerate = viewModel::onRegenerate,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
+                onAnswerAskUser = viewModel::onAnswerAskUser,
+                onCancelAskUser = viewModel::onCancelAskUser,
+                onFixFromTestFailure = { summary, logTail -> viewModel.onFixFromTestFailure(summary, logTail) },
                 onAction = { action ->
                     if (action == AiErrorAction.OPEN_SETTINGS) {
                         navigator.push(AppRoute.Settings.AI)
@@ -224,6 +252,473 @@ fun CreateScreen(
             onConfirm = viewModel::onConfirmOverwrite,
             onCancel = viewModel::onDismissOverwrite,
         )
+    }
+}
+
+@Composable
+private fun AskUserBubble(
+    request: AskUserRequest,
+    onAnswer: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val questions = request.questions
+    val isSingleQuestion = questions.size <= 1
+    val isDownloadPrompt = remember(request) { request.isDownloadPrompt }
+
+    var currentTab by remember(request.id) { mutableStateOf(0) }
+    val answers = remember(request.id) { mutableStateMapOf<String, String>() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        PhaseTag(
+            phase = if (isDownloadPrompt) "download" else "questionnaire",
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+
+        Surface(
+            color = colors.surface,
+            contentColor = colors.textTitle,
+            shape = RoundedCornerShape(12.dp, 12.dp, 12.dp, 4.dp),
+            border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.55f)),
+            elevation = 2.dp,
+            modifier = Modifier
+                .widthIn(max = 640.dp)
+                .wrapContentWidth(align = Alignment.Start),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        if (isDownloadPrompt) Lucide.Box else Lucide.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = colors.primary,
+                    )
+                    Text(
+                        if (isDownloadPrompt) "Download Confirmation" else "AI Questionnaire",
+                        style = typography.subtitle2.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textTitle,
+                        ),
+                    )
+                }
+
+                // Tab Bar for multi-question questionnaire
+                if (!isSingleQuestion) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(colors.inputBackground, RoundedCornerShape(6.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        questions.forEachIndexed { index, q ->
+                            val isActive = currentTab == index
+                            val isAnswered = answers.containsKey(q.id)
+                            val label = q.label ?: "Q${index + 1}"
+
+                            Surface(
+                                color = if (isActive) colors.surface else Color.Transparent,
+                                shape = RoundedCornerShape(4.dp),
+                                border = if (isActive) BorderStroke(1.dp, colors.borderDefault) else null,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .cursorHand()
+                                    .clickable { currentTab = index }
+                                    .padding(vertical = 4.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isAnswered) colors.updateDefault else colors.textMuted.copy(alpha = 0.5f)
+                                            ),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        label,
+                                        style = typography.caption.copy(
+                                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isActive) colors.primary else colors.textBody,
+                                        ),
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Submit tab
+                        val isSubmitTab = currentTab == questions.size
+                        val allDone = questions.all { answers.containsKey(it.id) }
+                        Surface(
+                            color = if (isSubmitTab) colors.surface else Color.Transparent,
+                            shape = RoundedCornerShape(4.dp),
+                            border = if (isSubmitTab) BorderStroke(1.dp, colors.borderDefault) else null,
+                            modifier = Modifier
+                                .weight(1f)
+                                .cursorHand()
+                                .clickable { currentTab = questions.size }
+                                .padding(vertical = 4.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(
+                                    Lucide.CircleCheck,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = if (allDone) colors.updateDefault else colors.textMuted,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "Submit",
+                                    style = typography.caption.copy(
+                                        fontWeight = if (isSubmitTab) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSubmitTab) colors.primary else colors.textMuted,
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Question Body or Submit Summary
+                if (currentTab == questions.size && !isSingleQuestion) {
+                    // Summary tab
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "Ready to submit answers:",
+                            style = typography.caption.copy(fontWeight = FontWeight.SemiBold, color = colors.textTitle),
+                        )
+                        questions.forEach { q ->
+                            val ans = answers[q.id]
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(colors.inputBackground, RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    q.label ?: q.prompt.take(24),
+                                    style = typography.caption.copy(color = colors.textBody),
+                                )
+                                Text(
+                                    ans ?: "Not selected (Auto)",
+                                    style = typography.caption.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (ans != null) colors.primary else colors.textMuted,
+                                    ),
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            Button(
+                                onClick = {
+                                    val summary = questions.joinToString("\n") { q ->
+                                        val ans = answers[q.id] ?: "auto decide"
+                                        "${q.label ?: q.id}: $ans"
+                                    }
+                                    onAnswer(summary)
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.cursorHand().height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    backgroundColor = colors.primary,
+                                    contentColor = Color.White,
+                                ),
+                            ) {
+                                Icon(Lucide.CircleCheck, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Submit All", style = typography.caption.copy(fontWeight = FontWeight.SemiBold))
+                            }
+                        }
+                    }
+                } else {
+                    val currentQuestion = questions.getOrNull(currentTab) ?: questions.first()
+
+                    // Prompt text
+                    SelectableContainer {
+                        Text(
+                            currentQuestion.prompt,
+                            style = typography.body2.copy(
+                                color = colors.textTitle,
+                                lineHeight = typography.body2.fontSize * 1.45f,
+                            ),
+                        )
+                    }
+
+                    var inputMode by remember(currentQuestion.id) { mutableStateOf(false) }
+                    var customInput by remember(currentQuestion.id) { mutableStateOf("") }
+
+                    val allOptions = remember(currentQuestion) {
+                        val list = currentQuestion.options.toMutableList()
+                        if (currentQuestion.allowOther) {
+                            list.add(
+                                QuestionnaireOption(
+                                    label = "Type something.",
+                                    value = "__other__",
+                                    description = "Write a custom answer or instruction",
+                                )
+                            )
+                        }
+                        list
+                    }
+
+                    // Options List
+                    if (allOptions.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            allOptions.forEachIndexed { optIndex, opt ->
+                                val isOther = opt.value == "__other__"
+                                val isSelected = answers[currentQuestion.id] == opt.resolvedValue()
+
+                                if (isOther && inputMode) {
+                                    // Expanded custom input card
+                                    Surface(
+                                        color = colors.inputBackground,
+                                        shape = RoundedCornerShape(8.dp),
+                                        border = BorderStroke(1.dp, colors.primary),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(20.dp)
+                                                        .clip(CircleShape)
+                                                        .background(colors.primary),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Text(
+                                                        (optIndex + 1).toString(),
+                                                        style = typography.caption.copy(
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color.White,
+                                                        ),
+                                                    )
+                                                }
+                                                Text(
+                                                    "Type something.",
+                                                    style = typography.caption.copy(
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = colors.primary,
+                                                    ),
+                                                )
+                                            }
+
+                                                fun submitCustomInput() {
+                                                    if (customInput.isNotBlank()) {
+                                                        val text = customInput.trim()
+                                                        answers[currentQuestion.id] = text
+                                                        inputMode = false
+                                                        if (isSingleQuestion) {
+                                                            onAnswer("${currentQuestion.label ?: "Question"}: user wrote: $text")
+                                                        } else {
+                                                            if (currentTab < questions.size - 1) {
+                                                                currentTab++
+                                                            } else {
+                                                                currentTab = questions.size
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                ) {
+                                                    DialogTextField(
+                                                        value = customInput,
+                                                        onValueChange = { customInput = it },
+                                                        placeholder = "Type your response here...",
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .onPreviewKeyEvent { event ->
+                                                                if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                                                                    submitCustomInput()
+                                                                    true
+                                                                } else {
+                                                                    false
+                                                                }
+                                                            },
+                                                    )
+                                                    Button(
+                                                        onClick = { submitCustomInput() },
+                                                        enabled = customInput.isNotBlank(),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        modifier = Modifier.cursorHand().height(32.dp),
+                                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                                        colors = ButtonDefaults.buttonColors(
+                                                        backgroundColor = colors.primary,
+                                                        contentColor = Color.White,
+                                                    ),
+                                                ) {
+                                                    Text("Submit", style = typography.caption.copy(fontWeight = FontWeight.SemiBold))
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    OptionCard(
+                                        index = optIndex + 1,
+                                        label = opt.label,
+                                        description = opt.description,
+                                        selected = isSelected,
+                                        onClick = {
+                                            if (isOther) {
+                                                inputMode = true
+                                            } else {
+                                                val answerValue = opt.resolvedValue()
+                                                answers[currentQuestion.id] = answerValue
+                                                if (isSingleQuestion) {
+                                                    val formatted = if (opt.value != null && opt.value != opt.label) {
+                                                        "${currentQuestion.label ?: "Question"}: user selected: ${optIndex + 1}. ${opt.label} (${opt.value})"
+                                                    } else {
+                                                        "${currentQuestion.label ?: "Question"}: user selected: ${optIndex + 1}. ${opt.label}"
+                                                    }
+                                                    onAnswer(formatted)
+                                                } else {
+                                                    if (currentTab < questions.size - 1) {
+                                                        currentTab++
+                                                    } else {
+                                                        currentTab = questions.size
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionCard(
+    index: Int,
+    label: String,
+    description: String? = null,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
+    var isHovered by remember { mutableStateOf(false) }
+
+    val bg = when {
+        selected -> colors.primarySubtle
+        isHovered -> colors.inputBackground
+        else -> colors.surface
+    }
+    val borderColor = when {
+        selected -> colors.primary
+        isHovered -> colors.primary.copy(alpha = 0.6f)
+        else -> colors.borderDefault
+    }
+
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier
+            .fillMaxWidth()
+            .cursorHand()
+            .onHover { isHovered = it }
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Index badge
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) colors.primary else colors.inputBackground),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    index.toString(),
+                    style = typography.caption.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (selected) Color.White else colors.textBody,
+                    ),
+                )
+            }
+
+            // Text
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    label,
+                    style = typography.body2.copy(
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selected) colors.primary else colors.textTitle,
+                    ),
+                )
+                if (!description.isNullOrBlank()) {
+                    Text(
+                        description,
+                        style = typography.caption.copy(
+                            color = colors.textMuted,
+                            lineHeight = typography.caption.fontSize * 1.35f,
+                        ),
+                    )
+                }
+            }
+
+            if (selected) {
+                Icon(
+                    Lucide.CircleCheck,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = colors.primary,
+                )
+            }
+        }
     }
 }
 
@@ -269,7 +764,16 @@ private fun SaveToBucketDialog(
                             value = appName,
                             onValueChange = onAppNameChange,
                             placeholder = "e.g. ripgrep",
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                                        if (appName.isNotBlank()) onConfirm()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                },
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
@@ -374,6 +878,8 @@ private fun SaveToBucketDialog(
 @Composable
 private fun CreateTopBar(
     running: Boolean,
+    canReset: Boolean,
+    onReset: () -> Unit,
     onOpenAiSettings: () -> Unit,
 ) {
     Row(
@@ -402,6 +908,32 @@ private fun CreateTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (canReset) {
+                OutlinedButton(
+                    onClick = onReset,
+                    modifier = Modifier.cursorHand().height(32.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, colors.borderDefault),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textBody),
+                    elevation = null,
+                ) {
+                    Icon(
+                        Lucide.Plus,
+                        contentDescription = "New Session",
+                        modifier = Modifier.size(15.dp),
+                        tint = colors.textBody,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "New Session",
+                        style = typography.caption.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = colors.textBody,
+                        ),
+                    )
+                }
+            }
             StatusPill(running = running)
             TextButton(
                 onClick = onOpenAiSettings,
@@ -576,6 +1108,9 @@ private fun ChatWorkspace(
     onRegenerate: () -> Unit,
     onGoToDiscover: () -> Unit,
     onDismissSaveResult: () -> Unit,
+    onAnswerAskUser: (String) -> Unit,
+    onCancelAskUser: () -> Unit,
+    onFixFromTestFailure: (summary: String, logTail: String) -> Unit,
     onAction: (AiErrorAction) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -605,6 +1140,15 @@ private fun ChatWorkspace(
                         onAction = onAction,
                     )
                 }
+                state.askUserRequest?.let { request ->
+                    item(key = "ask-user-bubble-${request.id}") {
+                        AskUserBubble(
+                            request = request,
+                            onAnswer = onAnswerAskUser,
+                            onCancel = onCancelAskUser,
+                        )
+                    }
+                }
                 if (state.manifestJson.isNotBlank()) {
                     item(key = "manifest-card") {
                         ManifestPreviewCard(
@@ -612,6 +1156,7 @@ private fun ChatWorkspace(
                             manifestJson = state.manifestJson,
                             enabled = !state.running && !state.testing,
                             testing = state.testing,
+                            running = state.running,
                             issues = state.manifestIssues,
                             exhausted = state.manifestExhausted,
                             invalidJson = state.manifestInvalidJson,
@@ -623,7 +1168,10 @@ private fun ChatWorkspace(
                     }
                     state.testResult?.let { result ->
                         item(key = "test-result-panel") {
-                            TestResultPanel(result)
+                            TestResultPanel(
+                                result = result,
+                                onFixWithAi = onFixFromTestFailure,
+                            )
                         }
                     }
                     state.saveResult?.let { result ->
@@ -917,6 +1465,7 @@ private fun ManifestPreviewCard(
     manifestJson: String,
     enabled: Boolean,
     testing: Boolean,
+    running: Boolean = false,
     issues: List<String> = emptyList(),
     exhausted: Boolean = false,
     invalidJson: Boolean = false,
@@ -956,11 +1505,13 @@ private fun ManifestPreviewCard(
                     )
                     val hasNameConflictOnly = isNameConflictOnly(issues, invalidJson)
                     val statusColor = when {
+                        running -> colors.primary
                         testing -> colors.primary
                         hasNameConflictOnly || exhausted || invalidJson -> colors.warningDefault
                         else -> colors.updateDefault
                     }
                     val statusText = when {
+                        running -> "Updating"
                         testing -> "Installing"
                         hasNameConflictOnly -> "Notice"
                         exhausted || invalidJson -> "Issues"
@@ -1112,7 +1663,10 @@ private fun ManifestPreviewCard(
 }
 
 @Composable
-private fun TestResultPanel(result: TestResult) {
+private fun TestResultPanel(
+    result: TestResult,
+    onFixWithAi: ((summary: String, logTail: String) -> Unit)? = null,
+) {
     val accent = if (result.success) colors.updateDefault else colors.dangerDefault
     val icon = if (result.success) Lucide.CircleCheck else Lucide.CircleX
     var expanded by remember { mutableStateOf(false) }
@@ -1180,18 +1734,56 @@ private fun TestResultPanel(result: TestResult) {
 
             if (result.log.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
-                TextButton(
-                    onClick = { expanded = !expanded },
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.cursorLink().height(28.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        if (expanded) "Hide log" else "View log",
-                        style = typography.caption.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            color = accent,
-                        ),
-                    )
+                    TextButton(
+                        onClick = { expanded = !expanded },
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.cursorLink().height(28.dp),
+                    ) {
+                        Text(
+                            if (expanded) "Hide log" else "View log",
+                            style = typography.caption.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = accent,
+                            ),
+                        )
+                    }
+                    if (!result.success && onFixWithAi != null) {
+                        Button(
+                            onClick = {
+                                val summary = result.errorMessage ?: "Test install failed"
+                                val logTail = result.log.takeLast(1000)
+                                onFixWithAi(summary, logTail)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = colors.dangerDefault,
+                                contentColor = Color.White,
+                            ),
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier.cursorHand().height(28.dp),
+                            elevation = null,
+                        ) {
+                            Icon(
+                                Lucide.RefreshCw,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = Color.White,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Ask AI to fix",
+                                style = typography.caption.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                ),
+                            )
+                        }
+                    }
                 }
                 AnimatedVisibility(
                     visible = expanded,
@@ -1220,6 +1812,42 @@ private fun TestResultPanel(result: TestResult) {
                                     .padding(10.dp),
                             )
                         }
+                    }
+                }
+            } else if (!result.success && onFixWithAi != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    Button(
+                        onClick = {
+                            val summary = result.errorMessage ?: "Test install failed"
+                            onFixWithAi(summary, "")
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            backgroundColor = colors.dangerDefault,
+                            contentColor = Color.White,
+                        ),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.cursorHand().height(28.dp),
+                        elevation = null,
+                    ) {
+                        Icon(
+                            Lucide.RefreshCw,
+                            contentDescription = null,
+                            modifier = Modifier.size(13.dp),
+                            tint = Color.White,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Ask AI to fix",
+                            style = typography.caption.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                            ),
+                        )
                     }
                 }
             }
@@ -1442,29 +2070,26 @@ private fun Composer(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Local state avoids Orbit intent race: Send can fire before reduce applies inputUrl/inputNote.
-    var urlText by remember { mutableStateOf(state.inputUrl) }
-    var noteText by remember { mutableStateOf(state.inputNote) }
-    var urlFocused by remember { mutableStateOf(false) }
-    var noteFocused by remember { mutableStateOf(false) }
-    val focused = urlFocused || noteFocused
+    var inputText by remember { mutableStateOf(state.inputNote.ifBlank { state.inputUrl }) }
+    var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
-    // Sync when external state is cleared/rewritten (e.g. after successful startGeneration)
-    LaunchedEffect(state.inputUrl) {
-        if (state.inputUrl != urlText && !urlFocused) {
-            urlText = state.inputUrl
-        }
-    }
-    LaunchedEffect(state.inputNote) {
-        if (state.inputNote != noteText && !noteFocused) {
-            noteText = state.inputNote
+    LaunchedEffect(state.inputNote, state.inputUrl) {
+        val latest = state.inputNote.ifBlank { state.inputUrl }
+        if (latest.isEmpty()) {
+            inputText = ""
+        } else if (latest != inputText && !focused) {
+            inputText = latest
         }
     }
 
     fun submit() {
-        if (state.running) return
-        onSend(urlText, noteText)
+        if (state.running || state.testing || inputText.isBlank()) return
+        val text = inputText.trim()
+        inputText = ""
+        onUrlChange("")
+        onNoteChange("")
+        onSend(text, text)
     }
 
     Column(
@@ -1491,24 +2116,38 @@ private fun Composer(
                 .background(colors.surface),
         ) {
             BasicTextField(
-                value = urlText,
+                value = inputText,
                 onValueChange = { value ->
-                    urlText = value
+                    inputText = value
                     onUrlChange(value)
+                    onNoteChange(value)
                 },
-                enabled = !state.running,
-                singleLine = true,
+                enabled = !state.running && !state.testing,
+                singleLine = false,
+                maxLines = 6,
                 textStyle = typography.body2.copy(
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.Normal,
                     color = colors.textTitle,
+                    lineHeight = 20.sp,
                 ),
                 cursorBrush = SolidColor(colors.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { submit() }),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 44.dp)
+                    .heightIn(min = 46.dp, max = 150.dp)
                     .focusRequester(focusRequester)
-                    .onFocusChanged { urlFocused = it.isFocused },
+                    .onFocusChanged { focused = it.isFocused }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter &&
+                            !event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed
+                        ) {
+                            submit()
+                            true
+                        } else {
+                            false
+                        }
+                    },
                 decorationBox = { inner ->
                     Box(
                         modifier = Modifier
@@ -1516,59 +2155,18 @@ private fun Composer(
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
-                        if (urlText.isEmpty()) {
+                        if (inputText.isEmpty()) {
+                            val placeholderText = if (state.manifestJson.isNotBlank()) {
+                                "Ask AI to modify this manifest (e.g. remove notes, add shortcuts)..."
+                            } else {
+                                "Enter GitHub URL (e.g. https://github.com/owner/repo)..."
+                            }
                             Text(
-                                "https://github.com/owner/repo",
+                                placeholderText,
                                 style = typography.body2.copy(color = colors.textPlaceholder),
-                            )
-                        }
-                        inner()
-                    }
-                },
-            )
-            val dividerColor = colors.borderDefault
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp)
-                    .height(1.dp),
-            ) {
-                val strokeWidth = 1.dp.toPx()
-                drawLine(
-                    color = dividerColor,
-                    start = Offset(0f, size.height / 2f),
-                    end = Offset(size.width, size.height / 2f),
-                    strokeWidth = strokeWidth,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-                )
-            }
-            BasicTextField(
-                value = noteText,
-                onValueChange = { value ->
-                    noteText = value
-                    onNoteChange(value)
-                },
-                enabled = !state.running,
-                singleLine = true,
-                textStyle = typography.body2.copy(color = colors.textTitle),
-                cursorBrush = SolidColor(colors.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { submit() }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 40.dp)
-                    .onFocusChanged { noteFocused = it.isFocused },
-                decorationBox = { inner ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        if (noteText.isEmpty()) {
-                            Text(
-                                "Optional note (e.g. prefer portable zip, GUI app)...",
-                                style = typography.body2.copy(color = colors.textPlaceholder),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = false,
                             )
                         }
                         inner()
@@ -1588,7 +2186,7 @@ private fun Composer(
                 loading = state.fetchingModels,
                 onModelChange = onModelChange,
                 onFetchModels = onFetchModels,
-                enabled = !state.running,
+                enabled = !state.running && !state.testing,
             )
 
             Row(
@@ -1623,7 +2221,7 @@ private fun Composer(
                 } else {
                     Button(
                         onClick = { submit() },
-                        enabled = urlText.isNotBlank(),
+                        enabled = !state.testing && inputText.isNotBlank(),
                         modifier = Modifier.cursorHand().height(34.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),

@@ -2,6 +2,7 @@ package scooper.service
 
 import com.scoopai.core.ManifestResult
 import com.scoopai.tools.DefaultScoopAiFactory
+import com.scoopai.tools.DefaultToolRegistryFactory
 import com.scoopai.tools.ScoopAiConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +111,25 @@ class ScoopAiBridge(
         )
     }
 
+    private fun createGenerator(
+        settings: AiSettingsSnapshot,
+        onPhase: ((String) -> Unit)?,
+        onPhaseOutput: ((String, String) -> Unit)?,
+        onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)?,
+        onAskUser: (suspend (String) -> String)?,
+        onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
+    ) = DefaultScoopAiFactory.createGenerator(
+        config = toScoopAiConfig(settings),
+        onPhase = onPhase,
+        onPhaseOutput = { phase, output ->
+            checkpointService.update(phase, output)
+            onPhaseOutput?.invoke(phase, output)
+        },
+        onToolActivity = onToolActivity,
+        askUserHandler = onAskUser,
+        questionnaireHandler = onQuestionnaire,
+    )
+
     /**
      * Start generation on the bridge IO scope. Previous job is cancelled.
      * [onPhase] and [onFinished] may be invoked from a background thread.
@@ -129,6 +149,8 @@ class ScoopAiBridge(
         onPhase: (String) -> Unit,
         onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)? = null,
         onPhaseOutput: ((String, String) -> Unit)? = null,
+        onAskUser: (suspend (String) -> String)? = null,
+        onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
         generateJob?.cancel()
@@ -162,14 +184,13 @@ class ScoopAiBridge(
                     null
                 }
 
-                val generator = DefaultScoopAiFactory.createGenerator(
-                    config = toScoopAiConfig(settings),
+                val generator = createGenerator(
+                    settings = settings,
                     onPhase = onPhase,
-                    onPhaseOutput = { phase, output ->
-                        checkpointService.update(phase, output)
-                        onPhaseOutput?.invoke(phase, output)
-                    },
+                    onPhaseOutput = onPhaseOutput,
                     onToolActivity = onToolActivity,
+                    onAskUser = onAskUser,
+                    onQuestionnaire = onQuestionnaire,
                 )
                 logger.info("Scoop AI generate start: $url")
                 val result = generator.generate(url = url, userPrompt = userPrompt, resumeData = resumeData)
@@ -178,8 +199,68 @@ class ScoopAiBridge(
                 onFinished(Result.failure(e))
                 throw e
             } catch (e: Exception) {
-                logger.error("Scoop AI generate failed: ${e.message}")
+                logger.error("Scoop AI generate failed: ${e.message}", e)
                 onFinished(Result.failure(e))
+            } finally {
+                DefaultToolRegistryFactory.cleanup()
+            }
+        }
+    }
+
+    /**
+     * Start an asynchronous manifest refinement run using an existing manifest
+     * and user instructions, skipping research and analyze phases.
+     */
+    fun startRefine(
+        currentManifest: String,
+        instruction: String,
+        history: List<String> = emptyList(),
+        suggestedAppName: String? = null,
+        overrideModel: String? = null,
+        onPhase: ((String) -> Unit)? = null,
+        onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)? = null,
+        onPhaseOutput: ((String, String) -> Unit)? = null,
+        onAskUser: (suspend (String) -> String)? = null,
+        onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)? = null,
+        onFinished: (Result<ManifestResult>) -> Unit,
+    ) {
+        generateJob?.cancel()
+        generateJob = scope.launch {
+            try {
+                val rawSettings = readSettings()
+                val settings = if (!overrideModel.isNullOrBlank()) {
+                    rawSettings.copy(model = overrideModel.trim())
+                } else rawSettings
+                val missing = settings.missingReason()
+                if (missing != null) {
+                    onFinished(Result.failure(IllegalStateException(missing)))
+                    return@launch
+                }
+
+                val generator = createGenerator(
+                    settings = settings,
+                    onPhase = onPhase,
+                    onPhaseOutput = onPhaseOutput,
+                    onToolActivity = onToolActivity,
+                    onAskUser = onAskUser,
+                    onQuestionnaire = onQuestionnaire,
+                )
+                logger.info("Scoop AI refine start: $instruction (history=${history.size})")
+                val result = generator.refine(
+                    manifestJson = currentManifest,
+                    instruction = instruction,
+                    history = history,
+                    suggestedAppName = suggestedAppName,
+                )
+                onFinished(Result.success(result))
+            } catch (e: CancellationException) {
+                onFinished(Result.failure(e))
+                throw e
+            } catch (e: Exception) {
+                logger.error("Scoop AI refine failed: ${e.message}", e)
+                onFinished(Result.failure(e))
+            } finally {
+                DefaultToolRegistryFactory.cleanup()
             }
         }
     }

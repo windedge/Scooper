@@ -2,6 +2,7 @@ package scooper.viewmodels
 
 import com.scoopai.core.ManifestResult
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -82,6 +83,44 @@ data class SaveResult(
     val gitHint: SaveGitHint? = null,
 )
 
+data class QuestionnaireOption(
+    val label: String,
+    val value: String? = null,
+    val description: String? = null,
+) {
+    fun resolvedValue(): String = value?.ifBlank { null } ?: label
+}
+
+data class QuestionnaireQuestion(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val label: String? = null,
+    val prompt: String,
+    val options: List<QuestionnaireOption> = emptyList(),
+    val allowOther: Boolean = true,
+)
+
+data class AskUserRequest(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val questions: List<QuestionnaireQuestion>,
+) {
+    val question: String get() = questions.firstOrNull()?.prompt.orEmpty()
+
+    val isDownloadPrompt: Boolean
+        get() = questions.firstOrNull()?.let { q ->
+            q.id == "download_confirm" ||
+                q.prompt.contains("download", ignoreCase = true) ||
+                q.prompt.contains("installer/archive", ignoreCase = true)
+        } == true
+
+    constructor(question: String) : this(
+        questions = listOf(
+            QuestionnaireQuestion(
+                prompt = question,
+            )
+        )
+    )
+}
+
 data class CreateState(
     val messages: List<ChatMessage> = emptyList(),
     val inputUrl: String = "",
@@ -122,8 +161,10 @@ data class CreateState(
     val availableModels: List<String> = emptyList(),
     /** True while fetching available models. */
     val fetchingModels: Boolean = false,
+    /** Pending user question from the AskUser tool during generation. */
+    val askUserRequest: AskUserRequest? = null,
 ) {
-    val isEmpty: Boolean get() = messages.isEmpty()
+    val isEmpty: Boolean get() = messages.isEmpty() && manifestJson.isBlank() && !running
 }
 
 class CreateViewModel(
@@ -137,6 +178,7 @@ class CreateViewModel(
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var refineAttemptCount = 0
+    private var askUserDeferred: CompletableDeferred<String>? = null
     private val activityChannel = kotlinx.coroutines.channels.Channel<com.scoopai.core.ToolActivity>(
         kotlinx.coroutines.channels.Channel.UNLIMITED,
     )
@@ -233,21 +275,57 @@ class CreateViewModel(
         }
     }
 
+    fun onInputChange(text: String) = intent {
+        reduce { state.copy(inputUrl = text, inputNote = text, error = null) }
+    }
+
     fun onUrlChange(url: String) = intent {
-        reduce { state.copy(inputUrl = url, error = null) }
+        reduce { state.copy(inputUrl = url, inputNote = url, error = null) }
     }
 
     fun onNoteChange(note: String) = intent {
-        reduce { state.copy(inputNote = note) }
+        reduce { state.copy(inputNote = note, inputUrl = note, error = null) }
     }
 
-    fun onSend(url: String? = null, note: String? = null) = intent {
+    fun onSend(input: String? = null, url: String? = null, note: String? = null) = intent {
+        if (state.running || state.testing) return@intent
+        val text = (input ?: note ?: url ?: state.inputUrl).trim()
+        if (text.isBlank()) return@intent
+
+        reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
+
+        if (isRefineRequest(
+                hasExistingManifest = state.manifestJson.isNotBlank(),
+                lastUrl = state.lastUrl,
+                inputUrl = text,
+                inputNote = text,
+            )
+        ) {
+            val instruction = resolveRefineInstruction(text, text)
+            startRefineInternal(instruction)
+        } else {
+            val (derivedUrl, derivedNote) = GithubUrlParser.extract(text)
+            startGeneration(rawUrlInput = derivedUrl.orEmpty(), noteInput = derivedNote)
+        }
+    }
+
+    fun startRefine(instruction: String) = intent {
         if (state.running) return@intent
-        val rawUrl = url ?: state.inputUrl
-        val rawNote = note ?: state.inputNote
-        // Keep state in sync so regenerate / future reads see the latest values
-        reduce { state.copy(inputUrl = rawUrl, inputNote = rawNote, error = null) }
-        startGeneration(rawUrlInput = rawUrl, noteInput = rawNote)
+        startRefineInternal(instruction)
+    }
+
+    fun onReset() = intent {
+        scoopAiBridge.cancel()
+        checkpointService.reset()
+        refineAttemptCount = 0
+        reduce {
+            CreateState(
+                selectedModel = state.selectedModel,
+                availableModels = state.availableModels,
+                aiConfigured = state.aiConfigured,
+                configHint = state.configHint,
+            )
+        }
     }
 
     /**
@@ -290,14 +368,41 @@ class CreateViewModel(
         startGeneration(rawUrlInput = url, noteInput = state.lastNote)
     }
 
+    fun onAnswerAskUser(answer: String) = intent {
+        val text = answer.trim()
+        val response = text.ifBlank { DEFAULT_AUTONOMOUS_PROCEED_ANSWER }
+        val isDownload = state.askUserRequest?.isDownloadPrompt == true
+        val userBubbleText = resolveAskUserBubbleText(response, isDownload)
+        reduce {
+            state.copy(
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = userBubbleText),
+                askUserRequest = null,
+            )
+        }
+        askUserDeferred?.complete(response)
+    }
+
+    fun onCancelAskUser() = intent {
+        reduce {
+            state.copy(
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = "Let AI decide"),
+                askUserRequest = null,
+            )
+        }
+        askUserDeferred?.complete(DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
+    }
+
     fun onCancel() = intent {
         if (!state.running) return@intent
+        askUserDeferred?.complete(DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
+        askUserDeferred = null
         scoopAiBridge.cancel()
         reduce {
             state.copy(
                 running = false,
                 currentPhase = null,
                 currentActivity = null,
+                askUserRequest = null,
                 messages = state.messages + agentMessage("Generation cancelled by user.", "error"),
             )
         }
@@ -418,6 +523,19 @@ class CreateViewModel(
                 )
             }
         }
+    }
+
+    fun onFixFromTestFailure(summary: String, logTail: String) = intent {
+        val prompt = buildString {
+            appendLine("The test install for manifest failed. Please fix the manifest according to the test failure:")
+            appendLine("Error summary: $summary")
+            val cleanLog = logTail.trim()
+            if (cleanLog.isNotBlank()) {
+                appendLine("Install log excerpt:")
+                appendLine(cleanLog.takeLast(1000))
+            }
+        }.trim()
+        onSend(input = prompt)
     }
 
     fun onSave() = intent {
@@ -711,8 +829,8 @@ class CreateViewModel(
                 manifestIssues = emptyList(),
                 aiConfigured = true,
                 configHint = null,
-                inputUrl = urlFromField,
-                inputNote = noteInput,
+                inputUrl = "",
+                inputNote = "",
             )
         }
 
@@ -726,15 +844,127 @@ class CreateViewModel(
             onPhase = { phase -> handlePhase(phase) },
             onToolActivity = { act -> activityChannel.trySend(act) },
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
+            onAskUser = { question -> handleAskUser(question) },
+            onQuestionnaire = { questions -> handleQuestionnaire(questions) },
+            onFinished = { result -> handleFinished(result) },
+        )
+    }
+
+    private suspend fun handleQuestionnaire(questions: List<com.scoopai.tools.interaction.Question>): String {
+        val deferred = CompletableDeferred<String>()
+        askUserDeferred = deferred
+        val domainQuestions = questions.map { q ->
+            QuestionnaireQuestion(
+                id = q.id,
+                label = q.label,
+                prompt = q.prompt,
+                options = q.options.map { o ->
+                    QuestionnaireOption(label = o.label, value = o.value, description = o.description)
+                },
+                allowOther = q.allowOther,
+            )
+        }
+        intent {
+            reduce {
+                state.copy(
+                    askUserRequest = AskUserRequest(questions = domainQuestions),
+                )
+            }
+        }
+        return try {
+            deferred.await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            DEFAULT_AUTONOMOUS_PROCEED_ANSWER
+        } finally {
+            askUserDeferred = null
+            intent {
+                reduce {
+                    state.copy(askUserRequest = null)
+                }
+            }
+        }
+    }
+
+    private suspend fun handleAskUser(question: String): String {
+        return handleQuestionnaire(
+            listOf(
+                com.scoopai.tools.interaction.Question(
+                    prompt = question,
+                )
+            )
+        )
+    }
+
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startRefineInternal(instruction: String) {
+        val text = instruction.trim()
+        if (text.isBlank()) return
+        val currentManifest = state.manifestJson
+        if (currentManifest.isBlank()) {
+            postSideEffect(AppSideEffect.Toast("No manifest to refine. Generate one first.", ToastType.ERROR))
+            return
+        }
+
+        val missing = scoopAiBridge.readSettings().missingReason()
+        if (missing != null) {
+            reduce {
+                state.copy(
+                    aiConfigured = false,
+                    configHint = missing,
+                    error = missing,
+                )
+            }
+            postSideEffect(AppSideEffect.Toast(missing, ToastType.ERROR))
+            return
+        }
+
+        refineAttemptCount++
+        val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(
+            phase = "refine",
+            appName = state.suggestedAppName,
+            refineAttempt = refineAttemptCount,
+        )
+
+        val userHistory = extractUserHistory(state.messages)
+
+        reduce {
+            state.copy(
+                messages = state.messages +
+                    ChatMessage(role = ChatRole.User, text = text) +
+                    agentMessage(startPhaseTitle, "refine"),
+                running = true,
+                currentPhase = "refine",
+                inputUrl = "",
+                inputNote = "",
+                testResult = null,
+                saveResult = null,
+                manifestIssues = emptyList(),
+                manifestExhausted = false,
+                manifestInvalidJson = false,
+                currentActivity = null,
+                error = null,
+            )
+        }
+
+        val modelToUse = state.selectedModel
+        scoopAiBridge.startRefine(
+            currentManifest = currentManifest,
+            instruction = text,
+            history = userHistory,
+            suggestedAppName = state.suggestedAppName,
+            overrideModel = modelToUse,
+            onPhase = { phase -> handlePhase(phase) },
+            onToolActivity = { act -> activityChannel.trySend(act) },
+            onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
+            onAskUser = { question -> handleAskUser(question) },
+            onQuestionnaire = { questions -> handleQuestionnaire(questions) },
             onFinished = { result -> handleFinished(result) },
         )
     }
 
     private fun handlePhase(phase: String) = intent {
         if (!state.running) return@intent
-        if (phase.equals("refine", ignoreCase = true)) {
-            refineAttemptCount++
-        }
         val titleText = PhaseSummaryFormatter.formatPhaseStart(
             phase = phase,
             appName = state.suggestedAppName,
@@ -1155,4 +1385,69 @@ internal fun formatForBucket(json: String): String {
         .joinToString("\n") { it.replace(trailingWsRegex, "") }
         .replace("\n", "\r\n")
     return normalized.trimEnd('\r', '\n') + "\r\n"
+}
+
+internal const val DEFAULT_AUTONOMOUS_PROCEED_ANSWER = "Please make your best judgment and proceed autonomously."
+
+private val IGNORED_HISTORY_TEXTS = setOf(
+    "Download confirmed",
+    "Download skipped",
+    "Let AI decide",
+)
+
+internal fun resolveAskUserBubbleText(response: String, isDownloadPrompt: Boolean): String {
+    if (!isDownloadPrompt) return response
+    return when {
+        response.equals("yes", ignoreCase = true) || response.contains("proceed", ignoreCase = true) -> "Download confirmed"
+        response.equals("no", ignoreCase = true) || response.contains("cancel", ignoreCase = true) || response.contains("skip", ignoreCase = true) -> "Download skipped"
+        else -> response
+    }
+}
+
+internal fun extractUserHistory(messages: List<ChatMessage>): List<String> =
+    messages.filter { it.role == ChatRole.User && it.text.isNotBlank() }
+        .mapNotNull { msg ->
+            if (msg.text in IGNORED_HISTORY_TEXTS || msg.text.startsWith("Question:")) {
+                null
+            } else if (!msg.note.isNullOrBlank()) {
+                "${msg.text} (Requirements: ${msg.note})"
+            } else {
+                msg.text
+            }
+        }
+
+internal fun isLikelyUrl(text: String): Boolean {
+    val trimmed = text.trim()
+    return trimmed.startsWith("http://", ignoreCase = true) ||
+        trimmed.startsWith("https://", ignoreCase = true) ||
+        trimmed.startsWith("github.com/", ignoreCase = true)
+}
+
+/**
+ * Determines whether a send action is a refine request (incremental modification)
+ * or a fresh generation.
+ */
+internal fun isRefineRequest(
+    hasExistingManifest: Boolean,
+    lastUrl: String,
+    inputUrl: String,
+    inputNote: String,
+): Boolean {
+    if (!hasExistingManifest) return false
+    val rawUrl = inputUrl.trim()
+    val rawNote = inputNote.trim()
+    if (rawNote.isNotBlank() && (rawUrl.isBlank() || rawUrl == lastUrl)) return true
+    if (!isLikelyUrl(rawUrl) && rawUrl.isNotBlank()) return true
+    return false
+}
+
+internal fun resolveRefineInstruction(
+    inputUrl: String,
+    inputNote: String,
+): String {
+    val rawNote = inputNote.trim()
+    if (rawNote.isNotBlank()) return rawNote
+    val rawUrl = inputUrl.trim()
+    if (!isLikelyUrl(rawUrl) && rawUrl.isNotBlank()) return rawUrl
+    return ""
 }
