@@ -121,6 +121,137 @@ data class AskUserRequest(
     )
 }
 
+enum class RevisionSource {
+    INITIAL_GENERATE,
+    REFINE,
+    TEST_FIX,
+    REVERT,
+}
+
+data class ManifestRevision(
+    val id: String = UUID.randomUUID().toString(),
+    val revisionNumber: Int,
+    val timestamp: Long = System.currentTimeMillis(),
+    val source: RevisionSource,
+    val instruction: String? = null,
+    val manifestJson: String,
+    val diffSummary: List<String> = emptyList(),
+)
+
+data class ReviewActionChip(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val label: String,
+    val prompt: String,
+    val isPrimary: Boolean = false,
+)
+
+fun extractReviewActionChips(
+    issues: List<String>,
+    invalidJson: Boolean,
+    testResult: TestResult? = null,
+): List<ReviewActionChip> {
+    val chips = mutableListOf<ReviewActionChip>()
+
+    if (testResult != null && !testResult.success) {
+        val summary = testResult.errorMessage?.lineSequence()?.firstOrNull()?.take(80) ?: "Installation check failed"
+        val logTail = testResult.log.lines().takeLast(15).joinToString("\n")
+        val fixPrompt = "The test installation failed with error: $summary\nInstallation log output:\n$logTail\nPlease analyze the failure and adjust the manifest (such as extract_dir, pre_install, installer script, or url fragment) to fix the installation error."
+        chips.add(
+            ReviewActionChip(
+                id = "test_fix",
+                label = "⚡ Fix install failure",
+                prompt = fixPrompt,
+                isPrimary = true,
+            )
+        )
+    }
+
+    if (invalidJson) {
+        chips.add(
+            ReviewActionChip(
+                id = "fix_json",
+                label = "Fix JSON syntax",
+                prompt = "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON.",
+                isPrimary = chips.isEmpty(),
+            )
+        )
+    }
+
+    for (issue in issues) {
+        val lower = issue.lowercase()
+        when {
+            lower.contains("conflict") || lower.contains("already exists") || lower.contains("name conflict") -> {
+                if (chips.none { it.id == "fix_name_conflict" }) {
+                    chips.add(
+                        ReviewActionChip(
+                            id = "fix_name_conflict",
+                            label = "Fix name conflict",
+                            prompt = "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name.",
+                        )
+                    )
+                }
+            }
+            lower.contains("persist") -> {
+                if (chips.none { it.id == "fix_persist" }) {
+                    chips.add(
+                        ReviewActionChip(
+                            id = "fix_persist",
+                            label = "Fix persist paths",
+                            prompt = "Ensure all persist paths are relative to \$dir without ~, absolute paths, or environment variables. Remove any invalid persist paths.",
+                        )
+                    )
+                }
+            }
+            lower.contains("license") || lower.contains("spdx") -> {
+                if (chips.none { it.id == "fix_license" }) {
+                    chips.add(
+                        ReviewActionChip(
+                            id = "fix_license",
+                            label = "Fix license",
+                            prompt = "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT).",
+                        )
+                    )
+                }
+            }
+            lower.contains("extract_dir") -> {
+                if (chips.none { it.id == "fix_extract_dir" }) {
+                    chips.add(
+                        ReviewActionChip(
+                            id = "fix_extract_dir",
+                            label = "Fix extract_dir",
+                            prompt = "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install.",
+                        )
+                    )
+                }
+            }
+            lower.contains("description") -> {
+                if (chips.none { it.id == "fix_description" }) {
+                    chips.add(
+                        ReviewActionChip(
+                            id = "fix_description",
+                            label = "Improve description",
+                            prompt = "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff).",
+                        )
+                    )
+                }
+            }
+            lower.contains("autoupdate") || lower.contains("checkver") -> {
+                if (chips.none { it.id == "fix_autoupdate" }) {
+                    chips.add(
+                        ReviewActionChip(
+                            id = "fix_autoupdate",
+                            label = "Fix autoupdate/checkver",
+                            prompt = "Fix autoupdate and checkver configuration to ensure correct \$version placeholders and reliable regex matching.",
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    return chips
+}
+
 data class CreateState(
     val messages: List<ChatMessage> = emptyList(),
     val inputUrl: String = "",
@@ -163,8 +294,29 @@ data class CreateState(
     val fetchingModels: Boolean = false,
     /** Pending user question from the AskUser tool during generation. */
     val askUserRequest: AskUserRequest? = null,
+    /** History of manifest revisions produced during this session. */
+    val revisions: List<ManifestRevision> = emptyList(),
+    /** ID of currently viewed revision (null = latest). */
+    val selectedRevisionId: String? = null,
 ) {
     val isEmpty: Boolean get() = messages.isEmpty() && manifestJson.isBlank() && !running
+
+    val activeManifestJson: String
+        get() = if (selectedRevisionId != null) {
+            revisions.firstOrNull { it.id == selectedRevisionId }?.manifestJson ?: manifestJson
+        } else {
+            manifestJson
+        }
+
+    val activeRevision: ManifestRevision?
+        get() = if (selectedRevisionId != null) {
+            revisions.firstOrNull { it.id == selectedRevisionId }
+        } else {
+            revisions.lastOrNull()
+        }
+
+    val reviewActionChips: List<ReviewActionChip>
+        get() = extractReviewActionChips(manifestIssues, manifestInvalidJson, testResult)
 }
 
 class CreateViewModel(
@@ -538,6 +690,15 @@ class CreateViewModel(
         onSend(input = prompt)
     }
 
+    fun onApplyActionChip(chip: ReviewActionChip) = intent {
+        if (state.manifestJson.isBlank() || state.running || state.testing) return@intent
+        startRefineInternal(
+            instruction = chip.prompt,
+            displayUserText = "⚡ Apply fix: ${chip.label}",
+            source = if (chip.isPrimary && chip.id == "test_fix") RevisionSource.TEST_FIX else RevisionSource.REFINE,
+        )
+    }
+
     fun onSave() = intent {
         if (state.manifestJson.isBlank()) {
             postSideEffect(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
@@ -897,7 +1058,11 @@ class CreateViewModel(
         )
     }
 
-    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startRefineInternal(instruction: String) {
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startRefineInternal(
+        instruction: String,
+        displayUserText: String? = null,
+        source: RevisionSource = RevisionSource.REFINE,
+    ) {
         val text = instruction.trim()
         if (text.isBlank()) return
         val currentManifest = state.manifestJson
@@ -927,11 +1092,12 @@ class CreateViewModel(
         )
 
         val userHistory = extractUserHistory(state.messages)
+        val userPrompt = displayUserText?.trim().takeUnless { it.isNullOrBlank() } ?: text
 
         reduce {
             state.copy(
                 messages = state.messages +
-                    ChatMessage(role = ChatRole.User, text = text) +
+                    ChatMessage(role = ChatRole.User, text = userPrompt) +
                     agentMessage(startPhaseTitle, "refine"),
                 running = true,
                 currentPhase = "refine",
@@ -1177,6 +1343,33 @@ class CreateViewModel(
         phase = phase,
     )
 
+    fun onSelectRevision(revisionId: String?) = intent {
+        reduce { state.copy(selectedRevisionId = revisionId) }
+    }
+
+    fun onRevertToRevision(revisionId: String) = intent {
+        val target = state.revisions.firstOrNull { it.id == revisionId } ?: return@intent
+        val diff = computeManifestDiff(state.manifestJson, target.manifestJson)
+        val revertRevision = ManifestRevision(
+            revisionNumber = state.revisions.size + 1,
+            source = RevisionSource.REVERT,
+            instruction = "Revert to revision #${target.revisionNumber}",
+            manifestJson = target.manifestJson,
+            diffSummary = diff,
+        )
+        reduce {
+            state.copy(
+                manifestJson = target.manifestJson,
+                revisions = state.revisions + revertRevision,
+                selectedRevisionId = null,
+                manifestIssues = emptyList(),
+                manifestExhausted = false,
+                manifestInvalidJson = false,
+            )
+        }
+        postSideEffect(AppSideEffect.Toast("Reverted to revision #${target.revisionNumber}", ToastType.INFO))
+    }
+
     private fun CreateState.finishGeneration(
         messages: List<ChatMessage>,
         error: String? = this.error,
@@ -1186,19 +1379,43 @@ class CreateViewModel(
         manifestExhausted: Boolean = this.manifestExhausted,
         manifestInvalidJson: Boolean = this.manifestInvalidJson,
         manifestIssues: List<String> = this.manifestIssues,
-    ) = copy(
-        running = false,
-        currentPhase = null,
-        currentActivity = null,
-        messages = messages,
-        error = error,
-        manifestJson = manifestJson,
-        suggestedAppName = suggestedAppName,
-        resumableStages = resumableStages,
-        manifestExhausted = manifestExhausted,
-        manifestInvalidJson = manifestInvalidJson,
-        manifestIssues = manifestIssues,
-    )
+    ): CreateState {
+        val previousManifest = this.revisions.lastOrNull()?.manifestJson.orEmpty()
+        val updatedRevisions = if (manifestJson.isNotBlank() && (this.revisions.isEmpty() || previousManifest != manifestJson)) {
+            val diff = computeManifestDiff(previousManifest, manifestJson)
+            val source = when {
+                this.revisions.isEmpty() -> RevisionSource.INITIAL_GENERATE
+                this.currentPhase == "refine" -> RevisionSource.REFINE
+                else -> RevisionSource.INITIAL_GENERATE
+            }
+            val lastUserInstruction = this.messages.lastOrNull { it.role == ChatRole.User }?.text
+            this.revisions + ManifestRevision(
+                revisionNumber = this.revisions.size + 1,
+                source = source,
+                instruction = if (source == RevisionSource.REFINE) lastUserInstruction else null,
+                manifestJson = manifestJson,
+                diffSummary = diff,
+            )
+        } else {
+            this.revisions
+        }
+
+        return copy(
+            running = false,
+            currentPhase = null,
+            currentActivity = null,
+            messages = messages,
+            error = error,
+            manifestJson = manifestJson,
+            suggestedAppName = suggestedAppName,
+            resumableStages = resumableStages,
+            manifestExhausted = manifestExhausted,
+            manifestInvalidJson = manifestInvalidJson,
+            manifestIssues = manifestIssues,
+            revisions = updatedRevisions,
+            selectedRevisionId = null,
+        )
+    }
 
     private fun phaseMessage(phase: String): String = when (phase.lowercase()) {
         "research" -> "Researching repository metadata and latest release assets..."
@@ -1450,4 +1667,49 @@ internal fun resolveRefineInstruction(
     val rawUrl = inputUrl.trim()
     if (!isLikelyUrl(rawUrl) && rawUrl.isNotBlank()) return rawUrl
     return ""
+}
+
+internal fun computeManifestDiff(oldJson: String, newJson: String): List<String> {
+    if (oldJson.isBlank()) {
+        return if (newJson.isNotBlank()) listOf("Initial manifest") else emptyList()
+    }
+    if (newJson.isBlank() || oldJson == newJson) {
+        return emptyList()
+    }
+
+    val oldObj = try {
+        Json.parseToJsonElement(oldJson) as? JsonObject
+    } catch (_: Exception) {
+        null
+    }
+    val newObj = try {
+        Json.parseToJsonElement(newJson) as? JsonObject
+    } catch (_: Exception) {
+        null
+    }
+
+    if (oldObj == null || newObj == null) {
+        return listOf("Manifest updated")
+    }
+
+    val diffs = mutableListOf<String>()
+    val allKeys = (oldObj.keys + newObj.keys).toSortedSet()
+
+    for (key in allKeys) {
+        val oldVal = oldObj[key]
+        val newVal = newObj[key]
+
+        when {
+            oldVal == null && newVal != null -> diffs.add("+ $key")
+            oldVal != null && newVal == null -> diffs.add("- $key")
+            oldVal != newVal -> {
+                if (key == "version" && oldVal is JsonPrimitive && newVal is JsonPrimitive) {
+                    diffs.add("~ version: ${oldVal.content} → ${newVal.content}")
+                } else {
+                    diffs.add("~ $key")
+                }
+            }
+        }
+    }
+    return diffs
 }

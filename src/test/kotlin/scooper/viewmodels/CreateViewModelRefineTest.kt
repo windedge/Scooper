@@ -151,4 +151,60 @@ class CreateViewModelRefineTest {
         assertFalse(isLikelyUrl("remove shortcuts"))
         assertFalse(isLikelyUrl("   "))
     }
+
+    @Test
+    fun `computeManifestDiff returns Initial manifest when previous is blank`() {
+        val newJson = """{"version":"1.0.0","description":"test"}"""
+        val diff = computeManifestDiff("", newJson)
+        assertEquals(listOf("Initial manifest"), diff)
+    }
+
+    @Test
+    fun `computeManifestDiff detects added, removed, and modified keys`() {
+        val oldJson = """{"version":"1.0.0","description":"test","bin":["app.exe"],"notes":"some notes"}"""
+        val newJson = """{"version":"1.1.0","description":"test","shortcuts":[["app.exe","App"]]}"""
+        val diff = computeManifestDiff(oldJson, newJson)
+        assertTrue(diff.any { it.contains("~ version") }, "Should detect modified version")
+        assertTrue(diff.any { it.contains("- bin") }, "Should detect removed bin")
+        assertTrue(diff.any { it.contains("- notes") }, "Should detect removed notes")
+        assertTrue(diff.any { it.contains("+ shortcuts") }, "Should detect added shortcuts")
+    }
+
+    @Test
+    fun `computeManifestDiff returns empty list when identical`() {
+        val json = """{"version":"1.0.0","description":"test"}"""
+        val diff = computeManifestDiff(json, json)
+        assertTrue(diff.isEmpty())
+    }
+
+    @Test
+    fun `extractReviewActionChips generates appropriate chips for name conflict and invalid json`() {
+        val issues = listOf("Conflict: app name 'micro' already exists in official bucket")
+        val chips = extractReviewActionChips(issues = issues, invalidJson = false, testResult = null)
+        assertTrue(chips.any { it.label.contains("Fix name conflict") }, "Should have name conflict chip")
+    }
+
+    @Test
+    fun `extractReviewActionChips generates chips for persist and license issues`() {
+        val issues = listOf(
+            "Illegal persist path: C:\\data must be relative",
+            "License bare GPL-3.0 should use explicit suffix",
+        )
+        val chips = extractReviewActionChips(issues = issues, invalidJson = false, testResult = null)
+        assertTrue(chips.any { it.label.contains("Fix persist") }, "Should have persist chip")
+        assertTrue(chips.any { it.label.contains("Fix license") }, "Should have license chip")
+    }
+
+    @Test
+    fun `extractReviewActionChips generates chip for invalid JSON`() {
+        val chips = extractReviewActionChips(issues = emptyList(), invalidJson = true, testResult = null)
+        assertTrue(chips.any { it.label.contains("Fix JSON") }, "Should have JSON fix chip")
+    }
+
+    @Test
+    fun `extractReviewActionChips generates primary test fix chip when test failed`() {
+        val failedResult = TestResult(testName = "test", success = false, errorMessage = "Failed to run test", log = "exit code 1")
+        val chips = extractReviewActionChips(issues = emptyList(), invalidJson = false, testResult = failedResult)
+        assertTrue(chips.any { it.isPrimary && it.label.contains("Fix install failure") }, "Should have primary test fix chip")
+    }
 }

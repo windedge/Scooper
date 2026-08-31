@@ -128,6 +128,9 @@ import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.ManifestRevision
+import scooper.viewmodels.ReviewActionChip
+import scooper.viewmodels.RevisionSource
 import scooper.viewmodels.SaveGitHint
 import scooper.viewmodels.SaveResult
 import scooper.viewmodels.TestResult
@@ -218,6 +221,9 @@ fun CreateScreen(
                 onAnswerAskUser = viewModel::onAnswerAskUser,
                 onCancelAskUser = viewModel::onCancelAskUser,
                 onFixFromTestFailure = { summary, logTail -> viewModel.onFixFromTestFailure(summary, logTail) },
+                onSelectRevision = viewModel::onSelectRevision,
+                onRevertToRevision = viewModel::onRevertToRevision,
+                onApplyActionChip = viewModel::onApplyActionChip,
                 onAction = { action ->
                     if (action == AiErrorAction.OPEN_SETTINGS) {
                         navigator.push(AppRoute.Settings.AI)
@@ -1111,6 +1117,9 @@ private fun ChatWorkspace(
     onAnswerAskUser: (String) -> Unit,
     onCancelAskUser: () -> Unit,
     onFixFromTestFailure: (summary: String, logTail: String) -> Unit,
+    onSelectRevision: (String?) -> Unit,
+    onRevertToRevision: (String) -> Unit,
+    onApplyActionChip: (ReviewActionChip) -> Unit,
     onAction: (AiErrorAction) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -1153,13 +1162,19 @@ private fun ChatWorkspace(
                     item(key = "manifest-card") {
                         ManifestPreviewCard(
                             appName = state.suggestedAppName ?: "app",
-                            manifestJson = state.manifestJson,
+                            manifestJson = state.activeManifestJson,
                             enabled = !state.running && !state.testing,
                             testing = state.testing,
                             running = state.running,
                             issues = state.manifestIssues,
                             exhausted = state.manifestExhausted,
                             invalidJson = state.manifestInvalidJson,
+                            revisions = state.revisions,
+                            selectedRevisionId = state.selectedRevisionId,
+                            actionChips = state.reviewActionChips,
+                            onApplyActionChip = onApplyActionChip,
+                            onSelectRevision = onSelectRevision,
+                            onRevertToRevision = onRevertToRevision,
                             onCopyDone = onCopyDone,
                             onTestInstall = onTestInstall,
                             onSave = onSave,
@@ -1469,6 +1484,12 @@ private fun ManifestPreviewCard(
     issues: List<String> = emptyList(),
     exhausted: Boolean = false,
     invalidJson: Boolean = false,
+    revisions: List<ManifestRevision> = emptyList(),
+    selectedRevisionId: String? = null,
+    actionChips: List<ReviewActionChip> = emptyList(),
+    onApplyActionChip: ((ReviewActionChip) -> Unit)? = null,
+    onSelectRevision: ((String?) -> Unit)? = null,
+    onRevertToRevision: ((String) -> Unit)? = null,
     onCopyDone: () -> Unit,
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
@@ -1540,6 +1561,93 @@ private fun ManifestPreviewCard(
                 )
             }
 
+            if (revisions.size > 1) {
+                val currentRev = if (selectedRevisionId != null) {
+                    revisions.firstOrNull { it.id == selectedRevisionId }
+                } else {
+                    revisions.lastOrNull()
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colors.inputBackground.copy(alpha = 0.5f))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Revisions:",
+                                style = typography.caption.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = colors.textMuted,
+                                    fontSize = 12.sp,
+                                ),
+                            )
+                            revisions.forEach { rev ->
+                                val isSelected = (selectedRevisionId == null && rev == revisions.lastOrNull()) ||
+                                    (selectedRevisionId == rev.id)
+                                val badgeColor = if (isSelected) colors.primary else colors.textMuted
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = if (isSelected) colors.primary.copy(alpha = 0.15f) else Color.Transparent,
+                                    border = BorderStroke(1.dp, if (isSelected) colors.primary else colors.borderDefault),
+                                    modifier = Modifier
+                                        .cursorHand()
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { onSelectRevision?.invoke(if (rev == revisions.lastOrNull()) null else rev.id) }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        "v${rev.revisionNumber}",
+                                        style = typography.caption.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = badgeColor,
+                                            fontSize = 11.sp,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+
+                        if (currentRev?.diffSummary?.isNotEmpty() == true && currentRev.diffSummary != listOf("Initial manifest")) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                currentRev.diffSummary.take(3).forEach { change ->
+                                    val chipColor = when {
+                                        change.startsWith("+") -> colors.updateDefault
+                                        change.startsWith("-") -> colors.dangerDefault
+                                        else -> colors.warningDefault
+                                    }
+                                    Text(
+                                        change,
+                                        style = typography.caption.copy(
+                                            color = chipColor,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            fontFamily = FontFamily.Monospace,
+                                        ),
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(3.dp))
+                                            .background(chipColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1562,7 +1670,7 @@ private fun ManifestPreviewCard(
                 }
             }
 
-            if (issues.isNotEmpty()) {
+            if (issues.isNotEmpty() || (invalidJson && actionChips.isNotEmpty())) {
                 val hasNameConflictOnly = isNameConflictOnly(issues, invalidJson)
                 SelectableContainer {
                     Column(
@@ -1616,6 +1724,39 @@ private fun ManifestPreviewCard(
                                 modifier = Modifier.padding(top = 4.dp),
                             )
                         }
+
+                        if (actionChips.isNotEmpty() && onApplyActionChip != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                actionChips.take(3).forEach { chip ->
+                                    val chipColor = if (chip.isPrimary) colors.primary else colors.warningDefault
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = chipColor.copy(alpha = 0.12f),
+                                        border = BorderStroke(1.dp, chipColor.copy(alpha = 0.4f)),
+                                        modifier = Modifier
+                                            .cursorHand()
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .clickable(enabled = enabled && !testing && !running) {
+                                                onApplyActionChip(chip)
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                                    ) {
+                                        Text(
+                                            chip.label,
+                                            style = typography.caption.copy(
+                                                color = chipColor,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 11.sp,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1657,6 +1798,13 @@ private fun ManifestPreviewCard(
                     onClick = onRegenerate,
                     enabled = enabled && !testing,
                 )
+                if (selectedRevisionId != null && selectedRevisionId != revisions.lastOrNull()?.id && onRevertToRevision != null) {
+                    SmallActionButton(
+                        label = "Revert to this version",
+                        onClick = { onRevertToRevision(selectedRevisionId) },
+                        enabled = enabled && !testing,
+                    )
+                }
             }
         }
     }

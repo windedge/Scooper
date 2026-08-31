@@ -245,11 +245,16 @@ class ScoopAiBridge(
                     onAskUser = onAskUser,
                     onQuestionnaire = onQuestionnaire,
                 )
-                logger.info("Scoop AI refine start: $instruction (history=${history.size})")
+                val checkpoint = checkpointService.snapshot()
+                val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }
+                    ?: checkpoint?.researchJson?.takeIf { it.isNotBlank() }
+
+                logger.info("Scoop AI refine start: $instruction (history=${history.size}, hasEvidence=${evidence != null})")
                 val result = generator.refine(
                     manifestJson = currentManifest,
                     instruction = instruction,
                     history = history,
+                    evidence = evidence,
                     suggestedAppName = suggestedAppName,
                 )
                 onFinished(Result.success(result))
