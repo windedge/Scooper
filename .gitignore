@@ -193,3 +193,7 @@ fabric.properties
 .projectile
 docs/archive/
 .kotlin
+
+# Agent local runtime / persisted credentials
+.pi/
+persist_dir/

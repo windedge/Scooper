@@ -14,17 +14,16 @@ object PhaseSummaryFormatter {
     fun formatPhaseStart(phase: String, appName: String?, refineAttempt: Int = 0): String {
         val name = appName?.trim()?.takeIf { it.isNotEmpty() }
         return when (phase.lowercase()) {
-            "research" -> if (name != null) {
-                "Researching repository metadata, releases, and assets for $name..."
-            } else {
-                "Researching repository metadata, releases, and assets..."
-            }
-            "analyze" -> "Analyzing Windows package (hashes, archive structure, executables)..."
-            "generate" -> "Assembling Scoop manifest schema (architecture, checkver, autoupdate)..."
+            // Keep the titles short: they render on a single line inside the
+            // execution step header, where the ellipsis is only a fallback.
+            "research" -> if (name != null) "Researching $name..." else "Researching repository..."
+            "analyze" -> "Analyzing package..."
+            "generate" -> "Writing manifest..."
             "refine" -> {
                 val count = if (refineAttempt > 0) refineAttempt else 1
-                "Refining manifest (attempt $count/3): resolving validation & review feedback..."
+                "Refining manifest (attempt $count/3)..."
             }
+            "verify" -> "Validating manifest..."
             else -> "Working on phase: $phase..."
         }
     }
@@ -38,6 +37,8 @@ object PhaseSummaryFormatter {
                 "analyze" -> formatAnalyzeSummary(root)
                 "generate" -> formatGenerateSummary(root)
                 "refine" -> formatRefineSummary(root)
+                // verify has no output summary (proposal 4.6: the step shows duration only)
+                "verify" -> null
                 else -> null
             }
         } catch (_: Exception) {

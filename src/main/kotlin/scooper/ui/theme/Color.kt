@@ -38,8 +38,20 @@ val Red700 = Color(0xFFB91C1C)
 // ── Amber (warning) ─────────────────────────────────
 val Amber500 = Color(0xFFF59E0B)
 
+// ── Purple (analyze phase / accents) ────────────────
+val Purple50 = Color(0xFFF5F3FF)
+val Purple500 = Color(0xFF8B5CF6)
+val Purple600 = Color(0xFF7C3AED)
+val Purple700 = Color(0xFF6D28D9)
+
 // ── Extended Material Theme colors ──────────────────
 // Usage: MaterialTheme.colors.backgroundHover
+
+val Colors.analyzeColor: Color
+    get() = if (isLight) Purple600 else Purple500
+
+val Colors.analyzeBg: Color
+    get() = if (isLight) Purple50 else Color(0xFF2E1B4E)
 
 val Colors.backgroundHover: Color
     get() = if (isLight) Slate50 else Slate700

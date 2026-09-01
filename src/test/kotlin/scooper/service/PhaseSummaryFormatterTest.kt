@@ -1,6 +1,7 @@
 package scooper.service
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -14,23 +15,23 @@ class PhaseSummaryFormatterTest {
     @Test
     fun `formatPhaseStart returns contextual message for research with app name`() {
         val text = PhaseSummaryFormatter.formatPhaseStart("research", "fd", refineAttempt = 0)
-        assertEquals("Researching repository metadata, releases, and assets for fd...", text)
+        assertEquals("Researching fd...", text)
     }
 
     @Test
     fun `formatPhaseStart returns generic message for research without app name`() {
         val text = PhaseSummaryFormatter.formatPhaseStart("research", null, refineAttempt = 0)
-        assertEquals("Researching repository metadata, releases, and assets...", text)
+        assertEquals("Researching repository...", text)
     }
 
     @Test
     fun `formatPhaseStart returns specific message for analyze and generate`() {
         assertEquals(
-            "Analyzing Windows package (hashes, archive structure, executables)...",
+            "Analyzing package...",
             PhaseSummaryFormatter.formatPhaseStart("analyze", "fd", refineAttempt = 0),
         )
         assertEquals(
-            "Assembling Scoop manifest schema (architecture, checkver, autoupdate)...",
+            "Writing manifest...",
             PhaseSummaryFormatter.formatPhaseStart("generate", "fd", refineAttempt = 0),
         )
     }
@@ -38,12 +39,36 @@ class PhaseSummaryFormatterTest {
     @Test
     fun `formatPhaseStart returns attempt count for refine`() {
         assertEquals(
-            "Refining manifest (attempt 1/3): resolving validation & review feedback...",
+            "Refining manifest (attempt 1/3)...",
             PhaseSummaryFormatter.formatPhaseStart("refine", "fd", refineAttempt = 1),
         )
         assertEquals(
-            "Refining manifest (attempt 2/3): resolving validation & review feedback...",
+            "Refining manifest (attempt 2/3)...",
             PhaseSummaryFormatter.formatPhaseStart("refine", "fd", refineAttempt = 2),
+        )
+    }
+
+    @Test
+    fun `formatPhaseStart titles stay short so the single-line ellipsis is only a fallback`() {
+        listOf("research", "analyze", "generate", "refine", "verify").forEach { phase ->
+            val title = PhaseSummaryFormatter.formatPhaseStart(phase, "fd", refineAttempt = 1)
+            assertTrue(
+                title.length <= 40,
+                "phase '$phase' start title must stay short, got: $title",
+            )
+            assertFalse(title.contains('\n'), "phase '$phase' title must stay on one line")
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // formatPhaseStart: verify (architecture proposal 4.6)
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `formatPhaseStart returns validating title for verify`() {
+        assertEquals(
+            "Validating manifest...",
+            PhaseSummaryFormatter.formatPhaseStart("verify", "fd", refineAttempt = 0),
         )
     }
 
@@ -159,5 +184,11 @@ class PhaseSummaryFormatterTest {
     fun `formatPhaseOutput returns null on malformed json without throwing`() {
         assertNull(PhaseSummaryFormatter.formatPhaseOutput("research", "invalid-json"))
         assertNull(PhaseSummaryFormatter.formatPhaseOutput("unknown_phase", "{}"))
+    }
+
+    @Test
+    fun `formatPhaseOutput returns null for verify which has no output summary`() {
+        val manifestJson = """{"version": "1.0"}"""
+        assertNull(PhaseSummaryFormatter.formatPhaseOutput("verify", manifestJson))
     }
 }

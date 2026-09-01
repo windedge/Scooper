@@ -15,8 +15,10 @@ import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -67,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.delay
@@ -96,6 +99,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,6 +118,7 @@ import scooper.ui.components.ExposedDropdownMenu
 import scooper.ui.components.SelectableContainer
 import scooper.ui.icons.*
 import scooper.ui.theme.*
+import scooper.viewmodels.ActiveExecution
 import scooper.viewmodels.AskUserRequest
 import scooper.viewmodels.QuestionnaireOption
 import scooper.viewmodels.QuestionnaireQuestion
@@ -128,13 +133,38 @@ import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.DiffLine
+import scooper.viewmodels.DiffLineType
+import scooper.viewmodels.ExecutionStep
 import scooper.viewmodels.ManifestRevision
 import scooper.viewmodels.ReviewActionChip
 import scooper.viewmodels.RevisionSource
 import scooper.viewmodels.SaveGitHint
 import scooper.viewmodels.SaveResult
 import scooper.viewmodels.TestResult
+import scooper.viewmodels.computeDetailedLineDiff
+import scooper.viewmodels.executionSummaryCapsuleText
+import scooper.viewmodels.formatStepDuration
+import scooper.viewmodels.isFailedExecutionStep
 import scooper.viewmodels.isNameConflictOnly
+import scooper.viewmodels.shouldRenderFullExecutionSteps
+
+/**
+ * Number of items in the chat LazyColumn, shared by the LazyColumn content and the
+ * auto-scroll itemCount so the scroll target index is always valid (proposal 5.2).
+ * The manifest preview card joins the chat list only in the single-column (narrow)
+ * layout; the wide layout renders it in the right pane instead.
+ */
+internal fun chatListItemCount(
+    messageCount: Int,
+    hasActiveExecution: Boolean,
+    hasAskUserRequest: Boolean,
+    includeManifestCard: Boolean,
+    manifestJsonNotBlank: Boolean,
+): Int = messageCount +
+    (if (hasActiveExecution) 1 else 0) +
+    (if (hasAskUserRequest) 1 else 0) +
+    (if (includeManifestCard && manifestJsonNotBlank) 1 else 0)
 
 @Suppress("UNCHECKED_CAST")
 @Composable
@@ -149,37 +179,12 @@ fun CreateScreen(
         viewModel.refreshAiConfig()
     }
 
-    // Auto-scroll chat when messages / manifest / tool activities change
-    LaunchedEffect(
-        state.messages.size,
-        state.manifestJson,
-        state.running,
-        state.testResult,
-        state.saveResult,
-        state.askUserRequest,
-        state.currentActivity,
-        state.messages.lastOrNull()?.toolActivities?.size,
-    ) {
-        // Cards after the chat: manifest preview, plus the test result and save result panels, plus active askUser card.
-        val cardItems = when {
-            state.manifestJson.isNotBlank() && !state.running -> {
-                1 + (if (state.testResult != null) 1 else 0) + (if (state.saveResult != null) 1 else 0)
-            }
-            else -> 0
-        } + (if (state.askUserRequest != null) 1 else 0)
-        val itemCount = state.messages.size + cardItems
-        if (itemCount > 0) {
-            listState.animateScrollToItem(itemCount - 1)
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.surface),
     ) {
         CreateTopBar(
-            running = state.running,
             canReset = !state.isEmpty,
             onReset = viewModel::onReset,
             onOpenAiSettings = { navigator.push(AppRoute.Settings.AI) },
@@ -215,7 +220,6 @@ fun CreateScreen(
                 onCopyDone = viewModel::onCopyDone,
                 onTestInstall = { viewModel.onTestInstall() },
                 onSave = { viewModel.onSave() },
-                onRegenerate = viewModel::onRegenerate,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
                 onAnswerAskUser = viewModel::onAnswerAskUser,
@@ -224,6 +228,7 @@ fun CreateScreen(
                 onSelectRevision = viewModel::onSelectRevision,
                 onRevertToRevision = viewModel::onRevertToRevision,
                 onApplyActionChip = viewModel::onApplyActionChip,
+                onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
                 onAction = { action ->
                     if (action == AiErrorAction.OPEN_SETTINGS) {
                         navigator.push(AppRoute.Settings.AI)
@@ -819,6 +824,7 @@ private fun SaveToBucketDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(6.dp))
+                                .cursorHand()
                                 .clickable(enabled = isGitBucket) { onCommitToGitChange(!commitToGit) }
                                 .padding(vertical = 2.dp),
                         ) {
@@ -883,7 +889,6 @@ private fun SaveToBucketDialog(
 
 @Composable
 private fun CreateTopBar(
-    running: Boolean,
     canReset: Boolean,
     onReset: () -> Unit,
     onOpenAiSettings: () -> Unit,
@@ -940,7 +945,9 @@ private fun CreateTopBar(
                     )
                 }
             }
-            StatusPill(running = running)
+            // No Idle badge here: it carried no information next to New Session.
+            // While a run is active, the phase is indicated by the execution card
+            // in the chat stream and the preview header status pill instead.
             TextButton(
                 onClick = onOpenAiSettings,
                 modifier = Modifier.cursorLink().height(32.dp),
@@ -954,38 +961,6 @@ private fun CreateTopBar(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun StatusPill(running: Boolean) {
-    val bg = if (running) colors.primarySubtle else colors.inputBackground
-    val border = if (running) colors.primary.copy(alpha = 0.35f) else colors.borderDefault
-    val textColor = if (running) colors.primary else colors.textBody
-    val dotColor = if (running) colors.primary else colors.textMuted
-
-    Row(
-        modifier = Modifier
-            .border(1.dp, border, RoundedCornerShape(4.dp))
-            .clip(RoundedCornerShape(4.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(dotColor),
-        )
-        Text(
-            if (running) "Running" else "Idle",
-            style = typography.caption.copy(
-                fontWeight = FontWeight.SemiBold,
-                color = textColor,
-            ),
-        )
     }
 }
 
@@ -1111,7 +1086,6 @@ private fun ChatWorkspace(
     onCopyDone: () -> Unit,
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
-    onRegenerate: () -> Unit,
     onGoToDiscover: () -> Unit,
     onDismissSaveResult: () -> Unit,
     onAnswerAskUser: (String) -> Unit,
@@ -1120,112 +1094,251 @@ private fun ChatWorkspace(
     onSelectRevision: (String?) -> Unit,
     onRevertToRevision: (String) -> Unit,
     onApplyActionChip: (ReviewActionChip) -> Unit,
+    onToggleExecutionExpanded: (String) -> Unit,
     onAction: (AiErrorAction) -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-        ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(end = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
-            ) {
-                items(state.messages, key = { it.id }) { message ->
-                    val isRunningPhase = state.running &&
-                        message.role == ChatRole.Agent &&
-                        message.phase != null &&
-                        message.phase.equals(state.currentPhase, ignoreCase = true) &&
-                        message.id == state.messages.lastOrNull { it.role == ChatRole.Agent }?.id
+    @Composable
+    fun PreviewArtifactPanel() {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ManifestPreviewCard(
+                appName = state.suggestedAppName ?: "app",
+                manifestJson = state.activeManifestJson,
+                enabled = !state.running && !state.testing,
+                testing = state.testing,
+                running = state.running,
+                issues = state.manifestIssues,
+                exhausted = state.manifestExhausted,
+                invalidJson = state.manifestInvalidJson,
+                revisions = state.revisions,
+                selectedRevisionId = state.selectedRevisionId,
+                actionChips = state.reviewActionChips,
+                onApplyActionChip = onApplyActionChip,
+                onSelectRevision = onSelectRevision,
+                onRevertToRevision = onRevertToRevision,
+                onCopyDone = onCopyDone,
+                onTestInstall = onTestInstall,
+                onSave = onSave,
+            )
+            state.testResult?.let { result ->
+                TestResultPanel(
+                    result = result,
+                    onFixWithAi = onFixFromTestFailure,
+                )
+            }
+            state.saveResult?.let { result ->
+                SaveResultPanel(
+                    result = result,
+                    onGoToDiscover = onGoToDiscover,
+                    onDismiss = onDismissSaveResult,
+                )
+            }
+        }
+    }
 
-                    ChatBubble(
-                        message = message,
-                        currentActivity = if (isRunningPhase) state.currentActivity else null,
-                        isRunning = isRunningPhase,
-                        onAction = onAction,
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Wide screen shows the Artifact panel in the right pane, but only once a
+        // manifest exists; without one the chat column takes the full width.
+        val isWideScreen = maxWidth >= 960.dp
+        val showArtifactPanel = state.manifestJson.isNotBlank()
+
+        // Auto-scroll chat when messages / manifest / tool activities change. The
+        // item count shares chatListItemCount with the LazyColumn content below so
+        // the scroll target index is always valid (messages, optional active
+        // execution card, optional ask-user card, manifest card in narrow layout).
+        LaunchedEffect(
+            state.messages.size,
+            state.manifestJson,
+            state.running,
+            state.testResult,
+            state.saveResult,
+            state.askUserRequest,
+            state.activeExecution?.steps?.size,
+            state.activeExecution?.steps?.lastOrNull()?.toolActivities?.size,
+            state.activeExecution?.currentActivity,
+        ) {
+            val itemCount = chatListItemCount(
+                messageCount = state.messages.size,
+                hasActiveExecution = state.activeExecution != null,
+                hasAskUserRequest = state.askUserRequest != null,
+                includeManifestCard = !isWideScreen,
+                manifestJsonNotBlank = state.manifestJson.isNotBlank(),
+            )
+            if (itemCount > 0) {
+                listState.animateScrollToItem(itemCount - 1)
+            }
+        }
+
+        if (isWideScreen) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Left column: Chat stream + Composer
+                Column(
+                    modifier = Modifier
+                        .weight(if (showArtifactPanel) 0.48f else 1f)
+                        .fillMaxHeight(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                    ) {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize().padding(end = 12.dp),
+                            // Chat-app behaviour: short conversations stick to the
+                            // composer instead of floating in the middle; the spare
+                            // space stays above the first message.
+                            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                        ) {
+                            items(state.messages, key = { it.id }) { message ->
+                                ChatBubble(
+                                    message = message,
+                                    onAction = onAction,
+                                    expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
+                                    onToggleExecutionExpanded = onToggleExecutionExpanded,
+                                )
+                            }
+                            state.activeExecution?.let { active ->
+                                item(key = "active-execution") {
+                                    ActiveExecutionCard(active = active)
+                                }
+                            }
+                            state.askUserRequest?.let { request ->
+                                item(key = "ask-user-bubble-${request.id}") {
+                                    AskUserBubble(
+                                        request = request,
+                                        onAnswer = onAnswerAskUser,
+                                        onCancel = onCancelAskUser,
+                                    )
+                                }
+                            }
+                        }
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(listState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                        )
+                    }
+
+                    Composer(
+                        state = state,
+                        centered = false,
+                        onUrlChange = onUrlChange,
+                        onNoteChange = onNoteChange,
+                        onModelChange = onModelChange,
+                        onFetchModels = onFetchModels,
+                        onSend = onSend,
+                        onCancel = onCancel,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                state.askUserRequest?.let { request ->
-                    item(key = "ask-user-bubble-${request.id}") {
-                        AskUserBubble(
-                            request = request,
-                            onAnswer = onAnswerAskUser,
-                            onCancel = onCancelAskUser,
-                        )
-                    }
-                }
-                if (state.manifestJson.isNotBlank()) {
-                    item(key = "manifest-card") {
-                        ManifestPreviewCard(
-                            appName = state.suggestedAppName ?: "app",
-                            manifestJson = state.activeManifestJson,
-                            enabled = !state.running && !state.testing,
-                            testing = state.testing,
-                            running = state.running,
-                            issues = state.manifestIssues,
-                            exhausted = state.manifestExhausted,
-                            invalidJson = state.manifestInvalidJson,
-                            revisions = state.revisions,
-                            selectedRevisionId = state.selectedRevisionId,
-                            actionChips = state.reviewActionChips,
-                            onApplyActionChip = onApplyActionChip,
-                            onSelectRevision = onSelectRevision,
-                            onRevertToRevision = onRevertToRevision,
-                            onCopyDone = onCopyDone,
-                            onTestInstall = onTestInstall,
-                            onSave = onSave,
-                            onRegenerate = onRegenerate,
-                        )
-                    }
-                    state.testResult?.let { result ->
-                        item(key = "test-result-panel") {
-                            TestResultPanel(
-                                result = result,
-                                onFixWithAi = onFixFromTestFailure,
-                            )
+
+                if (showArtifactPanel) {
+                    // Divider between columns
+                    Divider(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.dp),
+                        color = colors.borderDefault,
+                    )
+
+                    // Right column: Manifest Artifact Panel
+                    val rightScrollState = rememberScrollState()
+                    Box(
+                        modifier = Modifier
+                            .weight(0.52f)
+                            .fillMaxHeight()
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(end = 12.dp)
+                                .verticalScroll(rightScrollState),
+                        ) {
+                            PreviewArtifactPanel()
                         }
-                    }
-                    state.saveResult?.let { result ->
-                        item(key = "save-result-panel") {
-                            SaveResultPanel(
-                                result = result,
-                                onGoToDiscover = onGoToDiscover,
-                                onDismiss = onDismissSaveResult,
-                            )
-                        }
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(rightScrollState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                        )
                     }
                 }
             }
-            VerticalScrollbar(
-                adapter = rememberScrollbarAdapter(listState),
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-            )
-        }
+        } else {
+            // Single-column layout for narrower windows or initial generate
+            Column(Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().padding(end = 12.dp),
+                        // Chat-app behaviour: short conversations stick to the
+                        // composer instead of floating in the middle; the spare
+                        // space stays above the first message.
+                        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                    ) {
+                        items(state.messages, key = { it.id }) { message ->
+                            ChatBubble(
+                                message = message,
+                                onAction = onAction,
+                                expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
+                                onToggleExecutionExpanded = onToggleExecutionExpanded,
+                            )
+                        }
+                        state.activeExecution?.let { active ->
+                            item(key = "active-execution") {
+                                ActiveExecutionCard(active = active)
+                            }
+                        }
+                        state.askUserRequest?.let { request ->
+                            item(key = "ask-user-bubble-${request.id}") {
+                                AskUserBubble(
+                                    request = request,
+                                    onAnswer = onAnswerAskUser,
+                                    onCancel = onCancelAskUser,
+                                )
+                            }
+                        }
+                        if (state.manifestJson.isNotBlank()) {
+                            item(key = "manifest-card") {
+                                PreviewArtifactPanel()
+                            }
+                        }
+                    }
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(listState),
+                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    )
+                }
 
-        Composer(
-            state = state,
-            centered = false,
-            onUrlChange = onUrlChange,
-            onNoteChange = onNoteChange,
-            onModelChange = onModelChange,
-            onFetchModels = onFetchModels,
-            onSend = onSend,
-            onCancel = onCancel,
-            modifier = Modifier.fillMaxWidth(),
-        )
+                Composer(
+                    state = state,
+                    centered = false,
+                    onUrlChange = onUrlChange,
+                    onNoteChange = onNoteChange,
+                    onModelChange = onModelChange,
+                    onFetchModels = onFetchModels,
+                    onSend = onSend,
+                    onCancel = onCancel,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun ChatBubble(
     message: ChatMessage,
-    currentActivity: String? = null,
-    isRunning: Boolean = false,
     onAction: (AiErrorAction) -> Unit,
+    expandableExecutionSteps: Boolean = true,
+    onToggleExecutionExpanded: (String) -> Unit = {},
 ) {
     val isUser = message.role == ChatRole.User
     val bubbleShape = RoundedCornerShape(
@@ -1239,12 +1352,6 @@ private fun ChatBubble(
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (!isUser && message.phase != null) {
-            PhaseTag(
-                phase = message.phase,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
         Surface(
             color = if (isUser) colors.primarySubtle else colors.inputBackground,
             contentColor = colors.textTitle,
@@ -1266,23 +1373,75 @@ private fun ChatBubble(
                 // Bubble has no click handler, so selecting text inside it is safe.
                 // S1: the URL and the optional user note share one SelectableContainer
                 // so both can be drag-selected/copied together as a single block.
+                val isErrorBubble = message.actions.isNotEmpty()
                 SelectableContainer {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            message.text,
-                            style = typography.caption.copy(
-                                color = colors.onSurface,
-                                fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
-                                lineHeight = typography.caption.fontSize * 1.5f,
-                            ),
-                        )
-                        if (!message.note.isNullOrBlank()) {
+                        // Execution review card (proposal 5.2): rendered ABOVE the bubble
+                        // text. Collapsed shows a summary capsule; expanded shows a
+                        // clickable capsule on top (collapse entry point, B1) plus the
+                        // full step list. Older rounds beyond the recent window stay
+                        // fixed to the single capsule. Error messages keep the existing
+                        // text/actions/technicalDetails rendering below.
+                        if (message.executionSteps.isNotEmpty()) {
+                            if (message.isExecutionExpanded && expandableExecutionSteps) {
+                                ExecutionSummaryCapsule(
+                                    steps = message.executionSteps,
+                                    expandable = true,
+                                    onClick = { onToggleExecutionExpanded(message.id) },
+                                    expanded = true,
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    message.executionSteps.forEach { step ->
+                                        ExecutionStepBlock(
+                                            step = step,
+                                            isFailed = isFailedExecutionStep(step, message.actions.isNotEmpty()),
+                                        )
+                                    }
+                                }
+                            } else {
+                                ExecutionSummaryCapsule(
+                                    steps = message.executionSteps,
+                                    expandable = expandableExecutionSteps,
+                                    onClick = { onToggleExecutionExpanded(message.id) },
+                                )
+                            }
+                        }
+                        // Separator between the step list and the reply body: a faint
+                        // divider plus breathing room so the explanation text does not
+                        // stick to the steps. Error bubbles keep their own layout.
+                        if (message.executionSteps.isNotEmpty() && !isErrorBubble) {
+                            Spacer(Modifier.height(8.dp))
+                            Divider(color = colors.divider.copy(alpha = 0.4f), thickness = 1.dp)
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (!isUser && !isErrorBubble) {
+                            // Conversational reply: Markdown subset rendering (proposal 5.5).
+                            // Long agent bodies collapse to 4 lines by default with a
+                            // local Show more/less toggle; pure UI state, no VM change.
+                            CollapsibleAgentBody(text = message.text)
+                        } else {
+                            // User instructions stay plain monospace; error bubbles keep the
+                            // existing error rendering path (actions / technicalDetails below).
                             Text(
-                                message.note,
+                                message.text,
+                                style = typography.caption.copy(
+                                    color = colors.onSurface,
+                                    fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
+                                    lineHeight = typography.caption.fontSize * 1.5f,
+                                ),
+                            )
+                        }
+                        message.note?.takeIf { it.isNotBlank() }?.let { note ->
+                            Text(
+                                note,
                                 style = typography.caption.copy(
                                     color = colors.textMuted,
                                     lineHeight = typography.caption.fontSize * 1.45f,
                                 ),
+                                // Download-confirm details must never wrap on screen;
+                                // other notes (user requirements, error details) wrap freely.
+                                maxLines = if (message.noteSingleLine) 1 else Int.MAX_VALUE,
+                                overflow = if (message.noteSingleLine) TextOverflow.Ellipsis else TextOverflow.Clip,
                             )
                         }
                         if (!message.technicalDetails.isNullOrBlank()) {
@@ -1331,44 +1490,6 @@ private fun ChatBubble(
                                         ),
                                     )
                                 }
-                            }
-                        }
-                        if (message.toolActivities.isNotEmpty()) {
-                            Spacer(Modifier.height(2.dp))
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 2.dp),
-                            ) {
-                                message.toolActivities.forEach { toolLog ->
-                                    Text(
-                                        toolLog,
-                                        style = typography.caption.copy(
-                                            color = colors.textMuted,
-                                            fontSize = typography.caption.fontSize * 0.92f,
-                                            fontFamily = FontFamily.Monospace,
-                                        ),
-                                    )
-                                }
-                            }
-                        }
-                        if (!message.summary.isNullOrBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "• ${message.summary}",
-                                style = typography.caption.copy(
-                                    color = colors.textBody,
-                                    fontWeight = FontWeight.Normal,
-                                    fontSize = typography.caption.fontSize * 0.95f,
-                                ),
-                                modifier = Modifier.padding(top = 2.dp),
-                            )
-                        }
-                        if (isRunning) {
-                            Spacer(Modifier.height(4.dp))
-                            Box(modifier = Modifier.padding(top = 2.dp)) {
-                                TypingDots()
                             }
                         }
                     }
@@ -1424,7 +1545,12 @@ private fun phaseColors(phase: String): Triple<Color, Color, Color> {
             colors.primary,
             colors.primary.copy(alpha = 0.3f),
         )
-        "analyze", "done" -> Triple(
+        "analyze" -> Triple(
+            colors.analyzeBg,
+            colors.analyzeColor,
+            colors.analyzeColor.copy(alpha = 0.35f),
+        )
+        "done", "verify" -> Triple(
             colors.updateDefault.copy(alpha = 0.12f),
             colors.updateDefault,
             colors.updateDefault.copy(alpha = 0.35f),
@@ -1444,6 +1570,268 @@ private fun phaseColors(phase: String): Triple<Color, Color, Color> {
             colors.textBody,
             colors.borderDefault,
         )
+    }
+}
+
+@Composable
+private fun ActiveExecutionCard(active: ActiveExecution) {
+    // Transient run card (stage 3 ActiveExecutionCard): auto-expanded while the
+    // session runs, with the active phase highlighted and a live tool-activity line.
+    Surface(
+        color = colors.inputBackground,
+        contentColor = colors.textTitle,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, colors.borderDefault),
+        modifier = Modifier
+            .widthIn(max = 560.dp)
+            .wrapContentWidth(align = Alignment.Start),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "Working...",
+                    style = typography.caption.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textTitle,
+                    ),
+                )
+            }
+            active.steps.forEach { step ->
+                ExecutionStepBlock(
+                    step = step,
+                    liveActivity = if (step.isRunning) active.currentActivity else null,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Rendered text lines of the markdown body shown before an agent reply collapses.
+ * The body uses the caption style with 1.5x line height (see MarkdownText).
+ */
+private const val AGENT_BODY_COLLAPSED_LINES = 4
+
+/**
+ * Agent reply body with a local expand/collapse toggle: over-long explanations
+ * render at most [AGENT_BODY_COLLAPSED_LINES] lines until the user clicks
+ * "Show more". Error bubbles never use this (they keep the full rendering), and
+ * the toggle state is pure UI state, the ViewModel data stays untouched.
+ */
+@Composable
+private fun CollapsibleAgentBody(text: String) {
+    var expanded by remember(text) { mutableStateOf(false) }
+    var overflowing by remember(text) { mutableStateOf(false) }
+    val density = LocalDensity.current
+    // MarkdownText renders paragraphs with caption.fontSize * 1.5 line height, so
+    // 4 lines plus a small slack fit exactly; anything taller gets clipped.
+    val collapsedMaxHeight =
+        with(density) { (typography.caption.fontSize * 1.5f * AGENT_BODY_COLLAPSED_LINES).toDp() } + 1.dp
+    val collapsedMaxPx = with(density) { collapsedMaxHeight.roundToPx() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (expanded) {
+                    Modifier
+                } else {
+                    Modifier.heightIn(max = collapsedMaxHeight).clipToBounds()
+                },
+            ),
+    ) {
+        MarkdownText(
+            text = text,
+            modifier = Modifier.onSizeChanged { size ->
+                // The clipped column reports exactly the cap height when its
+                // content overflows, and less than the cap when it fits.
+                overflowing = size.height >= collapsedMaxPx - 1
+            },
+        )
+    }
+    if (overflowing) {
+        androidx.compose.foundation.text.selection.DisableSelection {
+            Text(
+                if (expanded) "Show less" else "Show more",
+                style = typography.caption.copy(
+                    color = colors.primary,
+                    fontWeight = FontWeight.Medium,
+                ),
+                modifier = Modifier
+                    .cursorHand()
+                    .clickable { expanded = !expanded }
+                    .padding(top = 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepPhaseTag(phase: String, isFailed: Boolean = false) {
+    val (bg, fg, border) = if (isFailed) {
+        Triple(
+            colors.dangerBg,
+            colors.dangerDefault,
+            colors.dangerDefault.copy(alpha = 0.35f),
+        )
+    } else {
+        phaseColors(phase)
+    }
+    Text(
+        phase.uppercase(),
+        style = typography.overline.copy(
+            fontWeight = FontWeight.Bold,
+            color = fg,
+            fontSize = typography.overline.fontSize * 0.85f,
+        ),
+        modifier = Modifier
+            .border(1.dp, border, RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(4.dp))
+            .background(bg)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+private fun ExecutionStepBlock(
+    step: ExecutionStep,
+    isFailed: Boolean = false,
+    liveActivity: String? = null,
+) {
+    val titleColor = when {
+        isFailed -> colors.dangerDefault
+        step.isRunning -> colors.primary
+        else -> colors.textBody
+    }
+    Column(
+        modifier = if (step.isRunning) {
+            // Running step highlight: subtle primary tint behind the whole block.
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(colors.primarySubtle.copy(alpha = 0.45f))
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        } else {
+            Modifier
+        },
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StepPhaseTag(phase = step.phase, isFailed = isFailed)
+            // Phase title stays on one line: shrink with ellipsis so the duration
+            // remains pinned to the right edge instead of being pushed to a wrapped
+            // second line.
+            Text(
+                step.title,
+                style = typography.caption.copy(
+                    color = titleColor,
+                    fontWeight = if (step.isRunning || isFailed) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (!step.isRunning && step.durationMs > 0) {
+                Text(
+                    formatStepDuration(step.durationMs),
+                    style = typography.caption.copy(color = colors.textMuted),
+                    modifier = Modifier.wrapContentWidth(),
+                )
+            }
+            if (step.isRunning) {
+                TypingDots()
+            }
+        }
+        step.toolActivities.forEach { line ->
+            Text(
+                line,
+                style = typography.caption.copy(
+                    color = if (line.contains("✖")) colors.dangerDefault else colors.textMuted,
+                    fontSize = typography.caption.fontSize * 0.92f,
+                    fontFamily = FontFamily.Monospace,
+                ),
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+        liveActivity?.let { activity ->
+            Text(
+                activity,
+                style = typography.caption.copy(
+                    color = colors.primary,
+                    fontFamily = FontFamily.Monospace,
+                ),
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+        if (!step.summary.isNullOrBlank()) {
+            Text(
+                "• ${step.summary}",
+                style = typography.caption.copy(color = colors.textBody),
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExecutionSummaryCapsule(
+    steps: List<ExecutionStep>,
+    expandable: Boolean,
+    onClick: () -> Unit,
+    expanded: Boolean = false,
+) {
+    Surface(
+        color = colors.surface,
+        contentColor = colors.textBody,
+        shape = RoundedCornerShape(percent = 50),
+        border = BorderStroke(1.dp, colors.borderDefault),
+        modifier = Modifier
+            .wrapContentWidth(align = Alignment.Start)
+            .then(
+                if (expandable) {
+                    Modifier.cursorHand().clickable { onClick() }
+                } else {
+                    Modifier
+                }
+            ),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+        ) {
+            Text(
+                "✓",
+                style = typography.caption.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.updateDefault,
+                ),
+            )
+            Text(
+                executionSummaryCapsuleText(steps).removePrefix("✓ "),
+                style = typography.caption.copy(
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textBody,
+                ),
+            )
+            if (expandable) {
+                Icon(
+                    if (expanded) Lucide.ChevronUp else Lucide.ChevronDown,
+                    contentDescription = "Toggle execution steps",
+                    modifier = Modifier.size(12.dp),
+                    tint = colors.textMuted,
+                )
+            }
+        }
     }
 }
 
@@ -1493,12 +1881,36 @@ private fun ManifestPreviewCard(
     onCopyDone: () -> Unit,
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
-    onRegenerate: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     var expanded by remember { mutableStateOf(false) }
+    var showDiff by remember { mutableStateOf(false) }
     val testName = "$appName-scooper-test"
     val scroll = rememberScrollState()
+    val previewHScroll = rememberScrollState()
+
+    // A new revision (or switching revisions) resets the preview back to the top:
+    // the previous JSON may have been scrolled to its bottom, and the user should
+    // always start reading from the manifest head.
+    LaunchedEffect(manifestJson, selectedRevisionId) {
+        scroll.scrollTo(0)
+        previewHScroll.scrollTo(0)
+    }
+
+    val currentRev = if (selectedRevisionId != null) {
+        revisions.firstOrNull { it.id == selectedRevisionId }
+    } else {
+        revisions.lastOrNull()
+    }
+    val currentRevIndex = revisions.indexOf(currentRev)
+    val previousRev = if (currentRevIndex > 0) revisions[currentRevIndex - 1] else null
+    val detailedDiff = remember(previousRev?.manifestJson, currentRev?.manifestJson) {
+        if (previousRev != null && currentRev != null) {
+            computeDetailedLineDiff(previousRev.manifestJson, currentRev.manifestJson)
+        } else {
+            emptyList()
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -1562,17 +1974,11 @@ private fun ManifestPreviewCard(
             }
 
             if (revisions.size > 1) {
-                val currentRev = if (selectedRevisionId != null) {
-                    revisions.firstOrNull { it.id == selectedRevisionId }
-                } else {
-                    revisions.lastOrNull()
-                }
-
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(colors.inputBackground.copy(alpha = 0.5f))
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1580,7 +1986,7 @@ private fun ManifestPreviewCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -1596,33 +2002,55 @@ private fun ManifestPreviewCard(
                                     (selectedRevisionId == rev.id)
                                 val badgeColor = if (isSelected) colors.primary else colors.textMuted
                                 Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = if (isSelected) colors.primary.copy(alpha = 0.15f) else Color.Transparent,
+                                    shape = RoundedCornerShape(5.dp),
+                                    color = if (isSelected) colors.primary.copy(alpha = 0.15f) else colors.inputBackground,
                                     border = BorderStroke(1.dp, if (isSelected) colors.primary else colors.borderDefault),
                                     modifier = Modifier
                                         .cursorHand()
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .clickable { onSelectRevision?.invoke(if (rev == revisions.lastOrNull()) null else rev.id) }
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .clickable { onSelectRevision?.invoke(if (rev == revisions.lastOrNull()) null else rev.id) },
                                 ) {
                                     Text(
                                         "v${rev.revisionNumber}",
                                         style = typography.caption.copy(
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             color = badgeColor,
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                         ),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                     )
                                 }
                             }
                         }
 
-                        if (currentRev?.diffSummary?.isNotEmpty() == true && currentRev.diffSummary != listOf("Initial manifest")) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                currentRev.diffSummary.take(3).forEach { change ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (previousRev != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(5.dp),
+                                    color = if (showDiff) colors.primary.copy(alpha = 0.15f) else colors.inputBackground,
+                                    border = BorderStroke(1.dp, if (showDiff) colors.primary else colors.borderDefault),
+                                    modifier = Modifier
+                                        .cursorHand()
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .clickable { showDiff = !showDiff },
+                                ) {
+                                    Text(
+                                        if (showDiff) "View Code" else "View Diff",
+                                        style = typography.caption.copy(
+                                            color = if (showDiff) colors.primary else colors.textTitle,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                        ),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+
+                            if (currentRev?.diffSummary?.isNotEmpty() == true && currentRev.diffSummary != listOf("Initial manifest")) {
+                                currentRev.diffSummary.take(2).forEach { change ->
                                     val chipColor = when {
                                         change.startsWith("+") -> colors.updateDefault
                                         change.startsWith("-") -> colors.dangerDefault
@@ -1632,14 +2060,14 @@ private fun ManifestPreviewCard(
                                         change,
                                         style = typography.caption.copy(
                                             color = chipColor,
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium,
                                             fontFamily = FontFamily.Monospace,
                                         ),
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(3.dp))
+                                            .clip(RoundedCornerShape(4.dp))
                                             .background(chipColor.copy(alpha = 0.12f))
-                                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                                            .padding(horizontal = 8.dp, vertical = 3.dp),
                                     )
                                 }
                             }
@@ -1655,18 +2083,74 @@ private fun ManifestPreviewCard(
                     .background(colors.inputBackground),
             ) {
                 SelectableContainer {
-                    Text(
-                        manifestJson,
-                        style = typography.body2.copy(
-                            color = colors.onSurface,
-                            fontFamily = FontFamily.Monospace,
-                            lineHeight = typography.body2.fontSize * 1.55f,
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(scroll)
-                            .padding(14.dp),
-                    )
+                    if (showDiff && previousRev != null && detailedDiff.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(scroll)
+                                .padding(vertical = 8.dp),
+                        ) {
+                            detailedDiff.forEach { line ->
+                                val bgColor = when (line.type) {
+                                    DiffLineType.ADDED -> colors.updateDefault.copy(alpha = 0.12f)
+                                    DiffLineType.DELETED -> colors.dangerDefault.copy(alpha = 0.12f)
+                                    DiffLineType.UNCHANGED -> Color.Transparent
+                                }
+                                val textColor = when (line.type) {
+                                    DiffLineType.ADDED -> colors.updateDefault
+                                    DiffLineType.DELETED -> colors.dangerDefault
+                                    DiffLineType.UNCHANGED -> colors.onSurface
+                                }
+                                val prefix = when (line.type) {
+                                    DiffLineType.ADDED -> "+"
+                                    DiffLineType.DELETED -> "-"
+                                    DiffLineType.UNCHANGED -> " "
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(bgColor)
+                                        .padding(horizontal = 10.dp, vertical = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        prefix,
+                                        style = typography.body2.copy(
+                                            color = textColor,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                        ),
+                                        modifier = Modifier.width(16.dp),
+                                    )
+                                    Text(
+                                        line.text,
+                                        style = typography.body2.copy(
+                                            color = textColor,
+                                            fontFamily = FontFamily.Monospace,
+                                            lineHeight = typography.body2.fontSize * 1.5f,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            manifestJson,
+                            style = typography.body2.copy(
+                                color = colors.onSurface,
+                                fontFamily = FontFamily.Monospace,
+                                lineHeight = typography.body2.fontSize * 1.55f,
+                            ),
+                            // No soft wrap: overlong urls scroll horizontally instead
+                            // of folding mid-token (vertical scrolling is kept).
+                            softWrap = false,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(scroll)
+                                .horizontalScroll(previewHScroll)
+                                .padding(14.dp),
+                        )
+                    }
                 }
             }
 
@@ -1792,11 +2276,6 @@ private fun ManifestPreviewCard(
                     label = "Save to Bucket",
                     onClick = onSave,
                     enabled = enabled && !testing && !invalidJson,
-                )
-                SmallActionButton(
-                    label = "Regenerate",
-                    onClick = onRegenerate,
-                    enabled = enabled && !testing,
                 )
                 if (selectedRevisionId != null && selectedRevisionId != revisions.lastOrNull()?.id && onRevertToRevision != null) {
                     SmallActionButton(

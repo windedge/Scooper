@@ -59,6 +59,26 @@ class CreateViewModelFinishClassificationTest {
     }
 
     // ---------------------------------------------------------------
+    // finishedWithIssuesNotice: refine-aware issues notice text
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `finishedWithIssuesNotice says Generation for the initial generate scenario`() {
+        assertEquals(
+            "Generation finished with issues",
+            finishedWithIssuesNotice(isRefineScenario = false),
+        )
+    }
+
+    @Test
+    fun `finishedWithIssuesNotice says Refine for the refine scenario`() {
+        assertEquals(
+            "Refine finished with issues",
+            finishedWithIssuesNotice(isRefineScenario = true),
+        )
+    }
+
+    // ---------------------------------------------------------------
     // blank manifest counts as invalid JSON
     // ---------------------------------------------------------------
 

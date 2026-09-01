@@ -89,10 +89,20 @@ fun Modifier.cursorInput(): Modifier = composed {
     this.pointerHoverIcon(PointerIcon.Text)
 }
 
+/**
+ * Hand cursor for clickable elements.
+ *
+ * overrideDescendants = true is required: text inside a SelectionContainer is
+ * selectable and each selectable Text carries its own
+ * `pointerHoverIcon(PointerIcon.Text)` modifier (foundation SelectionController).
+ * The innermost hovered pointer-icon node wins unless an ancestor overrides
+ * it, so without the override any clickable row/capsule wrapping such a Text
+ * would still show the I-beam. With the override the hand icon wins over the
+ * selectable text inside (this modifier must not wrap text input fields).
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.cursorHand(): Modifier = composed {
-//    this.pointerHoverIcon(PointerIconDefaults.Hand)
-    this.pointerHoverIcon(PointerIcon.Hand)
+    this.pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)
 }
 
 fun Modifier.cursorLink(): Modifier = cursorHand()

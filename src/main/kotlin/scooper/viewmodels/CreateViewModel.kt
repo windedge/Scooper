@@ -1,19 +1,23 @@
 package scooper.viewmodels
 
 import com.scoopai.core.ManifestResult
+import com.scoopai.core.ToolActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.orbitmvi.orbit.Container
@@ -43,14 +47,24 @@ enum class ChatRole {
     Agent,
 }
 
+/**
+ * A finalized conversation bubble (architecture proposal 5.1: transient execution
+ * state lives in [CreateState.activeExecution]; this message carries the reply text
+ * plus the folded execution steps for later review).
+ */
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: ChatRole,
+    /** Conversation body: the user instruction, or the AI reply (explanation or synthesized text). */
     val text: String,
-    val phase: String? = null,
+    /** Optional user requirement attached to a URL message. */
     val note: String? = null,
-    val toolActivities: List<String> = emptyList(),
-    val summary: String? = null,
+    /** Download-confirm details are always a single line; other notes (requirements, errors) wrap freely. */
+    val noteSingleLine: Boolean = false,
+    /** Execution steps folded in from [ActiveExecution] when the run finished (for review). */
+    val executionSteps: List<ExecutionStep> = emptyList(),
+    /** Review toggle for the folded execution card; failures auto-expand. */
+    val isExecutionExpanded: Boolean = false,
     /** Suggested recovery actions for an error bubble; empty for non-error messages. */
     val actions: List<AiErrorAction> = emptyList(),
     /** Detailed technical log/stack for error bubbles (collapsible). */
@@ -137,6 +151,89 @@ data class ManifestRevision(
     val manifestJson: String,
     val diffSummary: List<String> = emptyList(),
 )
+
+enum class DiffLineType {
+    UNCHANGED,
+    ADDED,
+    DELETED,
+}
+
+data class DiffLine(
+    val type: DiffLineType,
+    val text: String,
+    val oldLineNumber: Int? = null,
+    val newLineNumber: Int? = null,
+)
+
+/**
+ * Computes a line-by-line unified diff between [oldText] and [newText] (LCS algorithm).
+ */
+fun computeDetailedLineDiff(oldText: String, newText: String): List<DiffLine> {
+    if (oldText.isBlank()) {
+        return newText.lines().mapIndexed { idx, line ->
+            DiffLine(type = DiffLineType.ADDED, text = line, newLineNumber = idx + 1)
+        }
+    }
+    if (oldText == newText) {
+        return newText.lines().mapIndexed { idx, line ->
+            DiffLine(type = DiffLineType.UNCHANGED, text = line, oldLineNumber = idx + 1, newLineNumber = idx + 1)
+        }
+    }
+
+    val oldLines = oldText.lines()
+    val newLines = newText.lines()
+    val n = oldLines.size
+    val m = newLines.size
+
+    val dp = Array(n + 1) { IntArray(m + 1) }
+    for (i in 0 until n) {
+        for (j in 0 until m) {
+            dp[i + 1][j + 1] = if (oldLines[i] == newLines[j]) {
+                dp[i][j] + 1
+            } else {
+                maxOf(dp[i + 1][j], dp[i][j + 1])
+            }
+        }
+    }
+
+    val result = mutableListOf<DiffLine>()
+    var i = n
+    var j = m
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1]) {
+            result.add(
+                DiffLine(
+                    type = DiffLineType.UNCHANGED,
+                    text = oldLines[i - 1],
+                    oldLineNumber = i,
+                    newLineNumber = j,
+                )
+            )
+            i--
+            j--
+        } else if (j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            result.add(
+                DiffLine(
+                    type = DiffLineType.ADDED,
+                    text = newLines[j - 1],
+                    newLineNumber = j,
+                )
+            )
+            j--
+        } else if (i > 0) {
+            result.add(
+                DiffLine(
+                    type = DiffLineType.DELETED,
+                    text = oldLines[i - 1],
+                    oldLineNumber = i,
+                )
+            )
+            i--
+        }
+    }
+
+    return result.reversed()
+}
 
 data class ReviewActionChip(
     val id: String = java.util.UUID.randomUUID().toString(),
@@ -284,8 +381,8 @@ data class CreateState(
     val manifestInvalidJson: Boolean = false,
     /** Unresolved validation/review issues when [manifestExhausted] is true. */
     val manifestIssues: List<String> = emptyList(),
-    /** Real-time human-readable tool activity line (e.g. "Querying repository info..."). */
-    val currentActivity: String? = null,
+    /** Transient execution progress of the running session; null when idle. */
+    val activeExecution: ActiveExecution? = null,
     /** Model selected for generation in Create workspace. */
     val selectedModel: String = "",
     /** Available models fetched from remote endpoint. */
@@ -331,9 +428,7 @@ class CreateViewModel(
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var refineAttemptCount = 0
     private var askUserDeferred: CompletableDeferred<String>? = null
-    private val activityChannel = kotlinx.coroutines.channels.Channel<com.scoopai.core.ToolActivity>(
-        kotlinx.coroutines.channels.Channel.UNLIMITED,
-    )
+    private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
 
     private val prettyJson = Json {
         prettyPrint = true
@@ -346,34 +441,9 @@ class CreateViewModel(
                 val text = ToolActivityFormatter.format(activity)
                 intent {
                     if (state.running) {
-                        val currentPhase = state.currentPhase
-                        val updatedMessages = if (activity is com.scoopai.core.ToolActivity.Completed ||
-                            activity is com.scoopai.core.ToolActivity.Failed
-                        ) {
-                            val logItem = if (activity is com.scoopai.core.ToolActivity.Completed) {
-                                "✔ $text"
-                            } else {
-                                "✖ $text"
-                            }
-                            val targetIndex = state.messages.indexOfLast {
-                                it.role == ChatRole.Agent && it.phase.equals(currentPhase, ignoreCase = true)
-                            }
-                            if (targetIndex != -1) {
-                                val target = state.messages[targetIndex]
-                                if (logItem !in target.toolActivities) {
-                                    state.messages.toMutableList().apply {
-                                        this[targetIndex] = target.copy(toolActivities = target.toolActivities + logItem)
-                                    }
-                                } else state.messages
-                            } else state.messages
-                        } else {
-                            state.messages
-                        }
-
                         reduce {
                             state.copy(
-                                currentActivity = text,
-                                messages = updatedMessages,
+                                activeExecution = attachToolActivity(state.activeExecution, activity, text),
                             )
                         }
                     }
@@ -468,6 +538,7 @@ class CreateViewModel(
 
     fun onReset() = intent {
         scoopAiBridge.cancel()
+        drainActivityEvents(activityChannel)
         checkpointService.reset()
         refineAttemptCount = 0
         reduce {
@@ -510,24 +581,17 @@ class CreateViewModel(
         }
     }
 
-    fun onRegenerate() = intent {
-        if (state.running) return@intent
-        val url = state.lastUrl.ifBlank { state.inputUrl }
-        if (url.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("Nothing to regenerate", ToastType.ERROR))
-            return@intent
-        }
-        startGeneration(rawUrlInput = url, noteInput = state.lastNote)
-    }
 
     fun onAnswerAskUser(answer: String) = intent {
         val text = answer.trim()
         val response = text.ifBlank { DEFAULT_AUTONOMOUS_PROCEED_ANSWER }
-        val isDownload = state.askUserRequest?.isDownloadPrompt == true
+        val request = state.askUserRequest
+        val isDownload = request?.isDownloadPrompt == true
         val userBubbleText = resolveAskUserBubbleText(response, isDownload)
+        val downloadDetail = buildDownloadConfirmDetail(request, response)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = userBubbleText),
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = userBubbleText, note = downloadDetail, noteSingleLine = true),
                 askUserRequest = null,
             )
         }
@@ -535,9 +599,10 @@ class CreateViewModel(
     }
 
     fun onCancelAskUser() = intent {
+        val downloadDetail = buildDownloadConfirmDetail(state.askUserRequest, DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = "Let AI decide"),
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = "Let AI decide", note = downloadDetail, noteSingleLine = true),
                 askUserRequest = null,
             )
         }
@@ -550,12 +615,10 @@ class CreateViewModel(
         askUserDeferred = null
         scoopAiBridge.cancel()
         reduce {
-            state.copy(
-                running = false,
-                currentPhase = null,
-                currentActivity = null,
-                askUserRequest = null,
-                messages = state.messages + agentMessage("Generation cancelled by user.", "error"),
+            // Cancel just folds the execution card without auto-expanding it.
+            state.copy(askUserRequest = null).finishGeneration(
+                messages = state.messages + agentMessage("Generation cancelled by user."),
+                error = null,
             )
         }
         postSideEffect(AppSideEffect.Toast("Cancelled", ToastType.INFO))
@@ -585,7 +648,6 @@ class CreateViewModel(
         val tempFile = File(System.getProperty("java.io.tmpdir"), "$testName.json")
         val startMsg = agentMessage(
             "Starting test install as $testName...",
-            "test-install",
         )
 
         reduce {
@@ -618,7 +680,6 @@ class CreateViewModel(
             if (result.isSuccess) {
                 resultMsg = agentMessage(
                     "Test install passed for $testName. Package installed successfully and cleaned up.",
-                    "done",
                 )
                 testResult = TestResult(
                     success = true,
@@ -632,7 +693,6 @@ class CreateViewModel(
                 val safe = AiErrorTranslator.maskSecrets(detail)
                 resultMsg = agentMessage(
                     "Test install failed for $testName: $safe",
-                    "error",
                 )
                 val summary = AiErrorTranslator.maskSecrets(
                     errorSummary(result.errorMessage, result.output, MAX_ERROR_SUMMARY_LINES),
@@ -652,7 +712,7 @@ class CreateViewModel(
                 ?: "Test install failed"
             logger.error("Test install failed: $message")
             val safe = AiErrorTranslator.maskSecrets(message)
-            resultMsg = agentMessage(safe, "error")
+            resultMsg = agentMessage(safe)
             testResult = TestResult(
                 success = false,
                 testName = testName,
@@ -974,10 +1034,17 @@ class CreateViewModel(
         reduce {
             state.copy(
                 messages = state.messages +
-                    ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt) +
-                    agentMessage(startPhaseTitle, initialPhase),
+                    ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt),
                 running = true,
                 currentPhase = initialPhase,
+                // Transient execution card starts here; engine onPhase/onToolActivity
+                // events aggregate into it until the run finishes.
+                activeExecution = ActiveExecution(
+                    steps = listOf(
+                        ExecutionStep(phase = initialPhase, title = startPhaseTitle, isRunning = true),
+                    ),
+                    currentStepStartedAtMs = System.currentTimeMillis(),
+                ),
                 lastUrl = urlFromField,
                 lastNote = userPrompt.orEmpty(),
                 manifestJson = "",
@@ -1096,11 +1163,15 @@ class CreateViewModel(
 
         reduce {
             state.copy(
-                messages = state.messages +
-                    ChatMessage(role = ChatRole.User, text = userPrompt) +
-                    agentMessage(startPhaseTitle, "refine"),
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt),
                 running = true,
                 currentPhase = "refine",
+                activeExecution = ActiveExecution(
+                    steps = listOf(
+                        ExecutionStep(phase = "refine", title = startPhaseTitle, isRunning = true),
+                    ),
+                    currentStepStartedAtMs = System.currentTimeMillis(),
+                ),
                 inputUrl = "",
                 inputNote = "",
                 testResult = null,
@@ -1108,7 +1179,6 @@ class CreateViewModel(
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
-                currentActivity = null,
                 error = null,
             )
         }
@@ -1136,25 +1206,15 @@ class CreateViewModel(
             appName = state.suggestedAppName,
             refineAttempt = refineAttemptCount,
         )
-        val lastUserIdx = state.messages.indexOfLast { it.role == ChatRole.User }
-        val currentRoundMessages = if (lastUserIdx >= 0) {
-            state.messages.subList(lastUserIdx, state.messages.size)
-        } else {
-            state.messages
-        }
-        val hasPhaseMessage = currentRoundMessages.any {
-            it.role == ChatRole.Agent && it.phase.equals(phase, ignoreCase = true)
-        }
-        val updatedMessages = if (hasPhaseMessage) {
-            state.messages
-        } else {
-            state.messages + agentMessage(titleText, phase)
-        }
         reduce {
             state.copy(
                 currentPhase = phase,
-                currentActivity = null,
-                messages = updatedMessages,
+                activeExecution = appendPhaseStep(
+                    active = state.activeExecution,
+                    phase = phase,
+                    title = titleText,
+                    nowMs = System.currentTimeMillis(),
+                ),
             )
         }
     }
@@ -1162,15 +1222,11 @@ class CreateViewModel(
     private fun handlePhaseOutput(phase: String, outputJson: String) = intent {
         if (!state.running) return@intent
         val summary = PhaseSummaryFormatter.formatPhaseOutput(phase, outputJson) ?: return@intent
-        val targetIndex = state.messages.indexOfLast {
-            it.role == ChatRole.Agent && it.phase.equals(phase, ignoreCase = true)
+        reduce {
+            state.copy(
+                activeExecution = setPhaseSummary(state.activeExecution, phase, summary),
+            )
         }
-        val updatedMessages = if (targetIndex != -1) {
-            state.messages.toMutableList().apply {
-                this[targetIndex] = this[targetIndex].copy(summary = summary)
-            }
-        } else state.messages
-        reduce { state.copy(messages = updatedMessages) }
     }
 
     private fun handleFinished(result: Result<ManifestResult>) = intent {
@@ -1178,12 +1234,16 @@ class CreateViewModel(
             onSuccess = { manifestResult ->
                 if (manifestResult.noAssets) {
                     val name = manifestResult.suggestedAppName ?: state.suggestedAppName ?: "app"
+                    // The engine synthesizes the noAssets explanation; fall back to the
+                    // generic notice when it is missing. Abnormal ending: auto-expand.
+                    val noAssetsText = manifestResult.explanation?.trim()?.takeIf { it.isNotEmpty() }
+                        ?: "No Windows assets found for this repository."
                     reduce {
                         state.finishGeneration(
-                            messages = state.messages +
-                                agentMessage("No Windows assets found for this repository.", "error"),
+                            messages = state.messages + agentMessage(noAssetsText),
                             error = "No Windows assets found",
                             suggestedAppName = name,
+                            executionExpanded = true,
                         )
                     }
                     postSideEffect(AppSideEffect.Toast("No Windows assets found", ToastType.ERROR))
@@ -1213,20 +1273,28 @@ class CreateViewModel(
 
                 val isConflictOnly = isNameConflictOnly(issues, invalidJson)
 
-                val bubbleText = when {
-                    isConflictOnly -> "Done with notice: App name '$name' conflicts with an existing local manifest. See card below."
-                    finishedWithIssues -> "Generation finished with issues. See card below for details."
-                    else -> "Done. Suggested name: $name. Manifest ready (see card below)."
+                // Explanation priority (proposal 5.3): conflict/issues notices stay the
+                // main text (explanation appended as a trailing paragraph); a normal
+                // finish uses the engine explanation, else the deterministic synthesis.
+                val isRefine = isRefineScenario(state.currentPhase, state.revisions)
+                val synthesized = if (isRefine) {
+                    val previousManifest = state.revisions.lastOrNull()?.manifestJson.orEmpty()
+                    synthesizeRefineExplanation(computeManifestDiff(previousManifest, pretty))
+                } else {
+                    synthesizeGenerateExplanation(pretty, name)
                 }
-                val bubblePhase = when {
-                    isConflictOnly -> "notice"
-                    finishedWithIssues -> "error"
-                    else -> "done"
-                }
+                val bubbleText = composeFinishedBubbleText(
+                    explanation = manifestResult.explanation,
+                    isConflictOnly = isConflictOnly,
+                    finishedWithIssues = finishedWithIssues,
+                    conflictText = "Done with notice: App name '$name' conflicts with an existing local manifest. See card below.",
+                    issuesText = finishedWithIssuesNotice(isRefine) + ". See card below for details.",
+                    fallbackText = synthesized,
+                )
 
                 val toastText = when {
                     isConflictOnly -> "Manifest generated with name conflict: $name"
-                    finishedWithIssues -> "Generation finished with issues"
+                    finishedWithIssues -> finishedWithIssuesNotice(isRefine)
                     else -> "Manifest generated: $name"
                 }
                 val toastType = when {
@@ -1237,13 +1305,14 @@ class CreateViewModel(
 
                 reduce {
                     state.finishGeneration(
-                        messages = state.messages + agentMessage(bubbleText, bubblePhase),
+                        messages = state.messages + agentMessage(bubbleText),
                         error = null,
                         manifestJson = pretty,
                         suggestedAppName = name,
                         manifestExhausted = finishedWithIssues,
                         manifestInvalidJson = invalidJson,
                         manifestIssues = issues,
+                        executionExpanded = finishedWithIssues,
                     )
                 }
                 postSideEffect(
@@ -1255,7 +1324,7 @@ class CreateViewModel(
                     if (state.running) {
                         reduce {
                             state.finishGeneration(
-                                messages = state.messages + agentMessage("Generation cancelled.", "error"),
+                                messages = state.messages + agentMessage("Generation cancelled."),
                             )
                         }
                     }
@@ -1274,6 +1343,7 @@ class CreateViewModel(
                         messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
                         error = safe,
                         resumableStages = resumableStages,
+                        executionExpanded = true,
                     )
                 }
                 postSideEffect(AppSideEffect.Toast(safe, ToastType.ERROR))
@@ -1312,14 +1382,25 @@ class CreateViewModel(
                 it.name.equals(testName, ignoreCase = true)
             }
             if (installed) {
+                // purge = true: test installs must not leave persist data behind.
                 scoopClient.uninstall(
                     App(name = testName, latestVersion = "0"),
                     global = false,
+                    purge = true,
                 )
             }
         } catch (e: Exception) {
             logger.warn("Test install cleanup failed for $testName: ${e.message}")
         } finally {
+            try {
+                // Fallback: older scoop ignores -p or the uninstall may have
+                // failed, so remove the persist dir directly (best-effort).
+                if (scoopClient.cleanupPersistDir(testName)) {
+                    logger.info("Removed leftover persist dir for test app $testName")
+                }
+            } catch (e: Exception) {
+                logger.warn("Failed to remove persist dir for test app $testName: ${e.message}")
+            }
             try {
                 if (tempFile.exists()) tempFile.delete()
             } catch (e: Exception) {
@@ -1331,20 +1412,26 @@ class CreateViewModel(
     private fun agentError(presentation: AiErrorPresentation): ChatMessage = ChatMessage(
         role = ChatRole.Agent,
         text = presentation.title,
-        phase = "error",
         note = AiErrorTranslator.maskSecrets(presentation.detail),
         technicalDetails = presentation.technicalDetails?.let(AiErrorTranslator::maskSecrets),
         actions = presentation.actions,
     )
 
-    private fun agentMessage(text: String, phase: String) = ChatMessage(
+    private fun agentMessage(text: String) = ChatMessage(
         role = ChatRole.Agent,
         text = text,
-        phase = phase,
     )
 
     fun onSelectRevision(revisionId: String?) = intent {
         reduce { state.copy(selectedRevisionId = revisionId) }
+    }
+
+    /**
+     * Toggle the execution review accordion of a finalized message (stage 3).
+     * Unknown ids leave the state unchanged (see [toggleExecutionExpanded]).
+     */
+    fun onToggleExecutionExpanded(messageId: String) = intent {
+        reduce { state.copy(messages = toggleExecutionExpanded(state.messages, messageId)) }
     }
 
     fun onRevertToRevision(revisionId: String) = intent {
@@ -1379,7 +1466,13 @@ class CreateViewModel(
         manifestExhausted: Boolean = this.manifestExhausted,
         manifestInvalidJson: Boolean = this.manifestInvalidJson,
         manifestIssues: List<String> = this.manifestIssues,
+        executionExpanded: Boolean = false,
     ): CreateState {
+        // Late-event race defense (proposal 5.1): drain residual buffered activity
+        // events BEFORE collapsing so the finalized step list is consistent.
+        drainActivityEvents(activityChannel)
+        val collapsedMessages = collapseActiveExecution(messages, activeExecution, executionExpanded, System.currentTimeMillis())
+
         val previousManifest = this.revisions.lastOrNull()?.manifestJson.orEmpty()
         val updatedRevisions = if (manifestJson.isNotBlank() && (this.revisions.isEmpty() || previousManifest != manifestJson)) {
             val diff = computeManifestDiff(previousManifest, manifestJson)
@@ -1403,8 +1496,8 @@ class CreateViewModel(
         return copy(
             running = false,
             currentPhase = null,
-            currentActivity = null,
-            messages = messages,
+            activeExecution = null,
+            messages = collapsedMessages,
             error = error,
             manifestJson = manifestJson,
             suggestedAppName = suggestedAppName,
@@ -1415,14 +1508,6 @@ class CreateViewModel(
             revisions = updatedRevisions,
             selectedRevisionId = null,
         )
-    }
-
-    private fun phaseMessage(phase: String): String = when (phase.lowercase()) {
-        "research" -> "Researching repository metadata and latest release assets..."
-        "analyze" -> "Analyzing Windows assets, computing hashes, and detecting binaries..."
-        "generate" -> "Writing Scoop manifest (architecture, checkver, autoupdate)..."
-        "refine" -> "Refining manifest based on validation / review feedback..."
-        else -> "Working on phase: $phase..."
     }
 
     override fun close() {
@@ -1621,6 +1706,170 @@ internal fun resolveAskUserBubbleText(response: String, isDownloadPrompt: Boolea
     }
 }
 
+private val DOWNLOAD_ASSET_EXTENSIONS = setOf(".zip", ".exe", ".msi", ".7z", ".tar.gz", ".tgz")
+
+/**
+ * Whether an option label is itself concrete enough to show as the download detail:
+ * it names an asset file (archive/installer extension) or a URL. Generic labels such
+ * as "Download and proceed" are not asset-like and fall through to prompt extraction,
+ * otherwise the two confirm/skip bubbles would be indistinguishable.
+ */
+internal fun looksLikeDownloadAsset(label: String): Boolean =
+    label.contains("http://", ignoreCase = true) ||
+        label.contains("https://", ignoreCase = true) ||
+        DOWNLOAD_ASSET_EXTENSIONS.any { label.contains(it, ignoreCase = true) }
+
+// Total single-line budget for the download confirm detail.
+private const val DOWNLOAD_DETAIL_MAX = 88
+private const val ELLIPSIS = "…"
+
+private val DOWNLOAD_FILE_NAME_QUOTED = Regex(
+    """'([^'\n]*\s*[^'\s\n]*(?:\.(?:zip|exe|msi|7z))[^'\n]*)'""",
+    RegexOption.IGNORE_CASE,
+)
+private val DOWNLOAD_BARE_ASSET = Regex(
+    """[A-Za-z0-9][A-Za-z0-9._~:/?#@!\$&'()*+,;=%-]*(?:\.(?:zip|exe|msi|7z|tar\.gz|tgz))[A-Za-z0-9._~:/?#@!\$&'()*+,;=%-]*""",
+    RegexOption.IGNORE_CASE,
+)
+private val DOWNLOAD_URL = Regex("""https?://[^\s'")<>]+""", RegexOption.IGNORE_CASE)
+// Size in parentheses right after the file name quote, e.g. "(1.2 MB)".
+private val DOWNLOAD_SIZE = Regex("""\(([\d.,]+\s*[KMG]i?B)\)""", RegexOption.IGNORE_CASE)
+
+/**
+ * Builds a short single-line note describing what the user confirmed/skipped
+ * when answering a download questionnaire. Returns null when the request is
+ * not a download prompt or nothing concrete can be extracted. The priority is:
+ * 1. the label of the QuestionnaireOption matching the user's answer, but only
+ *    when the label itself names an asset (extension or URL); shown verbatim
+ *    (budgeted to one line);
+ * 2. otherwise the download prompt itself, laid out on one line as the
+ *      URL middle-elided by [elideUrlMiddle] to fit the whole line budget;
+ *      when no URL is present the file name (plus "(size)" when the prompt
+ *      states one) is shown instead;
+ *    so generic labels like "Download and proceed" never shadow the real asset;
+ * 3. null when no URL and no asset file name can be extracted (and no
+ *    matchable asset-like label), so the bubble keeps its main text only.
+ * The returned text is the main bubble text companion only; the bubble's main
+ * text ("Download confirmed"/"Download skipped") is never changed here.
+ */
+internal fun buildDownloadConfirmDetail(request: AskUserRequest?, response: String): String? {
+    if (request == null || !request.isDownloadPrompt) return null
+    val question = request.questions.firstOrNull { q ->
+        q.id == "download_confirm" ||
+            q.prompt.contains("download", ignoreCase = true) ||
+            q.prompt.contains("installer/archive", ignoreCase = true)
+    } ?: request.questions.firstOrNull() ?: return null
+
+    val matchedLabel = question.options.firstOrNull { opt ->
+        response.trim().equals(opt.label, ignoreCase = true) ||
+            response.contains(opt.label, ignoreCase = true)
+    }?.label
+    return if (matchedLabel != null && looksLikeDownloadAsset(matchedLabel)) {
+        // Asset-like option label: show it verbatim as a single line.
+        normalizeDownloadLine(matchedLabel)
+    } else {
+        // Generic (or unmatched) label: rebuild the detail from the prompt so
+        // labels like "Download and proceed" never shadow the real asset.
+        detailFromDownloadPrompt(question.prompt) ?: matchedLabel?.let(::normalizeDownloadLine)
+    }
+}
+
+/**
+ * Extracts the download detail from the prompt as a single line: the URL
+ * middle-elided to fit [DOWNLOAD_DETAIL_MAX], with the whole budget given to
+ * it. When no URL is present it falls back to the file name (plus "(size)"
+ * when the prompt states one). Returns null when neither a URL nor an asset
+ * file name can be extracted, so the caller keeps the bubble's main text only.
+ */
+private fun detailFromDownloadPrompt(prompt: String): String? {
+    val url = DOWNLOAD_URL.find(prompt)?.value?.trim()?.takeIf { it.isNotBlank() }
+    if (url != null) return elideUrlMiddle(url, DOWNLOAD_DETAIL_MAX)
+    val quoted = DOWNLOAD_FILE_NAME_QUOTED.find(prompt)
+    if (quoted != null) {
+        // Trim leftover wrapping quotes: prompts sometimes leak a trailing
+        // quote into the extracted name (e.g. "name.zip'").
+        val fileName = quoted.groupValues[1].trim().trim('\'', '"').trim()
+        val size = sizeAfterQuote(prompt, quoted.range.last + 1)
+        return normalizeDownloadLine(if (size != null) "$fileName ($size)" else fileName)
+    }
+    val bare = DOWNLOAD_BARE_ASSET.find(prompt)?.value
+        ?.trim()
+        ?.trim('\'', '"')
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+    if (bare != null) return normalizeDownloadLine(bare)
+    return null
+}
+
+/** Size in "(1.2 MB)" form directly following the closing quote at [from]. */
+private fun sizeAfterQuote(prompt: String, from: Int): String? {
+    val rest = prompt.substring(from)
+    val match = DOWNLOAD_SIZE.find(rest) ?: return null
+    // The parenthesis must directly follow the quote; only whitespace in between.
+    if (rest.substring(0, match.range.first).isNotBlank()) return null
+    return match.groupValues[1].replace(Regex("\\s+"), " ").trim()
+}
+
+/**
+ * Elides the middle of an overlong URL, keeping the scheme://host prefix and
+ * the last path segment (the file name) intact, separated by "/…/". When the
+ * intermediate path allows it, the longest prefix that still fits is kept
+ * (e.g. "https://github.com/user/…/v1.0.zip"). Query and fragment are dropped
+ * before measuring; if the file name itself cannot fit it is tail truncated
+ * with an ellipsis so the result never exceeds [maxLen]. URLs at or under
+ * [maxLen] are returned unchanged.
+ */
+internal fun elideUrlMiddle(url: String, maxLen: Int): String {
+    if (maxLen <= 0) return ""
+    if (url.length <= maxLen) return url
+    // Query/fragment never survive elision; dropping them may already fit.
+    val clean = url.substringBefore('?').substringBefore('#')
+    if (clean.length <= maxLen) return clean
+    val schemeEnd = clean.indexOf("://")
+    if (schemeEnd < 0) return clean.take(maxLen - 1) + ELLIPSIS
+    val firstSlash = clean.indexOf('/', schemeEnd + 3)
+    val schemeAndHost = if (firstSlash < 0) clean else clean.take(firstSlash)
+    val path = if (firstSlash < 0) "" else clean.substring(firstSlash)
+    val lastSlash = path.lastIndexOf('/')
+    val last = if (lastSlash < 0) "" else path.substring(lastSlash + 1)
+    if (last.isEmpty()) {
+        // No path segments (bare or trailing-slash host): tail truncate.
+        return clean.take(maxLen - 1) + ELLIPSIS
+    }
+    val minResult = "$schemeAndHost/$ELLIPSIS/$last"
+    if (minResult.length > maxLen) {
+        // Host + "/…/" + file name still too wide: tail truncate the name.
+        val nameRoom = maxLen - schemeAndHost.length - 3
+        if (nameRoom >= 2) {
+            return "$schemeAndHost/$ELLIPSIS/" + last.take(nameRoom - 1) + ELLIPSIS
+        }
+        return clean.take(maxLen - 1) + ELLIPSIS
+    }
+    // Greedy: keep the longest intermediate path prefix that still fits.
+    var best = minResult
+    var slash = path.indexOf('/', 1)
+    while (slash in 1 until lastSlash) {
+        val candidate = schemeAndHost + path.substring(0, slash) + "/$ELLIPSIS/$last"
+        if (candidate.length > maxLen) break
+        best = candidate
+        slash = path.indexOf('/', slash + 1)
+    }
+    return best
+}
+
+private fun normalizeDownloadLine(raw: String): String {
+    val collapsed = raw.replace(Regex("\\s+"), " ").trim()
+    // URLs get middle elision so scheme, host and file name stay visible.
+    if (collapsed.startsWith("http", ignoreCase = true)) {
+        return elideUrlMiddle(collapsed, DOWNLOAD_DETAIL_MAX)
+    }
+    return if (collapsed.length > DOWNLOAD_DETAIL_MAX) {
+        collapsed.take(DOWNLOAD_DETAIL_MAX - 1) + ELLIPSIS
+    } else {
+        collapsed
+    }
+}
+
 internal fun extractUserHistory(messages: List<ChatMessage>): List<String> =
     messages.filter { it.role == ChatRole.User && it.text.isNotBlank() }
         .mapNotNull { msg ->
@@ -1713,3 +1962,158 @@ internal fun computeManifestDiff(oldJson: String, newJson: String): List<String>
     }
     return diffs
 }
+
+/**
+ * True when the current finish should be explained as a refine round: the run was in
+ * the refine phase AND a previous manifest revision exists to diff against. Pure
+ * helper for the finished-bubble composition in handleFinished.
+ */
+internal fun isRefineScenario(currentPhase: String?, revisions: List<ManifestRevision>): Boolean {
+    if (!currentPhase.equals("refine", ignoreCase = true)) return false
+    return revisions.isNotEmpty()
+}
+
+/**
+ * User-facing notice for a finished-with-issues run: refine rounds say "Refine",
+ * initial generation says "Generation". Pure function (toast + issues bubble text).
+ */
+internal fun finishedWithIssuesNotice(isRefineScenario: Boolean): String =
+    if (isRefineScenario) "Refine finished with issues" else "Generation finished with issues"
+
+/**
+ * Deterministic refine explanation (proposal 5.4): human-readable English built from
+ * the key-level [computeManifestDiff] output, e.g.
+ * "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready."
+ * Pure function; used when the engine explanation is missing.
+ */
+internal fun synthesizeRefineExplanation(diff: List<String>): String {
+    val removed = mutableListOf<String>()
+    val added = mutableListOf<String>()
+    val modified = mutableListOf<String>()
+    var versionChange: String? = null
+    var genericUpdate = false
+
+    for (entry in diff) {
+        when {
+            entry.startsWith("- ") -> removed.add(entry.removePrefix("- "))
+            entry.startsWith("+ ") -> added.add(entry.removePrefix("+ "))
+            entry.startsWith("~ ") -> {
+                val key = entry.removePrefix("~ ")
+                if (key.startsWith("version:")) {
+                    versionChange = "updated version (${key.removePrefix("version:").trim()})"
+                } else {
+                    modified.add(key)
+                }
+            }
+            entry == "Manifest updated" -> genericUpdate = true
+            // "Initial manifest" and unknown entries carry no refine detail
+        }
+    }
+
+    val phrases = buildList {
+        if (removed.isNotEmpty()) add("Removed " + removed.joinToString(", "))
+        if (added.isNotEmpty()) add("added " + added.joinToString(", "))
+        if (modified.isNotEmpty()) add("updated " + modified.joinToString(", "))
+        if (versionChange != null) add(versionChange)
+    }
+    val body = when {
+        phrases.isNotEmpty() -> phrases.joinToString(", ").replaceFirstChar { it.uppercaseChar() }
+        genericUpdate -> "Updated the manifest"
+        else -> "No manifest changes were required"
+    }
+    return "$body. Validated and ready."
+}
+
+/**
+ * Deterministic initial-generation explanation (proposal 5.4): describes the manifest's
+ * key fields (name, version, url strategy, shortcuts/persist counts), e.g.
+ * "Generated manifest for fd 10.2.0 (portable zip). 1 shortcut, 2 persist entries.
+ * Validated and ready." Missing fields are omitted robustly; [appName] is the fallback
+ * when the manifest has no name field. Pure function.
+ */
+internal fun synthesizeGenerateExplanation(manifestJson: String, appName: String?): String {
+    val obj = try {
+        Json.parseToJsonElement(manifestJson) as? JsonObject
+    } catch (_: Exception) {
+        null
+    }
+
+    fun stringField(key: String): String? = obj?.get(key)
+        ?.let { it as? JsonPrimitive }
+        ?.contentOrNull
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+
+    // Architecture-package form: "architecture": {"64bit": {"url": ...}}. Used as
+    // the strategy source when the top-level url is missing; empty when neither
+    // exists (the strategy then degrades to "portable").
+    fun architectureFallbackUrl(): String? = obj?.get("architecture")
+        ?.let { it as? JsonObject }
+        ?.values
+        ?.mapNotNull { arch ->
+            (arch as? JsonObject)?.get("url")
+                ?.let { it as? JsonPrimitive }
+                ?.contentOrNull
+                ?.trim()
+                ?.takeIf { s -> s.isNotEmpty() }
+        }
+        ?.firstOrNull()
+
+    val name = stringField("name")
+        ?: appName?.trim()?.takeIf { it.isNotEmpty() }
+    val version = stringField("version")
+    val url = (stringField("url") ?: architectureFallbackUrl()).orEmpty().lowercase()
+    val strategy = when {
+        url.contains(".zip") -> "portable zip"
+        url.contains(".7z") -> "portable 7z archive"
+        url.contains(".msix") -> "MSIX package"
+        url.contains(".msi") -> "MSI installer"
+        url.contains(".exe") -> "installer"
+        else -> "portable"
+    }
+
+    val shortcuts = (obj?.get("shortcuts") as? JsonArray)?.size ?: 0
+    val persistCount = when (val persist = obj?.get("persist")) {
+        is JsonArray -> persist.size
+        is JsonPrimitive -> if (persist.contentOrNull?.isNotBlank() == true) 1 else 0
+        else -> 0
+    }
+
+    val subject = buildString {
+        append("Generated manifest")
+        if (name != null) append(" for $name")
+        if (version != null) append(" $version")
+        append(" ($strategy)")
+    }
+    val features = mutableListOf<String>()
+    if (shortcuts > 0) features.add(if (shortcuts == 1) "1 shortcut" else "$shortcuts shortcuts")
+    if (persistCount > 0) features.add(if (persistCount == 1) "1 persist entry" else "$persistCount persist entries")
+    val featureText = if (features.isEmpty()) "" else ". " + features.joinToString(", ")
+    return "$subject$featureText. Validated and ready."
+}
+
+/**
+ * Compose the finished-bubble text following the proposal 5.3 priority:
+ * conflict/issues classification keeps the main text (the explanation, when present,
+ * is appended as a trailing paragraph); a normal finish uses the engine explanation,
+ * else [fallbackText] (the deterministic synthesis). A blank explanation counts as
+ * missing. Pure function.
+ */
+internal fun composeFinishedBubbleText(
+    explanation: String?,
+    isConflictOnly: Boolean,
+    finishedWithIssues: Boolean,
+    conflictText: String,
+    issuesText: String,
+    fallbackText: String,
+): String {
+    val trimmed = explanation?.trim()?.takeIf { it.isNotEmpty() }
+    return when {
+        isConflictOnly -> appendExplanationParagraph(conflictText, trimmed)
+        finishedWithIssues -> appendExplanationParagraph(issuesText, trimmed)
+        else -> trimmed ?: fallbackText
+    }
+}
+
+private fun appendExplanationParagraph(base: String, explanation: String?): String =
+    if (explanation == null) base else "$base\n\n$explanation"

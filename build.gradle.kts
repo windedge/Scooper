@@ -51,7 +51,7 @@ dependencies {
     implementation(libs.commonmark.ext.gfm.strikethrough)
 //    implementation(libs.compose.dnd)
 
-    implementation("com.scoopai:scoop-ai-tools:0.1.5")
+    implementation("com.scoopai:scoop-ai-tools:0.1.6")
 
     // test
     testImplementation(libs.junit.jupiter)

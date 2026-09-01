@@ -207,4 +207,30 @@ class CreateViewModelRefineTest {
         val chips = extractReviewActionChips(issues = emptyList(), invalidJson = false, testResult = failedResult)
         assertTrue(chips.any { it.isPrimary && it.label.contains("Fix install failure") }, "Should have primary test fix chip")
     }
+
+    @Test
+    fun `computeDetailedLineDiff marks all lines as added when old text is blank`() {
+        val newText = "{\n  \"version\": \"1.0.0\"\n}"
+        val diff = computeDetailedLineDiff("", newText)
+        assertEquals(3, diff.size)
+        assertTrue(diff.all { it.type == DiffLineType.ADDED })
+    }
+
+    @Test
+    fun `computeDetailedLineDiff marks all lines unchanged when texts match`() {
+        val text = "{\n  \"version\": \"1.0.0\"\n}"
+        val diff = computeDetailedLineDiff(text, text)
+        assertEquals(3, diff.size)
+        assertTrue(diff.all { it.type == DiffLineType.UNCHANGED })
+    }
+
+    @Test
+    fun `computeDetailedLineDiff detects added and deleted lines`() {
+        val oldText = "line1\nline2\nline3"
+        val newText = "line1\nline2-modified\nline3\nline4"
+        val diff = computeDetailedLineDiff(oldText, newText)
+        assertTrue(diff.any { it.type == DiffLineType.DELETED && it.text == "line2" })
+        assertTrue(diff.any { it.type == DiffLineType.ADDED && it.text == "line2-modified" })
+        assertTrue(diff.any { it.type == DiffLineType.ADDED && it.text == "line4" })
+    }
 }

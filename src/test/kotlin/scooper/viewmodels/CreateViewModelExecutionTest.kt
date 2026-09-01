@@ -1,0 +1,577 @@
+package scooper.viewmodels
+
+import com.scoopai.core.ToolActivity
+import kotlinx.coroutines.channels.Channel
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+/**
+ * TDD tests for the transient-execution aggregation pure functions extracted from
+ * CreateViewModel (architecture proposal 5.1: ActiveExecution vs finalized ChatMessage).
+ *
+ * The functions aggregate engine events (onPhase / onToolActivity / onPhaseOutput) into
+ * [ActiveExecution] steps and fold the transient state into a finalized message with
+ * collapsed/expanded execution steps (success collapses, failure expands).
+ */
+class CreateViewModelExecutionTest {
+
+    // ---------------------------------------------------------------
+    // appendPhaseStep: phase start aggregation
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `appendPhaseStep on null active creates a first running step`() {
+        val active = appendPhaseStep(
+            active = null,
+            phase = "research",
+            title = "Researching repository metadata...",
+            nowMs = 1000L,
+        )
+        assertEquals(1, active.steps.size)
+        val step = active.steps.first()
+        assertEquals("research", step.phase)
+        assertEquals("Researching repository metadata...", step.title)
+        assertTrue(step.isRunning)
+        assertEquals(0L, step.durationMs)
+        assertEquals(1000L, active.currentStepStartedAtMs)
+        assertNull(active.currentActivity)
+    }
+
+    @Test
+    fun `appendPhaseStep closes the previous running step with durationMs from nowMs`() {
+        val first = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val second = appendPhaseStep(first, "analyze", "Analyzing...", nowMs = 3500L)
+
+        assertEquals(2, second.steps.size)
+        val research = second.steps[0]
+        assertFalse(research.isRunning, "previous step must be closed")
+        assertEquals(2500L, research.durationMs, "durationMs = nowMs - currentStepStartedAtMs")
+
+        val analyze = second.steps[1]
+        assertTrue(analyze.isRunning)
+        assertEquals(0L, analyze.durationMs)
+        assertEquals(3500L, second.currentStepStartedAtMs)
+        assertNull(second.currentActivity, "phase switch resets the live activity line")
+    }
+
+    @Test
+    fun `appendPhaseStep with same phase re-entry keeps a single running step`() {
+        // startGeneration pre-creates the initial phase step; the engine then fires
+        // onPhase for the same phase. No duplicate step must be created.
+        val first = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val again = appendPhaseStep(first, "research", "Researching...", nowMs = 1200L)
+
+        assertEquals(1, again.steps.size)
+        assertTrue(again.steps.first().isRunning)
+        assertEquals("Researching...", again.steps.first().title)
+    }
+
+    // ---------------------------------------------------------------
+    // attachToolActivity: tool activity ownership and dedup
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `attachToolActivity Started updates currentActivity without touching steps`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val updated = attachToolActivity(
+            active,
+            ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = "{}"),
+            "Querying repository info...",
+        )
+        assertEquals("Querying repository info...", updated?.currentActivity)
+        assertEquals(active.steps, updated?.steps)
+    }
+
+    @Test
+    fun `attachToolActivity Completed appends check-prefixed line to the last step`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val updated = attachToolActivity(
+            active,
+            ToolActivity.Completed(toolName = "fetchRepoInfo", toolResult = "ok"),
+            "Repository info fetched",
+        )
+        assertEquals(listOf("✔ Repository info fetched"), updated?.steps?.last()?.toolActivities)
+        assertNull(updated?.currentActivity)
+    }
+
+    @Test
+    fun `attachToolActivity Failed appends cross-prefixed line to the last step`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val updated = attachToolActivity(
+            active,
+            ToolActivity.Failed(toolName = "fetchLatestRelease", error = "404"),
+            "Tool fetchLatestRelease failed: 404",
+        )
+        assertEquals(listOf("✖ Tool fetchLatestRelease failed: 404"), updated?.steps?.last()?.toolActivities)
+    }
+
+    @Test
+    fun `attachToolActivity dedupes repeated completed lines`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val activity = ToolActivity.Completed(toolName = "fetchRepoInfo", toolResult = "ok")
+        val once = attachToolActivity(active, activity, "Repository info fetched")
+        val twice = attachToolActivity(once, activity, "Repository info fetched")
+        assertEquals(1, twice?.steps?.last()?.toolActivities?.size, "duplicate lines must be dropped")
+    }
+
+    @Test
+    fun `attachToolActivity appends to the most recent step`() {
+        val research = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val analyze = appendPhaseStep(research, "analyze", "Analyzing...", nowMs = 2000L)
+        val updated = attachToolActivity(
+            analyze,
+            ToolActivity.Completed(toolName = "computeSha256FromUrl", toolResult = "abc"),
+            "SHA256 hash computed",
+        )
+        assertEquals(0, updated?.steps?.first()?.toolActivities?.size)
+        assertEquals(listOf("✔ SHA256 hash computed"), updated?.steps?.last()?.toolActivities)
+    }
+
+    @Test
+    fun `attachToolActivity on null active returns null`() {
+        assertNull(
+            attachToolActivity(
+                null,
+                ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = ""),
+                "Querying repository info...",
+            ),
+        )
+    }
+
+    @Test
+    fun `attachToolActivity Completed clears the live line left by a Started event`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val started = attachToolActivity(
+            active,
+            ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = "{}"),
+            "Querying repository info...",
+        )
+        assertEquals("Querying repository info...", started?.currentActivity)
+        val completed = attachToolActivity(
+            started,
+            ToolActivity.Completed(toolName = "fetchRepoInfo", toolResult = "ok"),
+            "Repository info fetched",
+        )
+        assertNull(
+            completed?.currentActivity,
+            "Completed replaces the live line with the durable check line; the stale text must not linger",
+        )
+        assertEquals(listOf("✔ Repository info fetched"), completed?.steps?.last()?.toolActivities)
+    }
+
+    @Test
+    fun `attachToolActivity Failed clears the live line left by a Started event`() {
+        val active = appendPhaseStep(null, "generate", "Generating...", nowMs = 1000L)
+        val started = attachToolActivity(
+            active,
+            ToolActivity.Started(toolName = "writeManifest", toolArgs = "{}"),
+            "Writing manifest...",
+        )
+        val failed = attachToolActivity(
+            started,
+            ToolActivity.Failed(toolName = "writeManifest", error = "disk full"),
+            "Tool writeManifest failed: disk full",
+        )
+        assertNull(
+            failed?.currentActivity,
+            "Failed replaces the live line with the durable cross line; the stale text must not linger",
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // setPhaseSummary: phase output ownership
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `setPhaseSummary writes summary onto the last step of the matching phase`() {
+        var active = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
+        active = appendPhaseStep(active, "refine", "Refining...", nowMs = 2000L)
+        active = appendPhaseStep(active, "verify", "Validating manifest...", nowMs = 3000L)
+
+        val updated = setPhaseSummary(active, "verify", "Generated manifest v1.0.0 (64bit)")
+        assertEquals("Generated manifest v1.0.0 (64bit)", updated?.steps?.last()?.summary)
+        // The earlier verify step was closed on the phase switch, so it already
+        // carries the synthetic closing summary; setPhaseSummary must not touch it.
+        assertEquals(VERIFY_STEP_SUMMARY, updated?.steps?.first()?.summary)
+    }
+
+    @Test
+    fun `setPhaseSummary with unknown phase leaves steps unchanged`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val updated = setPhaseSummary(active, "generate", "Generated manifest")
+        assertEquals(active, updated)
+    }
+
+    @Test
+    fun `setPhaseSummary on null active returns null`() {
+        assertNull(setPhaseSummary(null, "generate", "Generated manifest"))
+    }
+
+    // ---------------------------------------------------------------
+    // collapseActiveExecution: transient state folding into a message
+    // ---------------------------------------------------------------
+
+    private fun sampleActive(): ActiveExecution {
+        val research = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val analyze = appendPhaseStep(research, "analyze", "Analyzing...", nowMs = 2000L)
+        return analyze.copy(
+            steps = analyze.steps.map { it.copy(isRunning = it.phase == "analyze") },
+        )
+    }
+
+    @Test
+    fun `collapseActiveExecution attaches steps to the last agent message with running flags cleared`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "https://github.com/sharkdp/fd"),
+            ChatMessage(role = ChatRole.Agent, text = "Done. Manifest ready."),
+        )
+        val collapsed = collapseActiveExecution(messages, sampleActive(), expanded = false, nowMs = 2500L)
+        val agentMessage = collapsed.last()
+        assertEquals(2, agentMessage.executionSteps.size)
+        assertTrue(agentMessage.executionSteps.none { it.isRunning }, "all steps must be closed on collapse")
+        assertFalse(agentMessage.isExecutionExpanded, "success collapses the execution card")
+        // user message untouched
+        assertEquals(0, collapsed.first().executionSteps.size)
+    }
+
+    @Test
+    fun `collapseActiveExecution with expanded true marks the message expanded for failures`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.Agent, text = "Generation failed."),
+        )
+        val collapsed = collapseActiveExecution(messages, sampleActive(), expanded = true, nowMs = 2500L)
+        assertTrue(collapsed.last().isExecutionExpanded, "failure/exhausted auto-expands the execution card")
+    }
+
+    @Test
+    fun `collapseActiveExecution without active execution returns messages unchanged`() {
+        val messages = listOf(ChatMessage(role = ChatRole.Agent, text = "hello"))
+        assertEquals(messages, collapseActiveExecution(messages, null, expanded = false, nowMs = 0L))
+        assertEquals(messages, collapseActiveExecution(messages, ActiveExecution(), expanded = false, nowMs = 0L))
+    }
+
+    @Test
+    fun `collapseActiveExecution settles the last running step durationMs from nowMs`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "url"),
+            ChatMessage(role = ChatRole.Agent, text = "Done."),
+        )
+        // sampleActive() leaves the analyze step running; its step started at 2000ms.
+        val collapsed = collapseActiveExecution(messages, sampleActive(), expanded = false, nowMs = 5500L)
+        val analyze = collapsed.last().executionSteps.last()
+        assertFalse(analyze.isRunning)
+        assertEquals(
+            3500L,
+            analyze.durationMs,
+            "the last running step (usually verify) must settle durationMs = nowMs - currentStepStartedAtMs",
+        )
+    }
+
+    @Test
+    fun `collapseActiveExecution leaves settled durations untouched when no step is running`() {
+        val messages = listOf(ChatMessage(role = ChatRole.Agent, text = "Done."))
+        val research = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        // All steps already closed and settled: collapse must not re-settle durations.
+        val closed = research.copy(
+            steps = research.steps.map { it.copy(isRunning = false, durationMs = 777L) },
+        )
+        val collapsed = collapseActiveExecution(messages, closed, expanded = false, nowMs = 9999L)
+        assertEquals(
+            777L,
+            collapsed.single().executionSteps.single().durationMs,
+            "without a running step the settled durationMs must stay untouched",
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // verify step summary: the engine emits onPhase for verify but never
+    // onPhaseOutput, so the UI aggregation layer fills the summary itself.
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `appendPhaseStep closing a running verify step writes the validated summary`() {
+        val verify = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
+        val refine = appendPhaseStep(verify, "refine", "Refining...", nowMs = 2000L)
+
+        assertEquals("Manifest validated", refine.steps.first().summary)
+    }
+
+    @Test
+    fun `appendPhaseStep matches the verify phase case-insensitively`() {
+        val verify = appendPhaseStep(null, "VERIFY", "Validating manifest...", nowMs = 1000L)
+        val refine = appendPhaseStep(verify, "refine", "Refining...", nowMs = 2000L)
+
+        assertEquals("Manifest validated", refine.steps.first().summary)
+    }
+
+    @Test
+    fun `collapseActiveExecution settles the final running verify step with the validated summary`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "url"),
+            ChatMessage(role = ChatRole.Agent, text = "Done. Manifest ready."),
+        )
+        val active = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
+
+        val collapsed = collapseActiveExecution(messages, active, expanded = false, nowMs = 1500L)
+
+        assertEquals(
+            "Manifest validated",
+            collapsed.last().executionSteps.single().summary,
+            "verify is usually the last phase and is only closed by collapseActiveExecution",
+        )
+    }
+
+    @Test
+    fun `an existing verify summary is never overwritten by the validated marker`() {
+        val verify = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
+        val withSummary = setPhaseSummary(verify, "verify", "Validation finished with issues")
+
+        val refine = appendPhaseStep(withSummary, "refine", "Refining...", nowMs = 2000L)
+
+        assertEquals("Validation finished with issues", refine.steps.first().summary)
+    }
+
+    @Test
+    fun `non verify steps are closed without a synthetic summary`() {
+        val research = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val analyze = appendPhaseStep(research, "analyze", "Analyzing...", nowMs = 2000L)
+
+        assertNull(analyze.steps.first().summary, "only verify gets the synthetic summary")
+    }
+
+    @Test
+    fun `a verify step with a failed tool activity gets no validated summary`() {
+        val verify = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
+        val failed = attachToolActivity(
+            verify,
+            ToolActivity.Failed(toolName = "validateManifest", error = "schema"),
+            "Tool validateManifest failed: schema",
+        )
+
+        val refine = appendPhaseStep(failed, "refine", "Refining...", nowMs = 2000L)
+        val collapsed = collapseActiveExecution(
+            listOf(ChatMessage(role = ChatRole.Agent, text = "failed")),
+            refine,
+            expanded = true,
+            nowMs = 2500L,
+        )
+
+        assertNull(
+            collapsed.single().executionSteps.first().summary,
+            "a verify step carrying a cross line must not claim the manifest validated",
+        )
+        assertNull(collapsed.single().executionSteps.last().summary)
+    }
+
+    // ---------------------------------------------------------------
+    // drainActivityEvents: late-event race defense
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `drainActivityEvents discards residual buffered events`() {
+        val channel = Channel<ToolActivity>(Channel.UNLIMITED)
+        channel.trySend(ToolActivity.Started("fetchRepoInfo", "{}"))
+        channel.trySend(ToolActivity.Completed("fetchRepoInfo", "ok"))
+        channel.trySend(ToolActivity.Started("writeManifest", "{}"))
+
+        drainActivityEvents(channel)
+
+        assertTrue(channel.tryReceive().isFailure, "channel must be empty after drain")
+        channel.close()
+    }
+
+    @Test
+    fun `drainActivityEvents on an empty channel returns immediately`() {
+        val channel = Channel<ToolActivity>(Channel.UNLIMITED)
+        drainActivityEvents(channel)
+        assertTrue(channel.tryReceive().isFailure)
+        channel.close()
+    }
+
+    // ---------------------------------------------------------------
+    // formatStepDuration: step duration rendering
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `formatStepDuration renders milliseconds below one second`() {
+        assertEquals("0ms", formatStepDuration(0L))
+        assertEquals("850ms", formatStepDuration(850L))
+    }
+
+    @Test
+    fun `formatStepDuration renders seconds with one decimal`() {
+        assertEquals("3.4s", formatStepDuration(3400L))
+        assertEquals("59.9s", formatStepDuration(59900L))
+    }
+
+    @Test
+    fun `formatStepDuration renders minutes and seconds beyond one minute`() {
+        assertEquals("1m 5s", formatStepDuration(65000L))
+        assertEquals("2m 0s", formatStepDuration(120000L))
+    }
+
+    // ---------------------------------------------------------------
+    // Stage 3: toggleExecutionExpanded (review accordion state)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `toggleExecutionExpanded flips the matching message flag`() {
+        val target = ChatMessage(role = ChatRole.Agent, text = "done", isExecutionExpanded = false)
+        val other = ChatMessage(role = ChatRole.Agent, text = "earlier")
+
+        val updated = toggleExecutionExpanded(listOf(other, target), target.id)
+
+        assertTrue(updated[1].isExecutionExpanded)
+        assertFalse(updated[0].isExecutionExpanded, "other messages stay untouched")
+    }
+
+    @Test
+    fun `toggleExecutionExpanded collapses an expanded message on second toggle`() {
+        val target = ChatMessage(role = ChatRole.Agent, text = "failed", isExecutionExpanded = true)
+
+        val updated = toggleExecutionExpanded(listOf(target), target.id)
+
+        assertFalse(updated.single().isExecutionExpanded)
+    }
+
+    @Test
+    fun `toggleExecutionExpanded with unknown id returns messages unchanged`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "url"),
+            ChatMessage(role = ChatRole.Agent, text = "reply"),
+        )
+        assertEquals(messages, toggleExecutionExpanded(messages, "no-such-id"))
+    }
+
+    @Test
+    fun `toggleExecutionExpanded keeps the message instance untouched for others`() {
+        val target = ChatMessage(role = ChatRole.Agent, text = "a")
+        val other = ChatMessage(role = ChatRole.Agent, text = "b")
+
+        val updated = toggleExecutionExpanded(listOf(target, other), target.id)
+
+        assertEquals(other, updated[1], "non-target instances must be preserved as-is")
+    }
+
+    // ---------------------------------------------------------------
+    // Stage 3: shouldRenderFullExecutionSteps (recent rounds only)
+    // ---------------------------------------------------------------
+
+    private fun agentWithSteps(text: String): ChatMessage = ChatMessage(
+        role = ChatRole.Agent,
+        text = text,
+        executionSteps = listOf(ExecutionStep(phase = "research", title = "Researching...")),
+    )
+
+    @Test
+    fun `shouldRenderFullExecutionSteps allows the recent three stepped agent messages`() {
+        val m1 = agentWithSteps("one")
+        val m2 = agentWithSteps("two")
+        val m3 = agentWithSteps("three")
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "q1"), m1,
+            ChatMessage(role = ChatRole.User, text = "q2"), m2,
+            ChatMessage(role = ChatRole.User, text = "q3"), m3,
+        )
+
+        assertTrue(shouldRenderFullExecutionSteps(messages, m1.id))
+        assertTrue(shouldRenderFullExecutionSteps(messages, m2.id))
+        assertTrue(shouldRenderFullExecutionSteps(messages, m3.id))
+    }
+
+    @Test
+    fun `shouldRenderFullExecutionSteps rejects rounds older than the recent window`() {
+        val old1 = agentWithSteps("old1")
+        val old2 = agentWithSteps("old2")
+        val m3 = agentWithSteps("m3")
+        val m4 = agentWithSteps("m4")
+        val m5 = agentWithSteps("m5")
+        val messages = listOf(old1, old2, m3, m4, m5)
+
+        assertFalse(shouldRenderFullExecutionSteps(messages, old1.id))
+        assertFalse(shouldRenderFullExecutionSteps(messages, old2.id))
+        assertTrue(shouldRenderFullExecutionSteps(messages, m3.id))
+        assertTrue(shouldRenderFullExecutionSteps(messages, m4.id))
+        assertTrue(shouldRenderFullExecutionSteps(messages, m5.id))
+    }
+
+    @Test
+    fun `shouldRenderFullExecutionSteps honors a custom recentCount`() {
+        val m1 = agentWithSteps("one")
+        val m2 = agentWithSteps("two")
+        val messages = listOf(m1, m2)
+
+        assertFalse(shouldRenderFullExecutionSteps(messages, m1.id, recentCount = 1))
+        assertTrue(shouldRenderFullExecutionSteps(messages, m2.id, recentCount = 1))
+    }
+
+    @Test
+    fun `shouldRenderFullExecutionSteps ignores messages without execution steps`() {
+        val plain = ChatMessage(role = ChatRole.Agent, text = "no steps")
+        val stepped = agentWithSteps("steps")
+        val messages = listOf(plain, stepped)
+
+        assertFalse(shouldRenderFullExecutionSteps(messages, plain.id))
+        assertTrue(shouldRenderFullExecutionSteps(messages, stepped.id))
+    }
+
+    @Test
+    fun `shouldRenderFullExecutionSteps with unknown id returns false`() {
+        val messages = listOf(agentWithSteps("one"))
+        assertFalse(shouldRenderFullExecutionSteps(messages, "no-such-id"))
+    }
+
+    // ---------------------------------------------------------------
+    // Stage 3: isFailedExecutionStep (failure highlight predicate)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `isFailedExecutionStep detects a cross-prefixed tool activity line`() {
+        val step = ExecutionStep(
+            phase = "generate",
+            title = "Generating...",
+            toolActivities = listOf("✔ ok", "✖ Tool fetchLatestRelease failed: 404"),
+        )
+        assertTrue(isFailedExecutionStep(step, messageHasActions = false))
+    }
+
+    @Test
+    fun `isFailedExecutionStep is false for clean steps without message actions`() {
+        val step = ExecutionStep(
+            phase = "research",
+            title = "Researching...",
+            toolActivities = listOf("✔ Repository info fetched"),
+        )
+        assertFalse(isFailedExecutionStep(step, messageHasActions = false))
+    }
+
+    @Test
+    fun `isFailedExecutionStep is true for any step of an error message`() {
+        val step = ExecutionStep(phase = "verify", title = "Validating...")
+        assertTrue(isFailedExecutionStep(step, messageHasActions = true))
+    }
+
+    @Test
+    fun `executionSummaryCapsuleText sums step durations and pluralizes steps`() {
+        val steps = listOf(
+            ExecutionStep(phase = "research", title = "r", durationMs = 1000L),
+            ExecutionStep(phase = "analyze", title = "a", durationMs = 400L),
+            ExecutionStep(phase = "generate", title = "g", durationMs = 2000L),
+        )
+        assertEquals("✓ Completed in 3.4s · 3 steps", executionSummaryCapsuleText(steps))
+    }
+
+    @Test
+    fun `executionSummaryCapsuleText uses singular step for a single entry`() {
+        val steps = listOf(ExecutionStep(phase = "refine", title = "r", durationMs = 850L))
+        assertEquals("✓ Completed in 850ms · 1 step", executionSummaryCapsuleText(steps))
+    }
+
+    @Test
+    fun `executionSummaryCapsuleText renders zero duration for empty steps`() {
+        assertEquals("✓ Completed in 0ms · 0 steps", executionSummaryCapsuleText(emptyList()))
+    }
+}
