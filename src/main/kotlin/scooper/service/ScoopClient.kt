@@ -38,9 +38,11 @@ data class InstalledAppInfo(
 class ScoopClient(
     val logStream: ScoopLogStream,
     private val taskQueue: TaskQueue,
+    private val downloader: ManifestDownloader = ManifestDownloader(),
+    private val rootDirOverride: File? = null,
+    private val scoopConfigFile: File? = null,
 ) : ScoopCli {
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val manifestDownloader = ManifestDownloader()
 
     companion object {
         /** Scoop manifests in the wild commonly contain comments and trailing
@@ -64,6 +66,7 @@ class ScoopClient(
 
     val rootDir: File
         get() {
+            rootDirOverride?.let { return it }
             val scoop = System.getenv("SCOOP")
             if (!scoop.isNullOrEmpty()) {
                 val root = File(scoop)
@@ -103,6 +106,9 @@ class ScoopClient(
 
     val cacheDir: File
         get() = rootDir.resolve("cache")
+
+    /** Persist directory of [name] under the given scoop [root]. */
+    fun persistDir(root: File, name: String): File = root.resolve("persist/$name")
 
     /**
      * Read installed app dirs once and return name-lowercase to info map.
@@ -296,13 +302,20 @@ class ScoopClient(
         return executeAndLog(commandArgs)
     }
 
-    override suspend fun uninstall(app: App, global: Boolean): CommandResult {
+    override suspend fun uninstall(app: App, global: Boolean, purge: Boolean): CommandResult {
+        return executeAndLog(uninstallArgs(app, global, purge))
+    }
+
+    /** Build the uninstall command args; internal so tests can assert assembly. */
+    internal fun uninstallArgs(app: App, global: Boolean, purge: Boolean): List<String> {
         val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
+            mutableListOf("sudo", "scoop", "uninstall", "-g")
         } else {
-            mutableListOf("scoop", "uninstall", app.name)
+            mutableListOf("scoop", "uninstall")
         }
-        return executeAndLog(commandArgs)
+        if (purge) commandArgs.add("-p")
+        commandArgs.add(app.name)
+        return commandArgs
     }
 
     override suspend fun update(app: App, global: Boolean): CommandResult {
@@ -456,6 +469,39 @@ class ScoopClient(
         return installResult.copy(prewarmedCount = prewarmed)
     }
 
+    // ==================== Test Install Persist Cleanup ====================
+
+    /** The persist dir of [name] under [root] when it exists, null otherwise. */
+    internal fun persistCleanupTarget(root: File, name: String): File? =
+        persistDir(root, name).takeIf { it.exists() }
+
+    /**
+     * Best-effort removal of a test app's leftover persist directory under [root]
+     * (defaults to the client root). Returns true when the directory was removed.
+     * Fallback for scoop versions without `-p` support or a failed uninstall:
+     * scoop uninstall keeps `persist/<app>` by default, so delete it directly.
+     * Never throws.
+     */
+    internal fun cleanupPersistDir(name: String, root: File = rootDir): Boolean {
+        val target = persistCleanupTarget(root, name) ?: return false
+        logger.info("Removing leftover persist dir of test app $name: ${target.absolutePath}")
+        val removed = deleteRecursivelyQuietly(target)
+        if (removed) {
+            logger.info("Removed persist dir: ${target.absolutePath}")
+        } else {
+            logger.warn("Failed to fully remove persist dir: ${target.absolutePath}")
+        }
+        return removed
+    }
+
+    /** Recursive delete that reports failure instead of throwing. */
+    internal fun deleteRecursivelyQuietly(target: File): Boolean = try {
+        target.deleteRecursively()
+    } catch (e: Exception) {
+        logger.warn("Failed to delete ${target.absolutePath}: ${e.message}")
+        false
+    }
+
     /**
      * Pre-warm the Scoop cache for a test install by linking/copying already-cached
      * downloads (scoop-ai download-phase files or finalized entries) to the
@@ -496,9 +542,11 @@ class ScoopClient(
 
     // ==================== Internal Methods ====================
 
-    /** Pre-download files to cache via JVM HttpClient when aria2 is not enabled. */
-    private suspend fun preDownloadIfNeeded(app: App) {
-        val config = ScoopConfigManager.readScoopConfig()
+    /** Pre-download files to cache via JVM HttpClient when aria2 is not enabled.
+     *  Internal for tests; production callers are install()/update(). */
+    internal suspend fun preDownloadIfNeeded(app: App) {
+        val config = scoopConfigFile?.let { ScoopConfigManager.readScoopConfig(it) }
+            ?: ScoopConfigManager.readScoopConfig()
         if (config.aria2Enabled) return
 
         val manifestFile = findManifest(app) ?: run {
@@ -513,7 +561,7 @@ class ScoopClient(
             return
         }
 
-        val info = manifestDownloader.parseDownloadInfo(json)
+        val info = downloader.parseDownloadInfo(json)
         if (info == null) {
             logger.warn("No download URL found in manifest for ${app.uniqueName}, skip pre-download")
             return
@@ -540,7 +588,7 @@ class ScoopClient(
             return CommandResult(1)
         }
 
-        val info = manifestDownloader.parseDownloadInfo(json)
+        val info = downloader.parseDownloadInfo(json)
         if (info == null) {
             logStream.emit("No download URL found in manifest for ${app.uniqueName}")
             return CommandResult(1)
@@ -560,6 +608,7 @@ class ScoopClient(
         if (info.items.isEmpty()) return false
 
         val totalItems = info.items.size
+        var prewarmed = 0
 
         for ((index, item) in info.items.withIndex()) {
             val cacheName = cacheFileName(app, version, item.url)
@@ -574,8 +623,20 @@ class ScoopClient(
                 continue
             }
 
+            // Prewarm from an existing cache entry (engine download-phase file or
+            // another app's finalized entry for the same URL) so the formal install
+            // can skip the network download entirely. Best-effort: on any failure
+            // fall through to the normal network download below.
+            if (prewarmCacheEntry(app, version, item.url, cacheDir)) {
+                prewarmed++
+                logStream.emit("Prewarmed from existing cache, skip download: ${destFile.name}")
+                val overall = (((index + 1).toFloat() / totalItems) * 100).toInt().coerceAtMost(100)
+                taskQueue.updateProgress(overall)
+                continue
+            }
+
             logStream.emit("Downloading ${app.name}... (${index + 1}/$totalItems)")
-            val result = manifestDownloader.download(
+            val result = downloader.download(
                 url = item.url,
                 destFile = destFile,
                 hash = item.hash,
@@ -591,6 +652,10 @@ class ScoopClient(
                 logStream.emit("Failed downloading item[${index + 1}/$totalItems] for ${app.name}")
                 return false
             }
+        }
+
+        if (prewarmed > 0) {
+            logStream.emit("$logPrefix prewarmed $prewarmed/$totalItems cache file(s) for ${app.name}")
         }
 
         taskQueue.updateProgress(100)

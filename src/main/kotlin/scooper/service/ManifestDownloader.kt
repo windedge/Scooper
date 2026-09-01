@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
  * Downloads files using JVM HttpClient with progress callbacks and hash verification.
  * Used as a replacement for scoop's built-in downloader when aria2 is not enabled.
  */
-class ManifestDownloader {
+open class ManifestDownloader {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val client = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.NORMAL)
@@ -69,7 +69,7 @@ class ManifestDownloader {
      * Uses a HEAD request first to get Content-Length, then streams the download with real-time progress.
      * @return the downloaded file, or null on failure
      */
-    fun download(
+    open fun download(
         url: String,
         destFile: File,
         hash: String? = null,

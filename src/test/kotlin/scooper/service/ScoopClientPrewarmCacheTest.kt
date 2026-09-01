@@ -1,11 +1,14 @@
 package scooper.service
 
 import com.scoopai.tools.cache.ScoopCacheManager
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import scooper.data.App
+import scooper.data.Bucket
 import scooper.taskqueue.TaskQueue
 import java.io.File
 import java.nio.file.Files
@@ -232,5 +235,201 @@ class ScoopClientPrewarmCacheTest {
 
         val count = client.prewarmTestInstallCache("bad-test", bad, cacheDir)
         assertEquals(0, count)
+    }
+
+    // ---------------------------------------------------------------
+    // preDownloadIfNeeded prewarm integration (formal install path)
+    // ---------------------------------------------------------------
+
+    /** Downloader stub that counts network downloads and writes a marker file. */
+    private class CountingDownloader : ManifestDownloader() {
+        var downloadCalls = 0
+        val downloadedUrls = mutableListOf<String>()
+
+        override fun download(
+            url: String,
+            destFile: File,
+            hash: String?,
+            onProgress: (Int) -> Unit,
+        ): File? {
+            downloadCalls++
+            downloadedUrls.add(url)
+            destFile.parentFile?.mkdirs()
+            destFile.writeText("NETWORK-DOWNLOADED:$url")
+            onProgress(100)
+            return destFile
+        }
+    }
+
+    /** Client with an isolated root dir, aria2 disabled, and a counting downloader. */
+    private fun newClient(downloader: CountingDownloader, root: File): ScoopClient {
+        val configFile = root.resolve("scoop-config.json")
+        configFile.writeText("""{"aria2-enabled": false}""")
+        return ScoopClient(
+            logStream = ScoopLogStream(),
+            taskQueue = TaskQueue(),
+            downloader = downloader,
+            rootDirOverride = root,
+            scoopConfigFile = configFile,
+        )
+    }
+
+    /** Write a manifest into the isolated bucket dir so findManifest(app) locates it. */
+    private fun writeBucketManifest(root: File, appName: String, content: String): File {
+        val bucketDir = root.resolve("buckets/testbucket/bucket").also { it.mkdirs() }
+        return bucketDir.resolve("$appName.json").also { it.writeText(content) }
+    }
+
+    /** 64bit-only manifest whose url/hash are arrays (multi-item download info). */
+    private fun archMultiItemManifest(version: String, urls: List<String>, hashes: List<String>): String {
+        val urlJson = urls.joinToString(prefix = "[", postfix = "]") { "\"$it\"" }
+        val hashJson = hashes.joinToString(prefix = "[", postfix = "]") { "\"$it\"" }
+        return """
+            {
+                "version": "$version",
+                "architecture": {
+                    "64bit": { "url": $urlJson, "hash": $hashJson }
+                }
+            }
+        """.trimIndent()
+    }
+
+    @Test
+    fun `preDownload links engine download-phase file and makes zero network downloads`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-a").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val url = "https://example.com/myapp-1.0.zip#/inner.7z"
+
+        // Engine download-phase file, as produced by the scoop-ai generation flow
+        File(cacheDir, ScoopCacheManager.downloadCacheName(url)).writeText("ENGINE-DATA")
+
+        writeBucketManifest(root, "myapp", writeManifest("1.0", url).readText())
+        val app = App(name = "myapp", latestVersion = "1.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(0, downloader.downloadCalls, "prewarm hit must avoid network download")
+        val targetName = computeTargetName("myapp", "1.0", url)
+        val target = File(cacheDir, targetName)
+        assertTrue(target.exists(), "formal cache entry must exist after prewarm")
+        assertEquals("ENGINE-DATA", target.readText(), "content must come from the engine file")
+    }
+
+    @Test
+    fun `preDownload falls back to network download when no cache source exists`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-b").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val url = "https://example.com/only-network.exe"
+        // no source file in cache at all
+
+        writeBucketManifest(root, "onlyapp", writeManifest("2.0", url).readText())
+        val app = App(name = "onlyapp", latestVersion = "2.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(1, downloader.downloadCalls, "must fall back to exactly one network download")
+        assertEquals(listOf(url), downloader.downloadedUrls)
+        val target = File(cacheDir, computeTargetName("onlyapp", "2.0", url))
+        assertTrue(target.exists())
+        assertTrue(target.readText().startsWith("NETWORK-DOWNLOADED:"))
+    }
+
+    @Test
+    fun `preDownload reuses another app finalized entry for same url via suffix scan`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-c").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val url = "https://example.com/shared-3.0.msi"
+        val hash = ScoopCacheManager.urlHash(url)
+        val ext = ScoopCacheManager.urlExtension(url)
+
+        // Finalized entry under a different app name, same URL hash suffix
+        File(cacheDir, "otherapp#3.0#$hash$ext").writeText("FINALIZED-OTHER-APP")
+
+        writeBucketManifest(root, "thisapp", writeManifest("3.0", url).readText())
+        val app = App(name = "thisapp", latestVersion = "3.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(0, downloader.downloadCalls)
+        val target = File(cacheDir, computeTargetName("thisapp", "3.0", url))
+        assertTrue(target.exists())
+        assertEquals("FINALIZED-OTHER-APP", target.readText())
+    }
+
+    @Test
+    fun `preDownload skips existing formal entry without re-linking (idempotent)`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-d").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val url = "https://example.com/idem-4.0.exe"
+
+        // Engine source present too: a re-link would clobber the pre-existing target
+        File(cacheDir, ScoopCacheManager.downloadCacheName(url)).writeText("ENGINE-NEWER")
+        val target = File(cacheDir, computeTargetName("idem", "4.0", url))
+        target.writeText("PRE-EXISTING-FORMAL")
+
+        writeBucketManifest(root, "idem", writeManifest("4.0", url).readText())
+        val app = App(name = "idem", latestVersion = "4.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(0, downloader.downloadCalls)
+        assertEquals("PRE-EXISTING-FORMAL", target.readText(), "existing formal entry must not be overwritten")
+    }
+
+    @Test
+    fun `preDownload prewarms every item of a multi-url arch manifest`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-e").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val urlA = "https://ex.com/part-a.bin"
+        val urlB = "https://ex.com/part-b.bin"
+
+        File(cacheDir, ScoopCacheManager.downloadCacheName(urlA)).writeText("PART-A")
+        File(cacheDir, ScoopCacheManager.downloadCacheName(urlB)).writeText("PART-B")
+
+        writeBucketManifest(root, "multiitem", archMultiItemManifest("5.0", listOf(urlA, urlB), listOf("ha", "hb")))
+        val app = App(name = "multiitem", latestVersion = "5.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(0, downloader.downloadCalls, "all items prewarmed, no network needed")
+        assertTrue(File(cacheDir, computeTargetName("multiitem", "5.0", urlA)).exists())
+        assertTrue(File(cacheDir, computeTargetName("multiitem", "5.0", urlB)).exists())
+    }
+
+    @Test
+    fun `preDownload never uses aria2 control file as prewarm source (regression)`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-f").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val url = "https://example.com/tool-6.0.zip#/inner.7z"
+        val hash = ScoopCacheManager.urlHash(url)
+        val ext = ScoopCacheManager.urlExtension(url)
+
+        // Only an interrupted aria2 control file matches the url suffix
+        File(cacheDir, "otherapp#6.0#$hash$ext.aria2").writeText("ARIA2-CONTROL")
+
+        writeBucketManifest(root, "aria2app", writeManifest("6.0", url).readText())
+        val app = App(name = "aria2app", latestVersion = "6.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(1, downloader.downloadCalls, "aria2 leftover must not satisfy prewarm")
+        assertFalse(
+            File(cacheDir, computeTargetName("aria2app", "6.0", url)).run {
+                exists() && readText() == "ARIA2-CONTROL"
+            },
+            "formal entry must contain network data, not the aria2 control file",
+        )
     }
 }

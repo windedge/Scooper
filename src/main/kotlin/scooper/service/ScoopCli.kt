@@ -9,7 +9,13 @@ import java.io.File
 interface ScoopCli {
     suspend fun refresh(): CommandResult
     suspend fun install(app: App, global: Boolean): CommandResult
-    suspend fun uninstall(app: App, global: Boolean): CommandResult
+
+    /**
+     * Uninstall [app]. When [purge] is true, pass `-p` so scoop also removes the
+     * app's persist directory. Only test-install cleanup should purge; real app
+     * uninstalls must keep the default (persist data preserved).
+     */
+    suspend fun uninstall(app: App, global: Boolean, purge: Boolean = false): CommandResult
     suspend fun update(app: App, global: Boolean): CommandResult
     suspend fun download(app: App): CommandResult
     suspend fun addBucket(bucket: String, url: String?): CommandResult
