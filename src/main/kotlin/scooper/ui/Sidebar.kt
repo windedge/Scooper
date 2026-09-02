@@ -1,5 +1,11 @@
 package scooper.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +13,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.MaterialTheme.typography
@@ -51,6 +58,7 @@ import scooper.ui.theme.*
 @Composable
 fun SidebarNav(
     updateCount: Long,
+    createRunning: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colors
@@ -222,6 +230,7 @@ fun SidebarNav(
         SidebarNavItem(
             label = "Create",
             selected = currentRoute is AppRoute.Create,
+            statusDot = createRunning,
             onClick = { navigator.popupAllAndPush(AppRoute.Create) },
         ) {
             Icon(Lucide.Plus, "Create", modifier = Modifier.size(18.dp))
@@ -270,6 +279,7 @@ private fun SidebarNavItem(
     label: String,
     modifier: Modifier = Modifier,
     badge: Int? = null,
+    statusDot: Boolean = false,
     selected: Boolean = false,
     focused: Boolean = false,
     focusRequester: FocusRequester? = null,
@@ -375,7 +385,32 @@ private fun SidebarNavItem(
                         )
                     }
                 }
+            } else if (statusDot) {
+                Spacer(Modifier.weight(1f))
+                StatusDot()
             }
         }
     }
+}
+
+@Composable
+private fun StatusDot() {
+    val colors = MaterialTheme.colors
+    // Breathing alpha pulse so users notice an active generation from any page
+    val transition = rememberInfiniteTransition(label = "createRunningDot")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "createRunningDotAlpha",
+    )
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(colors.primary.copy(alpha = alpha)),
+    )
 }

@@ -4,48 +4,49 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import scooper.service.AiErrorAction
 
 /**
- * Unit tests for [isRefineRequest] pure function and refine routing logic.
+ * Unit tests for [isAssistRequest] pure function and assist routing logic.
  */
-class CreateViewModelRefineTest {
+class CreateViewModelAssistTest {
 
     @Test
-    fun `isRefineRequest returns true when manifest exists, note is present and url is blank`() {
-        val result = isRefineRequest(
+    fun `isAssistRequest returns true when manifest exists, note is present and url is blank`() {
+        val result = isAssistRequest(
             hasExistingManifest = true,
             lastUrl = "https://github.com/sharkdp/fd",
             inputUrl = "",
             inputNote = "Please remove arm64 support",
         )
-        assertTrue(result, "Should route to refine when URL is blank and note is provided")
+        assertTrue(result, "Should route to assist when URL is blank and note is provided")
     }
 
     @Test
-    fun `isRefineRequest returns true when manifest exists, note is present and url matches lastUrl`() {
-        val result = isRefineRequest(
+    fun `isAssistRequest returns true when manifest exists, note is present and url matches lastUrl`() {
+        val result = isAssistRequest(
             hasExistingManifest = true,
             lastUrl = "https://github.com/sharkdp/fd",
             inputUrl = "https://github.com/sharkdp/fd",
             inputNote = "Add start menu shortcut",
         )
-        assertTrue(result, "Should route to refine when URL matches last generated URL")
+        assertTrue(result, "Should route to assist when URL matches last generated URL")
     }
 
     @Test
-    fun `isRefineRequest returns false when no manifest exists yet`() {
-        val result = isRefineRequest(
+    fun `isAssistRequest returns false when no manifest exists yet`() {
+        val result = isAssistRequest(
             hasExistingManifest = false,
             lastUrl = "",
             inputUrl = "https://github.com/sharkdp/fd",
             inputNote = "prefer portable",
         )
-        assertFalse(result, "Should not route to refine when no manifest exists")
+        assertFalse(result, "Should not route to assist when no manifest exists")
     }
 
     @Test
-    fun `isRefineRequest returns false when user inputs a brand new different url`() {
-        val result = isRefineRequest(
+    fun `isAssistRequest returns false when user inputs a brand new different url`() {
+        val result = isAssistRequest(
             hasExistingManifest = true,
             lastUrl = "https://github.com/sharkdp/fd",
             inputUrl = "https://github.com/BurntSushi/ripgrep",
@@ -55,26 +56,26 @@ class CreateViewModelRefineTest {
     }
 
     @Test
-    fun `isRefineRequest returns false when note is blank`() {
-        val result = isRefineRequest(
+    fun `isAssistRequest returns false when note is blank`() {
+        val result = isAssistRequest(
             hasExistingManifest = true,
             lastUrl = "https://github.com/sharkdp/fd",
             inputUrl = "https://github.com/sharkdp/fd",
             inputNote = "   ",
         )
-        assertFalse(result, "Should not refine when note is blank")
+        assertFalse(result, "Should not assist when note is blank")
     }
 
     @Test
-    fun `isRefineRequest returns true when manifest exists and instruction is entered in url field`() {
-        val result = isRefineRequest(
+    fun `isAssistRequest returns true when manifest exists and instruction is entered in url field`() {
+        val result = isAssistRequest(
             hasExistingManifest = true,
             lastUrl = "https://github.com/sharkdp/fd",
             inputUrl = "去掉notes字段",
             inputNote = "",
         )
-        assertTrue(result, "Should route to refine when user types natural language in url field")
-        assertEquals("去掉notes字段", resolveRefineInstruction("去掉notes字段", ""))
+        assertTrue(result, "Should route to assist when user types natural language in url field")
+        assertEquals("去掉notes字段", resolveAssistInstruction("去掉notes字段", ""))
     }
 
     @Test
@@ -138,9 +139,83 @@ class CreateViewModelRefineTest {
             ChatMessage(role = ChatRole.User, text = "Please remove notes"),
         )
         val history = extractUserHistory(messages)
+        assertEquals(3, history.size)
+        assertEquals("User: https://github.com/sharkdp/fd (Requirements: prefer portable)", history[0])
+        assertEquals("Assistant: Starting...", history[1])
+        assertEquals("User: Please remove notes", history[2])
+    }
+
+    @Test
+    fun `extractUserHistory interleaves user and assistant turns in chronological order`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "Do we need persist?"),
+            ChatMessage(role = ChatRole.Agent, text = "No, persist is not required here."),
+            ChatMessage(role = ChatRole.User, text = "Add it anyway and see"),
+        )
+        val history = extractUserHistory(messages)
+        assertEquals(
+            listOf(
+                "User: Do we need persist?",
+                "Assistant: No, persist is not required here.",
+                "User: Add it anyway and see",
+            ),
+            history,
+        )
+    }
+
+    @Test
+    fun `extractUserHistory excludes agent error bubbles that carry actions`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "remove notes"),
+            ChatMessage(
+                role = ChatRole.Agent,
+                text = "Assist failed: upstream timeout",
+                actions = listOf(AiErrorAction.RETRY_FULL),
+            ),
+            ChatMessage(role = ChatRole.User, text = "try again"),
+        )
+        val history = extractUserHistory(messages)
+        assertEquals(listOf("User: remove notes", "User: try again"), history)
+    }
+
+    @Test
+    fun `extractUserHistory excludes agent bubbles with blank text`() {
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = "remove notes"),
+            ChatMessage(role = ChatRole.Agent, text = "   "),
+            ChatMessage(role = ChatRole.User, text = "and shortcuts too"),
+        )
+        val history = extractUserHistory(messages)
+        assertEquals(listOf("User: remove notes", "User: and shortcuts too"), history)
+    }
+
+    @Test
+    fun `extractUserHistory keeps only the last 12 entries after filtering`() {
+        val messages = (1..15).map { i ->
+            if (i % 2 == 1) ChatMessage(role = ChatRole.User, text = "u$i")
+            else ChatMessage(role = ChatRole.Agent, text = "a$i")
+        }
+        val history = extractUserHistory(messages)
+        assertEquals(12, history.size)
+        assertEquals("Assistant: a4", history.first())
+        assertEquals("User: u15", history.last())
+    }
+
+    @Test
+    fun `extractUserHistory truncates a single entry beyond 400 chars`() {
+        val longText = "x".repeat(500)
+        val messages = listOf(
+            ChatMessage(role = ChatRole.User, text = longText, note = "note"),
+            ChatMessage(role = ChatRole.Agent, text = "y".repeat(500)),
+        )
+        val history = extractUserHistory(messages)
         assertEquals(2, history.size)
-        assertEquals("https://github.com/sharkdp/fd (Requirements: prefer portable)", history[0])
-        assertEquals("Please remove notes", history[1])
+        history.forEach { line ->
+            assertEquals(400, line.length)
+            assertTrue(line.endsWith("..."))
+        }
+        assertTrue(history[0].startsWith("User: "))
+        assertTrue(history[1].startsWith("Assistant: "))
     }
 
     @Test
@@ -232,5 +307,56 @@ class CreateViewModelRefineTest {
         assertTrue(diff.any { it.type == DiffLineType.DELETED && it.text == "line2" })
         assertTrue(diff.any { it.type == DiffLineType.ADDED && it.text == "line2-modified" })
         assertTrue(diff.any { it.type == DiffLineType.ADDED && it.text == "line4" })
+    }
+
+    // ---------------------------------------------------------------
+    // isAssistScenario: assist-phase classification
+    // ---------------------------------------------------------------
+
+    private val revisionsOne = listOf(
+        ManifestRevision(revisionNumber = 1, source = RevisionSource.ASSIST, manifestJson = "{}"),
+    )
+
+    @Test
+    fun `isAssistScenario true for assist phase with existing revisions`() {
+        assertTrue(isAssistScenario(currentPhase = "assist", revisions = revisionsOne))
+    }
+
+    @Test
+    fun `isAssistScenario false for repair phase`() {
+        assertFalse(isAssistScenario(currentPhase = "repair", revisions = revisionsOne))
+    }
+
+    @Test
+    fun `isAssistScenario false for generate phase`() {
+        assertFalse(isAssistScenario(currentPhase = "generate", revisions = revisionsOne))
+    }
+
+    // ---------------------------------------------------------------
+    // answered bubble fallback text
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `answered fallback uses generic English when explanation is null`() {
+        assertEquals(
+            "Sorry, I could not produce an answer.",
+            answeredBubbleText(null),
+        )
+    }
+
+    @Test
+    fun `answered fallback uses generic English when explanation is blank`() {
+        assertEquals(
+            "Sorry, I could not produce an answer.",
+            answeredBubbleText("   \n  "),
+        )
+    }
+
+    @Test
+    fun `answered fallback returns the original explanation`() {
+        assertEquals(
+            "The name shortens to a portable zip.",
+            answeredBubbleText("The name shortens to a portable zip."),
+        )
     }
 }

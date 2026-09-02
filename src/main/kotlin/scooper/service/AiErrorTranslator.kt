@@ -8,6 +8,7 @@ enum class AiErrorAction {
     RETRY_FULL,
     RETRY_FROM_ANALYZE,
     RETRY_FROM_GENERATE,
+    RETRY_ANSWER,
 }
 
 /** Coarse cause category behind an AI generation failure. */

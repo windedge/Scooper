@@ -455,6 +455,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val baseUrlState: TextFieldState = formState.getState("aiBaseUrl")
     val modelState: TextFieldState = formState.getState("aiModel")
     val githubTokenState: TextFieldState = formState.getState("aiGithubToken")
+    val aiAutoDownloadState: SwitchState = formState.getState("aiAutoDownload")
 
     // Do not restore on dispose: auto-save unsaved AI settings when leaving the page
     val formChangedState = rememberFormChanged(formState, restoreOnDispose = false)
@@ -592,6 +593,20 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 placeholder = "ghp_...",
                 isPassword = true,
             )
+            Divider(color = colors.divider)
+            PrefRow(
+                title = "Download packages without asking",
+                subtitle = "Skip the download confirmation prompt during generation.",
+                modifier = Modifier.cursorHand(),
+                onClick = { aiAutoDownloadState.update(!aiAutoDownloadState.value) }
+            ) {
+                Switch(
+                    aiAutoDownloadState.value,
+                    onCheckedChange = { aiAutoDownloadState.update(it) },
+                    modifier = Modifier.cursorHand(),
+                    colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
+                )
+            }
         }
     }
 }

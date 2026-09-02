@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import scooper.data.UIConfig
 import scooper.repository.ConfigRepository
 import scooper.util.logger
 import java.util.UUID
@@ -36,6 +37,7 @@ class ScoopAiBridge(
         val baseUrl: String,
         val model: String,
         val githubToken: String,
+        val autoDownload: Boolean = false,
     ) {
         fun missingReason(): String? {
             if (provider !in SUPPORTED_PROVIDERS) {
@@ -86,6 +88,7 @@ class ScoopAiBridge(
                 env("SCOOP_AI_GITHUB_TOKEN"),
                 env("GITHUB_TOKEN"),
             ),
+            autoDownload = config.aiAutoDownload,
         )
     }
 
@@ -100,15 +103,23 @@ class ScoopAiBridge(
     }
 
     fun toScoopAiConfig(settings: AiSettingsSnapshot = readSettings()): ScoopAiConfig {
-        return ScoopAiConfig(
-            provider = settings.provider,
-            apiKey = settings.apiKey,
-            baseUrl = settings.baseUrl.ifBlank { null },
-            model = settings.model.ifBlank { null },
-            githubToken = settings.githubToken.ifBlank { null },
-            nonInteractive = true,
-            verify = false,
-        )
+        return buildScoopAiConfig(settings)
+    }
+
+    /**
+     * Persist the model chosen in Create back into Settings.AI so it
+     * survives restarts. Failures are logged, never thrown: model
+     * persistence is best-effort and must not break generation.
+     */
+    fun persistModel(model: String) {
+        try {
+            val current = configRepository.getConfig()
+            configRepository.setConfig(withModel(current, model))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Failed to persist selected AI model: ${e.message}")
+        }
     }
 
     private fun createGenerator(
@@ -208,10 +219,10 @@ class ScoopAiBridge(
     }
 
     /**
-     * Start an asynchronous manifest refinement run using an existing manifest
+     * Start an asynchronous manifest assist run using an existing manifest
      * and user instructions, skipping research and analyze phases.
      */
-    fun startRefine(
+    fun startAssist(
         currentManifest: String,
         instruction: String,
         history: List<String> = emptyList(),
@@ -249,8 +260,8 @@ class ScoopAiBridge(
                 val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }
                     ?: checkpoint?.researchJson?.takeIf { it.isNotBlank() }
 
-                logger.info("Scoop AI refine start: $instruction (history=${history.size}, hasEvidence=${evidence != null})")
-                val result = generator.refine(
+                logger.info("Scoop AI assist start: $instruction (history=${history.size}, hasEvidence=${evidence != null})")
+                val result = generator.assist(
                     manifestJson = currentManifest,
                     instruction = instruction,
                     history = history,
@@ -262,7 +273,7 @@ class ScoopAiBridge(
                 onFinished(Result.failure(e))
                 throw e
             } catch (e: Exception) {
-                logger.error("Scoop AI refine failed: ${e.message}", e)
+                logger.error("Scoop AI assist failed: ${e.message}", e)
                 onFinished(Result.failure(e))
             } finally {
                 DefaultToolRegistryFactory.cleanup()
@@ -344,6 +355,33 @@ class ScoopAiBridge(
     companion object {
         const val DEFAULT_PROVIDER = "openai-compatible"
         val SUPPORTED_PROVIDERS = setOf("openai-compatible")
+
+        /**
+         * Pure mapping from an [AiSettingsSnapshot] to a [ScoopAiConfig].
+         * Kept as a static function so config mapping stays unit-testable
+         * without constructing a bridge (which needs a DB repository).
+         */
+        /**
+         * Pure copy: replace only [UIConfig.aiModel], leaving every other
+         * field (and any future fields) untouched. Static so it stays
+         * unit-testable without a DB repository.
+         */
+        internal fun withModel(config: UIConfig, model: String): UIConfig {
+            return config.copy(aiModel = model)
+        }
+
+        internal fun buildScoopAiConfig(settings: AiSettingsSnapshot): ScoopAiConfig {
+            return ScoopAiConfig(
+                provider = settings.provider,
+                apiKey = settings.apiKey,
+                baseUrl = settings.baseUrl.ifBlank { null },
+                model = settings.model.ifBlank { null },
+                githubToken = settings.githubToken.ifBlank { null },
+                skipDownloadConfirm = settings.autoDownload,
+                nonInteractive = true,
+                verify = false,
+            )
+        }
 
         /**
          * Strip trailing `/v1` (and `/v1/chat/completions`) so openai-compatible

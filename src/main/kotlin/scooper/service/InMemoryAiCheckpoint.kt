@@ -40,7 +40,7 @@ internal fun resumableStagesOf(cp: InMemoryAiCheckpoint?): Set<AiErrorAction> {
 /**
  * Fold a raw phase output (phase name + JSON) into [this] checkpoint.
  *
- * `research` / `analyze` outputs are stored; `generate` / `refine` outputs are
+ * `research` / `analyze` outputs are stored; `generate` / `assist` outputs are
  * not part of the resume signature and are ignored (this instance is returned).
  */
 internal fun InMemoryAiCheckpoint.withPhaseOutput(phase: String, output: String): InMemoryAiCheckpoint =

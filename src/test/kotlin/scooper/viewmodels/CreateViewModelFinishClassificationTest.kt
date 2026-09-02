@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 /**
  * TDD tests for [classifyManifestFinish] / [isScoopManifestJson], the top-level pure
  * functions extracted from CreateViewModel so the exhausted escape-door rule is directly
- * testable: a valid JSON manifest with refine exhaustion must keep invalidJson=false so
+ * testable: a valid JSON manifest with assist exhaustion must keep invalidJson=false so
  * the UI can still enable Test Install / Save; only invalid JSON disables the buttons.
  *
  * Validity uses the CLI bar: kotlinx Json parse AND root element is a JsonObject;
@@ -59,22 +59,22 @@ class CreateViewModelFinishClassificationTest {
     }
 
     // ---------------------------------------------------------------
-    // finishedWithIssuesNotice: refine-aware issues notice text
+    // finishedWithIssuesNotice: assist-aware issues notice text
     // ---------------------------------------------------------------
 
     @Test
     fun `finishedWithIssuesNotice says Generation for the initial generate scenario`() {
         assertEquals(
             "Generation finished with issues",
-            finishedWithIssuesNotice(isRefineScenario = false),
+            finishedWithIssuesNotice(isAssistScenario = false),
         )
     }
 
     @Test
-    fun `finishedWithIssuesNotice says Refine for the refine scenario`() {
+    fun `finishedWithIssuesNotice says Assist for the assist scenario`() {
         assertEquals(
-            "Refine finished with issues",
-            finishedWithIssuesNotice(isRefineScenario = true),
+            "Assist finished with issues",
+            finishedWithIssuesNotice(isAssistScenario = true),
         )
     }
 

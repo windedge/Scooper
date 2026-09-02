@@ -242,6 +242,7 @@ fun main() {
                         }
 
                         val appsState by appsViewModel.container.stateFlow.collectAsState()
+                        val createState by createViewModel.container.stateFlow.collectAsState()
 
                         Column(Modifier.fillMaxSize()) {
                             CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
@@ -249,7 +250,10 @@ fun main() {
                                     val isSettings = currentRoute.value is AppRoute.Settings
                                     val isOutput = currentRoute.value == AppRoute.Output
                                     if (!isSettings && !isOutput) {
-                                        SidebarNav(updateCount = appsState.updateCount)
+                                        SidebarNav(
+                                            updateCount = appsState.updateCount,
+                                            createRunning = createState.running,
+                                        )
                                     }
                                     Column(Modifier.weight(1f)) {
                                         if (currentRoute.value is AppRoute.Apps) {

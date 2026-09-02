@@ -32,6 +32,7 @@ open class ConfigRepository {
                     aiBaseUrl = this[Configs.aiBaseUrl],
                     aiModel = this[Configs.aiModel],
                     aiGithubToken = this[Configs.aiGithubToken],
+                    aiAutoDownload = this[Configs.aiAutoDownload],
                 )
             }
         }
@@ -60,6 +61,7 @@ open class ConfigRepository {
                 it[aiBaseUrl] = config.aiBaseUrl
                 it[aiModel] = config.aiModel
                 it[aiGithubToken] = config.aiGithubToken
+                it[aiAutoDownload] = config.aiAutoDownload
             }
         }
     }

@@ -77,14 +77,14 @@ class InMemoryAiCheckpointTest {
     }
 
     @Test
-    fun `withPhaseOutput ignores generate and refine phases`() {
+    fun `withPhaseOutput ignores generate and assist phases`() {
         val cp = InMemoryAiCheckpoint(
             url = "https://github.com/o/r",
             userPrompt = "",
             researchJson = researchJson,
         )
         assertSame(cp, cp.withPhaseOutput("generate", """{"name":"app"}"""))
-        assertSame(cp, cp.withPhaseOutput("refine", """{"name":"app"}"""))
+        assertSame(cp, cp.withPhaseOutput("assist", """{"name":"app"}"""))
     }
 
     // ---------------------------------------------------------------

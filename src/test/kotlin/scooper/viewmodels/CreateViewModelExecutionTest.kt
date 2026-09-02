@@ -1,5 +1,6 @@
 package scooper.viewmodels
 
+import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
 import kotlinx.coroutines.channels.Channel
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -188,7 +189,7 @@ class CreateViewModelExecutionTest {
     @Test
     fun `setPhaseSummary writes summary onto the last step of the matching phase`() {
         var active = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
-        active = appendPhaseStep(active, "refine", "Refining...", nowMs = 2000L)
+        active = appendPhaseStep(active, "assist", "Refining...", nowMs = 2000L)
         active = appendPhaseStep(active, "verify", "Validating manifest...", nowMs = 3000L)
 
         val updated = setPhaseSummary(active, "verify", "Generated manifest v1.0.0 (64bit)")
@@ -208,6 +209,57 @@ class CreateViewModelExecutionTest {
     @Test
     fun `setPhaseSummary on null active returns null`() {
         assertNull(setPhaseSummary(null, "generate", "Generated manifest"))
+    }
+
+    // ---------------------------------------------------------------
+    // markAnsweredSummary: direct-answer finish summary clear
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `markAnsweredSummary clears the last assist step summary`() {
+        val steps = listOf(
+            ExecutionStep(phase = "research", title = "Researching...", summary = "Found metadata"),
+            ExecutionStep(
+                phase = "assist",
+                title = "Refining...",
+                summary = "Updated manifest v0.30.0 (64bit, shortcuts configured)",
+            ),
+        )
+
+        val updated = markAnsweredSummary(steps)
+
+        assertNull(updated[1].summary)
+        assertEquals("Found metadata", updated[0].summary, "non-assist steps keep their summary")
+    }
+
+    @Test
+    fun `markAnsweredSummary leaves steps without an assist step unchanged`() {
+        val steps = listOf(
+            ExecutionStep(phase = "verify", title = "Validating...", summary = "Manifest validated"),
+        )
+
+        assertEquals(steps, markAnsweredSummary(steps))
+    }
+
+    @Test
+    fun `markAnsweredSummary on an empty list returns it unchanged`() {
+        assertEquals(emptyList<ExecutionStep>(), markAnsweredSummary(emptyList()))
+    }
+
+    @Test
+    fun `answered finish collapses the cleared assist summary into the finalized message`() {
+        // Mirrors the handleFinished answered branch order: clear the assist step
+        // summary first, then fold the active execution into the finalized message.
+        var active = appendPhaseStep(null, "assist", "Refining...", nowMs = 1000L)
+        active = setPhaseSummary(active, "assist", "Updated manifest v0.30.0 (64bit, shortcuts configured)")!!
+        active = active.copy(steps = markAnsweredSummary(active.steps))
+
+        val messages = listOf(ChatMessage(role = ChatRole.Agent, text = "Answered the question."))
+        val collapsed = collapseActiveExecution(messages, active, expanded = false, nowMs = 2000L)
+
+        val steps = collapsed.single().executionSteps
+        assertEquals(1, steps.size)
+        assertNull(steps.single().summary)
     }
 
     // ---------------------------------------------------------------
@@ -294,17 +346,17 @@ class CreateViewModelExecutionTest {
     @Test
     fun `appendPhaseStep closing a running verify step writes the validated summary`() {
         val verify = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
-        val refine = appendPhaseStep(verify, "refine", "Refining...", nowMs = 2000L)
+        val assist = appendPhaseStep(verify, "assist", "Refining...", nowMs = 2000L)
 
-        assertEquals("Manifest validated", refine.steps.first().summary)
+        assertEquals("Manifest validated", assist.steps.first().summary)
     }
 
     @Test
     fun `appendPhaseStep matches the verify phase case-insensitively`() {
         val verify = appendPhaseStep(null, "VERIFY", "Validating manifest...", nowMs = 1000L)
-        val refine = appendPhaseStep(verify, "refine", "Refining...", nowMs = 2000L)
+        val assist = appendPhaseStep(verify, "assist", "Refining...", nowMs = 2000L)
 
-        assertEquals("Manifest validated", refine.steps.first().summary)
+        assertEquals("Manifest validated", assist.steps.first().summary)
     }
 
     @Test
@@ -329,9 +381,9 @@ class CreateViewModelExecutionTest {
         val verify = appendPhaseStep(null, "verify", "Validating manifest...", nowMs = 1000L)
         val withSummary = setPhaseSummary(verify, "verify", "Validation finished with issues")
 
-        val refine = appendPhaseStep(withSummary, "refine", "Refining...", nowMs = 2000L)
+        val assist = appendPhaseStep(withSummary, "assist", "Refining...", nowMs = 2000L)
 
-        assertEquals("Validation finished with issues", refine.steps.first().summary)
+        assertEquals("Validation finished with issues", assist.steps.first().summary)
     }
 
     @Test
@@ -351,10 +403,10 @@ class CreateViewModelExecutionTest {
             "Tool validateManifest failed: schema",
         )
 
-        val refine = appendPhaseStep(failed, "refine", "Refining...", nowMs = 2000L)
+        val assist = appendPhaseStep(failed, "assist", "Refining...", nowMs = 2000L)
         val collapsed = collapseActiveExecution(
             listOf(ChatMessage(role = ChatRole.Agent, text = "failed")),
-            refine,
+            assist,
             expanded = true,
             nowMs = 2500L,
         )
@@ -566,12 +618,79 @@ class CreateViewModelExecutionTest {
 
     @Test
     fun `executionSummaryCapsuleText uses singular step for a single entry`() {
-        val steps = listOf(ExecutionStep(phase = "refine", title = "r", durationMs = 850L))
+        val steps = listOf(ExecutionStep(phase = "assist", title = "r", durationMs = 850L))
         assertEquals("✓ Completed in 850ms · 1 step", executionSummaryCapsuleText(steps))
     }
 
     @Test
     fun `executionSummaryCapsuleText renders zero duration for empty steps`() {
         assertEquals("✓ Completed in 0ms · 0 steps", executionSummaryCapsuleText(emptyList()))
+    }
+
+    // ---------------------------------------------------------------
+    // Token usage display: compact count, bubble footer, capsule segment
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `formatTokenCount renders values below one thousand as-is`() {
+        assertEquals("980", formatTokenCount(980L))
+        assertEquals("0", formatTokenCount(0L))
+    }
+
+    @Test
+    fun `formatTokenCount renders thousands with one decimal`() {
+        assertEquals("1.0k", formatTokenCount(1000L))
+        assertEquals("1.8k", formatTokenCount(1846L))
+    }
+
+    @Test
+    fun `formatTokenCount renders millions with one decimal`() {
+        assertEquals("1.2M", formatTokenCount(1234567L))
+    }
+
+    @Test
+    fun `formatTokenFooter renders input and output with thousand separators`() {
+        assertEquals("1,234 in · 567 out tokens", formatTokenFooter(TokenUsage(1234, 567)))
+    }
+
+    @Test
+    fun `formatTokenFooter returns null for zero totals or null usage`() {
+        assertNull(formatTokenFooter(TokenUsage(0, 0)))
+        assertNull(formatTokenFooter(null))
+    }
+
+    @Test
+    fun `executionSummaryCapsuleText appends the compact token segment`() {
+        val steps = listOf(ExecutionStep(phase = "research", title = "r", durationMs = 1000L))
+        val text = executionSummaryCapsuleText(steps, tokenUsage = TokenUsage(1500, 346))
+        assertEquals("✓ Completed in 1.0s · 1 step · 1.8k tokens", text)
+    }
+
+    @Test
+    fun `executionSummaryCapsuleText omits the token segment without usable usage`() {
+        val steps = listOf(ExecutionStep(phase = "assist", title = "r", durationMs = 850L))
+        assertEquals(
+            "✓ Completed in 850ms · 1 step",
+            executionSummaryCapsuleText(steps, tokenUsage = TokenUsage(0, 0)),
+        )
+        assertEquals("✓ Completed in 850ms · 1 step", executionSummaryCapsuleText(steps))
+    }
+
+    // ---------------------------------------------------------------
+    // agentReplyMessage: final agent bubble carries the run tokenUsage
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `agentReplyMessage attaches non-zero token usage to the bubble`() {
+        val message = agentReplyMessage("Done.", TokenUsage(1234, 567))
+        assertEquals(ChatRole.Agent, message.role)
+        assertEquals("Done.", message.text)
+        assertEquals(TokenUsage(1234, 567), message.tokenUsage)
+    }
+
+    @Test
+    fun `agentReplyMessage drops zero and null token usage`() {
+        assertNull(agentReplyMessage("Done.", TokenUsage(0, 0)).tokenUsage)
+        assertNull(agentReplyMessage("Done.", null).tokenUsage)
     }
 }

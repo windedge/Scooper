@@ -1,12 +1,13 @@
 package scooper.viewmodels
 
+import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
 import kotlinx.coroutines.channels.Channel
 import java.util.Locale
 
 /**
  * Single execution step of a generation round (research / analyze / generate /
- * refine / verify). Running steps accumulate tool activity; a finished step keeps
+ * assist / repair / verify). Running steps accumulate tool activity; a finished step keeps
  * its duration and optional phase-output summary (architecture proposal 5.1).
  */
 data class ExecutionStep(
@@ -20,7 +21,7 @@ data class ExecutionStep(
 
 /**
  * Transient per-round execution progress held in [CreateState.activeExecution] while
- * a generation/refine session runs. It never enters the message history directly;
+ * a generation/assist session runs. It never enters the message history directly;
  * on finish it is folded into a finalized [ChatMessage] via [collapseActiveExecution].
  */
 data class ActiveExecution(
@@ -148,6 +149,21 @@ internal fun setPhaseSummary(
 }
 
 /**
+ * Clear the summary of the last assist step when the engine answered the user's
+ * question directly (ManifestResult.answered=true). The manifest is guaranteed
+ * unchanged in that case, so the deterministic "Updated manifest ..." line derived
+ * from the engine's snapshot must not survive into the finalized execution card;
+ * the UI renders no summary line at all for a cleared step.
+ */
+internal fun markAnsweredSummary(steps: List<ExecutionStep>): List<ExecutionStep> {
+    val index = steps.indexOfLast { it.phase.equals("assist", ignoreCase = true) }
+    if (index == -1) return steps
+    val updated = steps.toMutableList()
+    updated[index] = updated[index].copy(summary = null)
+    return updated
+}
+
+/**
  * Fold the transient [active] execution into the finalized message history by
  * attaching the (closed) steps to the last agent message. [expanded] marks the
  * message's execution card auto-expanded (failure/exhausted); success passes false.
@@ -255,11 +271,38 @@ internal fun isFailedExecutionStep(step: ExecutionStep, messageHasActions: Boole
 
 /**
  * Summary capsule text for a collapsed finalized execution card, e.g.
- * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations).
+ * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations),
+ * with a trailing " · 1.8k tokens" when the run reported token usage.
  * Pure function.
  */
-internal fun executionSummaryCapsuleText(steps: List<ExecutionStep>): String {
+internal fun executionSummaryCapsuleText(
+    steps: List<ExecutionStep>,
+    tokenUsage: TokenUsage? = null,
+): String {
     val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
     val noun = if (steps.size == 1) "step" else "steps"
-    return "✓ Completed in ${formatStepDuration(totalMs)} · ${steps.size} $noun"
+    val tokens = tokenUsage?.takeIf { it.totalTokens > 0 }
+        ?.let { " · ${formatTokenCount(it.totalTokens)} tokens" }
+        .orEmpty()
+    return "✓ Completed in ${formatStepDuration(totalMs)} · ${steps.size} $noun$tokens"
+}
+
+/**
+ * Compact token count: "980" below 1000, "1.8k" above, "1.2M" above one million.
+ */
+internal fun formatTokenCount(total: Long): String = when {
+    total >= 1_000_000L -> String.format(Locale.US, "%.1fM", total / 1_000_000.0)
+    total >= 1_000L -> String.format(Locale.US, "%.1fk", total / 1_000.0)
+    else -> total.toString()
+}
+
+/**
+ * Bubble footer text, e.g. "1,234 in · 567 out tokens". Null when the run did not
+ * report any tokens (provider without usage data), so no footer renders.
+ */
+internal fun formatTokenFooter(usage: TokenUsage?): String? {
+    if (usage == null || usage.totalTokens <= 0L) return null
+    val input = String.format(Locale.US, "%,d", usage.totalInputTokens)
+    val output = String.format(Locale.US, "%,d", usage.totalOutputTokens)
+    return "$input in · $output out tokens"
 }

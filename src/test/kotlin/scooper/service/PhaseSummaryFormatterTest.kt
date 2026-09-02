@@ -14,13 +14,13 @@ class PhaseSummaryFormatterTest {
 
     @Test
     fun `formatPhaseStart returns contextual message for research with app name`() {
-        val text = PhaseSummaryFormatter.formatPhaseStart("research", "fd", refineAttempt = 0)
+        val text = PhaseSummaryFormatter.formatPhaseStart("research", "fd", attempt = 0)
         assertEquals("Researching fd...", text)
     }
 
     @Test
     fun `formatPhaseStart returns generic message for research without app name`() {
-        val text = PhaseSummaryFormatter.formatPhaseStart("research", null, refineAttempt = 0)
+        val text = PhaseSummaryFormatter.formatPhaseStart("research", null, attempt = 0)
         assertEquals("Researching repository...", text)
     }
 
@@ -28,30 +28,42 @@ class PhaseSummaryFormatterTest {
     fun `formatPhaseStart returns specific message for analyze and generate`() {
         assertEquals(
             "Analyzing package...",
-            PhaseSummaryFormatter.formatPhaseStart("analyze", "fd", refineAttempt = 0),
+            PhaseSummaryFormatter.formatPhaseStart("analyze", "fd", attempt = 0),
         )
         assertEquals(
             "Writing manifest...",
-            PhaseSummaryFormatter.formatPhaseStart("generate", "fd", refineAttempt = 0),
+            PhaseSummaryFormatter.formatPhaseStart("generate", "fd", attempt = 0),
         )
     }
 
     @Test
-    fun `formatPhaseStart returns attempt count for refine`() {
+    fun `formatPhaseStart returns working title for assist without attempt suffix`() {
         assertEquals(
-            "Refining manifest (attempt 1/3)...",
-            PhaseSummaryFormatter.formatPhaseStart("refine", "fd", refineAttempt = 1),
+            "Working on your request...",
+            PhaseSummaryFormatter.formatPhaseStart("assist", "fd", attempt = 1),
         )
         assertEquals(
-            "Refining manifest (attempt 2/3)...",
-            PhaseSummaryFormatter.formatPhaseStart("refine", "fd", refineAttempt = 2),
+            "Working on your request...",
+            PhaseSummaryFormatter.formatPhaseStart("assist", "fd", attempt = 2),
+        )
+    }
+
+    @Test
+    fun `formatPhaseStart returns attempt count for repair`() {
+        assertEquals(
+            "Repairing manifest (attempt 1/3)...",
+            PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = 1),
+        )
+        assertEquals(
+            "Repairing manifest (attempt 2/3)...",
+            PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = 2),
         )
     }
 
     @Test
     fun `formatPhaseStart titles stay short so the single-line ellipsis is only a fallback`() {
-        listOf("research", "analyze", "generate", "refine", "verify").forEach { phase ->
-            val title = PhaseSummaryFormatter.formatPhaseStart(phase, "fd", refineAttempt = 1)
+        listOf("research", "analyze", "generate", "assist", "repair", "verify").forEach { phase ->
+            val title = PhaseSummaryFormatter.formatPhaseStart(phase, "fd", attempt = 1)
             assertTrue(
                 title.length <= 40,
                 "phase '$phase' start title must stay short, got: $title",
@@ -68,7 +80,7 @@ class PhaseSummaryFormatterTest {
     fun `formatPhaseStart returns validating title for verify`() {
         assertEquals(
             "Validating manifest...",
-            PhaseSummaryFormatter.formatPhaseStart("verify", "fd", refineAttempt = 0),
+            PhaseSummaryFormatter.formatPhaseStart("verify", "fd", attempt = 0),
         )
     }
 
@@ -118,7 +130,7 @@ class PhaseSummaryFormatterTest {
     }
 
     // -------------------------------------------------------------------------
-    // formatPhaseOutput: Generate & Refine
+    // formatPhaseOutput: Generate & Revision
     // -------------------------------------------------------------------------
 
     @Test
@@ -140,7 +152,7 @@ class PhaseSummaryFormatterTest {
     }
 
     @Test
-    fun `formatPhaseOutput summarizes refine manifest with pre_install and shortcuts`() {
+    fun `formatPhaseOutput summarizes assist manifest with pre_install and shortcuts`() {
         val manifestJson = """
             {
                 "version": "0.3.0",
@@ -151,7 +163,7 @@ class PhaseSummaryFormatterTest {
                 "pre_install": ["Expand-7zipArchive ..."]
             }
         """.trimIndent()
-        val summary = PhaseSummaryFormatter.formatPhaseOutput("refine", manifestJson)
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("assist", manifestJson)
         assertTrue(summary!!.contains("Updated manifest v0.3.0"))
         assertTrue(summary.contains("64bit"))
         assertTrue(summary.contains("pre_install"))
@@ -159,7 +171,7 @@ class PhaseSummaryFormatterTest {
     }
 
     @Test
-    fun `formatPhaseOutput summarizes refine manifest with persist and environment`() {
+    fun `formatPhaseOutput summarizes assist manifest with persist and environment`() {
         val manifestJson = """
             {
                 "version": "1.2.0",
@@ -167,16 +179,16 @@ class PhaseSummaryFormatterTest {
                 "env_set": {"APP_HOME": "${'$'}dir"}
             }
         """.trimIndent()
-        val summary = PhaseSummaryFormatter.formatPhaseOutput("refine", manifestJson)
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("assist", manifestJson)
         assertTrue(summary!!.contains("Updated manifest v1.2.0"))
         assertTrue(summary.contains("persist"))
         assertTrue(summary.contains("environment"))
     }
 
     @Test
-    fun `formatPhaseOutput summarizes refine minimal manifest json`() {
+    fun `formatPhaseOutput summarizes assist minimal manifest json`() {
         val manifestJson = """{"version": "10.2.0"}"""
-        val summary = PhaseSummaryFormatter.formatPhaseOutput("refine", manifestJson)
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("assist", manifestJson)
         assertTrue(summary!!.contains("Updated manifest v10.2.0"))
     }
 

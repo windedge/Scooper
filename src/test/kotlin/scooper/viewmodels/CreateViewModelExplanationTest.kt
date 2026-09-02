@@ -10,71 +10,71 @@ import org.junit.jupiter.api.Test
  * composition priority (architecture proposal 5.3 / 5.4):
  *
  * 1. Normal finish: engine explanation is the bubble text; when missing, a
- *    deterministic synthesis is used (refine diff based, or initial generation based).
+ *    deterministic synthesis is used (assist diff based, or initial generation based).
  * 2. Conflict-only / finished-with-issues: the classified notice stays the main text
  *    and the explanation (when present) is appended as a trailing paragraph.
  */
 class CreateViewModelExplanationTest {
 
     // ---------------------------------------------------------------
-    // synthesizeRefineExplanation: diff-based synthesis
+    // synthesizeAssistExplanation: diff-based synthesis
     // ---------------------------------------------------------------
 
     @Test
-    fun `refine synthesis combines removed added and version change`() {
+    fun `assist synthesis combines removed added and version change`() {
         val diff = listOf("- bin", "+ shortcuts", "~ version: 1.0.0 → 1.1.0")
         assertEquals(
             "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready.",
-            synthesizeRefineExplanation(diff),
+            synthesizeAssistExplanation(diff),
         )
     }
 
     @Test
-    fun `refine synthesis with only a removal starts capitalized`() {
+    fun `assist synthesis with only a removal starts capitalized`() {
         assertEquals(
             "Removed notes. Validated and ready.",
-            synthesizeRefineExplanation(listOf("- notes")),
+            synthesizeAssistExplanation(listOf("- notes")),
         )
     }
 
     @Test
-    fun `refine synthesis with only an addition starts capitalized`() {
+    fun `assist synthesis with only an addition starts capitalized`() {
         assertEquals(
             "Added shortcuts. Validated and ready.",
-            synthesizeRefineExplanation(listOf("+ shortcuts")),
+            synthesizeAssistExplanation(listOf("+ shortcuts")),
         )
     }
 
     @Test
-    fun `refine synthesis covers plain modified keys`() {
+    fun `assist synthesis covers plain modified keys`() {
         assertEquals(
             "Updated description. Validated and ready.",
-            synthesizeRefineExplanation(listOf("~ description")),
+            synthesizeAssistExplanation(listOf("~ description")),
         )
     }
 
     @Test
-    fun `refine synthesis groups multiple keys per change kind`() {
+    fun `assist synthesis groups multiple keys per change kind`() {
         val diff = listOf("- bin", "- notes", "+ shortcuts", "+ env_add_path")
         assertEquals(
             "Removed bin, notes, added shortcuts, env_add_path. Validated and ready.",
-            synthesizeRefineExplanation(diff),
+            synthesizeAssistExplanation(diff),
         )
     }
 
     @Test
-    fun `refine synthesis with empty diff reports no changes`() {
+    fun `assist synthesis with empty diff reports no changes`() {
         assertEquals(
             "No manifest changes were required. Validated and ready.",
-            synthesizeRefineExplanation(emptyList()),
+            synthesizeAssistExplanation(emptyList()),
         )
     }
 
     @Test
-    fun `refine synthesis with unparseable diff reports a generic update`() {
+    fun `assist synthesis with unparseable diff reports a generic update`() {
         assertEquals(
             "Updated the manifest. Validated and ready.",
-            synthesizeRefineExplanation(listOf("Manifest updated")),
+            synthesizeAssistExplanation(listOf("Manifest updated")),
         )
     }
 
@@ -290,17 +290,18 @@ class CreateViewModelExplanationTest {
     }
 
     // ---------------------------------------------------------------
-    // isRefineScenario helper shared with the composition logic
+    // isAssistScenario helper shared with the composition logic
     // ---------------------------------------------------------------
 
     @Test
-    fun `isRefineScenario requires both a refine phase and existing revisions`() {
+    fun `isAssistScenario requires both an assist phase and existing revisions`() {
         val revisions = listOf(
-            ManifestRevision(revisionNumber = 1, source = RevisionSource.INITIAL_GENERATE, manifestJson = "{}"),
+            ManifestRevision(revisionNumber = 1, source = RevisionSource.ASSIST, manifestJson = "{}"),
         )
-        assertTrue(isRefineScenario(currentPhase = "refine", revisions = revisions))
-        assertFalse(isRefineScenario(currentPhase = "generate", revisions = revisions), "initial generate is not a refine")
-        assertFalse(isRefineScenario(currentPhase = "refine", revisions = emptyList()), "no revisions means no previous manifest to diff")
-        assertFalse(isRefineScenario(currentPhase = null, revisions = revisions))
+        assertTrue(isAssistScenario(currentPhase = "assist", revisions = revisions))
+        assertFalse(isAssistScenario(currentPhase = "generate", revisions = revisions), "initial generate is not an assist")
+        assertFalse(isAssistScenario(currentPhase = "assist", revisions = emptyList()), "no revisions means no previous manifest to diff")
+        assertFalse(isAssistScenario(currentPhase = "repair", revisions = revisions), "an internal repair round is not a user assist")
+        assertFalse(isAssistScenario(currentPhase = null, revisions = revisions))
     }
 }

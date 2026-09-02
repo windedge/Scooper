@@ -11,7 +11,7 @@ object PhaseSummaryFormatter {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun formatPhaseStart(phase: String, appName: String?, refineAttempt: Int = 0): String {
+    fun formatPhaseStart(phase: String, appName: String?, attempt: Int = 0): String {
         val name = appName?.trim()?.takeIf { it.isNotEmpty() }
         return when (phase.lowercase()) {
             // Keep the titles short: they render on a single line inside the
@@ -19,9 +19,10 @@ object PhaseSummaryFormatter {
             "research" -> if (name != null) "Researching $name..." else "Researching repository..."
             "analyze" -> "Analyzing package..."
             "generate" -> "Writing manifest..."
-            "refine" -> {
-                val count = if (refineAttempt > 0) refineAttempt else 1
-                "Refining manifest (attempt $count/3)..."
+            "assist" -> "Working on your request..."
+            "repair" -> {
+                val count = if (attempt > 0) attempt else 1
+                "Repairing manifest (attempt $count/3)..."
             }
             "verify" -> "Validating manifest..."
             else -> "Working on phase: $phase..."
@@ -36,7 +37,7 @@ object PhaseSummaryFormatter {
                 "research" -> formatResearchSummary(root)
                 "analyze" -> formatAnalyzeSummary(root)
                 "generate" -> formatGenerateSummary(root)
-                "refine" -> formatRefineSummary(root)
+                "assist", "repair" -> formatRevisionSummary(root)
                 // verify has no output summary (proposal 4.6: the step shows duration only)
                 "verify" -> null
                 else -> null
@@ -109,7 +110,7 @@ object PhaseSummaryFormatter {
         }
     }
 
-    private fun formatRefineSummary(root: JsonObject): String {
+    private fun formatRevisionSummary(root: JsonObject): String {
         val version = root["version"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
         val archObj = root["architecture"]?.jsonObject
         val archs = archObj?.keys?.filter { it.isNotBlank() }?.sorted()?.joinToString("/")

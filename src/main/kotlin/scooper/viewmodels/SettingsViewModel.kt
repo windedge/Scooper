@@ -131,6 +131,7 @@ class SettingsViewModel(
             TextFieldState("aiBaseUrl"),
             TextFieldState("aiModel"),
             TextFieldState("aiGithubToken"),
+            SwitchState("aiAutoDownload"),
         )
     )
 
@@ -192,6 +193,7 @@ class SettingsViewModel(
         aiBaseUrl = aiBaseUrl,
         aiModel = aiModel,
         aiGithubToken = aiGithubToken,
+        aiAutoDownload = aiAutoDownload,
     )
 
     fun writeAiConfig() {
@@ -205,6 +207,7 @@ class SettingsViewModel(
             ),
             aiModel = aiFormState.getState<TextFieldState>("aiModel").value.trim(),
             aiGithubToken = aiFormState.getState<TextFieldState>("aiGithubToken").value.trim(),
+            aiAutoDownload = aiFormState.getState<SwitchState>("aiAutoDownload").value,
         )
         configRepository.setConfig(config)
         intent {

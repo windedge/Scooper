@@ -1,6 +1,7 @@
 package scooper.viewmodels
 
 import com.scoopai.core.ManifestResult
+import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -69,6 +70,8 @@ data class ChatMessage(
     val actions: List<AiErrorAction> = emptyList(),
     /** Detailed technical log/stack for error bubbles (collapsible). */
     val technicalDetails: String? = null,
+    /** Cumulative token usage of the run that produced this reply; null when unreported. */
+    val tokenUsage: TokenUsage? = null,
 )
 
 data class TestResult(
@@ -137,7 +140,7 @@ data class AskUserRequest(
 
 enum class RevisionSource {
     INITIAL_GENERATE,
-    REFINE,
+    ASSIST,
     TEST_FIX,
     REVERT,
 }
@@ -374,7 +377,7 @@ data class CreateState(
     val saveResult: SaveResult? = null,
     /** Suggested resume stages currently available from the in-memory checkpoint. */
     val resumableStages: Set<AiErrorAction> = emptySet(),
-    /** True when generation finished but the manifest is not ready (refine exhausted or invalid JSON). */
+    /** True when generation finished but the manifest is not ready (assist exhausted or invalid JSON). */
     val manifestExhausted: Boolean = false,
     /** True when the finished manifest is not valid Scoop manifest JSON (blank counts as invalid).
      *  Drives Test Install / Save to Bucket button gating (see [C2 exhausted escape door]). */
@@ -426,7 +429,7 @@ class CreateViewModel(
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
-    private var refineAttemptCount = 0
+    private var assistAttemptCount = 0
     private var askUserDeferred: CompletableDeferred<String>? = null
     private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
 
@@ -474,6 +477,8 @@ class CreateViewModel(
 
     fun onModelChange(model: String) = intent {
         reduce { state.copy(selectedModel = model) }
+        // Persist immediately so the choice survives restarts; best-effort.
+        scoopAiBridge.persistModel(model)
     }
 
     fun onFetchModels() = intent {
@@ -516,31 +521,31 @@ class CreateViewModel(
 
         reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
 
-        if (isRefineRequest(
+        if (isAssistRequest(
                 hasExistingManifest = state.manifestJson.isNotBlank(),
                 lastUrl = state.lastUrl,
                 inputUrl = text,
                 inputNote = text,
             )
         ) {
-            val instruction = resolveRefineInstruction(text, text)
-            startRefineInternal(instruction)
+            val instruction = resolveAssistInstruction(text, text)
+            startAssistInternal(instruction)
         } else {
             val (derivedUrl, derivedNote) = GithubUrlParser.extract(text)
             startGeneration(rawUrlInput = derivedUrl.orEmpty(), noteInput = derivedNote)
         }
     }
 
-    fun startRefine(instruction: String) = intent {
+    fun startAssist(instruction: String) = intent {
         if (state.running) return@intent
-        startRefineInternal(instruction)
+        startAssistInternal(instruction)
     }
 
     fun onReset() = intent {
         scoopAiBridge.cancel()
         drainActivityEvents(activityChannel)
         checkpointService.reset()
-        refineAttemptCount = 0
+        assistAttemptCount = 0
         reduce {
             CreateState(
                 selectedModel = state.selectedModel,
@@ -577,6 +582,11 @@ class CreateViewModel(
                 // never matches), otherwise degrade to a full retry.
                 val resumeFrom = action.takeIf { it in state.resumableStages }
                 startGeneration(rawUrlInput = url, noteInput = state.lastNote, resumeFrom = resumeFrom)
+            }
+            AiErrorAction.RETRY_ANSWER -> {
+                if (state.running) return@intent
+                // Resend the latest question (startAssistInternal no-ops on blank text).
+                lastUserQuestion(state.messages)?.let { startAssistInternal(it) }
             }
         }
     }
@@ -752,10 +762,10 @@ class CreateViewModel(
 
     fun onApplyActionChip(chip: ReviewActionChip) = intent {
         if (state.manifestJson.isBlank() || state.running || state.testing) return@intent
-        startRefineInternal(
+        startAssistInternal(
             instruction = chip.prompt,
             displayUserText = "⚡ Apply fix: ${chip.label}",
-            source = if (chip.isPrimary && chip.id == "test_fix") RevisionSource.TEST_FIX else RevisionSource.REFINE,
+            source = if (chip.isPrimary && chip.id == "test_fix") RevisionSource.TEST_FIX else RevisionSource.ASSIST,
         )
     }
 
@@ -1062,7 +1072,7 @@ class CreateViewModel(
             )
         }
 
-        refineAttemptCount = 0
+        assistAttemptCount = 0
         val modelToUse = state.selectedModel
         scoopAiBridge.startGenerate(
             url = urlFromField,
@@ -1125,16 +1135,16 @@ class CreateViewModel(
         )
     }
 
-    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startRefineInternal(
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startAssistInternal(
         instruction: String,
         displayUserText: String? = null,
-        source: RevisionSource = RevisionSource.REFINE,
+        source: RevisionSource = RevisionSource.ASSIST,
     ) {
         val text = instruction.trim()
         if (text.isBlank()) return
         val currentManifest = state.manifestJson
         if (currentManifest.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("No manifest to refine. Generate one first.", ToastType.ERROR))
+            postSideEffect(AppSideEffect.Toast("No manifest to assist. Generate one first.", ToastType.ERROR))
             return
         }
 
@@ -1151,11 +1161,11 @@ class CreateViewModel(
             return
         }
 
-        refineAttemptCount++
+        assistAttemptCount++
         val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(
-            phase = "refine",
+            phase = "assist",
             appName = state.suggestedAppName,
-            refineAttempt = refineAttemptCount,
+            attempt = assistAttemptCount,
         )
 
         val userHistory = extractUserHistory(state.messages)
@@ -1165,10 +1175,10 @@ class CreateViewModel(
             state.copy(
                 messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt),
                 running = true,
-                currentPhase = "refine",
+                currentPhase = "assist",
                 activeExecution = ActiveExecution(
                     steps = listOf(
-                        ExecutionStep(phase = "refine", title = startPhaseTitle, isRunning = true),
+                        ExecutionStep(phase = "assist", title = startPhaseTitle, isRunning = true),
                     ),
                     currentStepStartedAtMs = System.currentTimeMillis(),
                 ),
@@ -1184,7 +1194,7 @@ class CreateViewModel(
         }
 
         val modelToUse = state.selectedModel
-        scoopAiBridge.startRefine(
+        scoopAiBridge.startAssist(
             currentManifest = currentManifest,
             instruction = text,
             history = userHistory,
@@ -1204,7 +1214,7 @@ class CreateViewModel(
         val titleText = PhaseSummaryFormatter.formatPhaseStart(
             phase = phase,
             appName = state.suggestedAppName,
-            refineAttempt = refineAttemptCount,
+            attempt = assistAttemptCount,
         )
         reduce {
             state.copy(
@@ -1232,6 +1242,29 @@ class CreateViewModel(
     private fun handleFinished(result: Result<ManifestResult>) = intent {
         result.fold(
             onSuccess = { manifestResult ->
+                if (manifestResult.answered) {
+                    val answerText = answeredBubbleText(manifestResult.explanation)
+                    // A direct answer never touches the manifest (guard-rail guaranteed),
+                    // but the assist step already carries the deterministic "Updated
+                    // manifest ..." line written from the engine snapshot. Rewrite it
+                    // before finishGeneration folds the active execution into the
+                    // finalized message.
+                    reduce {
+                        state.copy(
+                            activeExecution = state.activeExecution?.let { active ->
+                                active.copy(steps = markAnsweredSummary(active.steps))
+                            },
+                        )
+                    }
+                    reduce {
+                        state.finishGeneration(
+                            messages = state.messages + agentReplyMessage(answerText, manifestResult.tokenUsage),
+                            error = null,
+                        )
+                    }
+                    return@fold
+                }
+
                 if (manifestResult.noAssets) {
                     val name = manifestResult.suggestedAppName ?: state.suggestedAppName ?: "app"
                     // The engine synthesizes the noAssets explanation; fall back to the
@@ -1240,7 +1273,7 @@ class CreateViewModel(
                         ?: "No Windows assets found for this repository."
                     reduce {
                         state.finishGeneration(
-                            messages = state.messages + agentMessage(noAssetsText),
+                            messages = state.messages + agentReplyMessage(noAssetsText, manifestResult.tokenUsage),
                             error = "No Windows assets found",
                             suggestedAppName = name,
                             executionExpanded = true,
@@ -1276,10 +1309,10 @@ class CreateViewModel(
                 // Explanation priority (proposal 5.3): conflict/issues notices stay the
                 // main text (explanation appended as a trailing paragraph); a normal
                 // finish uses the engine explanation, else the deterministic synthesis.
-                val isRefine = isRefineScenario(state.currentPhase, state.revisions)
-                val synthesized = if (isRefine) {
+                val isAssist = isAssistScenario(state.currentPhase, state.revisions)
+                val synthesized = if (isAssist) {
                     val previousManifest = state.revisions.lastOrNull()?.manifestJson.orEmpty()
-                    synthesizeRefineExplanation(computeManifestDiff(previousManifest, pretty))
+                    synthesizeAssistExplanation(computeManifestDiff(previousManifest, pretty))
                 } else {
                     synthesizeGenerateExplanation(pretty, name)
                 }
@@ -1288,13 +1321,13 @@ class CreateViewModel(
                     isConflictOnly = isConflictOnly,
                     finishedWithIssues = finishedWithIssues,
                     conflictText = "Done with notice: App name '$name' conflicts with an existing local manifest. See card below.",
-                    issuesText = finishedWithIssuesNotice(isRefine) + ". See card below for details.",
+                    issuesText = finishedWithIssuesNotice(isAssist) + ". See card below for details.",
                     fallbackText = synthesized,
                 )
 
                 val toastText = when {
                     isConflictOnly -> "Manifest generated with name conflict: $name"
-                    finishedWithIssues -> finishedWithIssuesNotice(isRefine)
+                    finishedWithIssues -> finishedWithIssuesNotice(isAssist)
                     else -> "Manifest generated: $name"
                 }
                 val toastType = when {
@@ -1305,7 +1338,7 @@ class CreateViewModel(
 
                 reduce {
                     state.finishGeneration(
-                        messages = state.messages + agentMessage(bubbleText),
+                        messages = state.messages + agentReplyMessage(bubbleText, manifestResult.tokenUsage),
                         error = null,
                         manifestJson = pretty,
                         suggestedAppName = name,
@@ -1338,9 +1371,16 @@ class CreateViewModel(
                 // resume buttons whose stage has no checkpoint data.
                 val resumableStages = resumableStagesOf(checkpointService.snapshot())
                 val filteredActions = resolveErrorActions(presentation.actions, resumableStages)
+                // A question (assist) round does not depend on the checkpoint; generate
+                // resume actions are meaningless there, so offer a plain resend instead.
+                val finalActions = if (state.currentPhase == "assist") {
+                    listOf(AiErrorAction.RETRY_ANSWER)
+                } else {
+                    filteredActions
+                }
                 reduce {
                     state.finishGeneration(
-                        messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
+                        messages = state.messages + agentError(presentation.copy(actions = finalActions)),
                         error = safe,
                         resumableStages = resumableStages,
                         executionExpanded = true,
@@ -1478,14 +1518,14 @@ class CreateViewModel(
             val diff = computeManifestDiff(previousManifest, manifestJson)
             val source = when {
                 this.revisions.isEmpty() -> RevisionSource.INITIAL_GENERATE
-                this.currentPhase == "refine" -> RevisionSource.REFINE
+                this.currentPhase == "assist" || this.currentPhase == "repair" -> RevisionSource.ASSIST
                 else -> RevisionSource.INITIAL_GENERATE
             }
             val lastUserInstruction = this.messages.lastOrNull { it.role == ChatRole.User }?.text
             this.revisions + ManifestRevision(
                 revisionNumber = this.revisions.size + 1,
                 source = source,
-                instruction = if (source == RevisionSource.REFINE) lastUserInstruction else null,
+                instruction = if (source == RevisionSource.ASSIST) lastUserInstruction else null,
                 manifestJson = manifestJson,
                 diffSummary = diff,
             )
@@ -1634,11 +1674,11 @@ internal fun isScoopManifestJson(text: String): Boolean {
     }
 }
 
-/** Classification of a finished generation, splitting refine exhaustion from invalid JSON. */
+/** Classification of a finished generation, splitting assist exhaustion from invalid JSON. */
 data class FinishClassification(
     /** True when the manifest is not valid Scoop manifest JSON. */
     val invalidJson: Boolean,
-    /** True when the run ended with issues (refine exhausted and/or invalid JSON). Drives badge/toast. */
+    /** True when the run ended with issues (assist exhausted and/or invalid JSON). Drives badge/toast. */
     val finishedWithIssues: Boolean,
 )
 
@@ -1659,7 +1699,7 @@ internal fun isNameConflictOnly(issues: List<String>, invalidJson: Boolean): Boo
  * Classify a finished generation result.
  *
  * The exhausted flag alone must NOT disable Test Install / Save: a valid JSON manifest
- * with unresolved refine issues can still be test-installed (the UI keeps the buttons
+ * with unresolved assist issues can still be test-installed (the UI keeps the buttons
  * enabled and only [invalidJson] gates them).
  */
 internal fun classifyManifestFinish(manifest: String, exhausted: Boolean): FinishClassification {
@@ -1870,17 +1910,32 @@ private fun normalizeDownloadLine(raw: String): String {
     }
 }
 
-internal fun extractUserHistory(messages: List<ChatMessage>): List<String> =
-    messages.filter { it.role == ChatRole.User && it.text.isNotBlank() }
-        .mapNotNull { msg ->
-            if (msg.text in IGNORED_HISTORY_TEXTS || msg.text.startsWith("Question:")) {
-                null
-            } else if (!msg.note.isNullOrBlank()) {
-                "${msg.text} (Requirements: ${msg.note})"
-            } else {
-                msg.text
-            }
+private const val HISTORY_MAX_ENTRIES = 12
+private const val HISTORY_LINE_MAX = 400
+
+internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
+    val relevant = messages.filter { msg ->
+        when (msg.role) {
+            ChatRole.User ->
+                msg.text.isNotBlank() &&
+                    msg.text !in IGNORED_HISTORY_TEXTS &&
+                    !msg.text.startsWith("Question:")
+            // Error bubbles fold failure details into actions; they are not conversation context.
+            ChatRole.Agent -> msg.text.isNotBlank() && msg.actions.isEmpty()
         }
+    }
+    // Tail only: recent turns matter for coreference in assist/refine prompts.
+    return relevant.takeLast(HISTORY_MAX_ENTRIES).map { msg ->
+        val body = when (msg.role) {
+            ChatRole.User ->
+                if (!msg.note.isNullOrBlank()) "${msg.text} (Requirements: ${msg.note})" else msg.text
+            ChatRole.Agent -> msg.text
+        }
+        val prefix = if (msg.role == ChatRole.User) "User: " else "Assistant: "
+        val line = prefix + body
+        if (line.length <= HISTORY_LINE_MAX) line else line.take(HISTORY_LINE_MAX - 3) + "..."
+    }
+}
 
 internal fun isLikelyUrl(text: String): Boolean {
     val trimmed = text.trim()
@@ -1890,10 +1945,10 @@ internal fun isLikelyUrl(text: String): Boolean {
 }
 
 /**
- * Determines whether a send action is a refine request (incremental modification)
+ * Determines whether a send action is an assist request (incremental modification)
  * or a fresh generation.
  */
-internal fun isRefineRequest(
+internal fun isAssistRequest(
     hasExistingManifest: Boolean,
     lastUrl: String,
     inputUrl: String,
@@ -1907,7 +1962,7 @@ internal fun isRefineRequest(
     return false
 }
 
-internal fun resolveRefineInstruction(
+internal fun resolveAssistInstruction(
     inputUrl: String,
     inputNote: String,
 ): String {
@@ -1964,29 +2019,57 @@ internal fun computeManifestDiff(oldJson: String, newJson: String): List<String>
 }
 
 /**
- * True when the current finish should be explained as a refine round: the run was in
- * the refine phase AND a previous manifest revision exists to diff against. Pure
- * helper for the finished-bubble composition in handleFinished.
+ * True when the current finish should be explained as an assist round: the run was in
+ * the assist phase AND a previous manifest revision exists to diff against. Internal
+ * repair rounds ("repair") are not user assists and return false. Pure helper for the
+ * finished-bubble composition in handleFinished.
  */
-internal fun isRefineScenario(currentPhase: String?, revisions: List<ManifestRevision>): Boolean {
-    if (!currentPhase.equals("refine", ignoreCase = true)) return false
+internal fun isAssistScenario(currentPhase: String?, revisions: List<ManifestRevision>): Boolean {
+    if (!currentPhase.equals("assist", ignoreCase = true)) return false
     return revisions.isNotEmpty()
 }
 
 /**
- * User-facing notice for a finished-with-issues run: refine rounds say "Refine",
+ * User-facing notice for a finished-with-issues run: assist rounds say "Assist",
  * initial generation says "Generation". Pure function (toast + issues bubble text).
  */
-internal fun finishedWithIssuesNotice(isRefineScenario: Boolean): String =
-    if (isRefineScenario) "Refine finished with issues" else "Generation finished with issues"
+internal fun finishedWithIssuesNotice(isAssistScenario: Boolean): String =
+    if (isAssistScenario) "Assist finished with issues" else "Generation finished with issues"
 
 /**
- * Deterministic refine explanation (proposal 5.4): human-readable English built from
+ * Bubble text for a user assist that the engine answered directly (no manifest
+ * change). Uses the engine explanation when present and non-blank, else a generic
+ * English fallback. Pure function.
+ */
+internal fun answeredBubbleText(explanation: String?): String =
+    explanation?.trim()?.takeIf { it.isNotEmpty() } ?: "Sorry, I could not produce an answer."
+
+/**
+ * Final agent bubble for a successful finish (answered / generated / no-assets).
+ * Token usage is attached only when the provider reported a non-zero total, so
+ * "0 tokens" footers never render. Pure function (bubble assembly testable).
+ */
+internal fun agentReplyMessage(text: String, tokenUsage: TokenUsage?): ChatMessage =
+    ChatMessage(
+        role = ChatRole.Agent,
+        text = text,
+        tokenUsage = tokenUsage?.takeIf { it.totalTokens > 0 },
+    )
+
+/**
+ * Text of the newest user bubble in [messages], or null when none exists. Used by
+ * the RETRY_ANSWER error action to resend a failed question. Pure function.
+ */
+internal fun lastUserQuestion(messages: List<ChatMessage>): String? =
+    messages.lastOrNull { it.role == ChatRole.User }?.text
+
+/**
+ * Deterministic assist explanation (proposal 5.4): human-readable English built from
  * the key-level [computeManifestDiff] output, e.g.
  * "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready."
  * Pure function; used when the engine explanation is missing.
  */
-internal fun synthesizeRefineExplanation(diff: List<String>): String {
+internal fun synthesizeAssistExplanation(diff: List<String>): String {
     val removed = mutableListOf<String>()
     val added = mutableListOf<String>()
     val modified = mutableListOf<String>()
@@ -2006,7 +2089,7 @@ internal fun synthesizeRefineExplanation(diff: List<String>): String {
                 }
             }
             entry == "Manifest updated" -> genericUpdate = true
-            // "Initial manifest" and unknown entries carry no refine detail
+            // "Initial manifest" and unknown entries carry no assist detail
         }
     }
 
