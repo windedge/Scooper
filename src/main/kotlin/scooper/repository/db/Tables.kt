@@ -58,4 +58,5 @@ object Configs : IntIdTable(name = "configs") {
     val aiModel = varchar("ai_model", 256).default("")
     val aiGithubToken = text("ai_github_token").default("")
     val aiAutoDownload = bool("ai_auto_download").default(false)
+    val aiInstallVerify = bool("ai_install_verify").default(false)
 }

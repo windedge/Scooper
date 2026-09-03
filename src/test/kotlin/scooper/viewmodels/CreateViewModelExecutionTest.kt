@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import scooper.service.PhaseSummaryFormatter
 
 /**
  * TDD tests for the transient-execution aggregation pure functions extracted from
@@ -68,6 +69,42 @@ class CreateViewModelExecutionTest {
         assertEquals(1, again.steps.size)
         assertTrue(again.steps.first().isRunning)
         assertEquals("Researching...", again.steps.first().title)
+    }
+
+    // ---------------------------------------------------------------
+    // RepairRoundCounter: session-scoped repair attempt tracking
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `repair counter increments per round and resets on a new session`() {
+        val counter = RepairRoundCounter()
+        assertEquals(1, counter.onPhase("repair"), "first repair round must show attempt 1")
+        assertEquals(2, counter.onPhase("repair"), "second repair round must show attempt 2")
+        assertEquals(3, counter.onPhase("repair"), "third repair round must show attempt 3")
+
+        counter.reset()
+        assertEquals(1, counter.onPhase("repair"), "new session must reset the counter back to 1")
+    }
+
+    @Test
+    fun `repair counter ignores non-repair phases`() {
+        val counter = RepairRoundCounter()
+        assertEquals(0, counter.onPhase("research"), "counter starts at zero before any repair phase")
+        assertEquals(0, counter.onPhase("analyze"), "non-repair phases must not advance the counter")
+        assertEquals(1, counter.onPhase("repair"), "first repair phase after other phases still shows attempt 1")
+    }
+
+    @Test
+    fun `repair counter renders the attempt label through formatPhaseStart`() {
+        val counter = RepairRoundCounter()
+        assertEquals(
+            "Repairing manifest (attempt 1/3)...",
+            PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = counter.onPhase("repair")),
+        )
+        assertEquals(
+            "Repairing manifest (attempt 2/3)...",
+            PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = counter.onPhase("repair")),
+        )
     }
 
     // ---------------------------------------------------------------
@@ -649,8 +686,8 @@ class CreateViewModelExecutionTest {
     }
 
     @Test
-    fun `formatTokenFooter renders input and output with thousand separators`() {
-        assertEquals("1,234 in · 567 out tokens", formatTokenFooter(TokenUsage(1234, 567)))
+    fun `formatTokenFooter renders input and output with compact counts`() {
+        assertEquals("1.2k in · 567 out tokens", formatTokenFooter(TokenUsage(1234, 567)))
     }
 
     @Test

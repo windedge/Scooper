@@ -36,7 +36,7 @@ import scooper.service.InMemoryAiCheckpointService
 import scooper.service.PhaseSummaryFormatter
 import scooper.service.ScoopAiBridge
 import scooper.service.ToolActivityFormatter
-import scooper.service.resolveErrorActions
+import scooper.service.resolveFailureActions
 import scooper.service.resumableStagesOf
 import scooper.service.ScoopClient
 import scooper.util.logger
@@ -375,6 +375,8 @@ data class CreateState(
     val overwriteConfirmOpen: Boolean = false,
     val testResult: TestResult? = null,
     val saveResult: SaveResult? = null,
+    /** True when the current session is a user assist (revise existing manifest). */
+    val assistSession: Boolean = false,
     /** Suggested resume stages currently available from the in-memory checkpoint. */
     val resumableStages: Set<AiErrorAction> = emptySet(),
     /** True when generation finished but the manifest is not ready (assist exhausted or invalid JSON). */
@@ -430,6 +432,7 @@ class CreateViewModel(
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var assistAttemptCount = 0
+    private val repairRoundCounter = RepairRoundCounter()
     private var askUserDeferred: CompletableDeferred<String>? = null
     private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
 
@@ -1047,6 +1050,7 @@ class CreateViewModel(
                     ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt),
                 running = true,
                 currentPhase = initialPhase,
+                assistSession = false,
                 // Transient execution card starts here; engine onPhase/onToolActivity
                 // events aggregate into it until the run finishes.
                 activeExecution = ActiveExecution(
@@ -1073,6 +1077,7 @@ class CreateViewModel(
         }
 
         assistAttemptCount = 0
+        repairRoundCounter.reset()
         val modelToUse = state.selectedModel
         scoopAiBridge.startGenerate(
             url = urlFromField,
@@ -1162,6 +1167,7 @@ class CreateViewModel(
         }
 
         assistAttemptCount++
+        repairRoundCounter.reset()
         val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(
             phase = "assist",
             appName = state.suggestedAppName,
@@ -1176,6 +1182,7 @@ class CreateViewModel(
                 messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt),
                 running = true,
                 currentPhase = "assist",
+                assistSession = true,
                 activeExecution = ActiveExecution(
                     steps = listOf(
                         ExecutionStep(phase = "assist", title = startPhaseTitle, isRunning = true),
@@ -1214,7 +1221,8 @@ class CreateViewModel(
         val titleText = PhaseSummaryFormatter.formatPhaseStart(
             phase = phase,
             appName = state.suggestedAppName,
-            attempt = assistAttemptCount,
+            // Only the repair phase consumes the in-session round counter.
+            attempt = repairRoundCounter.onPhase(phase),
         )
         reduce {
             state.copy(
@@ -1370,17 +1378,14 @@ class CreateViewModel(
                 // Refresh available resume stages from the checkpoint and hide
                 // resume buttons whose stage has no checkpoint data.
                 val resumableStages = resumableStagesOf(checkpointService.snapshot())
-                val filteredActions = resolveErrorActions(presentation.actions, resumableStages)
-                // A question (assist) round does not depend on the checkpoint; generate
-                // resume actions are meaningless there, so offer a plain resend instead.
-                val finalActions = if (state.currentPhase == "assist") {
-                    listOf(AiErrorAction.RETRY_ANSWER)
-                } else {
-                    filteredActions
-                }
+                val filteredActions = resolveFailureActions(
+                    assistSession = state.assistSession,
+                    translated = presentation.actions,
+                    resumable = resumableStages,
+                )
                 reduce {
                     state.finishGeneration(
-                        messages = state.messages + agentError(presentation.copy(actions = finalActions)),
+                        messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
                         error = safe,
                         resumableStages = resumableStages,
                         executionExpanded = true,

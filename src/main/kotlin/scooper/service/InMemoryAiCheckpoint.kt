@@ -86,6 +86,22 @@ internal fun resolveErrorActions(
 }
 
 /**
+ * Resolve the error actions for a failed session. An assist session has no own
+ * checkpoint (it holds stale data from the earlier generate run), so the generate
+ * resume actions (RETRY_FROM_ANALYZE / RETRY_FROM_GENERATE) would silently recover
+ * stale output and discard the user's revision instruction; it therefore always
+ * offers a plain resend (RETRY_ANSWER). A fresh generate session keeps the normal
+ * [resolveErrorActions] filter.
+ */
+internal fun resolveFailureActions(
+    assistSession: Boolean,
+    translated: List<AiErrorAction>,
+    resumable: Set<AiErrorAction>,
+): List<AiErrorAction> =
+    if (assistSession) listOf(AiErrorAction.RETRY_ANSWER)
+    else resolveErrorActions(translated, resumable)
+
+/**
  * Stateful holder for the current [InMemoryAiCheckpoint], shared as a Koin
  * singleton between [ScoopAiBridge] (writer) and the UI (reader).
  *

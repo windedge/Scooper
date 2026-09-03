@@ -92,6 +92,29 @@ internal fun appendPhaseStep(
 }
 
 /**
+ * Session-scoped repair round counter. The engine emits `onPhase("repair")` once per
+ * internal repair pass, and several passes can run inside one user session; the count
+ * labels each with its real round number (1, 2, ...) instead of a stale assist count.
+ * [reset] starts a fresh count for a new generate/assist session.
+ */
+internal class RepairRoundCounter {
+    private var count = 0
+
+    /** Increments on repair phases only; returns the current attempt number. */
+    fun onPhase(phase: String): Int {
+        if (phase.equals("repair", ignoreCase = true)) {
+            count++
+        }
+        return count
+    }
+
+    /** Reset so the first repair round of a new session shows attempt 1. */
+    fun reset() {
+        count = 0
+    }
+}
+
+/**
  * Attribute a tool activity event to the most recent step.
  *
  * Completed/Failed events are appended to the step's toolActivities with a check /
@@ -297,12 +320,12 @@ internal fun formatTokenCount(total: Long): String = when {
 }
 
 /**
- * Bubble footer text, e.g. "1,234 in · 567 out tokens". Null when the run did not
+ * Bubble footer text, e.g. "1.2k in · 567 out tokens". Null when the run did not
  * report any tokens (provider without usage data), so no footer renders.
  */
 internal fun formatTokenFooter(usage: TokenUsage?): String? {
     if (usage == null || usage.totalTokens <= 0L) return null
-    val input = String.format(Locale.US, "%,d", usage.totalInputTokens)
-    val output = String.format(Locale.US, "%,d", usage.totalOutputTokens)
+    val input = formatTokenCount(usage.totalInputTokens)
+    val output = formatTokenCount(usage.totalOutputTokens)
     return "$input in · $output out tokens"
 }

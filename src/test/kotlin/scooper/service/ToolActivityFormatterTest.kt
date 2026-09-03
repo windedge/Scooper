@@ -68,6 +68,30 @@ class ToolActivityFormatterTest {
     }
 
     @Test
+    fun `Completed event with unknown tool formats as Finished toolName`() {
+        assertEquals(
+            "Finished customTool",
+            ToolActivityFormatter.format(ToolActivity.Completed("customTool", "{\"name\":\"fd\"}")),
+        )
+    }
+
+    @Test
+    fun `Completed event for verify_install formats the install test outcome`() {
+        assertEquals(
+            "Install test passed",
+            ToolActivityFormatter.format(ToolActivity.Completed("verify_install", """{"success":true}""")),
+        )
+        assertEquals(
+            "Install test failed: budget exhausted",
+            ToolActivityFormatter.format(ToolActivity.Completed("verify_install", """{"success":false,"error":"budget exhausted"}""")),
+        )
+        assertEquals(
+            "Install test failed",
+            ToolActivityFormatter.format(ToolActivity.Completed("verify_install", """{"success":false}""")),
+        )
+    }
+
+    @Test
     fun `Failed event formats tool error`() {
         val formatted = ToolActivityFormatter.format(ToolActivity.Failed("fetchRepoInfo", "Network timeout"))
         assertTrue(formatted.contains("fetchRepoInfo"))

@@ -173,6 +173,56 @@ class InMemoryAiCheckpointTest {
     }
 
     // ---------------------------------------------------------------
+    // resolveFailureActions (assist vs generate session)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `resolveFailureActions for assist session always returns RETRY_ANSWER`() {
+        val actions = listOf(
+            AiErrorAction.RETRY_FULL,
+            AiErrorAction.RETRY_FROM_ANALYZE,
+            AiErrorAction.RETRY_FROM_GENERATE,
+        )
+        // resumable content is irrelevant for an assist session.
+        val resolved = resolveFailureActions(
+            assistSession = true,
+            translated = actions,
+            resumable = setOf(AiErrorAction.RETRY_FROM_ANALYZE, AiErrorAction.RETRY_FROM_GENERATE),
+        )
+        assertEquals(listOf(AiErrorAction.RETRY_ANSWER), resolved)
+    }
+
+    @Test
+    fun `resolveFailureActions for generate session filters resumable stages`() {
+        val actions = listOf(
+            AiErrorAction.RETRY_FULL,
+            AiErrorAction.RETRY_FROM_ANALYZE,
+            AiErrorAction.RETRY_FROM_GENERATE,
+        )
+        val resolved = resolveFailureActions(
+            assistSession = false,
+            translated = actions,
+            resumable = setOf(AiErrorAction.RETRY_FROM_ANALYZE),
+        )
+        assertEquals(listOf(AiErrorAction.RETRY_FULL, AiErrorAction.RETRY_FROM_ANALYZE), resolved)
+    }
+
+    @Test
+    fun `resolveFailureActions for generate session with empty resumable drops resume actions`() {
+        val actions = listOf(
+            AiErrorAction.RETRY_FULL,
+            AiErrorAction.RETRY_FROM_ANALYZE,
+            AiErrorAction.RETRY_FROM_GENERATE,
+        )
+        val resolved = resolveFailureActions(
+            assistSession = false,
+            translated = actions,
+            resumable = emptySet(),
+        )
+        assertEquals(listOf(AiErrorAction.RETRY_FULL), resolved)
+    }
+
+    // ---------------------------------------------------------------
     // service lifecycle (beginRun / update / snapshot / reset)
     // ---------------------------------------------------------------
 

@@ -1435,6 +1435,8 @@ private fun ChatBubble(
                             // Token footer sits below the collapsible body (and its Show
                             // more toggle) so it stays fully visible in both states.
                             formatTokenFooter(message.tokenUsage)?.let { footer ->
+                                // Breathing room between the collapsible body/toggle and the footer.
+                                Spacer(Modifier.height(6.dp))
                                 Text(
                                     footer,
                                     style = typography.caption.copy(color = colors.textMuted),
@@ -1536,9 +1538,9 @@ private fun ChatBubble(
 
 private fun actionLabel(action: AiErrorAction): String = when (action) {
     AiErrorAction.OPEN_SETTINGS -> "Open Settings"
-    AiErrorAction.RETRY_FULL -> "Restart"
-    AiErrorAction.RETRY_FROM_ANALYZE -> "Continue"
-    AiErrorAction.RETRY_FROM_GENERATE -> "Continue"
+    AiErrorAction.RETRY_FULL -> "Regenerate"
+    AiErrorAction.RETRY_FROM_ANALYZE -> "Retry from analyze"
+    AiErrorAction.RETRY_FROM_GENERATE -> "Retry from generate"
     AiErrorAction.RETRY_ANSWER -> "Retry"
 }
 
