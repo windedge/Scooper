@@ -141,11 +141,14 @@ import scooper.viewmodels.ReviewActionChip
 import scooper.viewmodels.SaveGitHint
 import scooper.viewmodels.SaveResult
 import scooper.viewmodels.TestResult
-import com.scoopai.core.TokenUsage
 import scooper.viewmodels.computeDetailedLineDiff
 import scooper.viewmodels.executionSummaryCapsuleText
+import scooper.viewmodels.manifestTestSucceeded
+import scooper.viewmodels.saveToBucketPrimary
 import scooper.viewmodels.formatStepDuration
 import scooper.viewmodels.formatTokenFooter
+import scooper.viewmodels.DOWNLOAD_DETAIL_MAX
+import scooper.viewmodels.elideUrlMiddle
 import scooper.viewmodels.isFailedExecutionStep
 import scooper.viewmodels.isNameConflictOnly
 import scooper.viewmodels.shouldRenderFullExecutionSteps
@@ -1106,7 +1109,8 @@ private fun ChatWorkspace(
                 manifestJson = state.activeManifestJson,
                 enabled = !state.running && !state.testing,
                 testing = state.testing,
-                testSucceeded = state.testResult?.success == true,
+                testSucceeded = manifestTestSucceeded(state.testResult, state.installVerified, state.manifestSaved),
+                manifestSaved = state.manifestSaved,
                 running = state.running,
                 issues = state.manifestIssues,
                 exhausted = state.manifestExhausted,
@@ -1410,7 +1414,6 @@ private fun ChatBubble(
                             } else {
                                 ExecutionSummaryCapsule(
                                     steps = message.executionSteps,
-                                    tokenUsage = message.tokenUsage,
                                     expandable = expandableExecutionSteps,
                                     onClick = { onToggleExecutionExpanded(message.id) },
                                 )
@@ -1454,9 +1457,13 @@ private fun ChatBubble(
                                 ),
                             )
                         }
-                        message.note?.takeIf { it.isNotBlank() }?.let { note ->
+                        message.note?.takeIf { it.isNotBlank() }?.let { rawNote ->
                             Text(
-                                note,
+                                // Single-line notes must never be visually tail-clipped. Elide any
+                                // URL middle before rendering; idempotent when already elided.
+                                if (message.noteSingleLine && rawNote.contains("://"))
+                                    elideUrlMiddle(rawNote, DOWNLOAD_DETAIL_MAX)
+                                else rawNote,
                                 style = typography.caption.copy(
                                     color = colors.textMuted,
                                     lineHeight = typography.caption.fontSize * 1.45f,
@@ -1812,7 +1819,6 @@ private fun ExecutionSummaryCapsule(
     expandable: Boolean,
     onClick: () -> Unit,
     expanded: Boolean = false,
-    tokenUsage: TokenUsage? = null,
 ) {
     Surface(
         color = colors.surface,
@@ -1842,7 +1848,7 @@ private fun ExecutionSummaryCapsule(
                 ),
             )
             Text(
-                executionSummaryCapsuleText(steps, tokenUsage).removePrefix("✓ "),
+                executionSummaryCapsuleText(steps).removePrefix("✓ "),
                 style = typography.caption.copy(
                     fontWeight = FontWeight.Medium,
                     color = colors.textBody,
@@ -1898,6 +1904,7 @@ private fun ManifestPreviewCard(
     issues: List<String> = emptyList(),
     exhausted: Boolean = false,
     invalidJson: Boolean = false,
+    manifestSaved: Boolean = false,
     revisions: List<ManifestRevision> = emptyList(),
     selectedRevisionId: String? = null,
     actionChips: List<ReviewActionChip> = emptyList(),
@@ -2291,8 +2298,8 @@ private fun ManifestPreviewCard(
                     },
                     enabled = true,
                 )
-                // After a successful test install, Save to Bucket becomes the
-                // primary action; in every other state Test Install stays primary.
+                // After a passing test install, Save to Bucket becomes the primary
+                // action; once the manifest is saved both buttons are plain.
                 SmallActionButton(
                     label = "Test Install",
                     onClick = onTestInstall,
@@ -2304,7 +2311,7 @@ private fun ManifestPreviewCard(
                     label = "Save to Bucket",
                     onClick = onSave,
                     enabled = enabled && !testing && !invalidJson,
-                    primary = testSucceeded,
+                    primary = saveToBucketPrimary(testSucceeded, manifestSaved),
                 )
                 if (selectedRevisionId != null && selectedRevisionId != revisions.lastOrNull()?.id && onRevertToRevision != null) {
                     SmallActionButton(

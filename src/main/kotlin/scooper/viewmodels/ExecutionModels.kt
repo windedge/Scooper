@@ -294,20 +294,15 @@ internal fun isFailedExecutionStep(step: ExecutionStep, messageHasActions: Boole
 
 /**
  * Summary capsule text for a collapsed finalized execution card, e.g.
- * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations),
- * with a trailing " · 1.8k tokens" when the run reported token usage.
+ * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations).
+ * Token usage is intentionally absent here; it renders only in the bubble
+ * footer below the body (see [formatTokenFooter]).
  * Pure function.
  */
-internal fun executionSummaryCapsuleText(
-    steps: List<ExecutionStep>,
-    tokenUsage: TokenUsage? = null,
-): String {
+internal fun executionSummaryCapsuleText(steps: List<ExecutionStep>): String {
     val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
     val noun = if (steps.size == 1) "step" else "steps"
-    val tokens = tokenUsage?.takeIf { it.totalTokens > 0 }
-        ?.let { " · ${formatTokenCount(it.totalTokens)} tokens" }
-        .orEmpty()
-    return "✓ Completed in ${formatStepDuration(totalMs)} · ${steps.size} $noun$tokens"
+    return "✓ Completed in ${formatStepDuration(totalMs)} · ${steps.size} $noun"
 }
 
 /**
@@ -328,4 +323,34 @@ internal fun formatTokenFooter(usage: TokenUsage?): String? {
     val input = formatTokenCount(usage.totalInputTokens)
     val output = formatTokenCount(usage.totalOutputTokens)
     return "$input in · $output out tokens"
+}
+
+/**
+ * Test Install's primary highlight is dismissed when the manifest has been exercised or
+ * persisted: a passing test install, a completed AI verify_install, or a bucket save.
+ */
+internal fun manifestTestSucceeded(
+    testResult: TestResult?,
+    installVerified: Boolean,
+    manifestSaved: Boolean,
+): Boolean = testResult?.success == true || installVerified || manifestSaved
+
+/**
+ * Save to Bucket is nudged as the primary action only after a passing test install and
+ * before the manifest has actually been saved.
+ */
+internal fun saveToBucketPrimary(testSucceeded: Boolean, manifestSaved: Boolean): Boolean = testSucceeded && !manifestSaved
+
+/**
+ * A new manifest (different non-blank content) invalidates the previous verification and
+ * save markers, so the new manifest starts unverified.
+ */
+internal fun newManifestResetsVerification(
+    newManifest: String,
+    currentManifest: String,
+    installVerified: Boolean,
+    manifestSaved: Boolean,
+): Pair<Boolean, Boolean> {
+    val manifestChanged = newManifest.isNotBlank() && newManifest != currentManifest
+    return if (manifestChanged) false to false else installVerified to manifestSaved
 }

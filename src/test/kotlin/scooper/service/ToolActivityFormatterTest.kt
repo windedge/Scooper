@@ -92,6 +92,43 @@ class ToolActivityFormatterTest {
     }
 
     @Test
+    fun `parseVerifyInstallResult returns true for a successful install`() {
+        assertEquals(true, parseVerifyInstallResult("""{"success":true}""").success)
+    }
+
+    @Test
+    fun `parseVerifyInstallResult returns false for a failed install`() {
+        assertEquals(false, parseVerifyInstallResult("""{"success":false}""").success)
+        assertEquals(false, parseVerifyInstallResult("""{"success":false,"error":"budget exhausted"}""").success)
+    }
+
+    @Test
+    fun `parseVerifyInstallResult returns null for non-JSON input`() {
+        assertEquals(null, parseVerifyInstallResult("not json").success)
+        assertEquals(null, parseVerifyInstallResult("12345").success)
+    }
+
+    @Test
+    fun `parseVerifyInstallResult returns null for blank or null result`() {
+        assertEquals(null, parseVerifyInstallResult("").success)
+        assertEquals(null, parseVerifyInstallResult("   ").success)
+        assertEquals(null, parseVerifyInstallResult(null).success)
+    }
+
+    @Test
+    fun `parseVerifyInstallResult returns null when success is missing or not boolean`() {
+        assertEquals(null, parseVerifyInstallResult("""{"error":"x"}""").success)
+        assertEquals(null, parseVerifyInstallResult("""{"success":"yes"}""").success)
+    }
+
+    @Test
+    fun `parseVerifyInstallResult extracts the recorded error text`() {
+        assertEquals(null, parseVerifyInstallResult("""{"success":false}""").error)
+        assertEquals("budget exhausted", parseVerifyInstallResult("""{"success":false,"error":"budget exhausted"}""").error)
+        assertEquals(null, parseVerifyInstallResult("not json").error)
+    }
+
+    @Test
     fun `Failed event formats tool error`() {
         val formatted = ToolActivityFormatter.format(ToolActivity.Failed("fetchRepoInfo", "Network timeout"))
         assertTrue(formatted.contains("fetchRepoInfo"))

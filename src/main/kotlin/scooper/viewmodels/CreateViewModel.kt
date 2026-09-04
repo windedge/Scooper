@@ -38,6 +38,7 @@ import scooper.service.ScoopAiBridge
 import scooper.service.ToolActivityFormatter
 import scooper.service.resolveFailureActions
 import scooper.service.resumableStagesOf
+import scooper.service.parseVerifyInstallResult
 import scooper.service.ScoopClient
 import scooper.util.logger
 import java.io.File
@@ -375,6 +376,10 @@ data class CreateState(
     val overwriteConfirmOpen: Boolean = false,
     val testResult: TestResult? = null,
     val saveResult: SaveResult? = null,
+    /** True when a real install test passed (Test Install button or AI verify_install). */
+    val installVerified: Boolean = false,
+    /** True when the current manifest has been saved to a bucket. */
+    val manifestSaved: Boolean = false,
     /** True when the current session is a user assist (revise existing manifest). */
     val assistSession: Boolean = false,
     /** Suggested resume stages currently available from the in-memory checkpoint. */
@@ -744,6 +749,7 @@ class CreateViewModel(
                 state.copy(
                     testing = false,
                     testResult = testResult,
+                    installVerified = if (testResult?.success == true) true else state.installVerified,
                     messages = state.messages + listOfNotNull(resultMsg),
                 )
             }
@@ -980,6 +986,7 @@ class CreateViewModel(
                 saveDialogOpen = false,
                 overwriteConfirmOpen = false,
                 suggestedAppName = name,
+                manifestSaved = true,
                 saveResult = classifySaveOutcome(
                     writeOk = true,
                     indexOk = indexedOk,
@@ -1085,7 +1092,7 @@ class CreateViewModel(
             resumeFrom = resumeFrom,
             overrideModel = modelToUse,
             onPhase = { phase -> handlePhase(phase) },
-            onToolActivity = { act -> activityChannel.trySend(act) },
+            onToolActivity = ::routeToolActivity,
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
             onAskUser = { question -> handleAskUser(question) },
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
@@ -1208,12 +1215,22 @@ class CreateViewModel(
             suggestedAppName = state.suggestedAppName,
             overrideModel = modelToUse,
             onPhase = { phase -> handlePhase(phase) },
-            onToolActivity = { act -> activityChannel.trySend(act) },
+            onToolActivity = ::routeToolActivity,
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
             onAskUser = { question -> handleAskUser(question) },
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
             onFinished = { result -> handleFinished(result) },
         )
+    }
+
+    /** Route engine tool activity: step-card lines via the channel, verify flags via intent. */
+    private fun routeToolActivity(act: ToolActivity) {
+        activityChannel.trySend(act)
+        handleToolActivity(act)
+    }
+
+    private fun handleToolActivity(act: ToolActivity) = intent {
+        reduce { applyInstallVerifyActivity(state, act) }
     }
 
     private fun handlePhase(phase: String) = intent {
@@ -1497,6 +1514,8 @@ class CreateViewModel(
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
+                installVerified = false,
+                manifestSaved = false,
             )
         }
         postSideEffect(AppSideEffect.Toast("Reverted to revision #${target.revisionNumber}", ToastType.INFO))
@@ -1538,6 +1557,12 @@ class CreateViewModel(
             this.revisions
         }
 
+        val (installVerified, manifestSaved) = newManifestResetsVerification(
+            newManifest = manifestJson,
+            currentManifest = this.manifestJson,
+            installVerified = this.installVerified,
+            manifestSaved = this.manifestSaved,
+        )
         return copy(
             running = false,
             currentPhase = null,
@@ -1552,6 +1577,9 @@ class CreateViewModel(
             manifestIssues = manifestIssues,
             revisions = updatedRevisions,
             selectedRevisionId = null,
+            testing = false,
+            installVerified = installVerified,
+            manifestSaved = manifestSaved,
         )
     }
 
@@ -1559,6 +1587,25 @@ class CreateViewModel(
         // Cancel in-flight generation only; bridge is a Koin singleton shared for app lifetime
         scoopAiBridge.cancel()
         supervisorJob.cancel()
+    }
+}
+
+/**
+ * Drives CreateState from AI verify_install activity: Started shows loading, then a
+ * Completed/Failed hides it; a verified success flips [CreateState.installVerified].
+ */
+internal fun applyInstallVerifyActivity(state: CreateState, activity: ToolActivity): CreateState {
+    if (activity.toolName != "verify_install") return state
+    return when (activity) {
+        is ToolActivity.Started -> state.copy(testing = true)
+        is ToolActivity.Completed -> {
+            val ok = parseVerifyInstallResult(activity.toolResult).success
+            state.copy(
+                testing = false,
+                installVerified = if (ok == true) true else state.installVerified,
+            )
+        }
+        is ToolActivity.Failed -> state.copy(testing = false)
     }
 }
 
@@ -1764,8 +1811,9 @@ internal fun looksLikeDownloadAsset(label: String): Boolean =
         label.contains("https://", ignoreCase = true) ||
         DOWNLOAD_ASSET_EXTENSIONS.any { label.contains(it, ignoreCase = true) }
 
-// Total single-line budget for the download confirm detail.
-private const val DOWNLOAD_DETAIL_MAX = 88
+// Total single-line budget for download-confirm detail notes. Internal so the
+// renderer reuses the exact same budget when eliding URL-bearing notes.
+internal const val DOWNLOAD_DETAIL_MAX = 88
 private const val ELLIPSIS = "…"
 
 private val DOWNLOAD_FILE_NAME_QUOTED = Regex(

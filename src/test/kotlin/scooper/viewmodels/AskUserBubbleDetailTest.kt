@@ -84,6 +84,18 @@ class AskUserBubbleDetailTest {
     }
 
     @Test
+    fun `re-eliding an already elided URL is idempotent and stays within budget`() {
+        // The renderer re-runs elideUrlMiddle on any single-line URL note as a
+        // fallback, so an already-elided value (from buildDownloadConfirmDetail)
+        // must come back unchanged and still fit DOWNLOAD_DETAIL_MAX.
+        val url = "https://github.com/tanlethanh/zedra/archive/refs/tags/v0.4.4.zip/releases/download/v0.4.4/zedra-v0.4.4-x64-installer.zip"
+        val once = elideUrlMiddle(url, DOWNLOAD_DETAIL_MAX)
+        assertEquals(once, elideUrlMiddle(once, DOWNLOAD_DETAIL_MAX))
+        assertFalse(once.contains(url))
+        assertTrue(once.length <= DOWNLOAD_DETAIL_MAX)
+    }
+
+    @Test
     fun `elided result never exceeds maxLen across budgets`() {
         val url = "https://github.com/tanlethanh/zedra/archive/refs/tags/v0.4.4.zip"
         for (maxLen in listOf(5, 10, 20, 31, 32, 40, 44, 48, 50, 64, 88)) {

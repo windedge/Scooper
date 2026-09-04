@@ -7,9 +7,30 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
-object ToolActivityFormatter {
+private val verifyJson = Json { ignoreUnknownKeys = true }
 
-    private val json = Json { ignoreUnknownKeys = true }
+/**
+ * Parsed `verify_install` tool result: the `success` boolean plus the recorded
+ * `error` text. Fields are null when the result is absent, not valid JSON, or
+ * lacks the respective key. The JSON is parsed exactly once.
+ */
+internal data class VerifyInstallResult(val success: Boolean?, val error: String?)
+
+internal fun parseVerifyInstallResult(toolResult: String?): VerifyInstallResult {
+    val obj = toolResult?.let {
+        try {
+            verifyJson.parseToJsonElement(it) as? JsonObject
+        } catch (_: Exception) {
+            null
+        }
+    }
+    return VerifyInstallResult(
+        success = obj?.get("success")?.let { (it as? JsonPrimitive)?.booleanOrNull },
+        error = obj?.get("error")?.let { (it as? JsonPrimitive)?.contentOrNull },
+    )
+}
+
+object ToolActivityFormatter {
 
     fun format(activity: ToolActivity): String {
         val name = activity.toolName
@@ -77,10 +98,9 @@ object ToolActivityFormatter {
      * real install test did not pass.
      */
     private fun formatVerifyInstallCompleted(toolResult: String): String {
-        val obj = json.parseToJsonElement(toolResult) as? JsonObject
-        val success = obj?.get("success")?.let { (it as? JsonPrimitive)?.booleanOrNull }
-        if (success == true) return "Install test passed"
-        val error = obj?.get("error")?.let { (it as? JsonPrimitive)?.contentOrNull }
+        val result = parseVerifyInstallResult(toolResult)
+        if (result.success == true) return "Install test passed"
+        val error = result.error
         return if (error.isNullOrBlank()) "Install test failed" else "Install test failed: $error"
     }
 }

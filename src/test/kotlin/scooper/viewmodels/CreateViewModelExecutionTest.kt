@@ -665,7 +665,7 @@ class CreateViewModelExecutionTest {
     }
 
     // ---------------------------------------------------------------
-    // Token usage display: compact count, bubble footer, capsule segment
+    // Token usage display: compact count and bubble footer
     // ---------------------------------------------------------------
 
     @Test
@@ -696,23 +696,6 @@ class CreateViewModelExecutionTest {
         assertNull(formatTokenFooter(null))
     }
 
-    @Test
-    fun `executionSummaryCapsuleText appends the compact token segment`() {
-        val steps = listOf(ExecutionStep(phase = "research", title = "r", durationMs = 1000L))
-        val text = executionSummaryCapsuleText(steps, tokenUsage = TokenUsage(1500, 346))
-        assertEquals("✓ Completed in 1.0s · 1 step · 1.8k tokens", text)
-    }
-
-    @Test
-    fun `executionSummaryCapsuleText omits the token segment without usable usage`() {
-        val steps = listOf(ExecutionStep(phase = "assist", title = "r", durationMs = 850L))
-        assertEquals(
-            "✓ Completed in 850ms · 1 step",
-            executionSummaryCapsuleText(steps, tokenUsage = TokenUsage(0, 0)),
-        )
-        assertEquals("✓ Completed in 850ms · 1 step", executionSummaryCapsuleText(steps))
-    }
-
     // ---------------------------------------------------------------
     // agentReplyMessage: final agent bubble carries the run tokenUsage
     // ---------------------------------------------------------------
@@ -729,5 +712,136 @@ class CreateViewModelExecutionTest {
     fun `agentReplyMessage drops zero and null token usage`() {
         assertNull(agentReplyMessage("Done.", TokenUsage(0, 0)).tokenUsage)
         assertNull(agentReplyMessage("Done.", null).tokenUsage)
+    }
+
+    // ---------------------------------------------------------------
+    // Test Install highlight dismissal: manifestTestSucceeded
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `manifestTestSucceeded is true when a test install passed`() {
+        assertTrue(manifestTestSucceeded(TestResult(success = true, testName = "x"), false, false))
+    }
+
+    @Test
+    fun `manifestTestSucceeded is true after an AI verify install succeeded`() {
+        assertTrue(manifestTestSucceeded(null, installVerified = true, manifestSaved = false))
+    }
+
+    @Test
+    fun `manifestTestSucceeded is true once the manifest is saved`() {
+        assertTrue(manifestTestSucceeded(null, installVerified = false, manifestSaved = true))
+    }
+
+    @Test
+    fun `manifestTestSucceeded is false before any verification or save`() {
+        assertFalse(manifestTestSucceeded(null, false, false))
+        assertFalse(manifestTestSucceeded(TestResult(success = false, testName = "x"), false, false))
+    }
+
+    // ---------------------------------------------------------------
+    // Save to Bucket primary nudge: saveToBucketPrimary
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `saveToBucketPrimary is true after a passing test install before save`() {
+        assertTrue(saveToBucketPrimary(testSucceeded = true, manifestSaved = false))
+    }
+
+    @Test
+    fun `saveToBucketPrimary is false once the manifest is saved`() {
+        assertFalse(saveToBucketPrimary(testSucceeded = true, manifestSaved = true))
+    }
+
+    @Test
+    fun `saveToBucketPrimary is false before any test install`() {
+        assertFalse(saveToBucketPrimary(testSucceeded = false, manifestSaved = false))
+    }
+
+    // ---------------------------------------------------------------
+    // AI verify_install state transitions: applyInstallVerifyActivity
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `applyInstallVerifyActivity Started enables testing loading`() {
+        val updated = applyInstallVerifyActivity(CreateState(), ToolActivity.Started("verify_install", "{}"))
+        assertTrue(updated.testing)
+    }
+
+    @Test
+    fun `applyInstallVerifyActivity Started for other tools leaves testing unchanged`() {
+        val updated = applyInstallVerifyActivity(CreateState(testing = false), ToolActivity.Started("writeManifest", "{}"))
+        assertFalse(updated.testing)
+    }
+
+    @Test
+    fun `applyInstallVerifyActivity Completed success clears loading and marks verified`() {
+        val updated = applyInstallVerifyActivity(
+            CreateState(testing = true, installVerified = false),
+            ToolActivity.Completed("verify_install", """{"success":true}"""),
+        )
+        assertFalse(updated.testing)
+        assertTrue(updated.installVerified)
+    }
+
+    @Test
+    fun `applyInstallVerifyActivity Completed failure clears loading but keeps verification unchanged`() {
+        val updated = applyInstallVerifyActivity(
+            CreateState(testing = true, installVerified = false),
+            ToolActivity.Completed("verify_install", """{"success":false,"error":"x"}"""),
+        )
+        assertFalse(updated.testing)
+        assertFalse(updated.installVerified, "a failed verify must not mark the manifest verified")
+    }
+
+    @Test
+    fun `applyInstallVerifyActivity Completed with ambiguous result never clears verification`() {
+        val updated = applyInstallVerifyActivity(
+            CreateState(testing = true, installVerified = true),
+            ToolActivity.Completed("verify_install", "not json"),
+        )
+        assertFalse(updated.testing)
+        assertTrue(updated.installVerified, "ambiguous success must preserve the verification flag")
+    }
+
+    @Test
+    fun `applyInstallVerifyActivity Failed clears testing`() {
+        val updated = applyInstallVerifyActivity(CreateState(testing = true), ToolActivity.Failed("verify_install", "boom"))
+        assertFalse(updated.testing)
+    }
+
+    @Test
+    fun `applyInstallVerifyActivity ignores non verify_install completed events`() {
+        val updated = applyInstallVerifyActivity(
+            CreateState(testing = true, installVerified = false),
+            ToolActivity.Completed("fetchRepoInfo", "ok"),
+        )
+        assertTrue(updated.testing)
+        assertFalse(updated.installVerified)
+    }
+
+    // ---------------------------------------------------------------
+    // New manifest resets verification/save markers: finishGeneration
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `new manifest resets both markers when the content changes`() {
+        val (verified, saved) = newManifestResetsVerification("{}", "{old}", installVerified = true, manifestSaved = true)
+        assertFalse(verified)
+        assertFalse(saved)
+    }
+
+    @Test
+    fun `same manifest preserves both markers`() {
+        val (verified, saved) = newManifestResetsVerification("{old}", "{old}", installVerified = true, manifestSaved = true)
+        assertTrue(verified)
+        assertTrue(saved)
+    }
+
+    @Test
+    fun `blank new manifest preserves both markers`() {
+        val (verified, saved) = newManifestResetsVerification("", "{old}", installVerified = true, manifestSaved = true)
+        assertTrue(verified)
+        assertTrue(saved)
     }
 }
