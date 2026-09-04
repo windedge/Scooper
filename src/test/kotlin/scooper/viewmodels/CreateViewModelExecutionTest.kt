@@ -821,28 +821,46 @@ class CreateViewModelExecutionTest {
     }
 
     // ---------------------------------------------------------------
-    // New manifest resets verification/save markers: finishGeneration
+    // New manifest resets verification/save/install markers: finishGeneration
     // ---------------------------------------------------------------
 
     @Test
-    fun `new manifest resets both markers when the content changes`() {
-        val (verified, saved) = newManifestResetsVerification("{}", "{old}", installVerified = true, manifestSaved = true)
+    fun `new manifest resets all markers when the content changes`() {
+        val (verified, saved, installed) = newManifestResetsVerification(
+            "{}", "{old}",
+            installVerified = true,
+            manifestSaved = true,
+            installedForUse = true,
+        )
         assertFalse(verified)
         assertFalse(saved)
+        assertFalse(installed, "a new manifest must reset the installed-for-use marker too")
     }
 
     @Test
-    fun `same manifest preserves both markers`() {
-        val (verified, saved) = newManifestResetsVerification("{old}", "{old}", installVerified = true, manifestSaved = true)
+    fun `same manifest preserves all markers`() {
+        val (verified, saved, installed) = newManifestResetsVerification(
+            "{old}", "{old}",
+            installVerified = true,
+            manifestSaved = true,
+            installedForUse = true,
+        )
         assertTrue(verified)
         assertTrue(saved)
+        assertTrue(installed)
     }
 
     @Test
-    fun `blank new manifest preserves both markers`() {
-        val (verified, saved) = newManifestResetsVerification("", "{old}", installVerified = true, manifestSaved = true)
+    fun `blank new manifest preserves all markers`() {
+        val (verified, saved, installed) = newManifestResetsVerification(
+            "", "{old}",
+            installVerified = true,
+            manifestSaved = true,
+            installedForUse = true,
+        )
         assertTrue(verified)
         assertTrue(saved)
+        assertTrue(installed)
     }
 
     // ---------------------------------------------------------------
@@ -872,5 +890,82 @@ class CreateViewModelExecutionTest {
         val prompt = buildFixFromTestFailurePrompt(summary = "ERROR: bad version", logTail = "   \n  ")
         assertTrue(prompt.contains("Error summary: ERROR: bad version"))
         assertFalse(prompt.contains("Install log excerpt:"))
+    }
+
+    // ---------------------------------------------------------------
+    // Install action bar (three-step wizard final state): installAction*
+    // ---------------------------------------------------------------
+
+    // installActionLabel: button text flips once the manifest is installed for use
+
+    @Test
+    fun `installActionLabel reads Install before the install succeeded`() {
+        assertEquals("Install", installActionLabel(installedForUse = false))
+    }
+
+    @Test
+    fun `installActionLabel reads Installed once the install succeeded`() {
+        assertEquals("Installed", installActionLabel(installedForUse = true))
+    }
+
+    // installActionPrimary: Install is the primary nudge after Save, until installed
+
+    @Test
+    fun `installActionPrimary is true once saved and not yet installed`() {
+        assertTrue(installActionPrimary(manifestSaved = true, installedForUse = false))
+    }
+
+    @Test
+    fun `installActionPrimary is false before the manifest is saved`() {
+        assertFalse(installActionPrimary(manifestSaved = false, installedForUse = false))
+    }
+
+    @Test
+    fun `installActionPrimary is false once installed for use`() {
+        assertFalse(installActionPrimary(manifestSaved = true, installedForUse = true))
+    }
+
+    // installActionEnabled: saved, not installed, and no operation in flight
+
+    @Test
+    fun `installActionEnabled is true for a saved not-yet-installed idle manifest`() {
+        assertTrue(
+            installActionEnabled(
+                manifestSaved = true,
+                installedForUse = false,
+                running = false,
+                testing = false,
+                installing = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `installActionEnabled is false while any operation is in flight`() {
+        // each in-flight flag disables the action independently
+        for (busy in listOf("running", "testing", "installing")) {
+            var running = false
+            var testing = false
+            var installing = false
+            when (busy) {
+                "running" -> running = true
+                "testing" -> testing = true
+                "installing" -> installing = true
+            }
+            assertFalse(
+                installActionEnabled(manifestSaved = true, installedForUse = false, running = running, testing = testing, installing = installing),
+                "$busy in flight must disable the install action",
+            )
+        }
+    }
+
+    @Test
+    fun `installActionEnabled is false before save or after install`() {
+        assertFalse(
+            installActionEnabled(manifestSaved = false, installedForUse = false, running = false, testing = false, installing = false),
+        )
+        assertFalse(
+            installActionEnabled(manifestSaved = true, installedForUse = true, running = false, testing = false, installing = false),
+        )
     }
 }

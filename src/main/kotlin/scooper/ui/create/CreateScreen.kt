@@ -144,6 +144,9 @@ import scooper.viewmodels.TestResult
 import scooper.viewmodels.computeDetailedLineDiff
 import scooper.viewmodels.executionSummaryCapsuleText
 import scooper.viewmodels.manifestTestSucceeded
+import scooper.viewmodels.installActionEnabled
+import scooper.viewmodels.installActionLabel
+import scooper.viewmodels.installActionPrimary
 import scooper.viewmodels.saveToBucketPrimary
 import scooper.viewmodels.formatStepDuration
 import scooper.viewmodels.formatTokenFooter
@@ -224,6 +227,7 @@ fun CreateScreen(
                 onCopyDone = viewModel::onCopyDone,
                 onTestInstall = { viewModel.onTestInstall() },
                 onSave = { viewModel.onSave() },
+                onInstallSaved = { viewModel.onInstallSaved() },
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
                 onAnswerAskUser = viewModel::onAnswerAskUser,
@@ -1090,6 +1094,7 @@ private fun ChatWorkspace(
     onCopyDone: () -> Unit,
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
+    onInstallSaved: () -> Unit,
     onGoToDiscover: () -> Unit,
     onDismissSaveResult: () -> Unit,
     onAnswerAskUser: (String) -> Unit,
@@ -1111,6 +1116,8 @@ private fun ChatWorkspace(
                 testing = state.testing,
                 testSucceeded = manifestTestSucceeded(state.testResult, state.installVerified, state.manifestSaved),
                 manifestSaved = state.manifestSaved,
+                installing = state.installing,
+                installedForUse = state.installedForUse,
                 running = state.running,
                 issues = state.manifestIssues,
                 exhausted = state.manifestExhausted,
@@ -1124,6 +1131,7 @@ private fun ChatWorkspace(
                 onCopyDone = onCopyDone,
                 onTestInstall = onTestInstall,
                 onSave = onSave,
+                onInstallSaved = onInstallSaved,
             )
             state.testResult?.let { result ->
                 TestResultPanel(
@@ -1905,6 +1913,8 @@ private fun ManifestPreviewCard(
     exhausted: Boolean = false,
     invalidJson: Boolean = false,
     manifestSaved: Boolean = false,
+    installing: Boolean = false,
+    installedForUse: Boolean = false,
     revisions: List<ManifestRevision> = emptyList(),
     selectedRevisionId: String? = null,
     actionChips: List<ReviewActionChip> = emptyList(),
@@ -1914,6 +1924,7 @@ private fun ManifestPreviewCard(
     onCopyDone: () -> Unit,
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
+    onInstallSaved: () -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
     var expanded by remember { mutableStateOf(false) }
@@ -2312,6 +2323,15 @@ private fun ManifestPreviewCard(
                     onClick = onSave,
                     enabled = enabled && !testing && !invalidJson,
                     primary = saveToBucketPrimary(testSucceeded, manifestSaved),
+                )
+                // Install for real use once the manifest is saved; the label flips to
+                // "Installed" so the completed state stays visible.
+                SmallActionButton(
+                    label = installActionLabel(installedForUse),
+                    onClick = onInstallSaved,
+                    enabled = installActionEnabled(manifestSaved, installedForUse, running, testing, installing),
+                    primary = installActionPrimary(manifestSaved, installedForUse),
+                    loading = installing,
                 )
                 if (selectedRevisionId != null && selectedRevisionId != revisions.lastOrNull()?.id && onRevertToRevision != null) {
                     SmallActionButton(

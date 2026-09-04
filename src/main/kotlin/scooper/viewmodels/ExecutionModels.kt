@@ -342,15 +342,36 @@ internal fun manifestTestSucceeded(
 internal fun saveToBucketPrimary(testSucceeded: Boolean, manifestSaved: Boolean): Boolean = testSucceeded && !manifestSaved
 
 /**
- * A new manifest (different non-blank content) invalidates the previous verification and
- * save markers, so the new manifest starts unverified.
+ * A new manifest (different non-blank content) invalidates the previous verification,
+ * save, and installed-for-use markers, so the new manifest starts fresh.
  */
 internal fun newManifestResetsVerification(
     newManifest: String,
     currentManifest: String,
     installVerified: Boolean,
     manifestSaved: Boolean,
-): Pair<Boolean, Boolean> {
+    installedForUse: Boolean,
+): Triple<Boolean, Boolean, Boolean> {
     val manifestChanged = newManifest.isNotBlank() && newManifest != currentManifest
-    return if (manifestChanged) false to false else installVerified to manifestSaved
+    return if (manifestChanged) {
+        Triple(false, false, false)
+    } else {
+        Triple(installVerified, manifestSaved, installedForUse)
+    }
 }
+
+/** Install for use is the primary nudge once the manifest is saved and before it is installed. */
+internal fun installActionPrimary(manifestSaved: Boolean, installedForUse: Boolean): Boolean =
+    manifestSaved && !installedForUse
+
+/** Install for use is only offered for a saved, not-yet-installed manifest with nothing in flight. */
+internal fun installActionEnabled(
+    manifestSaved: Boolean,
+    installedForUse: Boolean,
+    running: Boolean,
+    testing: Boolean,
+    installing: Boolean,
+): Boolean = manifestSaved && !installedForUse && !running && !testing && !installing
+
+internal fun installActionLabel(installedForUse: Boolean): String =
+    if (installedForUse) "Installed" else "Install"

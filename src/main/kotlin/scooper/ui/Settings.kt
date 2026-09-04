@@ -456,7 +456,6 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val modelState: TextFieldState = formState.getState("aiModel")
     val githubTokenState: TextFieldState = formState.getState("aiGithubToken")
     val aiAutoDownloadState: SwitchState = formState.getState("aiAutoDownload")
-    val aiInstallVerifyState: SwitchState = formState.getState("aiInstallVerify")
 
     // Do not restore on dispose: auto-save unsaved AI settings when leaving the page
     val formChangedState = rememberFormChanged(formState, restoreOnDispose = false)
@@ -604,20 +603,6 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 Switch(
                     aiAutoDownloadState.value,
                     onCheckedChange = { aiAutoDownloadState.update(it) },
-                    modifier = Modifier.cursorHand(),
-                    colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
-                )
-            }
-            Divider(color = colors.divider)
-            PrefRow(
-                title = "Auto install verification during generation",
-                subtitle = "Review agent may run a real scoop install/uninstall to validate the manifest (takes extra time)",
-                modifier = Modifier.cursorHand(),
-                onClick = { aiInstallVerifyState.update(!aiInstallVerifyState.value) }
-            ) {
-                Switch(
-                    aiInstallVerifyState.value,
-                    onCheckedChange = { aiInstallVerifyState.update(it) },
                     modifier = Modifier.cursorHand(),
                     colors = SwitchDefaults.colors(checkedThumbColor = colors.primary)
                 )

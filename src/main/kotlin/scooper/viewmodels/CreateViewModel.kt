@@ -380,6 +380,10 @@ data class CreateState(
     val installVerified: Boolean = false,
     /** True when the current manifest has been saved to a bucket. */
     val manifestSaved: Boolean = false,
+    /** True while an install-for-use of the saved manifest is in flight. */
+    val installing: Boolean = false,
+    /** True when the saved manifest was installed for real use in this session. */
+    val installedForUse: Boolean = false,
     /** True when the current session is a user assist (revise existing manifest). */
     val assistSession: Boolean = false,
     /** Suggested resume stages currently available from the in-memory checkpoint. */
@@ -769,6 +773,39 @@ class CreateViewModel(
         )
     }
 
+    /** Install the saved manifest for real use (not the throwaway test install). */
+    fun onInstallSaved() = intent {
+        if (state.running || state.testing || state.installing) {
+            postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+            return@intent
+        }
+        val saveResult = state.saveResult
+        if (!state.manifestSaved || saveResult == null) return@intent
+        val name = saveResult.appName
+        val bucket = saveResult.bucket
+
+        reduce { state.copy(installing = true) }
+        try {
+            // ScoopClient.install addresses "bucket/name", so the bucket must be set.
+            val result = withContext(Dispatchers.IO) {
+                scoopClient.install(
+                    App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                    global = false,
+                )
+            }
+            if (result.isSuccess) {
+                reduce { state.copy(installedForUse = true) }
+                postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            } else {
+                val detail = result.errorMessage?.takeIf { it.isNotBlank() }
+                    ?: "exit code ${result.exitCode}"
+                postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+            }
+        } finally {
+            reduce { state.copy(installing = false) }
+        }
+    }
+
     fun onSave() = intent {
         if (state.manifestJson.isBlank()) {
             postSideEffect(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
@@ -1063,6 +1100,7 @@ class CreateViewModel(
                 suggestedAppName = appGuess,
                 testResult = null,
                 saveResult = null,
+                installedForUse = false,
                 error = null,
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1191,6 +1229,7 @@ class CreateViewModel(
                 inputNote = "",
                 testResult = null,
                 saveResult = null,
+                installedForUse = false,
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1548,11 +1587,12 @@ class CreateViewModel(
             this.revisions
         }
 
-        val (installVerified, manifestSaved) = newManifestResetsVerification(
+        val (installVerified, manifestSaved, installedForUse) = newManifestResetsVerification(
             newManifest = manifestJson,
             currentManifest = this.manifestJson,
             installVerified = this.installVerified,
             manifestSaved = this.manifestSaved,
+            installedForUse = this.installedForUse,
         )
         return copy(
             running = false,
@@ -1569,8 +1609,10 @@ class CreateViewModel(
             revisions = updatedRevisions,
             selectedRevisionId = null,
             testing = false,
+            installing = false,
             installVerified = installVerified,
             manifestSaved = manifestSaved,
+            installedForUse = installedForUse,
         )
     }
 

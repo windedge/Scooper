@@ -60,7 +60,6 @@ data class UIConfig(
     val aiModel: String = "",
     val aiGithubToken: String = "",
     val aiAutoDownload: Boolean = false,
-    val aiInstallVerify: Boolean = false,
 )
 
 /** AI settings form model (Settings.AI). Field names match form_builder keys. */
@@ -71,7 +70,6 @@ data class AiConfig(
     val aiModel: String = "",
     val aiGithubToken: String = "",
     val aiAutoDownload: Boolean = false,
-    val aiInstallVerify: Boolean = false,
 )
 
 fun Theme.toSystemTheme() = when (this) {

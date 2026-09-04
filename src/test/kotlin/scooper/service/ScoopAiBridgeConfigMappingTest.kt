@@ -19,7 +19,6 @@ class ScoopAiBridgeConfigMappingTest {
 
     private fun snapshot(
         autoDownload: Boolean,
-        aiInstallVerify: Boolean = false,
         apiKey: String = "sk-test",
         baseUrl: String = "http://localhost:8317",
     ) = AiSettingsSnapshot(
@@ -29,7 +28,6 @@ class ScoopAiBridgeConfigMappingTest {
         model = "test-model",
         githubToken = "",
         autoDownload = autoDownload,
-        aiInstallVerify = aiInstallVerify,
     )
 
     @Test
@@ -66,52 +64,17 @@ class ScoopAiBridgeConfigMappingTest {
     }
 
     // -------------------------------------------------------------
-    // aiInstallVerify -> ScoopAiConfig.verify (real install test during
-    // generation). Must default to false and stay independent of the
-    // autoDownload -> skipDownloadConfirm mapping.
+    // aiInstallVerify switch removal: install verification is always
+    // on in the engine, so no settings field may carry the switch.
     // -------------------------------------------------------------
 
     @Test
-    fun `aiInstallVerify true maps to verify true`() {
-        val config = ScoopAiBridge.buildScoopAiConfig(
-            snapshot(autoDownload = false, aiInstallVerify = true),
+    fun `settings expose no aiInstallVerify switch`() {
+        val fields = scooper.data.UIConfig::class.java.declaredFields.map { it.name }
+        assertFalse(
+            fields.any { it.equals("aiInstallVerify", ignoreCase = true) },
+            "UIConfig must not carry aiInstallVerify: verification is always on",
         )
-        assertTrue(config.verify)
-    }
-
-    @Test
-    fun `aiInstallVerify defaults to false and maps to verify false`() {
-        val defaults = AiSettingsSnapshot(
-            provider = "openai-compatible",
-            apiKey = "sk-test",
-            baseUrl = "http://localhost:8317",
-            model = "test-model",
-            githubToken = "",
-        )
-        assertFalse(defaults.aiInstallVerify)
-        val config = ScoopAiBridge.buildScoopAiConfig(defaults)
-        assertFalse(config.verify)
-    }
-
-    @Test
-    fun `aiInstallVerify and autoDownload map independently`() {
-        val both = ScoopAiBridge.buildScoopAiConfig(
-            snapshot(autoDownload = true, aiInstallVerify = true),
-        )
-        assertTrue(both.verify)
-        assertTrue(both.skipDownloadConfirm)
-
-        val onlyAutoDownload = ScoopAiBridge.buildScoopAiConfig(
-            snapshot(autoDownload = true, aiInstallVerify = false),
-        )
-        assertFalse(onlyAutoDownload.verify)
-        assertTrue(onlyAutoDownload.skipDownloadConfirm)
-
-        val onlyVerify = ScoopAiBridge.buildScoopAiConfig(
-            snapshot(autoDownload = false, aiInstallVerify = true),
-        )
-        assertTrue(onlyVerify.verify)
-        assertFalse(onlyVerify.skipDownloadConfirm)
     }
 
     // -------------------------------------------------------------

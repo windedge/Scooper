@@ -38,7 +38,6 @@ class ScoopAiBridge(
         val model: String,
         val githubToken: String,
         val autoDownload: Boolean = false,
-        val aiInstallVerify: Boolean = false,
     ) {
         fun missingReason(): String? {
             if (provider !in SUPPORTED_PROVIDERS) {
@@ -90,7 +89,6 @@ class ScoopAiBridge(
                 env("GITHUB_TOKEN"),
             ),
             autoDownload = config.aiAutoDownload,
-            aiInstallVerify = config.aiInstallVerify,
         )
     }
 
@@ -381,7 +379,6 @@ class ScoopAiBridge(
                 githubToken = settings.githubToken.ifBlank { null },
                 skipDownloadConfirm = settings.autoDownload,
                 nonInteractive = true,
-                verify = settings.aiInstallVerify,
             )
         }
 
