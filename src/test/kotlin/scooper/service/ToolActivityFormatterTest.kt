@@ -123,6 +123,44 @@ class ToolActivityFormatterTest {
         )
     }
 
+    // ---------------------------------------------------------------
+    // install_app (P3)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `Started event for install_app formats as installing app`() {
+        assertEquals(
+            "Installing app...",
+            ToolActivityFormatter.format(ToolActivity.Started("install_app", """{"bucket":"main","name":"fd"}""")),
+        )
+    }
+
+    @Test
+    fun `Completed event for install_app formats the install outcome`() {
+        assertEquals(
+            "App installed",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed("install_app", """{"success":true,"app":"fd","bucket":"main"}"""),
+            ),
+        )
+        assertEquals(
+            "App installed",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed("install_app", """{"success":true,"message":"already installed in this session"}"""),
+            ),
+        )
+        assertEquals(
+            "Install failed: download failed",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed("install_app", """{"success":false,"error":"download failed"}"""),
+            ),
+        )
+        assertEquals(
+            "Install failed",
+            ToolActivityFormatter.format(ToolActivity.Completed("install_app", """{"success":false}""")),
+        )
+    }
+
     @Test
     fun `parseVerifyInstallResult returns true for a successful install`() {
         assertEquals(true, parseVerifyInstallResult("""{"success":true}""").success)

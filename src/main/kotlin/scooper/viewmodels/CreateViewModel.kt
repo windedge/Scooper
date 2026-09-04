@@ -33,6 +33,7 @@ import scooper.service.AiErrorAction
 import scooper.service.AiErrorPresentation
 import scooper.service.AiErrorTranslator
 import scooper.service.BucketSaveEnv
+import scooper.service.CommandResult
 import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
@@ -1000,6 +1001,33 @@ class CreateViewModel(
         return effect.resultJson
     }
 
+    /** AI install_app tool backend: run the real install and reply JSON to the model. */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.executeInstallApp(
+        bucket: String,
+        name: String,
+    ): String {
+        val effect = aiInstallApp(
+            bucket = bucket,
+            name = name,
+            alreadyInstalled = state.installedForUse,
+            install = { app ->
+                withContext(Dispatchers.IO) {
+                    scoopClient.install(app, global = false)
+                }
+            },
+        )
+        when {
+            effect.newlyInstalled -> {
+                reduce { state.copy(installedForUse = true) }
+                postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            }
+            effect.maskedError != null -> {
+                postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
+            }
+        }
+        return effect.resultJson
+    }
+
     /** Index the freshly saved manifest for Discover: ensure bucket, upsert when parsed. */
     private suspend fun indexSavedApp(bucket: String, app: App?): Boolean {
         appsRepository.ensureBucket(bucket)
@@ -1222,6 +1250,9 @@ class CreateViewModel(
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
             onSaveToBucket = { bucket, name, overwrite ->
                 executeSaveToBucket(bucket, name, overwrite)
+            },
+            onInstallApp = { bucket, name ->
+                executeInstallApp(bucket, name)
             },
             onFinished = { result -> handleFinished(result) },
         )
@@ -2005,6 +2036,62 @@ internal suspend fun aiSaveToBucket(
             suggestedAppName = null,
         )
     }
+}
+
+/** Result of the AI install_app path: reply JSON plus the CreateState updates to apply. */
+internal data class AiInstallAppResult(
+    val resultJson: String,
+    /** True when the app is installed for use after this call; drives installedForUse. */
+    val installedForUse: Boolean,
+    /** True only when this call actually ran the install and it succeeded. */
+    val newlyInstalled: Boolean = false,
+    /** Pre-masked error for the failure toast; null when nothing failed. */
+    val maskedError: String? = null,
+)
+
+/**
+ * AI `install_app` implementation (architecture A: host owns the install):
+ * run the real scoop install unless the app is already installed in this
+ * session, and map the outcome to the JSON reply for the model. Errors are
+ * masked so no secrets reach the model or the UI toast.
+ */
+internal suspend fun aiInstallApp(
+    bucket: String,
+    name: String,
+    alreadyInstalled: Boolean,
+    install: suspend (App) -> CommandResult,
+): AiInstallAppResult {
+    if (alreadyInstalled) {
+        return AiInstallAppResult(
+            resultJson = buildJsonObject {
+                put("success", true)
+                put("message", "already installed in this session")
+            }.toString(),
+            installedForUse = true,
+        )
+    }
+    val result = install(App(name = name, latestVersion = "0", bucket = Bucket(bucket)))
+    if (result.isSuccess) {
+        return AiInstallAppResult(
+            resultJson = buildJsonObject {
+                put("success", true)
+                put("app", name)
+                put("bucket", bucket)
+            }.toString(),
+            installedForUse = true,
+            newlyInstalled = true,
+        )
+    }
+    val detail = result.errorMessage?.takeIf { it.isNotBlank() } ?: "exit code ${result.exitCode}"
+    val masked = AiErrorTranslator.maskSecrets(detail)
+    return AiInstallAppResult(
+        resultJson = buildJsonObject {
+            put("success", false)
+            put("error", masked)
+        }.toString(),
+        installedForUse = false,
+        maskedError = masked,
+    )
 }
 private val trailingWsRegex = Regex("[ \t]+$")
 

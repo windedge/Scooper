@@ -130,6 +130,7 @@ class ScoopAiBridge(
         onAskUser: (suspend (String) -> String)?,
         onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
         onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
+        onInstallApp: (suspend (bucket: String, name: String) -> String)? = null,
     ) = DefaultScoopAiFactory.createGenerator(
         config = toScoopAiConfig(settings),
         onPhase = onPhase,
@@ -141,6 +142,7 @@ class ScoopAiBridge(
         askUserHandler = onAskUser,
         questionnaireHandler = onQuestionnaire,
         saveToBucketHandler = onSaveToBucket,
+        installAppHandler = onInstallApp,
     )
 
     /**
@@ -241,6 +243,12 @@ class ScoopAiBridge(
          * assist session runs without the tool.
          */
         onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
+        /**
+         * Host install callback backing the engine's `install_app` tool.
+         * Signature: (bucket, name) -> result JSON. When null the assist
+         * session runs without the tool.
+         */
+        onInstallApp: (suspend (bucket: String, name: String) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
         generateJob?.cancel()
@@ -264,6 +272,7 @@ class ScoopAiBridge(
                     onAskUser = onAskUser,
                     onQuestionnaire = onQuestionnaire,
                     onSaveToBucket = onSaveToBucket,
+                    onInstallApp = onInstallApp,
                 )
                 val checkpoint = checkpointService.snapshot()
                 val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }
