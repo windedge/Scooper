@@ -122,13 +122,33 @@ fun main() {
         val isMaximized = winState.placement == WindowPlacement.Maximized
         val size = winState.size
         val pos = winState.position
-        logger.info("Saving window: x=${pos.x.value}, y=${pos.y.value}, w=${size.width.value}, h=${size.height.value}, maximized=$isMaximized")
-        configRepository.setConfig(configRepository.getConfig().copy(
-            windowX = pos.x.value.roundToInt(),
-            windowY = pos.y.value.roundToInt(),
-            windowWidth = size.width.value.roundToInt(),
-            windowHeight = size.height.value.roundToInt(),
+        val curX = pos.x.value.roundToInt()
+        val curY = pos.y.value.roundToInt()
+        val curW = size.width.value.roundToInt()
+        val curH = size.height.value.roundToInt()
+        val savedConfig = configRepository.getConfig()
+        logger.info("Saving window: x=$curX, y=$curY, w=$curW, h=$curH, maximized=$isMaximized")
+        val saved = WindowExitGeometry(
+            x = savedConfig.windowX ?: curX,
+            y = savedConfig.windowY ?: curY,
+            width = savedConfig.windowWidth,
+            height = savedConfig.windowHeight,
+            isMaximized = savedConfig.isMaximized,
+        )
+        val current = WindowExitGeometry(
+            x = curX,
+            y = curY,
+            width = curW,
+            height = curH,
             isMaximized = isMaximized,
+        )
+        val resolved = resolveWindowExitGeometry(saved, current, isMaximized)
+        configRepository.setConfig(savedConfig.copy(
+            windowX = resolved.x,
+            windowY = resolved.y,
+            windowWidth = resolved.width,
+            windowHeight = resolved.height,
+            isMaximized = resolved.isMaximized,
         ))
         appsViewModel.close()
         settingsViewModel.close()
@@ -360,6 +380,23 @@ private fun SystemTrayIcon(
         onDispose { trayManager.remove() }
     }
 }
+
+internal data class WindowExitGeometry(
+    val x: Int,
+    val y: Int,
+    val width: Int,
+    val height: Int,
+    val isMaximized: Boolean,
+)
+
+internal fun resolveWindowExitGeometry(
+    saved: WindowExitGeometry,
+    current: WindowExitGeometry,
+    isMaximized: Boolean,
+): WindowExitGeometry =
+    // 最大化退出时 winState.size/position 是全屏边界，必须保留库中保存的窗口化几何
+    if (isMaximized) saved.copy(isMaximized = true)
+    else current.copy(isMaximized = false)
 
 @Composable
 fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
