@@ -757,16 +757,7 @@ class CreateViewModel(
     }
 
     fun onFixFromTestFailure(summary: String, logTail: String) = intent {
-        val prompt = buildString {
-            appendLine("The test install for manifest failed. Please fix the manifest according to the test failure:")
-            appendLine("Error summary: $summary")
-            val cleanLog = logTail.trim()
-            if (cleanLog.isNotBlank()) {
-                appendLine("Install log excerpt:")
-                appendLine(cleanLog.takeLast(1000))
-            }
-        }.trim()
-        onSend(input = prompt)
+        onSend(input = buildFixFromTestFailurePrompt(summary, logTail))
     }
 
     fun onApplyActionChip(chip: ReviewActionChip) = intent {
@@ -1634,6 +1625,23 @@ private val bucketPrettyJson = Json {
     prettyPrint = true
     prettyPrintIndent = "    "
 }
+
+/**
+ * Builds the user prompt sent when fixing a manifest from a failed install test.
+ * The failure details (summary + log excerpt) are already included, so assist must
+ * fix the manifest directly instead of re-running the install test.
+ */
+internal fun buildFixFromTestFailurePrompt(summary: String, logTail: String): String =
+    buildString {
+        appendLine("The test install for manifest failed. Please fix the manifest according to the test failure:")
+        appendLine("Do NOT run a new install test first; the failure details above are sufficient. Fix the manifest directly.")
+        appendLine("Error summary: $summary")
+        val cleanLog = logTail.trim()
+        if (cleanLog.isNotBlank()) {
+            appendLine("Install log excerpt:")
+            appendLine(cleanLog.takeLast(1000))
+        }
+    }.trim()
 
 /**
  * Builds the `git add && git commit` command for saving a manifest into a Git bucket,

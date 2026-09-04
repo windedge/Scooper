@@ -844,4 +844,33 @@ class CreateViewModelExecutionTest {
         assertTrue(verified)
         assertTrue(saved)
     }
+
+    // ---------------------------------------------------------------
+    // buildFixFromTestFailurePrompt: instructs assist to fix directly
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `fix prompt tells assist not to re-run the install test first`() {
+        val prompt = buildFixFromTestFailurePrompt(summary = "ERROR: bad version", logTail = "exit code 1\nsome log")
+        assertTrue(
+            prompt.contains("Do NOT run a new install test first; the failure details above are sufficient. Fix the manifest directly."),
+            "fix prompt must forbid re-running the install test, got:\n$prompt",
+        )
+    }
+
+    @Test
+    fun `fix prompt includes the error summary and log excerpt`() {
+        val prompt = buildFixFromTestFailurePrompt(summary = "ERROR: bad version", logTail = "\nexit code 1\nsome log\n")
+        assertTrue(prompt.startsWith("The test install for manifest failed."))
+        assertTrue(prompt.contains("Error summary: ERROR: bad version"))
+        assertTrue(prompt.contains("Install log excerpt:"))
+        assertTrue(prompt.contains("some log"))
+    }
+
+    @Test
+    fun `fix prompt omits log excerpt when the log tail is blank`() {
+        val prompt = buildFixFromTestFailurePrompt(summary = "ERROR: bad version", logTail = "   \n  ")
+        assertTrue(prompt.contains("Error summary: ERROR: bad version"))
+        assertFalse(prompt.contains("Install log excerpt:"))
+    }
 }
