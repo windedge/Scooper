@@ -917,19 +917,12 @@ class CreateViewModel(
 
         // Overwrite confirmation stays a dialog flow here; the AI path instead
         // replies needsOverwrite to the model.
-        when (val outcome = saveManifestCore(
+        when (val outcome = saveManifest(
             manifestJson = manifestJson,
             bucket = bucket,
             appName = name,
             commitToGit = state.saveCommitToGit,
             overwrite = allowOverwrite,
-            scoopClient = scoopClient,
-            indexSaved = ::indexSavedApp,
-            isGitBucket = { gitHistoryService.isGitBucket(it) },
-            commitManifest = { dir, appName, isUpdate, version ->
-                gitHistoryService.commitManifest(bucketDir = dir, appName = appName, isUpdate = isUpdate, version = version)
-            },
-            onWarn = { logger.warn(it) },
         )) {
             is BucketSaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
 
@@ -945,16 +938,7 @@ class CreateViewModel(
                         overwriteConfirmOpen = false,
                         suggestedAppName = outcome.appName,
                         manifestSaved = true,
-                        saveResult = classifySaveOutcome(
-                            writeOk = true,
-                            indexOk = outcome.indexedOk,
-                            gitCommitted = outcome.gitCommitted,
-                            gitHint = outcome.gitHint,
-                            appName = outcome.appName,
-                            bucket = outcome.bucket,
-                            targetPath = outcome.targetPath,
-                            overwritten = outcome.overwritten,
-                        ),
+                        saveResult = saveResultOf(outcome),
                     )
                 }
                 postSideEffect(
@@ -966,6 +950,26 @@ class CreateViewModel(
             }
         }
     }
+
+    /** saveManifestCore with the host collaborators shared by the dialog and AI paths. */
+    private suspend fun saveManifest(
+        manifestJson: String,
+        bucket: String,
+        appName: String,
+        commitToGit: Boolean,
+        overwrite: Boolean,
+    ): BucketSaveOutcome = saveManifestCore(
+        manifestJson = manifestJson,
+        bucket = bucket,
+        appName = appName,
+        commitToGit = commitToGit,
+        overwrite = overwrite,
+        scoopClient = scoopClient,
+        indexSaved = ::indexSavedApp,
+        isGitBucket = gitHistoryService::isGitBucket,
+        commitManifest = gitHistoryService::commitManifest,
+        onWarn = { logger.warn(it) },
+    )
 
     /** AI save_to_bucket tool backend: run the shared save and reply JSON to the model. */
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.executeSaveToBucket(
@@ -983,10 +987,8 @@ class CreateViewModel(
             commitToGit = state.saveCommitToGit,
             scoopClient = scoopClient,
             indexSaved = ::indexSavedApp,
-            isGitBucket = { gitHistoryService.isGitBucket(it) },
-            commitManifest = { dir, appName, isUpdate, version ->
-                gitHistoryService.commitManifest(bucketDir = dir, appName = appName, isUpdate = isUpdate, version = version)
-            },
+            isGitBucket = gitHistoryService::isGitBucket,
+            commitManifest = gitHistoryService::commitManifest,
             onWarn = { logger.warn(it) },
         )
         if (effect.manifestSaved) {
@@ -1016,14 +1018,10 @@ class CreateViewModel(
                 }
             },
         )
+        reduce { state.copy(installedForUse = effect.installedForUse) }
         when {
-            effect.newlyInstalled -> {
-                reduce { state.copy(installedForUse = true) }
-                postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
-            }
-            effect.maskedError != null -> {
-                postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
-            }
+            effect.newlyInstalled -> postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            effect.maskedError != null -> postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
         }
         return effect.resultJson
     }
@@ -1746,6 +1744,18 @@ internal fun buildSaveGitHint(
  * told the save failed just because indexing hiccuped. `success` stays on the data class
  * for future failure cards; today the UI only renders cards from writeOk=true outcomes.
  */
+/** Maps a written-to-disk save outcome to the SaveResult card; write failures never reach here. */
+internal fun saveResultOf(outcome: BucketSaveOutcome.Saved): SaveResult = classifySaveOutcome(
+    writeOk = true,
+    indexOk = outcome.indexedOk,
+    gitCommitted = outcome.gitCommitted,
+    gitHint = outcome.gitHint,
+    appName = outcome.appName,
+    bucket = outcome.bucket,
+    targetPath = outcome.targetPath,
+    overwritten = outcome.overwritten,
+)
+
 internal fun classifySaveOutcome(
     writeOk: Boolean,
     indexOk: Boolean,
@@ -2016,16 +2026,7 @@ internal suspend fun aiSaveToBucket(
         is BucketSaveOutcome.Saved -> AiSaveToBucketResult(
             resultJson = saveToBucketResultJson(outcome),
             manifestSaved = true,
-            saveResult = classifySaveOutcome(
-                writeOk = true,
-                indexOk = outcome.indexedOk,
-                gitCommitted = outcome.gitCommitted,
-                gitHint = outcome.gitHint,
-                appName = outcome.appName,
-                bucket = outcome.bucket,
-                targetPath = outcome.targetPath,
-                overwritten = outcome.overwritten,
-            ),
+            saveResult = saveResultOf(outcome),
             suggestedAppName = outcome.appName,
         )
 

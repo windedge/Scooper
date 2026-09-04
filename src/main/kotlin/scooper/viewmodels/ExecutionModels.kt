@@ -341,6 +341,13 @@ internal fun manifestTestSucceeded(
  */
 internal fun saveToBucketPrimary(testSucceeded: Boolean, manifestSaved: Boolean): Boolean = testSucceeded && !manifestSaved
 
+/** The install-verified / saved / installed-for-use markers tracked on CreateState. */
+internal data class VerificationFlags(
+    val installVerified: Boolean,
+    val manifestSaved: Boolean,
+    val installedForUse: Boolean,
+)
+
 /**
  * A new manifest (different non-blank content) invalidates the previous verification,
  * save, and installed-for-use markers, so the new manifest starts fresh.
@@ -351,12 +358,12 @@ internal fun newManifestResetsVerification(
     installVerified: Boolean,
     manifestSaved: Boolean,
     installedForUse: Boolean,
-): Triple<Boolean, Boolean, Boolean> {
+): VerificationFlags {
     val manifestChanged = newManifest.isNotBlank() && newManifest != currentManifest
     return if (manifestChanged) {
-        Triple(false, false, false)
+        VerificationFlags(false, false, false)
     } else {
-        Triple(installVerified, manifestSaved, installedForUse)
+        VerificationFlags(installVerified, manifestSaved, installedForUse)
     }
 }
 

@@ -97,38 +97,22 @@ object ToolActivityFormatter {
     }
 
     /**
-     * Outcome line for `verify_install`: the verifier returns JSON with a `success`
-     * boolean. On failure the recorded `error` is surfaced so the user sees why the
-     * real install test did not pass.
+     * Outcome line for the host-backed tools: success when the JSON reports
+     * `success=true`, otherwise the failure line plus the recorded `error`.
      */
-    private fun formatVerifyInstallCompleted(toolResult: String): String {
+    private fun formatToolOutcome(toolResult: String, successText: String, failureText: String): String {
         val result = parseVerifyInstallResult(toolResult)
-        if (result.success == true) return "Install test passed"
+        if (result.success == true) return successText
         val error = result.error
-        return if (error.isNullOrBlank()) "Install test failed" else "Install test failed: $error"
+        return if (error.isNullOrBlank()) failureText else "$failureText: $error"
     }
 
-    /**
-     * Outcome line for `save_to_bucket`: the host save returns JSON with a `success`
-     * boolean. On failure the recorded `error` is surfaced so the user sees why the
-     * save did not go through.
-     */
-    private fun formatSaveToBucketCompleted(toolResult: String): String {
-        val result = parseVerifyInstallResult(toolResult)
-        if (result.success == true) return "Saved to bucket"
-        val error = result.error
-        return if (error.isNullOrBlank()) "Save to bucket failed" else "Save to bucket failed: $error"
-    }
+    private fun formatVerifyInstallCompleted(toolResult: String): String =
+        formatToolOutcome(toolResult, "Install test passed", "Install test failed")
 
-    /**
-     * Outcome line for `install_app`: the host install returns JSON with a `success`
-     * boolean. On failure the recorded `error` is surfaced so the user sees why the
-     * install did not go through.
-     */
-    private fun formatInstallAppCompleted(toolResult: String): String {
-        val result = parseVerifyInstallResult(toolResult)
-        if (result.success == true) return "App installed"
-        val error = result.error
-        return if (error.isNullOrBlank()) "Install failed" else "Install failed: $error"
-    }
+    private fun formatSaveToBucketCompleted(toolResult: String): String =
+        formatToolOutcome(toolResult, "Saved to bucket", "Save to bucket failed")
+
+    private fun formatInstallAppCompleted(toolResult: String): String =
+        formatToolOutcome(toolResult, "App installed", "Install failed")
 }
