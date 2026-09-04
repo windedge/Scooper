@@ -18,9 +18,11 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
@@ -30,6 +32,7 @@ import scooper.repository.AppsRepository
 import scooper.service.AiErrorAction
 import scooper.service.AiErrorPresentation
 import scooper.service.AiErrorTranslator
+import scooper.service.BucketSaveEnv
 import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
@@ -911,132 +914,100 @@ class CreateViewModel(
             return
         }
 
-        val baseDir = scoopClient.bucketsBaseDir
-        val target = baseDir.resolve(bucket).resolve("bucket").resolve("$name.json")
-        val baseCanonical = baseDir.canonicalFile
-        val targetCanonical = target.canonicalFile
-        val basePath = baseCanonical.path
-        val targetPath = targetCanonical.path
-        val underBase = targetPath == basePath ||
-            targetPath.startsWith(basePath + File.separator)
-        if (!underBase) {
-            postSideEffect(AppSideEffect.Toast("Invalid save path", ToastType.ERROR))
-            return
-        }
+        // Overwrite confirmation stays a dialog flow here; the AI path instead
+        // replies needsOverwrite to the model.
+        when (val outcome = saveManifestCore(
+            manifestJson = manifestJson,
+            bucket = bucket,
+            appName = name,
+            commitToGit = state.saveCommitToGit,
+            overwrite = allowOverwrite,
+            scoopClient = scoopClient,
+            indexSaved = ::indexSavedApp,
+            isGitBucket = { gitHistoryService.isGitBucket(it) },
+            commitManifest = { dir, appName, isUpdate, version ->
+                gitHistoryService.commitManifest(bucketDir = dir, appName = appName, isUpdate = isUpdate, version = version)
+            },
+            onWarn = { logger.warn(it) },
+        )) {
+            is BucketSaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
 
-        val overwritten = targetCanonical.exists()
-        if (overwritten && !allowOverwrite) {
-            reduce { state.copy(overwriteConfirmOpen = true) }
-            return
-        }
-
-        var indexedOk = false
-        var gitCommitted = false
-        var gitHint: SaveGitHint? = null
-        // C2: writing the manifest file is the ONLY fatal step. A failure here is a real
-        // save failure: error toast, dialog stays open for retry, and no result card is
-        // written (onSave already cleared any previous card).
-        try {
-            withContext(Dispatchers.IO) {
-                targetCanonical.parentFile?.mkdirs()
-                targetCanonical.writeText(formatForBucket(manifestJson))
+            is BucketSaveOutcome.Failed -> {
+                logger.error("Save to bucket failed: ${outcome.message}")
+                postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(outcome.message), ToastType.ERROR))
             }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            val message = e.message?.takeIf { it.isNotBlank() }
-                ?: e::class.simpleName
-                ?: "Failed to save manifest"
-            logger.error("Save to bucket failed: $message")
-            postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(message), ToastType.ERROR))
-            return
-        }
 
-        // C2: the file is written; the post-save indexing / git-hint steps are best-effort
-        // only. If they throw, degrade to a "saved but not indexed" card instead of failing
-        // the whole save (the file IS on disk, so a fat error toast would be misleading).
-        try {
-            withContext(Dispatchers.IO) {
-                // Index the newly saved manifest immediately so Discover sees it
-                // without waiting for a git commit / full reload.
-                appsRepository.ensureBucket(bucket)
-                val installed = scoopClient.installedSnapshot()
-                val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-                indexedOk = scoopClient.buildAppsFromManifestNames(
-                    bucketDir,
-                    setOf("$name.json"),
-                    Bucket(name = bucket, url = ""),
-                    installed,
-                ).firstOrNull()?.let { app ->
-                    appsRepository.upsertApp(app)
-                    true
-                } ?: false.also {
-                    logger.warn("Saved manifest could not be indexed: $name.json")
-                }
-
-                val isGit = gitHistoryService.isGitBucket(bucketDir)
-                val manifestVersion = try {
-                    (Json.parseToJsonElement(manifestJson) as? JsonObject)?.get("version")?.jsonPrimitive?.content
-                } catch (_: Exception) {
-                    null
-                }
-
-                if (state.saveCommitToGit && isGit) {
-                    val commitRes = gitHistoryService.commitManifest(
-                        bucketDir = bucketDir,
-                        appName = name,
-                        isUpdate = overwritten,
-                        version = manifestVersion,
-                    )
-                    if (commitRes.isSuccess) {
-                        gitCommitted = true
-                    } else {
-                        logger.warn("Auto git commit failed for $name.json: ${commitRes.exceptionOrNull()?.message}")
-                    }
-                }
-
-                if (!gitCommitted) {
-                    gitHint = buildSaveGitHint(
-                        isGitBucket = isGit,
-                        bucketDirPath = bucketDir.path,
-                        appName = name,
-                        version = manifestVersion,
-                        isUpdate = overwritten,
+            is BucketSaveOutcome.Saved -> {
+                reduce {
+                    state.copy(
+                        saveDialogOpen = false,
+                        overwriteConfirmOpen = false,
+                        suggestedAppName = outcome.appName,
+                        manifestSaved = true,
+                        saveResult = classifySaveOutcome(
+                            writeOk = true,
+                            indexOk = outcome.indexedOk,
+                            gitCommitted = outcome.gitCommitted,
+                            gitHint = outcome.gitHint,
+                            appName = outcome.appName,
+                            bucket = outcome.bucket,
+                            targetPath = outcome.targetPath,
+                            overwritten = outcome.overwritten,
+                        ),
                     )
                 }
+                postSideEffect(
+                    AppSideEffect.Toast(
+                        "Saved ${outcome.appName}.json to bucket/${outcome.bucket}",
+                        ToastType.SUCCESS,
+                    ),
+                )
             }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            logger.warn("Post-save indexing / git-hint failed; file still saved: ${e.message}")
         }
+    }
 
-        reduce {
-            state.copy(
-                saveDialogOpen = false,
-                overwriteConfirmOpen = false,
-                suggestedAppName = name,
-                manifestSaved = true,
-                saveResult = classifySaveOutcome(
-                    writeOk = true,
-                    indexOk = indexedOk,
-                    gitCommitted = gitCommitted,
-                    gitHint = gitHint,
-                    appName = name,
-                    bucket = bucket,
-                    targetPath = targetPath,
-                    overwritten = overwritten,
-                ),
-            )
-        }
-        postSideEffect(
-            AppSideEffect.Toast(
-                "Saved $name.json to bucket/$bucket",
-                ToastType.SUCCESS,
-            ),
+    /** AI save_to_bucket tool backend: run the shared save and reply JSON to the model. */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.executeSaveToBucket(
+        bucket: String?,
+        name: String?,
+        overwrite: Boolean,
+    ): String {
+        val effect = aiSaveToBucket(
+            manifestJson = state.manifestJson,
+            bucketArg = bucket,
+            nameArg = name,
+            overwrite = overwrite,
+            suggestedAppName = state.suggestedAppName,
+            lastBucket = state.saveBucket,
+            commitToGit = state.saveCommitToGit,
+            scoopClient = scoopClient,
+            indexSaved = ::indexSavedApp,
+            isGitBucket = { gitHistoryService.isGitBucket(it) },
+            commitManifest = { dir, appName, isUpdate, version ->
+                gitHistoryService.commitManifest(bucketDir = dir, appName = appName, isUpdate = isUpdate, version = version)
+            },
+            onWarn = { logger.warn(it) },
         )
+        if (effect.manifestSaved) {
+            reduce {
+                state.copy(
+                    suggestedAppName = effect.suggestedAppName,
+                    manifestSaved = true,
+                    saveResult = effect.saveResult,
+                )
+            }
+        }
+        return effect.resultJson
+    }
+
+    /** Index the freshly saved manifest for Discover: ensure bucket, upsert when parsed. */
+    private suspend fun indexSavedApp(bucket: String, app: App?): Boolean {
+        appsRepository.ensureBucket(bucket)
+        app?.let { appsRepository.upsertApp(it) }
+        return app != null
     }
 
     companion object {
-        private val APP_NAME_REGEX = Regex("^[a-zA-Z0-9._-]+$")
         private const val MAX_TEST_LOG_LINES = 200
         private const val MAX_ERROR_SUMMARY_LINES = 5
     }
@@ -1249,6 +1220,9 @@ class CreateViewModel(
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
             onAskUser = { question -> handleAskUser(question) },
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
+            onSaveToBucket = { bucket, name, overwrite ->
+                executeSaveToBucket(bucket, name, overwrite)
+            },
             onFinished = { result -> handleFinished(result) },
         )
     }
@@ -1760,6 +1734,278 @@ internal fun classifySaveOutcome(
     gitCommitted = writeOk && gitCommitted,
     gitHint = if (writeOk && !gitCommitted) gitHint else null,
 )
+
+/** App name rule shared by the save dialog and the AI save_to_bucket path. */
+internal val APP_NAME_REGEX = Regex("^[a-zA-Z0-9._-]+$")
+
+/** Outcome of the shared manifest-save core, mapped to UI state / tool JSON by the callers. */
+internal sealed interface BucketSaveOutcome {
+    /** Target file exists and overwrite was not requested. */
+    data class NeedsOverwrite(val targetPath: String) : BucketSaveOutcome
+
+    /** Invalid save path or failed file write; [message] is the raw failure reason. */
+    data class Failed(val message: String) : BucketSaveOutcome
+
+    /** Manifest written; indexing and git commit are best-effort outcome flags. */
+    data class Saved(
+        val bucket: String,
+        val appName: String,
+        val targetPath: String,
+        val overwritten: Boolean,
+        val indexedOk: Boolean,
+        val gitCommitted: Boolean,
+        val gitHint: SaveGitHint?,
+    ) : BucketSaveOutcome
+}
+
+/**
+ * Shared core of Save to Bucket, used by both the manual save dialog
+ * ([CreateViewModel.performSave]) and the AI `save_to_bucket` tool
+ * ([aiSaveToBucket]): resolve the target file, write the manifest, then
+ * best-effort index the app and git-commit. UI concerns (overwrite confirm
+ * dialog, toasts, CreateState updates) stay with the callers.
+ *
+ * Collaborators are narrowed to functions so tests can fake them.
+ */
+internal suspend fun saveManifestCore(
+    manifestJson: String,
+    bucket: String,
+    appName: String,
+    commitToGit: Boolean,
+    overwrite: Boolean,
+    scoopClient: BucketSaveEnv,
+    indexSaved: suspend (bucket: String, app: App?) -> Boolean,
+    isGitBucket: (File) -> Boolean,
+    commitManifest: (bucketDir: File, appName: String, isUpdate: Boolean, version: String?) -> Result<String>,
+    onWarn: (String) -> Unit = {},
+): BucketSaveOutcome {
+    val baseDir = scoopClient.bucketsBaseDir
+    val target = baseDir.resolve(bucket).resolve("bucket").resolve("$appName.json")
+    val baseCanonical = baseDir.canonicalFile
+    val targetCanonical = target.canonicalFile
+    val basePath = baseCanonical.path
+    val targetPath = targetCanonical.path
+    val underBase = targetPath == basePath ||
+        targetPath.startsWith(basePath + File.separator)
+    if (!underBase) {
+        return BucketSaveOutcome.Failed("Invalid save path")
+    }
+
+    val overwritten = targetCanonical.exists()
+    if (overwritten && !overwrite) {
+        return BucketSaveOutcome.NeedsOverwrite(targetPath)
+    }
+
+    // Writing the manifest file is the ONLY fatal step; the callers surface the
+    // failure (error toast / JSON error) and nothing else runs.
+    try {
+        withContext(Dispatchers.IO) {
+            targetCanonical.parentFile?.mkdirs()
+            targetCanonical.writeText(formatForBucket(manifestJson))
+        }
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        val message = e.message?.takeIf { it.isNotBlank() }
+            ?: e::class.simpleName
+            ?: "Failed to save manifest"
+        return BucketSaveOutcome.Failed(message)
+    }
+
+    // Best-effort: the file is on disk, so indexing / git problems degrade to
+    // outcome flags instead of failing the whole save.
+    var indexedOk = false
+    var gitCommitted = false
+    var gitHint: SaveGitHint? = null
+    try {
+        withContext(Dispatchers.IO) {
+            val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
+            val installed = scoopClient.installedSnapshot()
+            val app = scoopClient.buildAppsFromManifestNames(
+                bucketDir,
+                setOf("$appName.json"),
+                Bucket(name = bucket, url = ""),
+                installed,
+            ).firstOrNull()
+            indexedOk = indexSaved(bucket, app)
+            if (!indexedOk) onWarn("Saved manifest could not be indexed: $appName.json")
+
+            val isGit = isGitBucket(bucketDir)
+            val manifestVersion = try {
+                (Json.parseToJsonElement(manifestJson) as? JsonObject)?.get("version")?.jsonPrimitive?.content
+            } catch (_: Exception) {
+                null
+            }
+
+            if (commitToGit && isGit) {
+                val commitRes = commitManifest(bucketDir, appName, overwritten, manifestVersion)
+                if (commitRes.isSuccess) {
+                    gitCommitted = true
+                } else {
+                    onWarn("Auto git commit failed for $appName.json: ${commitRes.exceptionOrNull()?.message}")
+                }
+            }
+
+            if (!gitCommitted) {
+                gitHint = buildSaveGitHint(
+                    isGitBucket = isGit,
+                    bucketDirPath = bucketDir.path,
+                    appName = appName,
+                    version = manifestVersion,
+                    isUpdate = overwritten,
+                )
+            }
+        }
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        onWarn("Post-save indexing / git-hint failed; file still saved: ${e.message}")
+    }
+
+    return BucketSaveOutcome.Saved(
+        bucket = bucket,
+        appName = appName,
+        targetPath = targetPath,
+        overwritten = overwritten,
+        indexedOk = indexedOk,
+        gitCommitted = gitCommitted,
+        gitHint = gitHint,
+    )
+}
+
+/**
+ * Bucket resolution for a save without an explicit bucket: last used bucket
+ * when still present, then main, then the first bucket. An explicit bucket that
+ * is not in [buckets] resolves to null so the caller can reject it.
+ */
+internal fun resolveSaveBucket(explicit: String?, lastBucket: String, buckets: List<String>): String? {
+    explicit?.trim().takeUnless { it.isNullOrEmpty() }?.let { chosen ->
+        return chosen.takeIf { it in buckets }
+    }
+    return when {
+        lastBucket.isNotBlank() && lastBucket in buckets -> lastBucket
+        "main" in buckets -> "main"
+        else -> buckets.firstOrNull()
+    }
+}
+
+/** Maps a save outcome to the JSON reply the save_to_bucket tool returns to the model. */
+internal fun saveToBucketResultJson(outcome: BucketSaveOutcome): String = when (outcome) {
+    is BucketSaveOutcome.NeedsOverwrite -> buildJsonObject {
+        put("success", false)
+        put("error", "already exists")
+        put("needsOverwrite", true)
+        put("path", outcome.targetPath)
+    }.toString()
+
+    is BucketSaveOutcome.Failed -> buildJsonObject {
+        put("success", false)
+        put("error", AiErrorTranslator.maskSecrets(outcome.message))
+    }.toString()
+
+    is BucketSaveOutcome.Saved -> buildJsonObject {
+        put("success", true)
+        put("path", outcome.targetPath)
+        put("bucket", outcome.bucket)
+        put("name", outcome.appName)
+    }.toString()
+}
+
+/** Result of the AI save_to_bucket path: reply JSON plus the CreateState updates to apply. */
+internal data class AiSaveToBucketResult(
+    val resultJson: String,
+    /** True only when the manifest file was written; drives manifestSaved in CreateState. */
+    val manifestSaved: Boolean,
+    val saveResult: SaveResult?,
+    val suggestedAppName: String?,
+)
+
+private fun aiSaveFailure(message: String) = AiSaveToBucketResult(
+    resultJson = saveToBucketResultJson(BucketSaveOutcome.Failed(message)),
+    manifestSaved = false,
+    saveResult = null,
+    suggestedAppName = null,
+)
+
+/**
+ * AI `save_to_bucket` implementation (architecture A: host owns the save):
+ * resolve bucket/name with the host default rules, run the shared save core,
+ * and map the outcome to the JSON reply for the model.
+ */
+internal suspend fun aiSaveToBucket(
+    manifestJson: String,
+    bucketArg: String?,
+    nameArg: String?,
+    overwrite: Boolean,
+    suggestedAppName: String?,
+    lastBucket: String,
+    commitToGit: Boolean,
+    scoopClient: BucketSaveEnv,
+    indexSaved: suspend (bucket: String, app: App?) -> Boolean,
+    isGitBucket: (File) -> Boolean,
+    commitManifest: (bucketDir: File, appName: String, isUpdate: Boolean, version: String?) -> Result<String>,
+    onWarn: (String) -> Unit = {},
+): AiSaveToBucketResult {
+    if (manifestJson.isBlank()) {
+        return aiSaveFailure("No manifest to save")
+    }
+
+    val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }
+    val bucket = resolveSaveBucket(bucketArg, lastBucket, buckets)
+    if (bucket == null) {
+        val reason = if (bucketArg.isNullOrBlank()) {
+            "No Scoop buckets found"
+        } else {
+            "Bucket '$bucketArg' does not exist in the local Scoop installation"
+        }
+        return aiSaveFailure(reason)
+    }
+
+    val name = nameArg?.trim().takeUnless { it.isNullOrEmpty() }
+        ?: suggestedAppName?.trim().takeUnless { it.isNullOrEmpty() }
+    if (name == null) {
+        return aiSaveFailure("No app name provided and no suggested app name is available")
+    }
+    if (!APP_NAME_REGEX.matches(name)) {
+        return aiSaveFailure("App name may only contain letters, digits, '.', '_' and '-'")
+    }
+
+    val outcome = saveManifestCore(
+        manifestJson = manifestJson,
+        bucket = bucket,
+        appName = name,
+        commitToGit = commitToGit,
+        overwrite = overwrite,
+        scoopClient = scoopClient,
+        indexSaved = indexSaved,
+        isGitBucket = isGitBucket,
+        commitManifest = commitManifest,
+        onWarn = onWarn,
+    )
+
+    return when (outcome) {
+        is BucketSaveOutcome.Saved -> AiSaveToBucketResult(
+            resultJson = saveToBucketResultJson(outcome),
+            manifestSaved = true,
+            saveResult = classifySaveOutcome(
+                writeOk = true,
+                indexOk = outcome.indexedOk,
+                gitCommitted = outcome.gitCommitted,
+                gitHint = outcome.gitHint,
+                appName = outcome.appName,
+                bucket = outcome.bucket,
+                targetPath = outcome.targetPath,
+                overwritten = outcome.overwritten,
+            ),
+            suggestedAppName = outcome.appName,
+        )
+
+        else -> AiSaveToBucketResult(
+            resultJson = saveToBucketResultJson(outcome),
+            manifestSaved = false,
+            saveResult = null,
+            suggestedAppName = null,
+        )
+    }
+}
 private val trailingWsRegex = Regex("[ \t]+$")
 
 /**

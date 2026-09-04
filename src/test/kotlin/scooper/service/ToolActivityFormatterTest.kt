@@ -91,6 +91,38 @@ class ToolActivityFormatterTest {
         )
     }
 
+    // ---------------------------------------------------------------
+    // save_to_bucket (P2)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `Started event for save_to_bucket formats as saving to bucket`() {
+        assertEquals(
+            "Saving to bucket...",
+            ToolActivityFormatter.format(ToolActivity.Started("save_to_bucket", """{"bucket":"main"}""")),
+        )
+    }
+
+    @Test
+    fun `Completed event for save_to_bucket formats the save outcome`() {
+        assertEquals(
+            "Saved to bucket",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed("save_to_bucket", """{"success":true,"path":"C:/scoop/buckets/main/fd.json"}"""),
+            ),
+        )
+        assertEquals(
+            "Save to bucket failed: bucket 'nope' does not exist",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed("save_to_bucket", """{"success":false,"error":"bucket 'nope' does not exist"}"""),
+            ),
+        )
+        assertEquals(
+            "Save to bucket failed",
+            ToolActivityFormatter.format(ToolActivity.Completed("save_to_bucket", """{"success":false}""")),
+        )
+    }
+
     @Test
     fun `parseVerifyInstallResult returns true for a successful install`() {
         assertEquals(true, parseVerifyInstallResult("""{"success":true}""").success)

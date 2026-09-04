@@ -129,6 +129,7 @@ class ScoopAiBridge(
         onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)?,
         onAskUser: (suspend (String) -> String)?,
         onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
+        onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
     ) = DefaultScoopAiFactory.createGenerator(
         config = toScoopAiConfig(settings),
         onPhase = onPhase,
@@ -139,6 +140,7 @@ class ScoopAiBridge(
         onToolActivity = onToolActivity,
         askUserHandler = onAskUser,
         questionnaireHandler = onQuestionnaire,
+        saveToBucketHandler = onSaveToBucket,
     )
 
     /**
@@ -233,6 +235,12 @@ class ScoopAiBridge(
         onPhaseOutput: ((String, String) -> Unit)? = null,
         onAskUser: (suspend (String) -> String)? = null,
         onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)? = null,
+        /**
+         * Host save callback backing the engine's `save_to_bucket` tool.
+         * Signature: (bucket, name, overwrite) -> result JSON. When null the
+         * assist session runs without the tool.
+         */
+        onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
         generateJob?.cancel()
@@ -255,6 +263,7 @@ class ScoopAiBridge(
                     onToolActivity = onToolActivity,
                     onAskUser = onAskUser,
                     onQuestionnaire = onQuestionnaire,
+                    onSaveToBucket = onSaveToBucket,
                 )
                 val checkpoint = checkpointService.snapshot()
                 val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }

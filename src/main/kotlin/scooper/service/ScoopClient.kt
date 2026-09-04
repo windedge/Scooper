@@ -41,7 +41,7 @@ class ScoopClient(
     private val downloader: ManifestDownloader = ManifestDownloader(),
     private val rootDirOverride: File? = null,
     private val scoopConfigFile: File? = null,
-) : ScoopCli {
+) : ScoopCli, BucketSaveEnv {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
@@ -85,10 +85,10 @@ class ScoopClient(
             return File(System.getenv("ALLUSERSPROFILE")).resolve("scoop")
         }
 
-    val bucketsBaseDir: File
+    override val bucketsBaseDir: File
         get() = rootDir.resolve("buckets")
 
-    val bucketNames: List<String>
+    override val bucketNames: List<String>
         get() = bucketsBaseDir.list()?.asList() ?: listOf()
 
     val bucketDirs: List<File>
@@ -114,7 +114,7 @@ class ScoopClient(
      * Read installed app dirs once and return name-lowercase to info map.
      * Call this before batch manifest parsing to avoid repeated filesystem scans.
      */
-    fun installedSnapshot(): Map<String, InstalledAppInfo> {
+    override fun installedSnapshot(): Map<String, InstalledAppInfo> {
         val result = mutableMapOf<String, InstalledAppInfo>()
         for ((dirs, isGlobal) in listOf(localInstalledAppDirs to false, globalInstalledAppDirs to true)) {
             for (appDir in dirs) {
@@ -221,7 +221,7 @@ class ScoopClient(
     }
 
     /** Build apps only from the specified manifest file names in a single bucket. */
-    fun buildAppsFromManifestNames(
+    override fun buildAppsFromManifestNames(
         bucketDir: File,
         manifestNames: Set<String>,
         bucket: Bucket,
