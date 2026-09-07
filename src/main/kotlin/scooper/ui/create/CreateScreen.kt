@@ -145,8 +145,10 @@ import scooper.viewmodels.computeDetailedLineDiff
 import scooper.viewmodels.executionSummaryCapsuleText
 import scooper.viewmodels.manifestTestSucceeded
 import scooper.viewmodels.installActionEnabled
-import scooper.viewmodels.installActionLabel
 import scooper.viewmodels.installActionPrimary
+import scooper.viewmodels.installActionVisible
+import scooper.viewmodels.manifestHasShortcuts
+import scooper.viewmodels.openAppActionVisible
 import scooper.viewmodels.saveToBucketPrimary
 import scooper.viewmodels.formatStepDuration
 import scooper.viewmodels.formatTokenFooter
@@ -228,8 +230,10 @@ fun CreateScreen(
                 onTestInstall = { viewModel.onTestInstall() },
                 onSave = { viewModel.onSave() },
                 onInstallSaved = { viewModel.onInstallSaved() },
+                onOpenApp = { viewModel.onOpenApp() },
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
+                onDismissTestResult = viewModel::onDismissTestResult,
                 onAnswerAskUser = viewModel::onAnswerAskUser,
                 onCancelAskUser = viewModel::onCancelAskUser,
                 onFixFromTestFailure = { summary, logTail -> viewModel.onFixFromTestFailure(summary, logTail) },
@@ -1095,8 +1099,10 @@ private fun ChatWorkspace(
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
     onInstallSaved: () -> Unit,
+    onOpenApp: () -> Unit,
     onGoToDiscover: () -> Unit,
     onDismissSaveResult: () -> Unit,
+    onDismissTestResult: () -> Unit,
     onAnswerAskUser: (String) -> Unit,
     onCancelAskUser: () -> Unit,
     onFixFromTestFailure: (summary: String, logTail: String) -> Unit,
@@ -1132,11 +1138,13 @@ private fun ChatWorkspace(
                 onTestInstall = onTestInstall,
                 onSave = onSave,
                 onInstallSaved = onInstallSaved,
+                onOpenApp = onOpenApp,
             )
             state.testResult?.let { result ->
                 TestResultPanel(
                     result = result,
                     onFixWithAi = onFixFromTestFailure,
+                    onDismiss = onDismissTestResult,
                 )
             }
             state.saveResult?.let { result ->
@@ -1388,71 +1396,19 @@ private fun ChatBubble(
                 // S1: the URL and the optional user note share one SelectableContainer
                 // so both can be drag-selected/copied together as a single block.
                 val isErrorBubble = message.actions.isNotEmpty()
-                val stepsCollapsed = message.executionSteps.isNotEmpty() &&
-                    !(message.isExecutionExpanded && expandableExecutionSteps)
+                // Token usage shares the bottom meta row with the completed-steps
+                // capsule; user and error bubbles have no token footer.
+                val tokenFooter =
+                    if (!isUser && !isErrorBubble) formatTokenFooter(message.tokenUsage) else null
                 SelectableContainer {
-                    // Collapsed capsule hugs the body (2dp rhythm); other layouts keep 4dp.
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(
-                            if (stepsCollapsed) 2.dp else 4.dp,
-                        ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        // Execution review card (proposal 5.2): rendered ABOVE the bubble
-                        // text. Collapsed shows a summary capsule; expanded shows a
-                        // clickable capsule on top (collapse entry point, B1) plus the
-                        // full step list. Older rounds beyond the recent window stay
-                        // fixed to the single capsule. Error messages keep the existing
-                        // text/actions/technicalDetails rendering below.
-                        if (message.executionSteps.isNotEmpty()) {
-                            if (message.isExecutionExpanded && expandableExecutionSteps) {
-                                ExecutionSummaryCapsule(
-                                    steps = message.executionSteps,
-                                    expandable = true,
-                                    onClick = { onToggleExecutionExpanded(message.id) },
-                                    expanded = true,
-                                )
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    message.executionSteps.forEach { step ->
-                                        ExecutionStepBlock(
-                                            step = step,
-                                            isFailed = isFailedExecutionStep(step, message.actions.isNotEmpty()),
-                                        )
-                                    }
-                                }
-                            } else {
-                                ExecutionSummaryCapsule(
-                                    steps = message.executionSteps,
-                                    expandable = expandableExecutionSteps,
-                                    onClick = { onToggleExecutionExpanded(message.id) },
-                                )
-                            }
-                        }
-                        // Separator between the expanded step list and the reply body: a
-                        // faint divider plus breathing room so the explanation text does
-                        // not stick to the steps. Collapsed capsule omits the divider and
-                        // sits tight above the body; error bubbles keep their own layout.
-                        if (message.executionSteps.isNotEmpty() && !isErrorBubble &&
-                            message.isExecutionExpanded && expandableExecutionSteps
-                        ) {
-                            Spacer(Modifier.height(3.dp))
-                            Divider(color = colors.divider.copy(alpha = 0.4f), thickness = 1.dp)
-                            Spacer(Modifier.height(3.dp))
-                        }
+                        // Reply body first (proposal 5.5): Markdown subset for agent
+                        // replies with a local 4-line collapse toggle; plain monospace
+                        // for user instructions; error bubbles keep their text path.
                         if (!isUser && !isErrorBubble) {
-                            // Conversational reply: Markdown subset rendering (proposal 5.5).
-                            // Long agent bodies collapse to 4 lines by default with a
-                            // local Show more/less toggle; pure UI state, no VM change.
                             CollapsibleAgentBody(text = message.text)
-                            // Token footer sits below the collapsible body (and its Show
-                            // more toggle) so it stays fully visible in both states.
-                            formatTokenFooter(message.tokenUsage)?.let { footer ->
-                                // Breathing room between the collapsible body/toggle and the footer.
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    footer,
-                                    style = typography.caption.copy(color = colors.textMuted),
-                                )
-                            }
                         } else {
                             // User instructions stay plain monospace; error bubbles keep the
                             // existing error rendering path (actions / technicalDetails below).
@@ -1464,6 +1420,55 @@ private fun ChatBubble(
                                     lineHeight = typography.caption.fontSize * 1.5f,
                                 ),
                             )
+                        }
+                        // Expanded steps sit after the body inside a faint neutral
+                        // block so they do not stick to the reply text. Error bubbles
+                        // keep their own layout without this block.
+                        if (message.executionSteps.isNotEmpty() &&
+                            message.isExecutionExpanded && expandableExecutionSteps && !isErrorBubble
+                        ) {
+                            Surface(
+                                color = colors.divider.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    message.executionSteps.forEach { step ->
+                                        ExecutionStepBlock(
+                                            step = step,
+                                            isFailed = isFailedExecutionStep(step, message.actions.isNotEmpty()),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        // Bottom meta row: completed-steps capsule on the left, token
+                        // usage pushed to the trailing edge. Only the capsule is
+                        // clickable to toggle the step list when it is expandable.
+                        if (message.executionSteps.isNotEmpty() || tokenFooter != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                if (message.executionSteps.isNotEmpty()) {
+                                    ExecutionSummaryCapsule(
+                                        steps = message.executionSteps,
+                                        expandable = expandableExecutionSteps,
+                                        onClick = { onToggleExecutionExpanded(message.id) },
+                                        expanded = message.isExecutionExpanded,
+                                    )
+                                }
+                                tokenFooter?.let { footer ->
+                                    Spacer(Modifier.weight(1f))
+                                    Text(
+                                        footer,
+                                        style = typography.caption.copy(color = colors.textMuted),
+                                    )
+                                }
+                            }
                         }
                         message.note?.takeIf { it.isNotBlank() }?.let { rawNote ->
                             Text(
@@ -1729,7 +1734,9 @@ private fun StepPhaseTag(phase: String, isFailed: Boolean = false) {
             color = fg,
             fontSize = typography.overline.fontSize * 0.85f,
         ),
+        textAlign = TextAlign.Center,
         modifier = Modifier
+            .widthIn(min = 84.dp)
             .border(1.dp, border, RoundedCornerShape(4.dp))
             .clip(RoundedCornerShape(4.dp))
             .background(bg)
@@ -1750,12 +1757,11 @@ private fun ExecutionStepBlock(
     }
     Column(
         modifier = if (step.isRunning) {
-            // Running step keeps its indent rhythm only: no extra background layer,
-            // phase rows (title + tool log + summary) render directly on the single
-            // card surface of ActiveExecutionCard / ChatBubble.
+            // Running step keeps only vertical breathing room: no horizontal indent,
+            // phase rows align flush with completed steps on the card surface.
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+                .padding(vertical = 6.dp)
         } else {
             Modifier
         },
@@ -1835,6 +1841,7 @@ private fun ExecutionSummaryCapsule(
         border = BorderStroke(1.dp, colors.borderDefault),
         modifier = Modifier
             .wrapContentWidth(align = Alignment.Start)
+            .clip(RoundedCornerShape(percent = 50))
             .then(
                 if (expandable) {
                     Modifier.cursorHand().clickable { onClick() }
@@ -1925,6 +1932,7 @@ private fun ManifestPreviewCard(
     onTestInstall: () -> Unit,
     onSave: () -> Unit,
     onInstallSaved: () -> Unit = {},
+    onOpenApp: () -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
     var expanded by remember { mutableStateOf(false) }
@@ -2268,10 +2276,10 @@ private fun ManifestPreviewCard(
                                         modifier = Modifier
                                             .cursorHand()
                                             .clip(RoundedCornerShape(4.dp))
-                                            .clickable(enabled = enabled && !testing && !running) {
+                                            .clickable(enabled = enabled) {
                                                 onApplyActionChip(chip)
                                             }
-                                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                                            .padding(horizontal = 10.dp, vertical = 5.dp),
                                     ) {
                                         Text(
                                             chip.label,
@@ -2279,6 +2287,7 @@ private fun ManifestPreviewCard(
                                                 color = chipColor,
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 11.sp,
+                                                lineHeight = 14.sp,
                                             ),
                                         )
                                     }
@@ -2324,15 +2333,26 @@ private fun ManifestPreviewCard(
                     enabled = enabled && !testing && !invalidJson,
                     primary = saveToBucketPrimary(testSucceeded, manifestSaved),
                 )
-                // Install for real use once the manifest is saved; the label flips to
-                // "Installed" so the completed state stays visible.
-                SmallActionButton(
-                    label = installActionLabel(installedForUse),
-                    onClick = onInstallSaved,
-                    enabled = installActionEnabled(manifestSaved, installedForUse, running, testing, installing),
-                    primary = installActionPrimary(manifestSaved, installedForUse),
-                    loading = installing,
-                )
+                // Install for real use while the manifest is saved but not yet
+                // installed; once installed the button is hidden and Open appears
+                // when the manifest declares Start Menu shortcuts.
+                if (installActionVisible(installedForUse)) {
+                    SmallActionButton(
+                        label = "Install",
+                        onClick = onInstallSaved,
+                        enabled = installActionEnabled(manifestSaved, installedForUse, running, testing, installing),
+                        primary = installActionPrimary(manifestSaved, installedForUse),
+                        loading = installing,
+                    )
+                }
+                if (openAppActionVisible(installedForUse, manifestHasShortcuts(manifestJson))) {
+                    SmallActionButton(
+                        label = "Open",
+                        onClick = onOpenApp,
+                        enabled = true,
+                        primary = false,
+                    )
+                }
                 if (selectedRevisionId != null && selectedRevisionId != revisions.lastOrNull()?.id && onRevertToRevision != null) {
                     SmallActionButton(
                         label = "Revert to this version",
@@ -2349,6 +2369,7 @@ private fun ManifestPreviewCard(
 private fun TestResultPanel(
     result: TestResult,
     onFixWithAi: ((summary: String, logTail: String) -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
 ) {
     val accent = if (result.success) colors.updateDefault else colors.dangerDefault
     val icon = if (result.success) Lucide.CircleCheck else Lucide.CircleX
@@ -2411,6 +2432,20 @@ private fun TestResultPanel(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                    }
+                }
+                if (onDismiss != null) {
+                    TextButton(
+                        onClick = onDismiss,
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.cursorHand().size(28.dp),
+                    ) {
+                        Icon(
+                            Lucide.X,
+                            contentDescription = "Dismiss",
+                            modifier = Modifier.size(16.dp),
+                            tint = colors.textMuted,
+                        )
                     }
                 }
             }

@@ -15,7 +15,7 @@ import scooper.service.InstalledAppInfo
 import java.io.File
 
 /**
- * TDD tests for the AI `save_to_bucket` path: the [resolveSaveBucket] default
+ * TDD tests for the AI `save_to_bucket` path: the shared [saveManifestCore]
  * bucket rules, the shared [saveManifestCore] (also used by the manual save
  * dialog) and the [aiSaveToBucket] wrapper that maps the outcome to the JSON
  * reply for the model plus the CreateState updates.
@@ -105,52 +105,6 @@ class CreateViewModelSaveToBucketTest {
     }
 
     // ---------------------------------------------------------------------
-    // resolveSaveBucket: last bucket -> main -> first
-    // ---------------------------------------------------------------------
-
-    @Test
-    fun `explicit bucket wins over the default rules`() {
-        assertEquals(
-            "extras",
-            resolveSaveBucket("extras", lastBucket = "main", buckets = listOf("main", "extras")),
-        )
-    }
-
-    @Test
-    fun `no explicit bucket falls back to the last used bucket`() {
-        assertEquals(
-            "extras",
-            resolveSaveBucket(null, lastBucket = "extras", buckets = listOf("main", "extras")),
-        )
-    }
-
-    @Test
-    fun `falls back to main when the last used bucket no longer exists`() {
-        assertEquals(
-            "main",
-            resolveSaveBucket(null, lastBucket = "gone", buckets = listOf("main", "extras")),
-        )
-    }
-
-    @Test
-    fun `falls back to the first bucket when main is absent`() {
-        assertEquals(
-            "extras",
-            resolveSaveBucket(null, lastBucket = "", buckets = listOf("extras", "games")),
-        )
-    }
-
-    @Test
-    fun `explicit unknown bucket resolves to null so the caller can reject it`() {
-        assertNull(resolveSaveBucket("nope", lastBucket = "main", buckets = listOf("main")))
-    }
-
-    @Test
-    fun `no buckets at all resolves to null`() {
-        assertNull(resolveSaveBucket(null, lastBucket = "", buckets = emptyList()))
-    }
-
-    // ---------------------------------------------------------------------
     // aiSaveToBucket: success path
     // ---------------------------------------------------------------------
 
@@ -195,13 +149,23 @@ class CreateViewModelSaveToBucketTest {
     }
 
     @Test
-    fun `bucket and name default to last used bucket and suggested app name`() {
+    fun `bucket arg with no last bucket still resolves to main`() {
         val env = FakeScoopEnv(buckets = listOf("main", "extras"))
 
-        val result = aiSave(lastBucket = "extras", suggestedAppName = "ripgrep", env = env)
+        val result = aiSave(bucketArg = "main", env = env, nameArg = "fd", suggestedAppName = null)
 
-        assertTrue(result.manifestSaved, "defaults must produce a successful save")
-        assertEquals("extras", resultJsonField(result.resultJson, "bucket"))
+        assertTrue(result.manifestSaved, "explicit bucket must save even without a suggested name")
+        assertEquals("main", resultJsonField(result.resultJson, "bucket"))
+    }
+
+    @Test
+    fun `defaults only apply when bucket arg is explicitly given while name falls back to suggestion`() {
+        val env = FakeScoopEnv(buckets = listOf("main", "extras"))
+
+        val result = aiSave(bucketArg = "main", suggestedAppName = "ripgrep", env = env)
+
+        assertTrue(result.manifestSaved, "explicit bucket with suggested name must save")
+        assertEquals("main", resultJsonField(result.resultJson, "bucket"))
         assertEquals("ripgrep", resultJsonField(result.resultJson, "name"))
     }
 
@@ -284,7 +248,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `no buckets fails`() {
-        val result = aiSave(env = FakeScoopEnv(buckets = emptyList()))
+        val result = aiSave(bucketArg = "main", env = FakeScoopEnv(buckets = emptyList()))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -302,7 +266,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `invalid app name fails`() {
-        val result = aiSave(nameArg = "bad name!", env = FakeScoopEnv(buckets = listOf("main")))
+        val result = aiSave(bucketArg = "main", nameArg = "bad name!", env = FakeScoopEnv(buckets = listOf("main")))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -320,5 +284,62 @@ class CreateViewModelSaveToBucketTest {
         assertTrue(result.manifestSaved)
         assertEquals(0, deps.commitCalls.size, "non-git bucket must not commit")
         assertNull(result.saveResult?.gitHint, "non-git bucket must not produce a git hint")
+    }
+
+    // ---------------------------------------------------------------------
+    // aiSaveToBucket: needsBucket path (no silent default bucket)
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `unspecified bucket returns needsBucket with sorted buckets and does not save`() {
+        val env = FakeScoopEnv(buckets = listOf("extras", "main", "games"))
+        val deps = SaveDeps()
+
+        val result = aiSave(nameArg = "fd", env = env, deps = deps)
+
+        assertFalse(result.manifestSaved, "a needsBucket reply must not write the manifest")
+        assertNull(result.saveResult, "a needsBucket reply must not produce a SaveResult")
+        assertEquals("false", resultJsonField(result.resultJson, "success"))
+        assertEquals("true", resultJsonField(result.resultJson, "needsBucket"))
+        val element = kotlinx.serialization.json.Json.parseToJsonElement(result.resultJson)
+        val buckets = (element as kotlinx.serialization.json.JsonObject)["buckets"] as? kotlinx.serialization.json.JsonArray
+        assertNotNull(buckets, "needsBucket reply must carry a buckets array")
+        assertEquals(
+            listOf("extras", "games", "main"),
+            buckets!!.map { (it as kotlinx.serialization.json.JsonPrimitive).content },
+            "buckets must be sorted for a stable ask_user option order",
+        )
+        assertEquals(0, deps.commitCalls.size, "no git commit on a needsBucket reply")
+    }
+
+    @Test
+    fun `blank bucket arg is treated as unspecified and returns needsBucket`() {
+        val env = FakeScoopEnv(buckets = listOf("main"))
+
+        val result = aiSave(bucketArg = "   ", nameArg = "fd", env = env)
+
+        assertFalse(result.manifestSaved)
+        assertEquals("true", resultJsonField(result.resultJson, "needsBucket"))
+        assertTrue(resultJsonField(result.resultJson, "error").isNullOrEmpty() || result.resultJson.contains("buckets"))
+    }
+
+    @Test
+    fun `unspecified bucket with no buckets available still fails with the no buckets error`() {
+        val result = aiSave(env = FakeScoopEnv(buckets = emptyList()))
+
+        assertFalse(result.manifestSaved)
+        val error = resultJsonField(result.resultJson, "error")
+        assertNotNull(error)
+        assertTrue(error!!.contains("No Scoop buckets found"), "no-bucket env must keep the legacy error, got: $error")
+    }
+
+    @Test
+    fun `needsBucket reply preserves the suggested app name for the follow-up save`() {
+        val env = FakeScoopEnv(buckets = listOf("main"))
+
+        val result = aiSave(nameArg = null, suggestedAppName = "fd", env = env)
+
+        assertFalse(result.manifestSaved)
+        assertEquals("fd", result.suggestedAppName, "suggested name must survive so the retry saves under it")
     }
 }

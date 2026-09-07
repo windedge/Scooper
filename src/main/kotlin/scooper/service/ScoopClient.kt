@@ -542,13 +542,10 @@ class ScoopClient(
 
     // ==================== Internal Methods ====================
 
-    /** Pre-download files to cache via JVM HttpClient when aria2 is not enabled.
-     *  Internal for tests; production callers are install()/update(). */
+    /** Prewarm the formal cache entry so scoop's install/update skips the network
+     *  download; scoop's cache lookup is downloader-agnostic, so this runs with
+     *  aria2 enabled too (aria2 hits the same {app}#ver#hash entries). */
     internal suspend fun preDownloadIfNeeded(app: App) {
-        val config = scoopConfigFile?.let { ScoopConfigManager.readScoopConfig(it) }
-            ?: ScoopConfigManager.readScoopConfig()
-        if (config.aria2Enabled) return
-
         val manifestFile = findManifest(app) ?: run {
             logger.warn("Manifest not found for ${app.uniqueName}, skip pre-download")
             return
@@ -831,6 +828,22 @@ class ScoopClient(
         ProcessBuilder("cmd", "/c", "start", "", target.absolutePath)
             .directory(dir)
             .start()
+    }
+
+    /** Start Menu shortcut file of an installed app under the given per-user app data dir. */
+    internal fun startMenuShortcutFile(name: String, appDataDir: File): File =
+        appDataDir.resolve("Microsoft/Windows/Start Menu/Programs/Scoop Apps/$name.lnk")
+
+    /** Launch an installed app through its Start Menu shortcut. */
+    fun openApp(name: String): CommandResult {
+        val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }
+            ?: return CommandResult(1, "APPDATA environment variable is not set")
+        val lnk = startMenuShortcutFile(name, File(appData))
+        if (!lnk.exists()) {
+            return CommandResult(1, "Start Menu shortcut not found: ${lnk.name}")
+        }
+        ProcessBuilder("cmd", "/c", "start", "", lnk.absolutePath).start()
+        return CommandResult(0)
     }
 
     private suspend fun executeAndLog(args: List<String>): CommandResult {

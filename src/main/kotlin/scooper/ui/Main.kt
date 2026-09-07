@@ -54,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.geometry.Size
 import scooper.util.TrayManager
+import scooper.util.installCrashGuards
 import javax.swing.ImageIcon
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
@@ -63,6 +64,9 @@ val LocalFocusSearch = compositionLocalOf<() -> Unit> { {} }
 private val logger by lazy { LoggerFactory.getLogger("Main") }
 
 fun main() {
+    // 须在窗口创建前: AWT 在首个 EDT 异常时才懒读取兜底 handler 属性
+    installCrashGuards()
+
     startKoin { modules(system, viewModels) }
 
     val dbFile = File(System.getenv("USERPROFILE")).resolve(".scooper.db")

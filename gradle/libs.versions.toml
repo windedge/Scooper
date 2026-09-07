@@ -19,6 +19,7 @@ common-text = "1.10.0"
 kotlin-process = "1.5.1"
 reorderable = "2.5.1"
 commonmark = "0.24.0"
+scoop-ai = "0.1.8"
 
 
 [libraries]
@@ -53,6 +54,7 @@ commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" 
 commonmark-ext-gfm-strikethrough = { module = "org.commonmark:commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+scoop-ai-tools = { module = "com.scoopai:scoop-ai-tools", version.ref = "scoop-ai" }
 
 [plugins]
 # multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

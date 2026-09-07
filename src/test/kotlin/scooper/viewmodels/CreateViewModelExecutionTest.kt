@@ -896,16 +896,16 @@ class CreateViewModelExecutionTest {
     // Install action bar (three-step wizard final state): installAction*
     // ---------------------------------------------------------------
 
-    // installActionLabel: button text flips once the manifest is installed for use
+    // installActionVisible: the Install button is hidden once the manifest is installed
 
     @Test
-    fun `installActionLabel reads Install before the install succeeded`() {
-        assertEquals("Install", installActionLabel(installedForUse = false))
+    fun `installActionVisible shows Install before the install succeeded`() {
+        assertTrue(installActionVisible(installedForUse = false))
     }
 
     @Test
-    fun `installActionLabel reads Installed once the install succeeded`() {
-        assertEquals("Installed", installActionLabel(installedForUse = true))
+    fun `installActionVisible hides Install once the install succeeded`() {
+        assertFalse(installActionVisible(installedForUse = true))
     }
 
     // installActionPrimary: Install is the primary nudge after Save, until installed
@@ -967,5 +967,87 @@ class CreateViewModelExecutionTest {
         assertFalse(
             installActionEnabled(manifestSaved = true, installedForUse = true, running = false, testing = false, installing = false),
         )
+    }
+
+    // ---------------------------------------------------------------
+    // Open button logic: manifestHasShortcuts / openAppActionVisible /
+    // installActionVisible
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `manifestHasShortcuts detects top level shortcuts`() {
+        assertTrue(manifestHasShortcuts("""{"version":"1.0","shortcuts":[["App","app.exe"]]}"""))
+    }
+
+    @Test
+    fun `manifestHasShortcuts detects shortcuts inside an architecture block`() {
+        assertTrue(
+            manifestHasShortcuts(
+                """{"version":"1.0","architecture":{"64bit":{"shortcuts":[["App","app.exe"]]}}}""",
+            ),
+        )
+    }
+
+    @Test
+    fun `manifestHasShortcuts is false when the field is absent`() {
+        assertFalse(manifestHasShortcuts("""{"version":"1.0","url":"https://example.com"}"""))
+    }
+
+    @Test
+    fun `manifestHasShortcuts is false for an empty shortcuts array`() {
+        assertFalse(manifestHasShortcuts("""{"version":"1.0","shortcuts":[]}"""))
+    }
+
+    @Test
+    fun `manifestHasShortcuts is false for invalid JSON`() {
+        assertFalse(manifestHasShortcuts("{not json"))
+        assertFalse(manifestHasShortcuts(""))
+    }
+
+    @Test
+    fun `openAppActionVisible requires installed for use and available shortcuts`() {
+        assertTrue(openAppActionVisible(installedForUse = true, manifestShortcutsAvailable = true))
+        assertFalse(openAppActionVisible(installedForUse = false, manifestShortcutsAvailable = true))
+        assertFalse(openAppActionVisible(installedForUse = true, manifestShortcutsAvailable = false))
+    }
+
+    @Test
+    fun `installActionVisible is the negation of installed for use`() {
+        assertTrue(installActionVisible(installedForUse = false))
+        assertFalse(installActionVisible(installedForUse = true))
+    }
+
+    // ---------------------------------------------------------------
+    // newManifestResetsVerification: installedShortcuts is the 4th marker
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `new manifest resets all four markers including installed shortcuts`() {
+        val (verified, saved, installed, shortcuts) = newManifestResetsVerification(
+            "{new}", "{old}",
+            installVerified = true,
+            manifestSaved = true,
+            installedForUse = true,
+            installedShortcuts = true,
+        )
+        assertFalse(verified)
+        assertFalse(saved)
+        assertFalse(installed)
+        assertFalse(shortcuts, "a new manifest must reset the installed-shortcuts flag too")
+    }
+
+    @Test
+    fun `same manifest preserves all four markers including installed shortcuts`() {
+        val (verified, saved, installed, shortcuts) = newManifestResetsVerification(
+            "{old}", "{old}",
+            installVerified = true,
+            manifestSaved = true,
+            installedForUse = true,
+            installedShortcuts = true,
+        )
+        assertTrue(verified)
+        assertTrue(saved)
+        assertTrue(installed)
+        assertTrue(shortcuts)
     }
 }

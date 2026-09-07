@@ -341,11 +341,12 @@ internal fun manifestTestSucceeded(
  */
 internal fun saveToBucketPrimary(testSucceeded: Boolean, manifestSaved: Boolean): Boolean = testSucceeded && !manifestSaved
 
-/** The install-verified / saved / installed-for-use markers tracked on CreateState. */
+/** The install-verified / saved / installed-for-use / installed-shortcuts markers tracked on CreateState. */
 internal data class VerificationFlags(
     val installVerified: Boolean,
     val manifestSaved: Boolean,
     val installedForUse: Boolean,
+    val installedShortcuts: Boolean,
 )
 
 /**
@@ -358,12 +359,13 @@ internal fun newManifestResetsVerification(
     installVerified: Boolean,
     manifestSaved: Boolean,
     installedForUse: Boolean,
+    installedShortcuts: Boolean = false,
 ): VerificationFlags {
     val manifestChanged = newManifest.isNotBlank() && newManifest != currentManifest
     return if (manifestChanged) {
-        VerificationFlags(false, false, false)
+        VerificationFlags(false, false, false, false)
     } else {
-        VerificationFlags(installVerified, manifestSaved, installedForUse)
+        VerificationFlags(installVerified, manifestSaved, installedForUse, installedShortcuts)
     }
 }
 
@@ -380,5 +382,25 @@ internal fun installActionEnabled(
     installing: Boolean,
 ): Boolean = manifestSaved && !installedForUse && !running && !testing && !installing
 
-internal fun installActionLabel(installedForUse: Boolean): String =
-    if (installedForUse) "Installed" else "Install"
+/** Install is hidden once the app is installed for use; Open replaces it. */
+internal fun installActionVisible(installedForUse: Boolean): Boolean = !installedForUse
+
+/** True when the manifest declares Start Menu shortcuts (top level or any architecture block). */
+internal fun manifestHasShortcuts(manifestJson: String): Boolean {
+    if (manifestJson.isBlank()) return false
+    return try {
+        val obj = kotlinx.serialization.json.Json.parseToJsonElement(manifestJson)
+            as? kotlinx.serialization.json.JsonObject ?: return false
+        fun hasShortcuts(el: kotlinx.serialization.json.JsonElement?): Boolean =
+            (el as? kotlinx.serialization.json.JsonObject)?.get("shortcuts")
+                ?.let { it as? kotlinx.serialization.json.JsonArray }?.isNotEmpty() == true
+        hasShortcuts(obj) || (obj["architecture"] as? kotlinx.serialization.json.JsonObject)
+            ?.values?.any { hasShortcuts(it) } == true
+    } catch (_: Exception) {
+        false
+    }
+}
+
+/** Open is offered once the app is installed for use and its manifest declares shortcuts. */
+internal fun openAppActionVisible(installedForUse: Boolean, manifestShortcutsAvailable: Boolean): Boolean =
+    installedForUse && manifestShortcutsAvailable

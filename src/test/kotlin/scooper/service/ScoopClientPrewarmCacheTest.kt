@@ -261,10 +261,10 @@ class ScoopClientPrewarmCacheTest {
         }
     }
 
-    /** Client with an isolated root dir, aria2 disabled, and a counting downloader. */
-    private fun newClient(downloader: CountingDownloader, root: File): ScoopClient {
+    /** Client with an isolated root dir and a counting downloader; aria2 toggleable. */
+    private fun newClient(downloader: CountingDownloader, root: File, aria2Enabled: Boolean = false): ScoopClient {
         val configFile = root.resolve("scoop-config.json")
-        configFile.writeText("""{"aria2-enabled": false}""")
+        configFile.writeText("""{"aria2-enabled": $aria2Enabled}""")
         return ScoopClient(
             logStream = ScoopLogStream(),
             taskQueue = TaskQueue(),
@@ -431,5 +431,28 @@ class ScoopClientPrewarmCacheTest {
             },
             "formal entry must contain network data, not the aria2 control file",
         )
+    }
+
+    @Test
+    fun `preDownload prewarms even when aria2 is enabled (cache lookup is downloader-agnostic)`() {
+        val downloader = CountingDownloader()
+        val root = tempDir.resolve("root-g").toFile().also { it.mkdirs() }
+        val client = newClient(downloader, root, aria2Enabled = true)
+        val cacheDir = client.cacheDir.also { it.mkdirs() }
+        val url = "https://example.com/warm-7.0.zip#/inner.7z"
+
+        // Engine download-phase file exists: with aria2 on, prewarm must still
+        // link it into the formal cache entry instead of bailing out early.
+        File(cacheDir, ScoopCacheManager.downloadCacheName(url)).writeText("ENGINE-ARIA2-DATA")
+
+        writeBucketManifest(root, "warmapp", writeManifest("7.0", url).readText())
+        val app = App(name = "warmapp", latestVersion = "7.0", bucket = Bucket("testbucket"))
+
+        runBlocking { client.preDownloadIfNeeded(app) }
+
+        assertEquals(0, downloader.downloadCalls, "prewarm hit must avoid network download even with aria2 enabled")
+        val target = File(cacheDir, computeTargetName("warmapp", "7.0", url))
+        assertTrue(target.exists(), "formal cache entry must be created despite aria2 being enabled")
+        assertEquals("ENGINE-ARIA2-DATA", target.readText(), "hardlink/copy from engine source must happen")
     }
 }

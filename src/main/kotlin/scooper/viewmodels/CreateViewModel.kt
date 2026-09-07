@@ -357,6 +357,18 @@ fun extractReviewActionChips(
     return chips
 }
 
+/** Guard for review action chips: returns the blocking toast when the click
+ *  must be dropped (no manifest first, then busy); null applies the chip. */
+internal fun applyActionChipBlockToast(
+    manifestJson: String,
+    running: Boolean,
+    testing: Boolean,
+): Pair<String, ToastType>? = when {
+    manifestJson.isBlank() -> "No manifest to fix" to ToastType.ERROR
+    running || testing -> "Another operation is running" to ToastType.INFO
+    else -> null
+}
+
 data class CreateState(
     val messages: List<ChatMessage> = emptyList(),
     val inputUrl: String = "",
@@ -388,6 +400,8 @@ data class CreateState(
     val installing: Boolean = false,
     /** True when the saved manifest was installed for real use in this session. */
     val installedForUse: Boolean = false,
+    /** True when the app installed for use in this session has Start Menu shortcuts. */
+    val installedShortcuts: Boolean = false,
     /** True when the current session is a user assist (revise existing manifest). */
     val assistSession: Boolean = false,
     /** Suggested resume stages currently available from the in-memory checkpoint. */
@@ -658,6 +672,10 @@ class CreateViewModel(
         reduce { state.copy(saveResult = null) }
     }
 
+    fun onDismissTestResult() = intent {
+        reduce { state.copy(testResult = null) }
+    }
+
     fun onTestInstall() = intent {
         if (state.running || state.testing) {
             postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
@@ -769,7 +787,10 @@ class CreateViewModel(
     }
 
     fun onApplyActionChip(chip: ReviewActionChip) = intent {
-        if (state.manifestJson.isBlank() || state.running || state.testing) return@intent
+        applyActionChipBlockToast(state.manifestJson, state.running, state.testing)?.let { (text, type) ->
+            postSideEffect(AppSideEffect.Toast(text, type))
+            return@intent
+        }
         startAssistInternal(
             instruction = chip.prompt,
             displayUserText = "⚡ Apply fix: ${chip.label}",
@@ -798,7 +819,13 @@ class CreateViewModel(
                 )
             }
             if (result.isSuccess) {
-                reduce { state.copy(installedForUse = true) }
+                reduce {
+                    state.copy(
+                        installedForUse = true,
+                        installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
+                    )
+                }
+                refreshInstalledAppRecord(bucket, name)
                 postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
             } else {
                 val detail = result.errorMessage?.takeIf { it.isNotBlank() }
@@ -807,6 +834,18 @@ class CreateViewModel(
             }
         } finally {
             reduce { state.copy(installing = false) }
+        }
+    }
+
+    /** Launch the installed app through its Start Menu shortcut. */
+    fun onOpenApp() = intent {
+        if (!state.installedForUse) return@intent
+        val name = state.saveResult?.appName ?: return@intent
+        val result = withContext(Dispatchers.IO) { scoopClient.openApp(name) }
+        if (!result.isSuccess) {
+            val detail = result.errorMessage?.takeIf { it.isNotBlank() }
+                ?: "exit code ${result.exitCode}"
+            postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
         }
     }
 
@@ -1018,9 +1057,17 @@ class CreateViewModel(
                 }
             },
         )
-        reduce { state.copy(installedForUse = effect.installedForUse) }
+        reduce {
+            state.copy(
+                installedForUse = effect.installedForUse,
+                installedShortcuts = effect.installedForUse && manifestHasShortcuts(state.activeManifestJson),
+            )
+        }
         when {
-            effect.newlyInstalled -> postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            effect.newlyInstalled -> {
+                refreshInstalledAppRecord(bucket, name)
+                postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            }
             effect.maskedError != null -> postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
         }
         return effect.resultJson
@@ -1032,6 +1079,10 @@ class CreateViewModel(
         app?.let { appsRepository.upsertApp(it) }
         return app != null
     }
+
+    /** Post-install: refresh the index record so Discover shows the app as installed. */
+    private suspend fun refreshInstalledAppRecord(bucket: String, name: String) =
+        refreshInstalledAppRecordCore(bucket, name, scoopClient, appsRepository::upsertApp) { logger.warn(it) }
 
     companion object {
         private const val MAX_TEST_LOG_LINES = 200
@@ -1098,6 +1149,7 @@ class CreateViewModel(
                 testResult = null,
                 saveResult = null,
                 installedForUse = false,
+                installedShortcuts = false,
                 error = null,
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1227,6 +1279,7 @@ class CreateViewModel(
                 testResult = null,
                 saveResult = null,
                 installedForUse = false,
+                installedShortcuts = false,
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1590,12 +1643,13 @@ class CreateViewModel(
             this.revisions
         }
 
-        val (installVerified, manifestSaved, installedForUse) = newManifestResetsVerification(
+        val (installVerified, manifestSaved, installedForUse, installedShortcuts) = newManifestResetsVerification(
             newManifest = manifestJson,
             currentManifest = this.manifestJson,
             installVerified = this.installVerified,
             manifestSaved = this.manifestSaved,
             installedForUse = this.installedForUse,
+            installedShortcuts = this.installedShortcuts,
         )
         return copy(
             running = false,
@@ -1616,6 +1670,7 @@ class CreateViewModel(
             installVerified = installVerified,
             manifestSaved = manifestSaved,
             installedForUse = installedForUse,
+            installedShortcuts = installedShortcuts,
         )
     }
 
@@ -1913,20 +1968,15 @@ internal suspend fun saveManifestCore(
 }
 
 /**
- * Bucket resolution for a save without an explicit bucket: last used bucket
- * when still present, then main, then the first bucket. An explicit bucket that
- * is not in [buckets] resolves to null so the caller can reject it.
+ * Builds the needsBucket reply for a save without an explicit bucket: the model
+ * must ask the user to pick one (via ask_user) instead of the host silently
+ * applying default bucket rules.
  */
-internal fun resolveSaveBucket(explicit: String?, lastBucket: String, buckets: List<String>): String? {
-    explicit?.trim().takeUnless { it.isNullOrEmpty() }?.let { chosen ->
-        return chosen.takeIf { it in buckets }
-    }
-    return when {
-        lastBucket.isNotBlank() && lastBucket in buckets -> lastBucket
-        "main" in buckets -> "main"
-        else -> buckets.firstOrNull()
-    }
-}
+private fun needsBucketResultJson(buckets: List<String>): String = buildJsonObject {
+    put("success", false)
+    put("needsBucket", true)
+    put("buckets", JsonArray(buckets.map { JsonPrimitive(it) }))
+}.toString()
 
 /** Maps a save outcome to the JSON reply the save_to_bucket tool returns to the model. */
 internal fun saveToBucketResultJson(outcome: BucketSaveOutcome): String = when (outcome) {
@@ -1968,8 +2018,9 @@ private fun aiSaveFailure(message: String) = AiSaveToBucketResult(
 
 /**
  * AI `save_to_bucket` implementation (architecture A: host owns the save):
- * resolve bucket/name with the host default rules, run the shared save core,
- * and map the outcome to the JSON reply for the model.
+ * run the shared save core and map the outcome to the JSON reply for the
+ * model. A save without an explicit bucket never falls back to default bucket
+ * rules; it returns needsBucket so the model asks the user to choose.
  */
 internal suspend fun aiSaveToBucket(
     manifestJson: String,
@@ -1989,15 +2040,24 @@ internal suspend fun aiSaveToBucket(
         return aiSaveFailure("No manifest to save")
     }
 
-    val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }
-    val bucket = resolveSaveBucket(bucketArg, lastBucket, buckets)
+    val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }.sorted()
+
+    val bucket = bucketArg?.trim()?.takeUnless { it.isEmpty() }
     if (bucket == null) {
-        val reason = if (bucketArg.isNullOrBlank()) {
-            "No Scoop buckets found"
-        } else {
-            "Bucket '$bucketArg' does not exist in the local Scoop installation"
+        if (buckets.isEmpty()) {
+            return aiSaveFailure("No Scoop buckets found")
         }
-        return aiSaveFailure(reason)
+        // No silent default: hand the bucket list to the model so it asks the
+        // user to pick one. Nothing is written and no state changes.
+        return AiSaveToBucketResult(
+            resultJson = needsBucketResultJson(buckets),
+            manifestSaved = false,
+            saveResult = null,
+            suggestedAppName = suggestedAppName?.trim()?.takeUnless { it.isEmpty() },
+        )
+    }
+    if (bucket !in buckets) {
+        return aiSaveFailure("Bucket '$bucket' does not exist in the local Scoop installation")
     }
 
     val name = nameArg?.trim().takeUnless { it.isNullOrEmpty() }
@@ -2049,6 +2109,31 @@ internal data class AiInstallAppResult(
     /** Pre-masked error for the failure toast; null when nothing failed. */
     val maskedError: String? = null,
 )
+
+/**
+ * Shared post-install index refresh: re-read the installed snapshot and the
+ * bucket manifest so the index shows the app as INSTALLED. Missing manifest is
+ * a no-op; other failures warn without throwing (cancellation rethrown).
+ */
+internal suspend fun refreshInstalledAppRecordCore(
+    bucket: String,
+    name: String,
+    scoopClient: BucketSaveEnv,
+    upsertApp: (App) -> Unit,
+    onWarn: (String) -> Unit = {},
+) {
+    try {
+        withContext(Dispatchers.IO) {
+            val installed = scoopClient.installedSnapshot()
+            val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
+            val app = scoopClient.buildAppsFromManifestNames(bucketDir, setOf("$name.json"), Bucket(name = bucket, url = ""), installed).firstOrNull() ?: return@withContext
+            upsertApp(app)
+        }
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        onWarn("Post-install index refresh failed for $name: ${e.message}")
+    }
+}
 
 /**
  * AI `install_app` implementation (architecture A: host owns the install):
