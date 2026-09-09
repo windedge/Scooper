@@ -4,6 +4,7 @@ import com.scoopai.core.ManifestResult
 import com.scoopai.tools.DefaultScoopAiFactory
 import com.scoopai.tools.DefaultToolRegistryFactory
 import com.scoopai.tools.ScoopAiConfig
+import com.scoopai.tools.config.UsedAppNameScanner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -131,6 +132,12 @@ class ScoopAiBridge(
         onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
         onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
         onInstallApp: (suspend (bucket: String, name: String) -> String)? = null,
+        /**
+         * App names the engine's conflict check must ignore, e.g. the manifest
+         * this session itself just saved: at verify time it is already in the
+         * bucket, so counting it as a conflict is a false positive.
+         */
+        ignoreAppNames: Set<String> = emptySet(),
     ) = DefaultScoopAiFactory.createGenerator(
         config = toScoopAiConfig(settings),
         onPhase = onPhase,
@@ -141,6 +148,16 @@ class ScoopAiBridge(
         onToolActivity = onToolActivity,
         askUserHandler = onAskUser,
         questionnaireHandler = onQuestionnaire,
+        usedAppNamesProvider = if (ignoreAppNames.isEmpty()) {
+            UsedAppNameScanner::scanDefault
+        } else {
+            {
+                // Scoop manifest names and saveResult casing are not guaranteed to
+                // match, so subtract the exclusion set in lowercase on both sides.
+                UsedAppNameScanner.scanDefault().map { it.lowercase() }.toSet() -
+                    ignoreAppNames.map { it.lowercase() }.toSet()
+            }
+        },
         saveToBucketHandler = onSaveToBucket,
         installAppHandler = onInstallApp,
     )
@@ -161,6 +178,8 @@ class ScoopAiBridge(
         userPrompt: String?,
         resumeFrom: AiErrorAction? = null,
         overrideModel: String? = null,
+        /** App names the engine's conflict check must ignore (see [createGenerator]). */
+        ignoreAppNames: Set<String> = emptySet(),
         onPhase: (String) -> Unit,
         onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)? = null,
         onPhaseOutput: ((String, String) -> Unit)? = null,
@@ -206,6 +225,7 @@ class ScoopAiBridge(
                     onToolActivity = onToolActivity,
                     onAskUser = onAskUser,
                     onQuestionnaire = onQuestionnaire,
+                    ignoreAppNames = ignoreAppNames,
                 )
                 logger.info("Scoop AI generate start: $url")
                 val result = generator.generate(url = url, userPrompt = userPrompt, resumeData = resumeData)
@@ -232,6 +252,8 @@ class ScoopAiBridge(
         history: List<String> = emptyList(),
         suggestedAppName: String? = null,
         overrideModel: String? = null,
+        /** App names the engine's conflict check must ignore (see [createGenerator]). */
+        ignoreAppNames: Set<String> = emptySet(),
         onPhase: ((String) -> Unit)? = null,
         onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)? = null,
         onPhaseOutput: ((String, String) -> Unit)? = null,
@@ -273,6 +295,7 @@ class ScoopAiBridge(
                     onQuestionnaire = onQuestionnaire,
                     onSaveToBucket = onSaveToBucket,
                     onInstallApp = onInstallApp,
+                    ignoreAppNames = ignoreAppNames,
                 )
                 val checkpoint = checkpointService.snapshot()
                 val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }

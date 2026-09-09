@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -44,6 +45,13 @@ import scooper.ui.icons.*
 import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.onHover
+
+/** Every whitespace-separated token must appear in the item (case-insensitive, order free). */
+internal fun filterByTokens(items: List<String>, query: String): List<String> {
+    val tokens = query.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    if (tokens.isEmpty()) return items
+    return items.filter { item -> tokens.all { item.contains(it, ignoreCase = true) } }
+}
 
 /**
  * Safe wrapper for VerticalScrollbar that protects against Compose Desktop's
@@ -240,7 +248,7 @@ fun SearchableDropdownMenuPopup(
     onFetch: (() -> Unit)? = null,
     error: String? = null,
     minWidth: Dp = 220.dp,
-    maxWidth: Dp = 480.dp,
+    maxWidth: Dp = 360.dp,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     showCustomQueryOption: Boolean = true,
 ) {
@@ -253,11 +261,9 @@ fun SearchableDropdownMenuPopup(
         delay(50)
         searchFocusRequester.requestFocus()
     }
-
-    val filteredItems = remember(items, searchQuery) {
-        if (searchQuery.isBlank()) items
-        else items.filter { it.contains(searchQuery.trim(), ignoreCase = true) }
-    }
+    val filteredItems = remember(items, searchQuery) { filterByTokens(items, searchQuery) }
+    val footerText = if (searchQuery.isBlank()) "${items.size} models available"
+    else "${filteredItems.size} of ${items.size} models"
 
     val isCustomQuery = showCustomQueryOption && searchQuery.isNotBlank() &&
         items.none { it.equals(searchQuery.trim(), ignoreCase = true) }
@@ -271,16 +277,37 @@ fun SearchableDropdownMenuPopup(
         )
     }
 
-    val longestItemLength = remember(items, searchQuery) {
-        maxOf(
-            items.maxOfOrNull { it.length } ?: 0,
-            searchQuery.length + 6,
-            16,
-        )
-    }
-    val calculatedWidth = remember(longestItemLength, minWidth, maxWidth) {
-        val estimated = (longestItemLength * 7.5f + 56f).dp
-        estimated.coerceIn(minWidth, maxWidth)
+    // Measure real text widths instead of estimating from character counts
+    val textMeasurer = rememberTextMeasurer()
+    val captionStyle = typography.caption
+    val calculatedWidth = remember(
+        textMeasurer,
+        captionStyle,
+        items,
+        searchQuery,
+        showCustomQueryOption,
+        minWidth,
+        maxWidth,
+    ) {
+        val selectedStyle = captionStyle.copy(fontWeight = FontWeight.SemiBold)
+
+        val candidates = buildList {
+            add("Search or type model..." to captionStyle)
+            // Selected items render SemiBold, use it as the safe upper bound
+            items.forEach { add(it to selectedStyle) }
+            if (showCustomQueryOption && searchQuery.isNotBlank()) {
+                add("Use \"${searchQuery.trim()}\"" to selectedStyle)
+            }
+            if (items.isNotEmpty()) add(footerText to captionStyle)
+        }
+
+        val maxTextWidth = candidates.maxOfOrNull { (text, style) ->
+            textMeasurer.measure(text, style).size.width
+        } ?: 0
+
+        // Covers row padding, selected check icon, refresh button and scrollbar gutter
+        val horizontalBudget = 44.dp
+        with(density) { maxTextWidth.toDp() + horizontalBudget }.coerceIn(minWidth, maxWidth)
     }
 
     Popup(
@@ -570,11 +597,7 @@ fun SearchableDropdownMenuPopup(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            if (searchQuery.isBlank()) "${items.size} models available"
-                            else "${filteredItems.size} of ${items.size} models",
-                            style = typography.caption.copy(color = colors.textMuted),
-                        )
+                        Text(footerText, style = typography.caption.copy(color = colors.textMuted))
                     }
                 }
             }

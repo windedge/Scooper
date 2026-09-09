@@ -145,6 +145,7 @@ import scooper.viewmodels.computeDetailedLineDiff
 import scooper.viewmodels.executionSummaryCapsuleText
 import scooper.viewmodels.manifestTestSucceeded
 import scooper.viewmodels.installActionEnabled
+import scooper.viewmodels.installActionLabel
 import scooper.viewmodels.installActionPrimary
 import scooper.viewmodels.installActionVisible
 import scooper.viewmodels.manifestHasShortcuts
@@ -183,6 +184,8 @@ fun CreateScreen(
     val state by viewModel.container.stateFlow.collectAsState()
     val navigator = LocalBackStack.current as BackStack<AppRoute>
     val listState = rememberLazyListState()
+    // Tick bumped on every reset; input composable requests keyboard focus when it changes.
+    var inputFocusTick by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshAiConfig()
@@ -195,7 +198,10 @@ fun CreateScreen(
     ) {
         CreateTopBar(
             canReset = !state.isEmpty,
-            onReset = viewModel::onReset,
+            onReset = {
+                viewModel.onReset()
+                inputFocusTick++
+            },
             onOpenAiSettings = { navigator.push(AppRoute.Settings.AI) },
         )
 
@@ -209,6 +215,7 @@ fun CreateScreen(
         if (state.isEmpty) {
             EmptyWorkspace(
                 state = state,
+                inputFocusTick = inputFocusTick,
                 onUrlChange = viewModel::onUrlChange,
                 onNoteChange = viewModel::onNoteChange,
                 onModelChange = viewModel::onModelChange,
@@ -220,6 +227,7 @@ fun CreateScreen(
             ChatWorkspace(
                 state = state,
                 listState = listState,
+                inputFocusTick = inputFocusTick,
                 onUrlChange = viewModel::onUrlChange,
                 onNoteChange = viewModel::onNoteChange,
                 onModelChange = viewModel::onModelChange,
@@ -1019,6 +1027,7 @@ private fun AiConfigBanner(
 @Composable
 private fun EmptyWorkspace(
     state: CreateState,
+    inputFocusTick: Int,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
@@ -1065,6 +1074,7 @@ private fun EmptyWorkspace(
         Composer(
             state = state,
             centered = true,
+            inputFocusTick = inputFocusTick,
             onUrlChange = onUrlChange,
             onNoteChange = onNoteChange,
             onModelChange = onModelChange,
@@ -1089,6 +1099,7 @@ private fun EmptyWorkspace(
 private fun ChatWorkspace(
     state: CreateState,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    inputFocusTick: Int,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
@@ -1124,6 +1135,7 @@ private fun ChatWorkspace(
                 manifestSaved = state.manifestSaved,
                 installing = state.installing,
                 installedForUse = state.installedForUse,
+                systemInstalled = state.systemInstalled,
                 running = state.running,
                 issues = state.manifestIssues,
                 exhausted = state.manifestExhausted,
@@ -1245,6 +1257,7 @@ private fun ChatWorkspace(
                     Composer(
                         state = state,
                         centered = false,
+                        inputFocusTick = inputFocusTick,
                         onUrlChange = onUrlChange,
                         onNoteChange = onNoteChange,
                         onModelChange = onModelChange,
@@ -1342,6 +1355,7 @@ private fun ChatWorkspace(
                 Composer(
                     state = state,
                     centered = false,
+                    inputFocusTick = inputFocusTick,
                     onUrlChange = onUrlChange,
                     onNoteChange = onNoteChange,
                     onModelChange = onModelChange,
@@ -1796,6 +1810,13 @@ private fun ExecutionStepBlock(
                 TypingDots()
             }
         }
+        // Lighter chip backdrop than the 0.15f step surface distinguishes
+        // tool-call lines from bullet summary lines.
+        val chipModifier = Modifier
+            .fillMaxWidth()
+            .background(colors.divider.copy(alpha = 0.22f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+
         step.toolActivities.forEach { line ->
             Text(
                 line,
@@ -1804,7 +1825,7 @@ private fun ExecutionStepBlock(
                     fontSize = typography.caption.fontSize * 0.92f,
                     fontFamily = FontFamily.Monospace,
                 ),
-                modifier = Modifier.padding(start = 4.dp),
+                modifier = chipModifier,
             )
         }
         liveActivity?.let { activity ->
@@ -1814,7 +1835,7 @@ private fun ExecutionStepBlock(
                     color = colors.primary,
                     fontFamily = FontFamily.Monospace,
                 ),
-                modifier = Modifier.padding(start = 4.dp),
+                modifier = chipModifier,
             )
         }
         if (!step.summary.isNullOrBlank()) {
@@ -1922,6 +1943,7 @@ private fun ManifestPreviewCard(
     manifestSaved: Boolean = false,
     installing: Boolean = false,
     installedForUse: Boolean = false,
+    systemInstalled: Boolean = false,
     revisions: List<ManifestRevision> = emptyList(),
     selectedRevisionId: String? = null,
     actionChips: List<ReviewActionChip> = emptyList(),
@@ -2338,7 +2360,7 @@ private fun ManifestPreviewCard(
                 // when the manifest declares Start Menu shortcuts.
                 if (installActionVisible(installedForUse)) {
                     SmallActionButton(
-                        label = "Install",
+                        label = installActionLabel(systemInstalled = systemInstalled),
                         onClick = onInstallSaved,
                         enabled = installActionEnabled(manifestSaved, installedForUse, running, testing, installing),
                         primary = installActionPrimary(manifestSaved, installedForUse),
@@ -2780,6 +2802,7 @@ private fun SmallActionButton(
 private fun Composer(
     state: CreateState,
     centered: Boolean,
+    inputFocusTick: Int,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
@@ -2791,6 +2814,10 @@ private fun Composer(
     var inputText by remember { mutableStateOf(state.inputNote.ifBlank { state.inputUrl }) }
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(inputFocusTick) {
+        focusRequester.requestFocus()
+    }
 
     LaunchedEffect(state.inputNote, state.inputUrl) {
         val latest = state.inputNote.ifBlank { state.inputUrl }

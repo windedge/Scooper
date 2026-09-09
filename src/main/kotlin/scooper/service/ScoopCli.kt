@@ -16,7 +16,13 @@ interface ScoopCli {
      * uninstalls must keep the default (persist data preserved).
      */
     suspend fun uninstall(app: App, global: Boolean, purge: Boolean = false): CommandResult
-    suspend fun update(app: App, global: Boolean): CommandResult
+
+    /**
+     * Update [app]. When [force] is true, pass `--force` so scoop re-applies the
+     * bucket manifest even if the installed version already matches; without it
+     * a same-version update is a no-op exit 0 and a fixed manifest never lands.
+     */
+    suspend fun update(app: App, global: Boolean, force: Boolean = false): CommandResult
     suspend fun download(app: App): CommandResult
     suspend fun addBucket(bucket: String, url: String?): CommandResult
     suspend fun removeBucket(bucket: String): CommandResult

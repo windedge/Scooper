@@ -385,6 +385,14 @@ internal fun installActionEnabled(
 /** Install is hidden once the app is installed for use; Open replaces it. */
 internal fun installActionVisible(installedForUse: Boolean): Boolean = !installedForUse
 
+/**
+ * Label for the install action. When the app was installed outside this session
+ * (system install), a saved manifest needs a reinstall to apply fixes, so the
+ * label says Reinstall instead of Install.
+ */
+internal fun installActionLabel(systemInstalled: Boolean): String =
+    if (systemInstalled) "Reinstall" else "Install"
+
 /** True when the manifest declares Start Menu shortcuts (top level or any architecture block). */
 internal fun manifestHasShortcuts(manifestJson: String): Boolean {
     if (manifestJson.isBlank()) return false

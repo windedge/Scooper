@@ -50,10 +50,12 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.merge
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.geometry.Size
 import scooper.util.TrayManager
+import scooper.util.RetryingAwtClipboard
 import scooper.util.installCrashGuards
 import javax.swing.ImageIcon
 
@@ -64,7 +66,7 @@ val LocalFocusSearch = compositionLocalOf<() -> Unit> { {} }
 private val logger by lazy { LoggerFactory.getLogger("Main") }
 
 fun main() {
-    // 须在窗口创建前: AWT 在首个 EDT 异常时才懒读取兜底 handler 属性
+    // Must run before the window exists: AWT reads the fallback handler property lazily on the first EDT exception
     installCrashGuards()
 
     startKoin { modules(system, viewModels) }
@@ -189,152 +191,156 @@ fun main() {
             )
         }
     ) {
-        window.minimumSize = Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+        // Retrying clipboard for all reads/writes, avoiding the transient failures of the default Compose implementation
+        CompositionLocalProvider(LocalClipboard provides remember { RetryingAwtClipboard() }) {
+            window.minimumSize = Dimension(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
-        // When the window becomes visible (e.g. restored from tray), bring it to the foreground
-        LaunchedEffect(windowVisible) {
-            if (windowVisible) {
-                bringToFront = true
-            }
-        }
-        // Bring window to foreground when requested (e.g. double-click tray icon)
-        LaunchedEffect(bringToFront) {
-            if (bringToFront) {
-                window.bringToFront()
-                bringToFront = false
-            }
-        }
-
-        val settings by settingsViewModel.container.stateFlow.collectAsState()
-        val uiConfig = settings.uiConfig
-        val theme = uiConfig.theme.toSystemTheme()
-
-        // Sync show-tray-icon setting from ViewModel state
-        // If the setting is disabled while the window is hidden, show the window
-        LaunchedEffect(uiConfig.showTrayIcon) {
-            showTrayIcon = uiConfig.showTrayIcon
-            if (!uiConfig.showTrayIcon) {
-                windowVisible = true
-                bringToFront = true
-            }
-        }
-
-        // Auto-refresh: delegate to ViewModel
-        LaunchedEffect(settings.uiConfig.periodicRefreshEnabled, settings.uiConfig.autoRefreshIntervalMinutes) {
-            appsViewModel.setAutoRefresh(
-                settings.uiConfig.periodicRefreshEnabled,
-                settings.uiConfig.autoRefreshIntervalMinutes,
-            )
-        }
-
-        val snackbarHostState = remember { CustomSnackbarHostState() }
-        var statusText by remember { mutableStateOf("") }
-
-        // Collect all side effects from all ViewModels
-        LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel, createViewModel) {
-            merge(
-                appsViewModel.container.sideEffectFlow,
-                settingsViewModel.container.sideEffectFlow,
-                cleanupViewModel.container.sideEffectFlow,
-                scoopSearchViewModel.container.sideEffectFlow,
-                createViewModel.container.sideEffectFlow,
-            ).collect { sideEffect ->
-                when (sideEffect) {
-                    is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text, sideEffect.type)
-                    is AppSideEffect.Log -> statusText = sideEffect.text
+            // When the window becomes visible (e.g. restored from tray), bring it to the foreground
+            LaunchedEffect(windowVisible) {
+                if (windowVisible) {
+                    bringToFront = true
                 }
             }
-        }
+            // Bring window to foreground when requested (e.g. double-click tray icon)
+            LaunchedEffect(bringToFront) {
+                if (bringToFront) {
+                    window.bringToFront()
+                    bringToFront = false
+                }
+            }
 
-        val showFpsState = remember { mutableStateOf(false) }
+            val settings by settingsViewModel.container.stateFlow.collectAsState()
+            val uiConfig = settings.uiConfig
+            val theme = uiConfig.theme.toSystemTheme()
 
-        ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
-            CompositionLocalProvider(LocalShowFps provides showFpsState) {
-                // Snackbar overlay sits above Router so it survives route changes.
-                Box(Modifier.fillMaxSize()) {
-                    Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
-                        @Suppress("UNCHECKED_CAST")
-                        val navigator = LocalBackStack.current as BackStack<AppRoute>
-                        // Expose navigator to Window-level onPreviewKeyEvent
-                        navigatorRef.value = navigator
-                        val provideFocusSearch: () -> Unit = { focusSearchRequester.value++ }
+            // Sync show-tray-icon setting from ViewModel state
+            // If the setting is disabled while the window is hidden, show the window
+            LaunchedEffect(uiConfig.showTrayIcon) {
+                showTrayIcon = uiConfig.showTrayIcon
+                if (!uiConfig.showTrayIcon) {
+                    windowVisible = true
+                    bringToFront = true
+                }
+            }
 
-                        val showToolbar = when (currentRoute.value) {
-                            is AppRoute.Settings, AppRoute.Output, AppRoute.Cleanup,
-                            AppRoute.ScoopSearch, AppRoute.Create -> false
-                            else -> true
-                        }
+            // Auto-refresh: delegate to ViewModel
+            LaunchedEffect(settings.uiConfig.periodicRefreshEnabled, settings.uiConfig.autoRefreshIntervalMinutes) {
+                appsViewModel.setAutoRefresh(
+                    settings.uiConfig.periodicRefreshEnabled,
+                    settings.uiConfig.autoRefreshIntervalMinutes,
+                )
+            }
 
-                        val appsState by appsViewModel.container.stateFlow.collectAsState()
-                        val createState by createViewModel.container.stateFlow.collectAsState()
+            val snackbarHostState = remember { CustomSnackbarHostState() }
+            var statusText by remember { mutableStateOf("") }
 
-                        Column(Modifier.fillMaxSize()) {
-                            CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
-                                Row(Modifier.weight(1f)) {
-                                    val isSettings = currentRoute.value is AppRoute.Settings
-                                    val isOutput = currentRoute.value == AppRoute.Output
-                                    if (!isSettings && !isOutput) {
-                                        SidebarNav(
-                                            updateCount = appsState.updateCount,
-                                            createRunning = createState.running,
-                                        )
-                                    }
-                                    Column(Modifier.weight(1f)) {
-                                        if (currentRoute.value is AppRoute.Apps) {
-                                            SearchBar(
-                                                show = showToolbar,
-                                                focusRequester = focusSearchRequester.value,
-                                                onResetFocusRequester = { focusSearchRequester.value = 0 },
+            // Collect all side effects from all ViewModels
+            LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel, createViewModel) {
+                merge(
+                    appsViewModel.container.sideEffectFlow,
+                    settingsViewModel.container.sideEffectFlow,
+                    cleanupViewModel.container.sideEffectFlow,
+                    scoopSearchViewModel.container.sideEffectFlow,
+                    createViewModel.container.sideEffectFlow,
+                ).collect { sideEffect ->
+                    when (sideEffect) {
+                        is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text, sideEffect.type)
+                        is AppSideEffect.Log -> statusText = sideEffect.text
+                    }
+                }
+            }
+
+            // Snackbar overlay toggling is dev-only; flip this flag to surface an FPS overlay.
+            val showFpsState = remember { mutableStateOf(false) }
+
+            ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
+                CompositionLocalProvider(LocalShowFps provides showFpsState) {
+                    // Snackbar overlay sits above Router so it survives route changes.
+                    Box(Modifier.fillMaxSize()) {
+                        Router<AppRoute>(start = AppRoute.Apps(scope = "")) { currentRoute ->
+                            @Suppress("UNCHECKED_CAST")
+                            val navigator = LocalBackStack.current as BackStack<AppRoute>
+                            // Expose navigator to Window-level onPreviewKeyEvent
+                            navigatorRef.value = navigator
+                            val provideFocusSearch: () -> Unit = { focusSearchRequester.value++ }
+
+                            val showToolbar = when (currentRoute.value) {
+                                is AppRoute.Settings, AppRoute.Output, AppRoute.Cleanup,
+                                AppRoute.ScoopSearch, AppRoute.Create -> false
+                                else -> true
+                            }
+
+                            val appsState by appsViewModel.container.stateFlow.collectAsState()
+                            val createState by createViewModel.container.stateFlow.collectAsState()
+
+                            Column(Modifier.fillMaxSize()) {
+                                CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
+                                    Row(Modifier.weight(1f)) {
+                                        val isSettings = currentRoute.value is AppRoute.Settings
+                                        val isOutput = currentRoute.value == AppRoute.Output
+                                        if (!isSettings && !isOutput) {
+                                            SidebarNav(
+                                                updateCount = appsState.updateCount,
+                                                createRunning = createState.running,
                                             )
-                                        } else {
-                                            val showToolbarRow = showToolbar && currentRoute.value !in listOf(
-                                                AppRoute.Buckets, AppRoute.Cleanup, AppRoute.ScoopSearch, AppRoute.Create
-                                            )
-                                            ToolbarRow(showToolbarRow)
                                         }
-                                        Layout {
-                                            val routeKey = when (val route = currentRoute.value) {
-                                                AppRoute.Splash -> "splash"
-                                                is AppRoute.Apps -> "apps:${route.scope}"
-                                                AppRoute.Buckets -> "buckets"
-                                                AppRoute.Cleanup -> "cleanup"
-                                                AppRoute.ScoopSearch -> "scoopSearch"
-                                                AppRoute.Create -> "create"
-                                                AppRoute.Output -> "output"
-                                                is AppRoute.Settings -> "settings:${route.menuText}"
+                                        Column(Modifier.weight(1f)) {
+                                            if (currentRoute.value is AppRoute.Apps) {
+                                                SearchBar(
+                                                    show = showToolbar,
+                                                    focusRequester = focusSearchRequester.value,
+                                                    onResetFocusRequester = { focusSearchRequester.value = 0 },
+                                                )
+                                            } else {
+                                                val showToolbarRow = showToolbar && currentRoute.value !in listOf(
+                                                    AppRoute.Buckets, AppRoute.Cleanup, AppRoute.ScoopSearch, AppRoute.Create
+                                                )
+                                                ToolbarRow(showToolbarRow)
                                             }
-                                            val previousRoute = this@Router.snapshot.dropLast(1).lastOrNull()?.value
-                                            val bothSettings = currentRoute.value is AppRoute.Settings && previousRoute is AppRoute.Settings
-                                            val animateContent = !bothSettings
-                                            key(routeKey) {
-                                                EnterAnimation(animateContent) {
-                                                    when (val route = currentRoute.value) {
-                                                        AppRoute.Splash -> {}
-                                                        is AppRoute.Apps -> AppScreen(route.scope)
-                                                        AppRoute.Buckets -> BucketsScreen()
-                                                        AppRoute.Cleanup -> CleanupScreen()
-                                                        AppRoute.ScoopSearch -> ScoopSearchScreen()
-                                                        AppRoute.Create -> CreateScreen()
-                                                        AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
-                                                        is AppRoute.Settings -> SettingScreen()
+                                            Layout {
+                                                val routeKey = when (val route = currentRoute.value) {
+                                                    AppRoute.Splash -> "splash"
+                                                    is AppRoute.Apps -> "apps:${route.scope}"
+                                                    AppRoute.Buckets -> "buckets"
+                                                    AppRoute.Cleanup -> "cleanup"
+                                                    AppRoute.ScoopSearch -> "scoopSearch"
+                                                    AppRoute.Create -> "create"
+                                                    AppRoute.Output -> "output"
+                                                    is AppRoute.Settings -> "settings:${route.menuText}"
+                                                }
+                                                val previousRoute = this@Router.snapshot.dropLast(1).lastOrNull()?.value
+                                                val bothSettings = currentRoute.value is AppRoute.Settings && previousRoute is AppRoute.Settings
+                                                val animateContent = !bothSettings
+                                                key(routeKey) {
+                                                    EnterAnimation(animateContent) {
+                                                        when (val route = currentRoute.value) {
+                                                            AppRoute.Splash -> {}
+                                                            is AppRoute.Apps -> AppScreen(route.scope)
+                                                            AppRoute.Buckets -> BucketsScreen()
+                                                            AppRoute.Cleanup -> CleanupScreen()
+                                                            AppRoute.ScoopSearch -> ScoopSearchScreen()
+                                                            AppRoute.Create -> CreateScreen()
+                                                            AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
+                                                            is AppRoute.Settings -> SettingScreen()
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                            } // CompositionLocalProvider LocalFocusSearch
-                            StatusBar(statusText)
-                        }
-                    } // Router
+                                } // CompositionLocalProvider LocalFocusSearch
+                                StatusBar(statusText)
+                            }
+                        } // Router
 
-                    // Snackbar overlay — outside Router so it is not recreated on route change.
-                    Box(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 48.dp)) {
-                        SnackbarHost(snackbarHostState)
-                    }
-                } // Box
-            } // CompositionLocalProvider LocalShowFps
-        }
+                        // Snackbar overlay — outside Router so it is not recreated on route change.
+                        Box(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 48.dp)) {
+                            SnackbarHost(snackbarHostState)
+                        }
+                    } // Box
+                } // CompositionLocalProvider LocalShowFps
+            }
+        } // CompositionLocalProvider LocalClipboard
     }
 
     // System tray icon — shown when show-tray-icon is enabled
@@ -398,7 +404,7 @@ internal fun resolveWindowExitGeometry(
     current: WindowExitGeometry,
     isMaximized: Boolean,
 ): WindowExitGeometry =
-    // 最大化退出时 winState.size/position 是全屏边界，必须保留库中保存的窗口化几何
+    // On maximized exit winState holds full-screen bounds, keep the persisted windowed geometry instead
     if (isMaximized) saved.copy(isMaximized = true)
     else current.copy(isMaximized = false)
 

@@ -37,6 +37,7 @@ import scooper.service.CommandResult
 import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
+import scooper.service.InstalledAppInfo
 import scooper.service.PhaseSummaryFormatter
 import scooper.service.ScoopAiBridge
 import scooper.service.ToolActivityFormatter
@@ -104,6 +105,14 @@ data class SaveResult(
     val gitCommitted: Boolean = false,
     val gitHint: SaveGitHint? = null,
 )
+
+/**
+ * Names the engine's conflict check must ignore: the manifest this session
+ * itself just saved is already in the bucket at verify time, so counting it
+ * as a conflict would make every follow-up assist run a false positive.
+ */
+internal fun ignoredNamesForConflictCheck(saveResultAppName: String?): Set<String> =
+    setOfNotNull(saveResultAppName?.takeIf { it.isNotBlank() })
 
 data class QuestionnaireOption(
     val label: String,
@@ -400,6 +409,9 @@ data class CreateState(
     val installing: Boolean = false,
     /** True when the saved manifest was installed for real use in this session. */
     val installedForUse: Boolean = false,
+    /** True when the app was already installed system wide before this session.
+     *  Drives the Reinstall label on the Install button (see [installActionLabel]). */
+    val systemInstalled: Boolean = false,
     /** True when the app installed for use in this session has Start Menu shortcuts. */
     val installedShortcuts: Boolean = false,
     /** True when the current session is a user assist (revise existing manifest). */
@@ -812,17 +824,31 @@ class CreateViewModel(
         reduce { state.copy(installing = true) }
         try {
             // ScoopClient.install addresses "bucket/name", so the bucket must be set.
+            // An app installed before this session needs a forced update (reinstall
+            // from bucket) so the fixed manifest takes effect; same-version scoop
+            // update without --force is a no-op exit 0.
+            val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+            val systemInstalled = snapshot.containsKey(name.lowercase())
             val result = withContext(Dispatchers.IO) {
-                scoopClient.install(
-                    App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                    global = false,
-                )
+                if (systemInstalled) {
+                    scoopClient.update(
+                        App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                        global = reinstallGlobal(snapshot, name),
+                        force = true,
+                    )
+                } else {
+                    scoopClient.install(
+                        App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                        global = false,
+                    )
+                }
             }
             if (result.isSuccess) {
                 reduce {
                     state.copy(
                         installedForUse = true,
                         installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
+                        systemInstalled = true,
                     )
                 }
                 refreshInstalledAppRecord(bucket, name)
@@ -836,6 +862,11 @@ class CreateViewModel(
             reduce { state.copy(installing = false) }
         }
     }
+
+    /** True when an app with this name is already installed locally. */
+    private suspend fun snapshotSystemInstalled(appName: String?): Boolean = appName?.let { name ->
+        withContext(Dispatchers.IO) { scoopClient.installedSnapshot().containsKey(name.lowercase()) }
+    } ?: false
 
     /** Launch the installed app through its Start Menu shortcut. */
     fun onOpenApp() = intent {
@@ -1053,7 +1084,15 @@ class CreateViewModel(
             alreadyInstalled = state.installedForUse,
             install = { app ->
                 withContext(Dispatchers.IO) {
-                    scoopClient.install(app, global = false)
+                    // Reinstall via forced update when the app was installed before
+                    // this session so the fixed manifest takes effect; respect how
+                    // it was originally installed (global vs local).
+                    val installed = scoopClient.installedSnapshot()[app.name.lowercase()]
+                    if (installed != null) {
+                        scoopClient.update(app, global = installed.isGlobal, force = true)
+                    } else {
+                        scoopClient.install(app, global = false)
+                    }
                 }
             },
         )
@@ -1127,6 +1166,11 @@ class CreateViewModel(
             else -> "research"
         }
         val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(initialPhase, appGuess, 0)
+        // Read before reduce: suspend call must stay outside the reduce block.
+        val systemInstalledSnapshot = snapshotSystemInstalled(state.saveResult?.appName)
+        // Read before reduce clears it: the name this session saved must be
+        // excluded from the engine's conflict check during this run.
+        val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
         reduce {
             state.copy(
                 messages = state.messages +
@@ -1150,6 +1194,7 @@ class CreateViewModel(
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
+                systemInstalled = systemInstalledSnapshot,
                 error = null,
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1169,6 +1214,7 @@ class CreateViewModel(
             userPrompt = userPrompt,
             resumeFrom = resumeFrom,
             overrideModel = modelToUse,
+            ignoreAppNames = ignoredNames,
             onPhase = { phase -> handlePhase(phase) },
             onToolActivity = ::routeToolActivity,
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
@@ -1262,6 +1308,11 @@ class CreateViewModel(
         val userHistory = extractUserHistory(state.messages)
         val userPrompt = displayUserText?.trim().takeUnless { it.isNullOrBlank() } ?: text
 
+        // Read before reduce: suspend call must stay outside the reduce block.
+        val systemInstalledSnapshot = snapshotSystemInstalled(state.saveResult?.appName)
+        // Read before reduce clears it: the name this session saved must be
+        // excluded from the engine's conflict check during this run.
+        val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
         reduce {
             state.copy(
                 messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt),
@@ -1280,6 +1331,7 @@ class CreateViewModel(
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
+                systemInstalled = systemInstalledSnapshot,
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1294,6 +1346,7 @@ class CreateViewModel(
             history = userHistory,
             suggestedAppName = state.suggestedAppName,
             overrideModel = modelToUse,
+            ignoreAppNames = ignoredNames,
             onPhase = { phase -> handlePhase(phase) },
             onToolActivity = ::routeToolActivity,
             onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
@@ -1447,6 +1500,7 @@ class CreateViewModel(
                     else -> ToastType.SUCCESS
                 }
 
+                val systemInstalledSnapshot = snapshotSystemInstalled(name)
                 reduce {
                     state.finishGeneration(
                         messages = state.messages + agentReplyMessage(bubbleText, manifestResult.tokenUsage),
@@ -1457,6 +1511,7 @@ class CreateViewModel(
                         manifestInvalidJson = invalidJson,
                         manifestIssues = issues,
                         executionExpanded = finishedWithIssues,
+                        systemInstalled = systemInstalledSnapshot,
                     )
                 }
                 postSideEffect(
@@ -1617,6 +1672,7 @@ class CreateViewModel(
         manifestInvalidJson: Boolean = this.manifestInvalidJson,
         manifestIssues: List<String> = this.manifestIssues,
         executionExpanded: Boolean = false,
+        systemInstalled: Boolean = this.systemInstalled,
     ): CreateState {
         // Late-event race defense (proposal 5.1): drain residual buffered activity
         // events BEFORE collapsing so the finalized step list is consistent.
@@ -1671,6 +1727,7 @@ class CreateViewModel(
             manifestSaved = manifestSaved,
             installedForUse = installedForUse,
             installedShortcuts = installedShortcuts,
+            systemInstalled = systemInstalled,
         )
     }
 
@@ -2179,6 +2236,14 @@ internal suspend fun aiInstallApp(
         maskedError = masked,
     )
 }
+
+/**
+ * Whether reinstalling [name] must target the global scope: true only when the
+ * installed snapshot reports the app as global; missing entries are local.
+ */
+internal fun reinstallGlobal(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
+    snapshot[name.lowercase()]?.isGlobal == true
+
 private val trailingWsRegex = Regex("[ \t]+$")
 
 /**

@@ -1017,6 +1017,16 @@ class CreateViewModelExecutionTest {
         assertFalse(installActionVisible(installedForUse = true))
     }
 
+    @Test
+    fun `installActionLabel is Install when the app is not installed system wide`() {
+        assertEquals("Install", installActionLabel(systemInstalled = false))
+    }
+
+    @Test
+    fun `installActionLabel is Reinstall when the app is already installed system wide`() {
+        assertEquals("Reinstall", installActionLabel(systemInstalled = true))
+    }
+
     // ---------------------------------------------------------------
     // newManifestResetsVerification: installedShortcuts is the 4th marker
     // ---------------------------------------------------------------

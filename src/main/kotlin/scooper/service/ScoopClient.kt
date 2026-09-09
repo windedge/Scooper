@@ -318,7 +318,7 @@ class ScoopClient(
         return commandArgs
     }
 
-    override suspend fun update(app: App, global: Boolean): CommandResult {
+    override suspend fun update(app: App, global: Boolean, force: Boolean): CommandResult {
         preDownloadIfNeeded(app)
         val bucketName = app.bucket?.name
 
@@ -338,15 +338,23 @@ class ScoopClient(
             } else {
                 mutableListOf("scoop", "install", "$bucketName/${app.name}")
             }
+            if (force) installArgs.add("--force")
             return executeAndLog(installArgs)
         }
 
+        return executeAndLog(updateArgs(app, global, force))
+    }
+
+    /** Build the update command args; internal so tests can assert assembly. */
+    internal fun updateArgs(app: App, global: Boolean, force: Boolean): List<String> {
         val commandArgs = if (global) {
-            mutableListOf("sudo", "scoop", "update", "-g", app.name)
+            mutableListOf("sudo", "scoop", "update", "-g")
         } else {
-            mutableListOf("scoop", "update", app.name)
+            mutableListOf("scoop", "update")
         }
-        return executeAndLog(commandArgs)
+        if (force) commandArgs.add("--force")
+        commandArgs.add(app.name)
+        return commandArgs
     }
 
     override suspend fun download(app: App): CommandResult {
@@ -834,17 +842,68 @@ class ScoopClient(
     internal fun startMenuShortcutFile(name: String, appDataDir: File): File =
         appDataDir.resolve("Microsoft/Windows/Start Menu/Programs/Scoop Apps/$name.lnk")
 
+    /**
+     * Resolve the Start Menu .lnk of an installed app. Scoop names shortcuts after the
+     * manifest display name ("Sanad Agent.lnk"), not the app name, so try the manifest
+     * names first, then the app name, then a normalized scan of the folder.
+     */
+    internal fun resolveStartMenuShortcut(
+        name: String,
+        shortcutNames: List<String>,
+        appDataDir: File,
+    ): File? {
+        (shortcutNames + name).distinct()
+            .map { startMenuShortcutFile(it, appDataDir) }
+            .firstOrNull { it.isFile }
+            ?.let { return it }
+
+        val folder = startMenuShortcutFile(name, appDataDir).parentFile ?: return null
+        val normalized = normalizeShortcutKey(name)
+        return folder.listFiles { file -> file.isFile && file.name.endsWith(".lnk", ignoreCase = true) }
+            ?.firstOrNull { normalizeShortcutKey(it.nameWithoutExtension) == normalized }
+    }
+
+    /** Shortcut display names declared by a manifest, top level or per architecture. */
+    internal fun shortcutNamesFromManifest(manifestJson: String?): List<String> {
+        if (manifestJson.isNullOrBlank()) return emptyList()
+        val root = runCatching {
+            ScoopClient.manifestJson.parseToJsonElement(manifestJson) as? JsonObject
+        }.getOrNull() ?: return emptyList()
+
+        fun namesOf(container: JsonElement?): List<String> =
+            (container as? JsonObject)?.get("shortcuts")
+                ?.let { it as? JsonArray }
+                ?.mapNotNull { entry ->
+                    (entry as? JsonArray)?.getOrNull(1)
+                        ?.let { (it as? JsonPrimitive)?.contentOrNull }
+                        ?.takeIf { it.isNotBlank() }
+                }
+                .orEmpty()
+
+        val archNames = (root["architecture"] as? JsonObject)?.values.orEmpty().flatMap { namesOf(it) }
+        return (namesOf(root) + archNames).distinct()
+    }
+
     /** Launch an installed app through its Start Menu shortcut. */
     fun openApp(name: String): CommandResult {
         val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }
             ?: return CommandResult(1, "APPDATA environment variable is not set")
-        val lnk = startMenuShortcutFile(name, File(appData))
-        if (!lnk.exists()) {
-            return CommandResult(1, "Start Menu shortcut not found: ${lnk.name}")
-        }
+        val lnk = resolveStartMenuShortcut(name, installedShortcutNames(name), File(appData))
+            ?: return CommandResult(1, "Start Menu shortcut not found: $name")
         ProcessBuilder("cmd", "/c", "start", "", lnk.absolutePath).start()
         return CommandResult(0)
     }
+
+    /** Shortcut names from the manifest Scoop copied into the installed app directory. */
+    private fun installedShortcutNames(name: String): List<String> =
+        listOf(rootDir, globalRootDir)
+            .map { it.resolve("apps/$name/current/manifest.json") }
+            .firstOrNull { it.isFile }
+            ?.let { shortcutNamesFromManifest(it.readText()) }
+            .orEmpty()
+
+    private fun normalizeShortcutKey(value: String): String =
+        value.lowercase().filter { it.isLetterOrDigit() }
 
     private suspend fun executeAndLog(args: List<String>): CommandResult {
         val result = executeAndLogCapture(args)
@@ -863,8 +922,25 @@ class ScoopClient(
             },
             onFinish = {},
         )
-        val errorMessage = outputLines.find { " ERROR " in it || it.trimStart().startsWith("ERROR ") }
-        val exitCode = if (errorMessage != null && result.resultCode == 0) 1 else result.resultCode
+        return evaluateInstallOutput(result.resultCode, outputLines)
+    }
+
+    /** Classify install output: Scoop exits 0 even when shortcut/icon creation fails
+     *  ("failed: Couldn't find ..."), so those lines must force exitCode 1. When scoop
+     *  itself exits nonzero but no line matches, emit a fallback conclusion line so
+     *  upstream UI/agent still get an explicit failure reason instead of a bare log tail.
+     *  The fallback must not overwrite the real exit code, otherwise the caller
+     *  would lose the actual scoop failure code for diagnostics/retry decisions. */
+    internal fun evaluateInstallOutput(resultCode: Int, outputLines: List<String>): TestInstallResult {
+        var errorMessage = outputLines.find {
+            " ERROR " in it ||
+                it.trimStart().startsWith("ERROR ") ||
+                it.contains("failed: Couldn't find")
+        }
+        if (resultCode != 0 && errorMessage == null) {
+            errorMessage = "scoop exited with code $resultCode (no error line matched)"
+        }
+        val exitCode = if (errorMessage != null && resultCode == 0) 1 else resultCode
         return TestInstallResult(exitCode, errorMessage, outputLines.joinToString("\n"))
     }
 
