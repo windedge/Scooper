@@ -123,6 +123,68 @@ class ScoopAiBridge(
         }
     }
 
+    /**
+     * Persist the bucket used by the Create save dialog so it can be
+     * preselected next time. Failures are logged, never thrown: last
+     * bucket memory is best-effort and must not break saving.
+     */
+    fun persistLastBucket(bucket: String) {
+        try {
+            val current = configRepository.getConfig()
+            configRepository.setConfig(withLastBucket(current, bucket))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Failed to persist last used bucket: ${e.message}")
+        }
+    }
+
+    /**
+     * Read the last bucket used by the Create save dialog. Best-effort:
+     * returns an empty string when the repository fails.
+     */
+    fun readLastBucket(): String {
+        return try {
+            configRepository.getConfig().aiLastBucket
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Failed to read last used bucket: ${e.message}")
+            ""
+        }
+    }
+
+    /**
+     * Persist the save dialog "commit to git repository" checkbox so it can
+     * be preselected next time. Failures are logged, never thrown:
+     * checkbox memory is best-effort and must not break saving.
+     */
+    fun persistCommitPreference(commit: Boolean) {
+        try {
+            val current = configRepository.getConfig()
+            configRepository.setConfig(withCommitPreference(current, commit))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Failed to persist commit-to-git preference: ${e.message}")
+        }
+    }
+
+    /**
+     * Read the save dialog "commit to git repository" checkbox. Best-effort:
+     * returns true (the dialog default) when the repository fails.
+     */
+    fun readCommitPreference(): Boolean {
+        return try {
+            configRepository.getConfig().aiCommitToGit
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.warn("Failed to read commit-to-git preference: ${e.message}")
+            true
+        }
+    }
+
     private fun createGenerator(
         settings: AiSettingsSnapshot,
         onPhase: ((String) -> Unit)?,
@@ -409,6 +471,24 @@ class ScoopAiBridge(
          */
         internal fun withModel(config: UIConfig, model: String): UIConfig {
             return config.copy(aiModel = model)
+        }
+
+        /**
+         * Pure copy: replace only [UIConfig.aiLastBucket], leaving every
+         * other field (and any future fields) untouched. Static so it stays
+         * unit-testable without a DB repository.
+         */
+        internal fun withLastBucket(config: UIConfig, bucket: String): UIConfig {
+            return config.copy(aiLastBucket = bucket)
+        }
+
+        /**
+         * Pure copy: replace only [UIConfig.aiCommitToGit], leaving every
+         * other field (and any future fields) untouched. Static so it stays
+         * unit-testable without a DB repository.
+         */
+        internal fun withCommitPreference(config: UIConfig, commit: Boolean): UIConfig {
+            return config.copy(aiCommitToGit = commit)
         }
 
         internal fun buildScoopAiConfig(settings: AiSettingsSnapshot): ScoopAiConfig {

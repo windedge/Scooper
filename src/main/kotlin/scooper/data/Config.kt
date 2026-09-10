@@ -60,6 +60,8 @@ data class UIConfig(
     val aiModel: String = "",
     val aiGithubToken: String = "",
     val aiAutoDownload: Boolean = false,
+    val aiLastBucket: String = "",
+    val aiCommitToGit: Boolean = true,
 )
 
 /** AI settings form model (Settings.AI). Field names match form_builder keys. */

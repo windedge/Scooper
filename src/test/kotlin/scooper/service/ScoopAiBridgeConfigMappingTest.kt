@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import scooper.data.UIConfig
+import scooper.repository.ConfigRepository
 import scooper.service.ScoopAiBridge.AiSettingsSnapshot
 
 // ---------------------------------------------------------------
@@ -117,5 +118,106 @@ class ScoopAiBridgeConfigMappingTest {
     fun `withModel accepts blank model to clear the selection`() {
         val updated = ScoopAiBridge.withModel(fullConfig(), "")
         assertEquals("", updated.aiModel)
+    }
+
+    // -------------------------------------------------------------
+    // ScoopAiBridge.withLastBucket: pure config copy used by
+    // persistLastBucket (Create save dialog). Only aiLastBucket
+    // changes; every other field must stay untouched.
+    // -------------------------------------------------------------
+
+    @Test
+    fun `withLastBucket replaces only aiLastBucket`() {
+        val updated = ScoopAiBridge.withLastBucket(fullConfig(), "extras")
+        assertEquals("extras", updated.aiLastBucket)
+    }
+
+    @Test
+    fun `withLastBucket keeps every other field untouched`() {
+        val base = fullConfig()
+        val updated = ScoopAiBridge.withLastBucket(base, "extras")
+        assertEquals(base.copy(aiLastBucket = "extras"), updated)
+        assertEquals(base.aiModel, updated.aiModel)
+        assertEquals(base.aiApiKey, updated.aiApiKey)
+        assertEquals(base.aiAutoDownload, updated.aiAutoDownload)
+        assertEquals(base.showTrayIcon, updated.showTrayIcon)
+        assertEquals(base.theme, updated.theme)
+    }
+
+    // -------------------------------------------------------------
+    // readLastBucket / persistLastBucket round-trip through a fake
+    // repository; persist failures are swallowed (best-effort).
+    // -------------------------------------------------------------
+
+    @Test
+    fun `persistLastBucket then readLastBucket round-trips`() {
+        val bridge = ScoopAiBridge(FakeConfigRepository(), InMemoryAiCheckpointService())
+        bridge.persistLastBucket("games")
+        assertEquals("games", bridge.readLastBucket())
+    }
+
+    @Test
+    fun `persistLastBucket swallows repository failures`() {
+        val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
+        bridge.persistLastBucket("games")
+    }
+
+    // -------------------------------------------------------------
+    // withCommitPreference: pure config copy used by
+    // persistCommitPreference (Create save dialog checkbox). Only
+    // aiCommitToGit changes; every other field must stay untouched.
+    // -------------------------------------------------------------
+
+    @Test
+    fun `withCommitPreference replaces only aiCommitToGit`() {
+        val updated = ScoopAiBridge.withCommitPreference(fullConfig(), false)
+        assertFalse(updated.aiCommitToGit)
+    }
+
+    @Test
+    fun `withCommitPreference keeps every other field untouched`() {
+        val base = fullConfig()
+        val updated = ScoopAiBridge.withCommitPreference(base, false)
+        assertEquals(base.copy(aiCommitToGit = false), updated)
+        assertEquals(base.aiModel, updated.aiModel)
+        assertEquals(base.aiApiKey, updated.aiApiKey)
+        assertEquals(base.aiAutoDownload, updated.aiAutoDownload)
+        assertEquals(base.aiLastBucket, updated.aiLastBucket)
+        assertEquals(base.showTrayIcon, updated.showTrayIcon)
+        assertEquals(base.theme, updated.theme)
+    }
+
+    @Test
+    fun `persistCommitPreference then readCommitPreference round-trips`() {
+        val bridge = ScoopAiBridge(FakeConfigRepository(), InMemoryAiCheckpointService())
+        bridge.persistCommitPreference(false)
+        assertFalse(bridge.readCommitPreference())
+        bridge.persistCommitPreference(true)
+        assertTrue(bridge.readCommitPreference())
+    }
+
+    @Test
+    fun `readCommitPreference returns true when repository fails`() {
+        val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
+        assertTrue(bridge.readCommitPreference())
+    }
+
+    @Test
+    fun `persistCommitPreference swallows repository failures`() {
+        val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
+        bridge.persistCommitPreference(false)
+    }
+
+    private class FakeConfigRepository : ConfigRepository() {
+        private var config = UIConfig()
+        override fun getConfig(): UIConfig = config
+        override fun setConfig(config: UIConfig) {
+            this.config = config
+        }
+    }
+
+    private class ThrowingConfigRepository : ConfigRepository() {
+        override fun getConfig(): UIConfig = throw IllegalStateException("db down")
+        override fun setConfig(config: UIConfig) = throw IllegalStateException("db down")
     }
 }

@@ -33,6 +33,8 @@ open class ConfigRepository {
                     aiModel = this[Configs.aiModel],
                     aiGithubToken = this[Configs.aiGithubToken],
                     aiAutoDownload = this[Configs.aiAutoDownload],
+                    aiLastBucket = this[Configs.aiLastBucket],
+                    aiCommitToGit = this[Configs.aiCommitToGit],
                 )
             }
         }
@@ -62,6 +64,8 @@ open class ConfigRepository {
                 it[aiModel] = config.aiModel
                 it[aiGithubToken] = config.aiGithubToken
                 it[aiAutoDownload] = config.aiAutoDownload
+                it[aiLastBucket] = config.aiLastBucket
+                it[aiCommitToGit] = config.aiCommitToGit
             }
         }
     }

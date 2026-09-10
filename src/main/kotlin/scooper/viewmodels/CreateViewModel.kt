@@ -114,6 +114,30 @@ data class SaveResult(
 internal fun ignoredNamesForConflictCheck(saveResultAppName: String?): Set<String> =
     setOfNotNull(saveResultAppName?.takeIf { it.isNotBlank() })
 
+/**
+ * Pick the bucket the save dialog preselects. Priority: the dialog's current
+ * selection, then the last used bucket persisted in Settings, then "main",
+ * then the first available bucket. Entries not in [buckets] are ignored so a
+ * deleted bucket is never preselected.
+ */
+internal fun resolveDefaultSaveBucket(
+    current: String,
+    lastUsed: String,
+    buckets: List<String>,
+): String = when {
+    current in buckets -> current
+    lastUsed in buckets -> lastUsed
+    "main" in buckets -> "main"
+    else -> buckets.first()
+}
+
+/**
+ * Default for the save dialog "commit to git repository" checkbox: checked
+ * only for git buckets, remembering the user's last checkbox choice.
+ */
+internal fun resolveDefaultCommitToGit(isGitBucket: Boolean, lastPreference: Boolean): Boolean =
+    isGitBucket && lastPreference
+
 data class QuestionnaireOption(
     val label: String,
     val value: String? = null,
@@ -890,11 +914,11 @@ class CreateViewModel(
             postSideEffect(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
             return@intent
         }
-        val defaultBucket = when {
-            state.saveBucket in buckets -> state.saveBucket
-            "main" in buckets -> "main"
-            else -> buckets.first()
-        }
+        val defaultBucket = resolveDefaultSaveBucket(
+            current = state.saveBucket,
+            lastUsed = scoopAiBridge.readLastBucket(),
+            buckets = buckets,
+        )
         val defaultBucketDir = scoopClient.bucketsBaseDir.resolve(defaultBucket)
         val isGit = gitHistoryService.isGitBucket(defaultBucketDir)
         reduce {
@@ -904,7 +928,10 @@ class CreateViewModel(
                 saveBucket = defaultBucket,
                 bucketOptions = buckets,
                 saveBucketIsGit = isGit,
-                saveCommitToGit = isGit,
+                saveCommitToGit = resolveDefaultCommitToGit(
+                    isGitBucket = isGit,
+                    lastPreference = scoopAiBridge.readCommitPreference(),
+                ),
                 overwriteConfirmOpen = false,
                 // C2: reopening the dialog clears the previous result card so it does not
                 // linger under the new dialog; a re-save starts from a blank result.
@@ -987,11 +1014,13 @@ class CreateViewModel(
 
         // Overwrite confirmation stays a dialog flow here; the AI path instead
         // replies needsOverwrite to the model.
+        // Capture the checkbox as the user confirmed it, before any reduce.
+        val commitToGit = state.saveCommitToGit
         when (val outcome = saveManifest(
             manifestJson = manifestJson,
             bucket = bucket,
             appName = name,
-            commitToGit = state.saveCommitToGit,
+            commitToGit = commitToGit,
             overwrite = allowOverwrite,
         )) {
             is BucketSaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
@@ -1011,6 +1040,8 @@ class CreateViewModel(
                         saveResult = saveResultOf(outcome),
                     )
                 }
+                scoopAiBridge.persistLastBucket(bucket)
+                scoopAiBridge.persistCommitPreference(commitToGit)
                 postSideEffect(
                     AppSideEffect.Toast(
                         "Saved ${outcome.appName}.json to bucket/${outcome.bucket}",
