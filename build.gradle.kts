@@ -52,6 +52,7 @@ dependencies {
 //    implementation(libs.compose.dnd)
 
     implementation(libs.scoop.ai.tools)
+    implementation(libs.flatlaf)
 
     // test
     testImplementation(libs.junit.jupiter)

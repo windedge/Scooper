@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,10 +35,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,6 +67,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +75,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
@@ -81,8 +86,10 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -99,6 +106,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -116,12 +124,15 @@ import scooper.ui.components.DialogTextField
 import scooper.ui.components.CompactModelSelector
 import scooper.ui.components.ExposedDropdownMenu
 import scooper.ui.components.SelectableContainer
+import scooper.ui.components.Tooltip
+import scooper.ui.components.TooltipPosition
 import scooper.ui.icons.*
 import scooper.ui.theme.*
 import scooper.viewmodels.ActiveExecution
 import scooper.viewmodels.AskUserRequest
 import scooper.viewmodels.QuestionnaireOption
 import scooper.viewmodels.QuestionnaireQuestion
+import scooper.util.ImageCodec
 import scooper.util.cursorHand
 import scooper.util.cursorLink
 import scooper.util.onHover
@@ -133,10 +144,12 @@ import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.CreateViewModel.Companion.MAX_PENDING_IMAGES
 import scooper.viewmodels.DiffLine
 import scooper.viewmodels.DiffLineType
 import scooper.viewmodels.ExecutionStep
 import scooper.viewmodels.ManifestRevision
+import scooper.viewmodels.PendingImage
 import scooper.viewmodels.ReviewActionChip
 import scooper.viewmodels.SaveGitHint
 import scooper.viewmodels.SaveResult
@@ -158,6 +171,16 @@ import scooper.viewmodels.elideUrlMiddle
 import scooper.viewmodels.isFailedExecutionStep
 import scooper.viewmodels.isNameConflictOnly
 import scooper.viewmodels.shouldRenderFullExecutionSteps
+import java.awt.EventQueue
+import java.awt.FileDialog
+import java.awt.Frame
+import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import java.io.FilenameFilter
+import javax.imageio.ImageIO
+import org.slf4j.LoggerFactory
 
 /**
  * Number of items in the chat LazyColumn, shared by the LazyColumn content and the
@@ -222,6 +245,8 @@ fun CreateScreen(
                 onFetchModels = viewModel::onFetchModels,
                 onSend = { url, note -> viewModel.onSend(url, note) },
                 onCancel = { viewModel.onCancel() },
+                onAttachImages = viewModel::attachImages,
+                onRemovePendingImage = viewModel::removePendingImage,
             )
         } else {
             ChatWorkspace(
@@ -239,6 +264,8 @@ fun CreateScreen(
                 onSave = { viewModel.onSave() },
                 onInstallSaved = { viewModel.onInstallSaved() },
                 onOpenApp = { viewModel.onOpenApp() },
+                onAttachImages = viewModel::attachImages,
+                onRemovePendingImage = viewModel::removePendingImage,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
                 onDismissTestResult = viewModel::onDismissTestResult,
@@ -1034,6 +1061,8 @@ private fun EmptyWorkspace(
     onFetchModels: () -> Unit,
     onSend: (url: String, note: String) -> Unit,
     onCancel: () -> Unit,
+    onAttachImages: (List<PendingImage>) -> Unit,
+    onRemovePendingImage: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -1081,6 +1110,8 @@ private fun EmptyWorkspace(
             onFetchModels = onFetchModels,
             onSend = onSend,
             onCancel = onCancel,
+            onAttachImages = onAttachImages,
+            onRemovePendingImage = onRemovePendingImage,
             modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
         )
         Spacer(Modifier.height(24.dp))
@@ -1122,6 +1153,8 @@ private fun ChatWorkspace(
     onApplyActionChip: (ReviewActionChip) -> Unit,
     onToggleExecutionExpanded: (String) -> Unit,
     onAction: (AiErrorAction) -> Unit,
+    onAttachImages: (List<PendingImage>) -> Unit,
+    onRemovePendingImage: (String) -> Unit,
 ) {
     @Composable
     fun PreviewArtifactPanel() {
@@ -1133,6 +1166,7 @@ private fun ChatWorkspace(
                 testing = state.testing,
                 testSucceeded = manifestTestSucceeded(state.testResult, state.installVerified, state.manifestSaved),
                 manifestSaved = state.manifestSaved,
+                hasSaveResult = state.saveResult != null,
                 installing = state.installing,
                 installedForUse = state.installedForUse,
                 systemInstalled = state.systemInstalled,
@@ -1264,6 +1298,8 @@ private fun ChatWorkspace(
                         onFetchModels = onFetchModels,
                         onSend = onSend,
                         onCancel = onCancel,
+                        onAttachImages = onAttachImages,
+                        onRemovePendingImage = onRemovePendingImage,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -1362,6 +1398,8 @@ private fun ChatWorkspace(
                     onFetchModels = onFetchModels,
                     onSend = onSend,
                     onCancel = onCancel,
+                    onAttachImages = onAttachImages,
+                    onRemovePendingImage = onRemovePendingImage,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -1377,6 +1415,8 @@ private fun ChatBubble(
     onToggleExecutionExpanded: (String) -> Unit = {},
 ) {
     val isUser = message.role == ChatRole.User
+    // Shared so every bubble thumbnail swipes through the same preview strip.
+    var previewImage by remember { mutableStateOf<PendingImage?>(null) }
     val bubbleShape = RoundedCornerShape(
         topStart = 12.dp,
         topEnd = 12.dp,
@@ -1418,6 +1458,24 @@ private fun ChatBubble(
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        if (isUser && message.images.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                message.images.forEach { image ->
+                                    rememberImageBitmap(image)?.let { bitmap ->
+                                        Image(
+                                            bitmap = bitmap,
+                                            contentDescription = "Sent image",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .height(120.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .cursorHand()
+                                                .clickable { previewImage = image },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         // Reply body first (proposal 5.5): Markdown subset for agent
                         // replies with a local 4-line collapse toggle; plain monospace
                         // for user instructions; error bubbles keep their text path.
@@ -1437,9 +1495,9 @@ private fun ChatBubble(
                         }
                         // Expanded steps sit after the body inside a faint neutral
                         // block so they do not stick to the reply text. Error bubbles
-                        // keep their own layout without this block.
+                        // fold their steps too, so they also expand (failure review).
                         if (message.executionSteps.isNotEmpty() &&
-                            message.isExecutionExpanded && expandableExecutionSteps && !isErrorBubble
+                            message.isExecutionExpanded && expandableExecutionSteps
                         ) {
                             Surface(
                                 color = colors.divider.copy(alpha = 0.15f),
@@ -1473,6 +1531,7 @@ private fun ChatBubble(
                                         expandable = expandableExecutionSteps,
                                         onClick = { onToggleExecutionExpanded(message.id) },
                                         expanded = message.isExecutionExpanded,
+                                        failed = isErrorBubble,
                                     )
                                 }
                                 tokenFooter?.let { footer ->
@@ -1566,6 +1625,11 @@ private fun ChatBubble(
                     }
                 }
             }
+        }
+    }
+    previewImage?.let {
+        ImagePreviewDialog(images = message.images, initialImage = it) {
+            previewImage = null
         }
     }
 }
@@ -1854,6 +1918,7 @@ private fun ExecutionSummaryCapsule(
     expandable: Boolean,
     onClick: () -> Unit,
     expanded: Boolean = false,
+    failed: Boolean = false,
 ) {
     Surface(
         color = colors.surface,
@@ -1877,14 +1942,14 @@ private fun ExecutionSummaryCapsule(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
         ) {
             Text(
-                "✓",
+                if (failed) "✗" else "✓",
                 style = typography.caption.copy(
                     fontWeight = FontWeight.SemiBold,
-                    color = colors.updateDefault,
+                    color = if (failed) colors.dangerDefault else colors.updateDefault,
                 ),
             )
             Text(
-                executionSummaryCapsuleText(steps).removePrefix("✓ "),
+                executionSummaryCapsuleText(steps, failed = failed).removePrefix(if (failed) "✗ " else "✓ "),
                 style = typography.caption.copy(
                     fontWeight = FontWeight.Medium,
                     color = colors.textBody,
@@ -1941,6 +2006,7 @@ private fun ManifestPreviewCard(
     exhausted: Boolean = false,
     invalidJson: Boolean = false,
     manifestSaved: Boolean = false,
+    hasSaveResult: Boolean = false,
     installing: Boolean = false,
     installedForUse: Boolean = false,
     systemInstalled: Boolean = false,
@@ -2301,7 +2367,7 @@ private fun ManifestPreviewCard(
                                             .clickable(enabled = enabled) {
                                                 onApplyActionChip(chip)
                                             }
-                                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                                            .padding(horizontal = 14.dp, vertical = 8.dp),
                                     ) {
                                         Text(
                                             chip.label,
@@ -2362,7 +2428,7 @@ private fun ManifestPreviewCard(
                     SmallActionButton(
                         label = installActionLabel(systemInstalled = systemInstalled),
                         onClick = onInstallSaved,
-                        enabled = installActionEnabled(manifestSaved, installedForUse, running, testing, installing),
+                        enabled = installActionEnabled(manifestJson, installedForUse, running, testing, installing),
                         primary = installActionPrimary(manifestSaved, installedForUse),
                         loading = installing,
                     )
@@ -2798,6 +2864,206 @@ private fun SmallActionButton(
     }
 }
 
+/**
+ * Decodes attached image bytes once per id. Decoding is opt-in on failure:
+ * a corrupt image is skipped instead of crashing the composer.
+ */
+@Composable
+private fun rememberImageBitmap(image: PendingImage): ImageBitmap? =
+    remember(image.id) {
+        runCatching { image.bytes.decodeToImageBitmap() }.getOrNull()
+    }
+
+/** Small pending-image preview with a remove affordance, shown above the input. */
+@Composable
+private fun PendingImageThumb(
+    image: PendingImage,
+    onRemove: (String) -> Unit,
+    onPreview: (PendingImage) -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    val bitmap = rememberImageBitmap(image) ?: return
+    Box(modifier = Modifier.size(60.dp)) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = "Attached image",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(6.dp))
+                .cursorHand()
+                .clickable { onPreview(image) },
+        )
+        Surface(
+            shape = CircleShape,
+            color = colors.surface,
+            border = BorderStroke(1.dp, colors.borderDefault),
+            modifier = Modifier.align(Alignment.TopEnd).size(18.dp).cursorHand(),
+        ) {
+            Icon(
+                Lucide.X,
+                contentDescription = "Remove image",
+                tint = colors.textMuted,
+                modifier = Modifier.padding(3.dp).clickable { onRemove(image.id) },
+            )
+        }
+    }
+}
+
+/**
+ * Fullscreen image preview: dim scrim with the image fitted inside, tap anywhere
+ * to dismiss. Switch between attached images via the dots at the bottom.
+ */
+@Composable
+private fun ImagePreviewDialog(
+    images: List<PendingImage>,
+    initialImage: PendingImage,
+    onDismiss: () -> Unit,
+) {
+    val startAt = images.indexOfFirst { it.id == initialImage.id }.takeIf { it >= 0 } ?: 0
+    var currentIndex by remember(initialImage.id) { mutableStateOf(startAt) }
+    val current = images.getOrNull(currentIndex) ?: initialImage
+    val bitmap = rememberImageBitmap(current)
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.75f))
+                .cursorHand()
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center,
+        ) {
+            bitmap?.let {
+                Image(
+                    bitmap = it,
+                    contentDescription = "Image preview",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize(0.85f)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+            }
+            Text(
+                "${currentIndex + 1} / ${images.size}" +
+                    "  " + current.mimeType +
+                    "  " + bitmapWidth(bitmap) + "x" + bitmapHeight(bitmap),
+                style = typography.caption.copy(color = Color.White.copy(alpha = 0.7f)),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 24.dp),
+            )
+            if (images.size > 1) {
+                Row(
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    images.forEachIndexed { index, item ->
+                        Box(
+                            modifier = Modifier
+                                .size(if (index == currentIndex) 8.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = if (index == currentIndex) 1f else 0.4f))
+                                .cursorHand()
+                                .clickable { currentIndex = index },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun bitmapWidth(bitmap: ImageBitmap?): Int = bitmap?.width ?: 0
+
+private fun bitmapHeight(bitmap: ImageBitmap?): Int = bitmap?.height ?: 0
+
+/** Picks images through the FlatLaf system file chooser (EDT-only API) and attaches them. */
+private fun pickImages(onAttach: (List<PendingImage>) -> Unit) {
+    java.awt.EventQueue.invokeLater {
+        // FlatLaf SystemFileChooser shows the native Windows IFileDialog with a
+        // reliable extension filter and multi-select, unlike Swing/AWT choosers.
+        val chooser = com.formdev.flatlaf.util.SystemFileChooser()
+        chooser.dialogTitle = "Select image"
+        chooser.isMultiSelectionEnabled = true
+        chooser.fileSelectionMode = com.formdev.flatlaf.util.SystemFileChooser.FILES_ONLY
+        chooser.fileFilter = com.formdev.flatlaf.util.SystemFileChooser.FileNameExtensionFilter(
+            "Image files (PNG, JPEG)",
+            "png", "jpg", "jpeg",
+        )
+        val chosen = if (chooser.showOpenDialog(null) == com.formdev.flatlaf.util.SystemFileChooser.APPROVE_OPTION) {
+            chooser.selectedFiles.toList()
+        } else {
+            emptyList()
+        }
+        val picked = chosen
+        if (picked.isEmpty()) return@invokeLater
+        // Decode + compress off the EDT: loadAndCompress does real image IO.
+        Thread({
+            val images = picked.mapNotNull { file ->
+                ImageCodec.loadAndCompress(file).getOrNull()
+                    ?.let { PendingImage(bytes = it.bytes, mimeType = it.mimeType) }
+            }
+            if (images.isNotEmpty()) onAttach(images.take(MAX_PENDING_IMAGES))
+        }, "image-pick-encode").start()
+    }
+}
+
+/** Compact plus button inside the input box, bottom-right aligned. */
+@Composable
+private fun InlineAttachButton(enabled: Boolean, onAttachImages: (List<PendingImage>) -> Unit) {
+    val colors = MaterialTheme.colors
+    Tooltip("Attach image (paste also works: Ctrl+V)", position = TooltipPosition.Top) {
+        Box(
+            modifier = Modifier
+                .padding(bottom = 8.dp)
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(colors.inputBackground)
+                .cursorHand()
+                .clickable(enabled = enabled) { pickImages(onAttachImages) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Lucide.Plus,
+                contentDescription = "Attach image",
+                modifier = Modifier.size(18.dp),
+                tint = if (enabled) colors.textMuted else colors.divider,
+            )
+        }
+    }
+}
+
+/** Non-blocking clipboard probe for the key handler: true only when an image flavor is present. */
+private fun clipboardHasImage(): Boolean = try {
+    Toolkit.getDefaultToolkit().systemClipboard.isDataFlavorAvailable(DataFlavor.imageFlavor)
+} catch (_: Exception) {
+    false
+}
+
+private fun readClipboardImage(): PendingImage? {
+    repeat(8) { attempt ->
+        try {
+            val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+            if (clipboard.isDataFlavorAvailable(DataFlavor.imageFlavor)) {
+                val img = clipboard.getData(DataFlavor.imageFlavor) as? BufferedImage
+                    ?: return@repeat
+                val out = ByteArrayOutputStream()
+                ImageIO.write(img, "png", out)
+                val encoded = ImageCodec.compressBytes(out.toByteArray(), "image/png").getOrNull()
+                    ?: return@repeat
+                return PendingImage(bytes = encoded.bytes, mimeType = encoded.mimeType)
+            }
+            return null
+        } catch (_: Exception) {
+            Thread.sleep(40)
+        }
+    }
+    return null
+}
+
 @Composable
 private fun Composer(
     state: CreateState,
@@ -2809,11 +3075,16 @@ private fun Composer(
     onFetchModels: () -> Unit,
     onSend: (url: String, note: String) -> Unit,
     onCancel: () -> Unit,
+    onAttachImages: (List<PendingImage>) -> Unit,
+    onRemovePendingImage: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf(state.inputNote.ifBlank { state.inputUrl }) }
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    // Shared so every pending thumbnail opens the same preview strip.
+    var previewImage by remember { mutableStateOf<PendingImage?>(null) }
 
     LaunchedEffect(inputFocusTick) {
         focusRequester.requestFocus()
@@ -2829,7 +3100,8 @@ private fun Composer(
     }
 
     fun submit() {
-        if (state.running || state.testing || inputText.isBlank()) return
+        if (state.running || state.testing) return
+        if (inputText.isBlank() && state.pendingImages.isEmpty()) return
         val text = inputText.trim()
         inputText = ""
         onUrlChange("")
@@ -2860,6 +3132,24 @@ private fun Composer(
                 .clip(RoundedCornerShape(12.dp))
                 .background(colors.surface),
         ) {
+            if (state.pendingImages.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 10.dp, end = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    state.pendingImages.forEach { image ->
+                        PendingImageThumb(
+                            image = image,
+                            onRemove = onRemovePendingImage,
+                            onPreview = { previewImage = image },
+                        )
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
             BasicTextField(
                 value = inputText,
                 onValueChange = { value ->
@@ -2879,7 +3169,7 @@ private fun Composer(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { submit() }),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .heightIn(min = 46.dp, max = 150.dp)
                     .focusRequester(focusRequester)
                     .onFocusChanged { focused = it.isFocused }
@@ -2889,6 +3179,20 @@ private fun Composer(
                         ) {
                             submit()
                             true
+                        } else if (event.type == KeyEventType.KeyDown &&
+                            ((event.key == Key.V && event.isCtrlPressed && !event.isShiftPressed) ||
+                                (event.key == Key.Insert && event.isShiftPressed))
+                        ) {
+                            if (!clipboardHasImage()) {
+                                false
+                            } else {
+                                // Read/compress off the UI thread (clipboard retries
+                                // sleep); orbit intents are thread-safe to call.
+                                scope.launch(Dispatchers.Default) {
+                                    readClipboardImage()?.let { onAttachImages(listOf(it)) }
+                                }
+                                true
+                            }
                         } else {
                             false
                         }
@@ -2918,6 +3222,11 @@ private fun Composer(
                     }
                 },
             )
+                InlineAttachButton(
+                    enabled = !state.running && !state.testing && state.pendingImages.size < MAX_PENDING_IMAGES,
+                    onAttachImages = onAttachImages,
+                )
+            }
         }
         Spacer(Modifier.height(8.dp))
         Row(
@@ -2966,7 +3275,7 @@ private fun Composer(
                 } else {
                     Button(
                         onClick = { submit() },
-                        enabled = !state.testing && inputText.isNotBlank(),
+                        enabled = !state.testing && (inputText.isNotBlank() || state.pendingImages.isNotEmpty()),
                         modifier = Modifier.cursorHand().height(34.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
@@ -2990,6 +3299,11 @@ private fun Composer(
                     }
                 }
             }
+        }
+    }
+    previewImage?.let { clicked ->
+        ImagePreviewDialog(images = state.pendingImages, initialImage = clicked) {
+            previewImage = null
         }
     }
 }

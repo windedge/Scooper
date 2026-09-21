@@ -42,6 +42,29 @@ class AiErrorTranslatorTest {
     }
 
     @Test
+    fun `ScoopAiGenerationException embedding its cause does not duplicate the cause text`() {
+        val original = "Unable to finish subgraph with task: the model was not able to call the tool after 3 attempts."
+        val wrapped = ScoopAiGenerationException("Manifest generation failed during the 'generate' phase. " +
+            "Fix: switch to a tool-capable model. Original error: $original", RuntimeException(original))
+
+        val p = AiErrorTranslator.translate(wrapped)
+
+        val occurrences = p.technicalDetails!!.split(original).size - 1
+        assertEquals(1, occurrences, "the embedded original error must appear exactly once")
+    }
+
+    @Test
+    fun `distinct cause messages are all kept when no embedding occurs`() {
+        val e = IllegalStateException("outer detail", RuntimeException("inner cause detail"))
+
+        val p = AiErrorTranslator.translate(e)
+
+        val details = requireNotNull(p.technicalDetails)
+        assertTrue(details.contains("outer detail"))
+        assertTrue(details.contains("inner cause detail"))
+    }
+
+    @Test
     fun `ScoopAiGenerationException nested under a wrapper still maps to CAPABILITY`() {
         val inner = ScoopAiGenerationException("you must call tool_calls")
         val e = IllegalStateException("generation wrapped", inner)

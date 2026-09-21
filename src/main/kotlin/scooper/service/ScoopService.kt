@@ -37,6 +37,17 @@ class ScoopService(
         return result.exitCode
     }
 
+    /**
+     * Publish an install done outside ScoopService (Create saves the manifest
+     * and runs scoop install directly), keeping all screens in sync. Callers
+     * must write the index first: this deliberately does not upsert, because
+     * the singular upsertApp has no orphan filter and would clear the
+     * bucketId of a same-name bucket row.
+     */
+    suspend fun notifyInstalled(app: App) {
+        emit(ScoopEvent.AppInstalled(app.name))
+    }
+
     /** Uninstall an app and update DB.
      *  If the app's bucket still exists locally, marks it as UNINSTALL.
      *  If the bucket was already removed, deletes the record entirely.

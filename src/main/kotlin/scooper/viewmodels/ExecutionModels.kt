@@ -294,15 +294,19 @@ internal fun isFailedExecutionStep(step: ExecutionStep, messageHasActions: Boole
 
 /**
  * Summary capsule text for a collapsed finalized execution card, e.g.
- * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations).
+ * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations);
+ * error bubbles render "✗ Failed in ..." instead so the badge never claims
+ * success for a failed run.
  * Token usage is intentionally absent here; it renders only in the bubble
  * footer below the body (see [formatTokenFooter]).
  * Pure function.
  */
-internal fun executionSummaryCapsuleText(steps: List<ExecutionStep>): String {
+internal fun executionSummaryCapsuleText(steps: List<ExecutionStep>, failed: Boolean = false): String {
     val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
     val noun = if (steps.size == 1) "step" else "steps"
-    return "✓ Completed in ${formatStepDuration(totalMs)} · ${steps.size} $noun"
+    val verb = if (failed) "Failed" else "Completed"
+    val mark = if (failed) "✗" else "✓"
+    return "$mark $verb in ${formatStepDuration(totalMs)} · ${steps.size} $noun"
 }
 
 /**
@@ -373,14 +377,18 @@ internal fun newManifestResetsVerification(
 internal fun installActionPrimary(manifestSaved: Boolean, installedForUse: Boolean): Boolean =
     manifestSaved && !installedForUse
 
-/** Install for use is only offered for a saved, not-yet-installed manifest with nothing in flight. */
+/**
+ * Install for use is offered for any valid manifest, saved or not, with
+ * nothing in flight. An unsaved manifest installs straight from the local
+ * file; the save result is no longer part of the gate.
+ */
 internal fun installActionEnabled(
-    manifestSaved: Boolean,
+    manifestJson: String,
     installedForUse: Boolean,
     running: Boolean,
     testing: Boolean,
     installing: Boolean,
-): Boolean = manifestSaved && !installedForUse && !running && !testing && !installing
+): Boolean = isScoopManifestJson(manifestJson) && !installedForUse && !running && !testing && !installing
 
 /** Install is hidden once the app is installed for use; Open replaces it. */
 internal fun installActionVisible(installedForUse: Boolean): Boolean = !installedForUse

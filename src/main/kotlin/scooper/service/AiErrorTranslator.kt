@@ -64,9 +64,25 @@ object AiErrorTranslator {
     private val serverErrorRegex = Regex("""\b5\d{2}\b""")
     private val clientPrefixRegex = Regex("""(?:Error from client:\s*[^:]+:\s*)+""")
 
+    /**
+     * True when the failure is about image input, either from the local Koog
+     * capability gate ("Model X does not support image") or from a gateway
+     * rejecting multimodal requests ("vision is not enabled").
+     */
+    private fun isVisionUnsupported(text: String): Boolean {
+        val mentionsVision = "vision" in text || "multimodal" in text || "image input" in text ||
+            "does not support image" in text || "image_url" in text
+        val isUnsupported = "not support" in text || "not supported" in text ||
+            "not enabled" in text || "unsupported" in text
+        return mentionsVision && isUnsupported
+    }
+
     fun translate(error: Throwable): AiErrorPresentation {
         val (rawMessages, isCapability) = collect(error)
-        val cleanedMessages = rawMessages.map(::cleanMessage).filter { it.isNotBlank() }.distinct()
+        val cleanedMessages = dropEmbeddedCauses(rawMessages)
+            .map(::cleanMessage)
+            .filter { it.isNotBlank() }
+            .distinct()
         val rawDetail = if (cleanedMessages.isEmpty()) "(no error detail)" else cleanedMessages.joinToString("\n")
         // Lowercased for case-insensitive keyword matching; status codes stay intact.
         val text = (rawMessages + cleanedMessages).joinToString("\n").lowercase()
@@ -77,6 +93,13 @@ object AiErrorTranslator {
                 detail = "The model does not support function calling (tool_calls). Please switch to a tool-capable model (e.g. deepseek-chat, gpt-4o, claude) in Settings > AI.",
                 technicalDetails = rawDetail,
                 actions = RESUMABLE_ACTIONS,
+            )
+
+            isVisionUnsupported(text) -> presentation(
+                title = "Model does not accept images",
+                detail = "The current model cannot process image input. Switch to a multimodal model (e.g. gpt-4o, claude, gemini) in Settings > AI, or send the request without images.",
+                technicalDetails = rawDetail,
+                actions = listOf(AiErrorAction.OPEN_SETTINGS),
             )
 
             "401" in text || "403" in text -> presentation(
@@ -190,6 +213,20 @@ object AiErrorTranslator {
 
     private fun cleanMessage(msg: String): String =
         msg.replace(clientPrefixRegex, "").trim()
+
+    /**
+     * Drop cause-chain messages whose text was already embedded verbatim at the
+     * tail of an earlier (outer) message after an "Original error:" marker, as
+     * [com.scoopai.core.ScoopAiGenerationException] does; distinct() cannot see
+     * this substring-shaped duplication.
+     */
+    private fun dropEmbeddedCauses(messages: List<String>): List<String> {
+        return messages.filterIndexed { index, msg ->
+            messages.take(index).none { earlier ->
+                earlier.endsWith(msg) && earlier.substringBeforeLast("Original error: ") != earlier
+            }
+        }
+    }
 
     private fun presentation(
         title: String,

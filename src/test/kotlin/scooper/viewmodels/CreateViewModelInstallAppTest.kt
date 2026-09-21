@@ -53,6 +53,7 @@ class CreateViewModelInstallAppTest {
         assertEquals("true", resultJsonField(result.resultJson, "success"))
         assertEquals("fd", resultJsonField(result.resultJson, "app"))
         assertEquals("main", resultJsonField(result.resultJson, "bucket"))
+        assertEquals("bucket", resultJsonField(result.resultJson, "mode"))
     }
 
     // ---------------------------------------------------------------------
@@ -72,6 +73,7 @@ class CreateViewModelInstallAppTest {
         assertFalse(result.newlyInstalled)
         assertEquals("download failed", result.maskedError)
         assertEquals("false", resultJsonField(result.resultJson, "success"))
+        assertEquals("bucket", resultJsonField(result.resultJson, "mode"))
         assertEquals("download failed", resultJsonField(result.resultJson, "error"))
     }
 
@@ -124,6 +126,7 @@ class CreateViewModelInstallAppTest {
         assertNull(result.maskedError)
 
         assertEquals("true", resultJsonField(result.resultJson, "success"))
+        assertEquals("bucket", resultJsonField(result.resultJson, "mode"))
         assertEquals("already installed in this session", resultJsonField(result.resultJson, "message"))
         assertNull(resultJsonField(result.resultJson, "app"), "the guard reply must not claim a fresh install")
     }

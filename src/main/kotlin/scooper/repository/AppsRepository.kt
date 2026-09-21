@@ -305,6 +305,16 @@ class AppsRepository(
         }
     }
 
+    /**
+     * Insert or update apps without touching timestamps. An app with no
+     * bucket matches only a true orphan row (same name, bucketId null), so a
+     * same-name bucket row is never converted into an orphan. Public so the
+     * direct-install path can record an installed app without a bucket.
+     */
+    fun upsertApps(apps: List<App>) = synchronized(writeLock) { transaction {
+        upsertApps(apps, preserveUpdateAt = false)
+    } }
+
     private fun upsertApps(apps: List<App>, preserveUpdateAt: Boolean) {
         for (app in apps) {
             if (app.bucket != null) {

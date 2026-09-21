@@ -25,7 +25,9 @@ import scooper.taskqueue.TaskQueue
 /**
  * TDD tests for the Open button wiring: [CreateViewModel.onOpenApp] launches the
  * installed app through [ScoopClient.openApp], guarded by [CreateState.installedForUse]
- * and a present [CreateState.saveResult], and reports failures as an ERROR toast.
+ * and reports failures as an ERROR toast. The installed app name resolves through
+ * [resolveOpenAppName]: the save result first, then the direct-install record name,
+ * then the URL tail; an unresolvable name toasts instead of staying silent.
  * The VM is built from fake repositories/services following the
  * CreateViewModelDismissTestResultTest pattern; failure is exercised with a
  * guaranteed-missing shortcut name so no real app can be launched.
@@ -88,6 +90,77 @@ class CreateViewModelOpenAppTest {
         assertTrue(
             errorToasts.any { it.text.contains(missing) },
             "error toast must mention the app name, got: $toasts",
+        )
+        vm.close()
+    }
+
+    // ---------------------------------------------------------------------
+    // Installed name resolution
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `resolveOpenAppName prefers the save result over the installed name`() {
+        val state = CreateState(
+            saveResult = SaveResult(
+                success = true,
+                appName = "saved-name",
+                bucket = "main",
+                targetPath = "C:/bucket/main/saved-name.json",
+                overwritten = false,
+                indexedOk = true,
+            ),
+            suggestedAppName = "other",
+        )
+        assertEquals("saved-name", resolveOpenAppName(state, lastUrl = "https://github.com/foo/bar"))
+    }
+
+    @Test
+    fun `resolveOpenAppName prefers the recorded direct install name over the suggested name`() {
+        // Direct installs never set saveResult; the recorded install name is
+        // what was actually installed, so it outranks the suggestion.
+        val state = CreateState(directInstallName = "recorded", suggestedAppName = "other")
+        assertEquals("recorded", resolveOpenAppName(state, lastUrl = "https://github.com/foo/ignored"))
+    }
+
+    @Test
+    fun `resolveOpenAppName falls back to the suggested name when the direct install name is blank`() {
+        val state = CreateState(directInstallName = "  ", suggestedAppName = "directapp")
+        assertEquals("directapp", resolveOpenAppName(state, lastUrl = "https://github.com/foo/ignored"))
+    }
+
+    @Test
+    fun `resolveOpenAppName falls back to the url tail as a last resort`() {
+        val state = CreateState(suggestedAppName = null, lastUrl = "https://github.com/user/ripgrep")
+        assertEquals("ripgrep", resolveOpenAppName(state, lastUrl = "https://github.com/user/ripgrep"))
+    }
+
+    @Test
+    fun `resolveOpenAppName returns null when nothing can be derived`() {
+        val state = CreateState(suggestedAppName = null, lastUrl = "")
+        assertEquals(null, resolveOpenAppName(state, lastUrl = ""))
+    }
+
+    // ---------------------------------------------------------------------
+    // Silent-no-op regression: unresolvable name must toast, not vanish
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `onOpenApp toasts an error when no installed name can be resolved`() = runBlocking {
+        val vm = createViewModel(installed = true, withSaveResult = false)
+        awaitStable(vm)
+        runBlocking {
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) {
+                    vm.container.orbit {
+                        reduce { state.copy(suggestedAppName = null, lastUrl = "") }
+                    }
+                }
+            }
+        }
+        val toasts = collectToasts(vm) { vm.onOpenApp().join() }
+        assertTrue(
+            toasts.any { it.type == ToastType.ERROR },
+            "expected an ERROR toast when the app name cannot be resolved, got: $toasts",
         )
         vm.close()
     }

@@ -29,6 +29,19 @@ interface ScoopCli {
     suspend fun cleanup(vararg apps: String, global: Boolean): CommandResult
     suspend fun removeCache(vararg apps: String): CommandResult
     suspend fun installVersion(app: App, manifestFile: File, global: Boolean): CommandResult
+
+    /**
+     * Direct-install the current manifest from a local file (no bucket required).
+     * When a same-name app is already installed in the target scope it is
+     * uninstalled first (without -p, persist data preserved), then the manifest
+     * file is installed; [reinstallGlobal] selects the uninstall scope.
+     */
+    suspend fun installFromManifest(
+        app: App,
+        manifestFile: File,
+        global: Boolean,
+        reinstallGlobal: Boolean,
+    ): CommandResult
     /**
      * Test-install a local manifest under a dedicated temporary app name.
      * Does NOT uninstall any real/official app - only the given [testAppName].

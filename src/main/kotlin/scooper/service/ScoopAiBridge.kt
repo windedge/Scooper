@@ -1,6 +1,7 @@
 package scooper.service
 
 import com.scoopai.core.ManifestResult
+import com.scoopai.core.agent.BinaryImage
 import com.scoopai.tools.DefaultScoopAiFactory
 import com.scoopai.tools.DefaultToolRegistryFactory
 import com.scoopai.tools.ScoopAiConfig
@@ -17,11 +18,25 @@ import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
+ * Image bytes handed to the engine s assist session. Purely transient: never
+ * persisted to checkpoints, only forwarded as a Koog binary attachment.
+ */
+data class AiImage(val bytes: ByteArray, val mimeType: String) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is AiImage) return false
+        return mimeType == other.mimeType && bytes.contentEquals(other.bytes)
+    }
+
+    override fun hashCode(): Int = 31 * mimeType.hashCode() + bytes.contentHashCode()
+}
+
+/**
  * Bridge from Scooper Settings.AI into scoop-ai [DefaultScoopAiFactory].
  *
  * Owns a dedicated IO [CoroutineScope] (never TaskQueue). Cancel aborts the running Job.
  */
-class ScoopAiBridge(
+open class ScoopAiBridge(
     private val configRepository: ConfigRepository,
     private val checkpointService: InMemoryAiCheckpointService,
     private val connectionTester: AiConnectionTester = AiConnectionTester(),
@@ -193,7 +208,13 @@ class ScoopAiBridge(
         onAskUser: (suspend (String) -> String)?,
         onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
         onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
-        onInstallApp: (suspend (bucket: String, name: String) -> String)? = null,
+        /**
+         * Host install callback backing the engine's `install_app` tool.
+         * Signature: (bucket, name) -> result JSON. A null or blank bucket
+         * asks for a direct install of the current manifest without saving it
+         * to any bucket. When null the assist session runs without the tool.
+         */
+        onInstallApp: (suspend (bucket: String?, name: String) -> String)? = null,
         /**
          * App names the engine's conflict check must ignore, e.g. the manifest
          * this session itself just saved: at verify time it is already in the
@@ -308,12 +329,14 @@ class ScoopAiBridge(
      * Start an asynchronous manifest assist run using an existing manifest
      * and user instructions, skipping research and analyze phases.
      */
-    fun startAssist(
+    open fun startAssist(
         currentManifest: String,
         instruction: String,
         history: List<String> = emptyList(),
         suggestedAppName: String? = null,
         overrideModel: String? = null,
+        /** User screenshots attached to this message (assist only, never replayed). */
+        images: List<AiImage> = emptyList(),
         /** App names the engine's conflict check must ignore (see [createGenerator]). */
         ignoreAppNames: Set<String> = emptySet(),
         onPhase: ((String) -> Unit)? = null,
@@ -329,10 +352,11 @@ class ScoopAiBridge(
         onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
         /**
          * Host install callback backing the engine's `install_app` tool.
-         * Signature: (bucket, name) -> result JSON. When null the assist
-         * session runs without the tool.
+         * Signature: (bucket, name) -> result JSON. A null or blank bucket
+         * asks for a direct install of the current manifest without saving it
+         * to any bucket. When null the assist session runs without the tool.
          */
-        onInstallApp: (suspend (bucket: String, name: String) -> String)? = null,
+        onInstallApp: (suspend (bucket: String?, name: String) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
         generateJob?.cancel()
@@ -370,6 +394,7 @@ class ScoopAiBridge(
                     history = history,
                     evidence = evidence,
                     suggestedAppName = suggestedAppName,
+                    images = images.map { BinaryImage(bytes = it.bytes, mimeType = it.mimeType) },
                 )
                 onFinished(Result.success(result))
             } catch (e: CancellationException) {

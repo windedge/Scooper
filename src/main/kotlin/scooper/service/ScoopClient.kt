@@ -16,6 +16,7 @@ import scooper.util.executeSuspend
 import scooper.util.findExecutable
 import scooper.util.getString
 import scooper.util.killAllSubProcesses
+import scooper.util.scoopTestEnv
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
@@ -203,6 +204,31 @@ class ScoopClient(
         shortcuts = parseShortcuts(json),
     )
 
+    /**
+     * Build the orphan Discover record for a freshly direct-installed app from
+     * its on-disk manifest at apps/<name>/current/manifest.json, so the record
+     * matches what a full sync would produce. The version directory name
+     * drives [App.version]; null when the install layout is not on disk (then
+     * callers fall back to a name-and-version-only record).
+     */
+    fun installedAppRecord(name: String): App? {
+        val current = rootDir.resolve("apps/${name.lowercase()}/current")
+        val manifestFile = current.resolve("manifest.json")
+        if (!manifestFile.exists()) return null
+        val json = tryParseManifest(manifestFile) ?: return null
+        // Scoop installs <root>/apps/<name>/<version> with current as a junction,
+        // so the real path names the version; plain directories fall back to the
+        // manifest version field.
+        val version = try {
+            current.toPath().toRealPath().fileName.toString()
+        } catch (_: java.nio.file.NoSuchFileException) {
+            null
+        }?.takeUnless { it.equals("current", ignoreCase = true) }
+            ?: json.getString("version").takeUnless(String::isBlank)
+            ?: "0"
+        return buildAppFromJson(json, name, version, false, null)
+    }
+
     /** Deduplicate apps by name, keeping the first match per Scoop's behavior.
      *  Installed apps take priority; otherwise the first bucket in order wins. */
     private fun deduplicateApps(apps: List<App>): List<App> {
@@ -333,16 +359,23 @@ class ScoopClient(
             }
             val uninstallResult = executeAndLog(uninstallArgs)
             if (uninstallResult.exitCode != 0) return uninstallResult
-            val installArgs = if (global) {
-                mutableListOf("sudo", "scoop", "install", "-g", "$bucketName/${app.name}")
-            } else {
-                mutableListOf("scoop", "install", "$bucketName/${app.name}")
-            }
-            if (force) installArgs.add("--force")
-            return executeAndLog(installArgs)
+            return executeAndLog(localManifestRepairArgs(bucketName, app.name, global))
         }
 
         return executeAndLog(updateArgs(app, global, force))
+    }
+
+    /**
+     * Install args for the local-manifest repair branch of update: reinstall
+     * from bucket without --force (scoop install does not accept it, getopt
+     * only allows giksua; reinstall semantics come from the preceding uninstall).
+     */
+    internal fun localManifestRepairArgs(bucketName: String, name: String, global: Boolean): List<String> {
+        return if (global) {
+            mutableListOf("sudo", "scoop", "install", "-g", "$bucketName/$name")
+        } else {
+            mutableListOf("scoop", "install", "$bucketName/$name")
+        }
     }
 
     /** Build the update command args; internal so tests can assert assembly. */
@@ -400,43 +433,54 @@ class ScoopClient(
         logger.warn("all processes stopped")
     }
 
-    override suspend fun installVersion(app: App, manifestFile: File, global: Boolean): CommandResult {
-        val currentlyInstalledInTargetScope = if (global) {
-            globalInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
-        } else {
-            localInstalledAppDirs.any { it.name.equals(app.name, ignoreCase = true) }
-        }
+    /** True when an app dir named [name] exists in the local (or global) apps dir. */
+    internal fun isInstalledInScope(name: String, global: Boolean): Boolean {
+        val installedDirs = if (global) globalInstalledAppDirs else localInstalledAppDirs
+        return installedDirs.any { it.name.equals(name, ignoreCase = true) }
+    }
 
-        if (currentlyInstalledInTargetScope) {
-            val uninstallArgs = if (global) {
-                mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
-            } else {
-                mutableListOf("scoop", "uninstall", app.name)
-            }
+    /** Uninstall command args for [name] in the given scope; no -p so persist data survives. */
+    internal fun uninstallArgsForScope(name: String, global: Boolean): List<String> {
+        val commandArgs = if (global) {
+            mutableListOf("sudo", "scoop", "uninstall", "-g")
+        } else {
+            mutableListOf("scoop", "uninstall")
+        }
+        commandArgs.add(name)
+        return commandArgs
+    }
+
+    override suspend fun installVersion(app: App, manifestFile: File, global: Boolean): CommandResult {
+        if (isInstalledInScope(app.name, global)) {
             logStream.emit("Uninstalling current ${app.name} before installing version from manifest...")
-            val uninstallResult = executeAndLog(uninstallArgs)
+            val uninstallResult = executeAndLog(uninstallArgsForScope(app.name, global))
             if (uninstallResult.exitCode != 0) return uninstallResult
         }
+        return installLocalManifest(app, manifestFile, global)
+    }
 
-        // Install via bucket: temporarily write old manifest to the bucket so scoop
-        // registers it as a bucket install, then restore the original after install.
-        // This avoids scoop recording a temp file path that later update can't find.
+    /**
+     * Install a local manifest as [app.name]. Prefer the bucket takeover: temporarily
+     * rewrite the same-name bucket manifest so scoop registers a bucket install, then
+     * restore the original after install. This avoids scoop recording a file path that
+     * later update can't find. Fall back to installing from the file path directly.
+     */
+    private suspend fun installLocalManifest(
+        app: App,
+        manifestFile: File,
+        global: Boolean,
+    ): CommandResult {
         val bucketName = app.bucket?.name
         val bucketManifest = if (bucketName != null) {
             bucketsBaseDir.resolve(bucketName).resolve("bucket/${app.name}.json").takeIf { it.exists() }
         } else null
 
-        if (bucketManifest != null) {
+        if (bucketName != null && bucketManifest != null) {
             var originalContent: String? = null
             try {
                 originalContent = bucketManifest.readText()
                 bucketManifest.writeText(manifestFile.readText())
-                val args = if (global) {
-                    mutableListOf("sudo", "scoop", "install", "-g", "$bucketName/${app.name}")
-                } else {
-                    mutableListOf("scoop", "install", "$bucketName/${app.name}")
-                }
-                return executeAndLog(args)
+                return executeAndLog(localManifestRepairArgs(bucketName, app.name, global))
             } finally {
                 if (originalContent != null) {
                     bucketManifest.writeText(originalContent)
@@ -444,13 +488,39 @@ class ScoopClient(
             }
         }
 
-        // Fallback: no bucket manifest found, install from file path
-        val installArgs = if (global) {
-            mutableListOf("sudo", "scoop", "install", "-g", manifestFile.absolutePath)
-        } else {
-            mutableListOf("scoop", "install", manifestFile.absolutePath)
+        return executeAndLog(installFromManifestArgs(manifestFile.absolutePath, global))
+    }
+
+    /**
+     * Direct-install the current manifest from a local file. When a same-name app is
+     * already installed in the [reinstallGlobal] scope, uninstall it first (persist
+     * preserved), then prewarm the scoop cache and install the manifest file.
+     */
+    override suspend fun installFromManifest(
+        app: App,
+        manifestFile: File,
+        global: Boolean,
+        reinstallGlobal: Boolean,
+    ): CommandResult {
+        if (isInstalledInScope(app.name, reinstallGlobal)) {
+            logStream.emit("Uninstalling current ${app.name} before installing from manifest...")
+            val uninstallResult = executeAndLog(uninstallArgsForScope(app.name, reinstallGlobal))
+            if (uninstallResult.exitCode != 0) return uninstallResult
         }
-        return executeAndLog(installArgs)
+
+        val prewarmed = prewarmTestInstallCache(app.name, manifestFile)
+        logger.info("Prewarmed $prewarmed cache file(s) for direct install of ${app.name}")
+
+        return installLocalManifest(app, manifestFile, global)
+    }
+
+    /** Build the direct-install command args; internal so tests can assert assembly. */
+    internal fun installFromManifestArgs(manifestPath: String, global: Boolean): List<String> {
+        return if (global) {
+            mutableListOf("sudo", "scoop", "install", "-g", manifestPath)
+        } else {
+            mutableListOf("scoop", "install", manifestPath)
+        }
     }
 
     /**
@@ -693,6 +763,15 @@ class ScoopClient(
         return "${app.name}#$version#$urlHash${scoopCacheExtension(url)}"
     }
 
+    /** Test hook: cache file name for a name/version/url triple. */
+    internal fun cacheFileNameForTest(name: String, version: String, url: String): String {
+        val urlHash = MessageDigest.getInstance("SHA-256")
+            .digest(url.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(7)
+        return "$name#$version#$urlHash${scoopCacheExtension(url)}"
+    }
+
     /**
      * Aligns with PowerShell: [System.IO.Path]::GetExtension($url)
      * Does not strip query/fragment, to stay consistent with scoop.
@@ -914,6 +993,7 @@ class ScoopClient(
         val outputLines = mutableListOf<String>()
         val result = executeSuspend(
             args,
+            env = scoopTestEnv(),
             consumer = { line ->
                 outputLines.add(line)
                 logStream.emit(line)

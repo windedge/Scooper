@@ -23,6 +23,17 @@ fun execute(
     return execute(args, asShell, workingDir, charset = charset, consumer = consumer, onFinish = onFinish)
 }
 
+/** Test-only: when set, prepends the shim directory to the child PATH so "scoop ..." resolves to a stub. */
+internal const val TEST_SCOOP_SHIM_ENV = "scooper.test.scoopShim"
+
+internal fun scoopTestEnv(): Map<String, String>? {
+    val shim = System.getProperty(TEST_SCOOP_SHIM_ENV) ?: System.getenv(TEST_SCOOP_SHIM_ENV) ?: return null
+    if (shim.isBlank()) return null
+    val dir = java.io.File(shim).parent ?: return null
+    val path = System.getenv("PATH") ?: ""
+    return mapOf("PATH" to "$dir${java.io.File.pathSeparator}$path", TEST_SCOOP_SHIM_ENV to shim)
+}
+
 /**
  * 同步执行命令（阻塞调用线程）。仅在无法使用协程上下文时使用。
  * 优先使用 [executeSuspend] 版本。
@@ -56,6 +67,7 @@ suspend fun executeSuspend(
     asShell: Boolean = true,
     workingDir: File? = null,
     charset: Charset = defaultCharset,
+    env: Map<String, String>? = null,
     consumer: suspend (line: String) -> Unit = { },
     onFinish: suspend (exitValue: Int) -> Unit,
 ): ProcessResult {
@@ -65,6 +77,7 @@ suspend fun executeSuspend(
         stdout = Redirect.CAPTURE,
         stderr = Redirect.CAPTURE,
         directory = workingDir,
+        env = env,
         consumer = consumer,
         charset = charset
     )

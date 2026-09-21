@@ -12,6 +12,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -27,6 +28,7 @@ import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
 import scooper.data.App
+import scooper.data.AppStatus
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.service.AiErrorAction
@@ -39,19 +41,42 @@ import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.InstalledAppInfo
 import scooper.service.PhaseSummaryFormatter
+import scooper.service.AiImage
 import scooper.service.ScoopAiBridge
+import scooper.service.ScoopService
 import scooper.service.ToolActivityFormatter
 import scooper.service.resolveFailureActions
 import scooper.service.resumableStagesOf
 import scooper.service.parseVerifyInstallResult
 import scooper.service.ScoopClient
+import scooper.util.ImageCodec
 import scooper.util.logger
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 
 enum class ChatRole {
     User,
     Agent,
+}
+
+/**
+ * An image attached by the user but not yet sent. Stored in [CreateState.pendingImages]
+ * (max 3); preview bitmaps are cached in memory by id at render time to avoid
+ * ByteArray equals/hashCode churn in recomposition.
+ */
+data class PendingImage(
+    val id: String = UUID.randomUUID().toString(),
+    val bytes: ByteArray,
+    val mimeType: String,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is PendingImage) return false
+        return id == other.id
+    }
+
+    override fun hashCode(): Int = id.hashCode()
 }
 
 /**
@@ -78,6 +103,11 @@ data class ChatMessage(
     val technicalDetails: String? = null,
     /** Cumulative token usage of the run that produced this reply; null when unreported. */
     val tokenUsage: TokenUsage? = null,
+    /** Images attached by the user to this message (rendered as thumbnails in the bubble). */
+    val images: List<PendingImage> = emptyList(),
+    /** True once this message's images have already been replayed to the engine in a
+     *  later round; prevents re-sending the same images on every text-only follow-up. */
+    val imagesReplayed: Boolean = false,
 )
 
 data class TestResult(
@@ -438,6 +468,8 @@ data class CreateState(
     val systemInstalled: Boolean = false,
     /** True when the app installed for use in this session has Start Menu shortcuts. */
     val installedShortcuts: Boolean = false,
+    /** Name the app was installed under when saveResult is absent (direct installs). */
+    val directInstallName: String? = null,
     /** True when the current session is a user assist (revise existing manifest). */
     val assistSession: Boolean = false,
     /** Suggested resume stages currently available from the in-memory checkpoint. */
@@ -463,6 +495,10 @@ data class CreateState(
     val revisions: List<ManifestRevision> = emptyList(),
     /** ID of currently viewed revision (null = latest). */
     val selectedRevisionId: String? = null,
+    /** Images pending to be sent with the next message (max 3). */
+    val pendingImages: List<PendingImage> = emptyList(),
+    /** Raw result JSON of the last AI install_app call, for assertions and debugging. */
+    val lastInstallReply: String = "",
 ) {
     val isEmpty: Boolean get() = messages.isEmpty() && manifestJson.isBlank() && !running
 
@@ -490,6 +526,7 @@ class CreateViewModel(
     private val scoopClient: ScoopClient,
     private val appsRepository: AppsRepository,
     private val gitHistoryService: GitHistoryService,
+    private val scoopService: ScoopService? = null,
 ) : ContainerHost<CreateState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
@@ -572,6 +609,35 @@ class CreateViewModel(
         reduce { state.copy(inputUrl = text, inputNote = text, error = null) }
     }
 
+    /**
+     * Attach pending images (from clipboard paste or file dialog). Caps at [MAX_PENDING_IMAGES];
+     * excess images are dropped with a toast. Duplicate ids are ignored.
+     */
+    fun attachImages(images: List<PendingImage>) = intent {
+        if (images.isEmpty()) return@intent
+        val existing = state.pendingImages
+        val existingIds = existing.map { it.id }.toSet()
+        val newImages = images.filter { it.id !in existingIds }
+        val combined = existing + newImages
+        if (combined.size > MAX_PENDING_IMAGES) {
+            val capped = combined.take(MAX_PENDING_IMAGES)
+            val dropped = combined.size - capped.size
+            reduce { state.copy(pendingImages = capped) }
+            postSideEffect(
+                AppSideEffect.Toast(
+                    "At most $MAX_PENDING_IMAGES images allowed, $dropped dropped",
+                    ToastType.INFO,
+                ),
+            )
+        } else if (newImages.isNotEmpty()) {
+            reduce { state.copy(pendingImages = combined) }
+        }
+    }
+
+    fun removePendingImage(id: String) = intent {
+        reduce { state.copy(pendingImages = state.pendingImages.filterNot { it.id == id }) }
+    }
+
     fun onUrlChange(url: String) = intent {
         reduce { state.copy(inputUrl = url, inputNote = url, error = null) }
     }
@@ -581,9 +647,27 @@ class CreateViewModel(
     }
 
     fun onSend(input: String? = null, url: String? = null, note: String? = null) = intent {
-        if (state.running || state.testing) return@intent
+        if (state.running || state.testing || state.installing) {
+            postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+            return@intent
+        }
         val text = (input ?: note ?: url ?: state.inputUrl).trim()
-        if (text.isBlank()) return@intent
+        val images = state.pendingImages
+        // Allow sending when either text or images are present.
+        if (text.isBlank() && images.isEmpty()) return@intent
+
+        // Pure-image send (no text): requires an existing manifest; without one
+        // there is nothing to assist on, so keep the images and stop early.
+        if (text.isBlank()) {
+            if (state.manifestJson.isBlank()) {
+                postSideEffect(
+                    AppSideEffect.Toast("Generate a manifest first before sending images", ToastType.ERROR),
+                )
+                return@intent
+            }
+            startAssistInternal(PURE_IMAGE_INSTRUCTION, images = images)
+            return@intent
+        }
 
         reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
 
@@ -594,11 +678,10 @@ class CreateViewModel(
                 inputNote = text,
             )
         ) {
-            val instruction = resolveAssistInstruction(text, text)
-            startAssistInternal(instruction)
+            startAssistInternal(resolveAssistInstruction(text, text), images = images)
         } else {
             val (derivedUrl, derivedNote) = GithubUrlParser.extract(text)
-            startGeneration(rawUrlInput = derivedUrl.orEmpty(), noteInput = derivedNote)
+            startGeneration(rawUrlInput = derivedUrl.orEmpty(), noteInput = derivedNote, images = images)
         }
     }
 
@@ -618,6 +701,7 @@ class CreateViewModel(
                 availableModels = state.availableModels,
                 aiConfigured = state.aiConfigured,
                 configHint = state.configHint,
+                pendingImages = emptyList(),
             )
         }
     }
@@ -834,57 +918,122 @@ class CreateViewModel(
         )
     }
 
-    /** Install the saved manifest for real use (not the throwaway test install). */
+    /** Install the manifest for real use (not the throwaway test install).
+     *  A saved manifest installs from its bucket; an unsaved one installs
+     *  straight from a local manifest file (direct install). */
     fun onInstallSaved() = intent {
         if (state.running || state.testing || state.installing) {
             postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
             return@intent
         }
+        val manifestJson = state.activeManifestJson
+        if (manifestJson.isBlank()) {
+            postSideEffect(AppSideEffect.Toast("No manifest to install", ToastType.INFO))
+            return@intent
+        }
         val saveResult = state.saveResult
-        if (!state.manifestSaved || saveResult == null) return@intent
-        val name = saveResult.appName
-        val bucket = saveResult.bucket
+        val saved = state.manifestSaved && saveResult != null
 
         reduce { state.copy(installing = true) }
         try {
-            // ScoopClient.install addresses "bucket/name", so the bucket must be set.
-            // An app installed before this session needs a forced update (reinstall
-            // from bucket) so the fixed manifest takes effect; same-version scoop
-            // update without --force is a no-op exit 0.
-            val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
-            val systemInstalled = snapshot.containsKey(name.lowercase())
-            val result = withContext(Dispatchers.IO) {
-                if (systemInstalled) {
-                    scoopClient.update(
-                        App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                        global = reinstallGlobal(snapshot, name),
-                        force = true,
-                    )
+            if (saved) {
+                // ScoopClient.install addresses "bucket/name", so the bucket must be set.
+                // An app installed before this session needs a forced update (reinstall
+                // from bucket) so the fixed manifest takes effect; same-version scoop
+                // update without --force is a no-op exit 0.
+                val name = saveResult.appName
+                val bucket = saveResult.bucket
+                val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+                val systemInstalled = snapshot.containsKey(name.lowercase())
+                val result = withContext(Dispatchers.IO) {
+                    if (systemInstalled) {
+                        scoopClient.update(
+                            App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                            global = reinstallGlobal(snapshot, name),
+                            force = true,
+                        )
+                    } else {
+                        scoopClient.install(
+                            App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                            global = false,
+                        )
+                    }
+                }
+                if (result.isSuccess) {
+                    reduce {
+                        state.copy(
+                            installedForUse = true,
+                            installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
+                            systemInstalled = true,
+                        )
+                    }
+                    refreshInstalledAppRecord(bucket, name)
+                    postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
                 } else {
-                    scoopClient.install(
-                        App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                        global = false,
-                    )
+                    val detail = result.errorMessage?.takeIf { it.isNotBlank() }
+                        ?: "exit code ${result.exitCode}"
+                    postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
                 }
-            }
-            if (result.isSuccess) {
-                reduce {
-                    state.copy(
-                        installedForUse = true,
-                        installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
-                        systemInstalled = true,
-                    )
-                }
-                refreshInstalledAppRecord(bucket, name)
-                postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
             } else {
-                val detail = result.errorMessage?.takeIf { it.isNotBlank() }
-                    ?: "exit code ${result.exitCode}"
-                postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+                installFromCurrentManifest(manifestJson)
             }
         } finally {
             reduce { state.copy(installing = false) }
         }
+    }
+
+    /**
+     * Direct-install the unsaved manifest from a local file: resolve the app
+     * name, then share the install core with the AI path.
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.installFromCurrentManifest(
+        manifestJson: String,
+    ) {
+        val name = resolveDirectInstallAppName(state.saveResult, state.directInstallName, state.suggestedAppName, state.lastUrl)
+        if (name == null || !APP_NAME_REGEX.matches(name)) {
+            postSideEffect(
+                AppSideEffect.Toast(
+                    "Cannot determine the app name; save it to a bucket or enter an URL first",
+                    ToastType.ERROR,
+                ),
+            )
+            return
+        }
+        directInstallCore(manifestJson, name, successToast = "Installed $name")
+    }
+
+
+    /**
+     * Record the direct-installed app for Discover as an orphan (no bucket).
+     * Must go through the plural upsert: the singular one has no orphan
+     * filter and would clear the bucketId of a same-name bucket row.
+     */
+    private suspend fun upsertOrphanInstalledApp(manifestJson: String, name: String) {
+        // Prefer the on-disk manifest scoop just installed so the record matches
+        // what a full sync would build; the shim-less fallback keeps name and
+        // version only when the install layout is not present (tests, failures).
+        val app = withContext(Dispatchers.IO) { scoopClient.installedAppRecord(name) }
+            ?: manualOrphanRecord(manifestJson, name)
+        appsRepository.upsertApps(listOf(app))
+        // Publish through ScoopService so every screen reacts to the install.
+        scoopService?.notifyInstalled(app)
+    }
+
+    /** Name-and-version-only orphan record from the active manifest text. */
+    private fun manualOrphanRecord(manifestJson: String, name: String): App {
+        val version = try {
+            (Json.parseToJsonElement(manifestJson) as? JsonObject)?.get("version")
+                ?.let { (it as? JsonPrimitive)?.content?.takeUnless { c -> c.isBlank() } }
+        } catch (_: Exception) {
+            null
+        } ?: "0"
+        return App(
+            name = name,
+            latestVersion = version,
+            version = version,
+            status = AppStatus.INSTALLED,
+            bucket = null,
+        )
     }
 
     /** True when an app with this name is already installed locally. */
@@ -895,7 +1044,16 @@ class CreateViewModel(
     /** Launch the installed app through its Start Menu shortcut. */
     fun onOpenApp() = intent {
         if (!state.installedForUse) return@intent
-        val name = state.saveResult?.appName ?: return@intent
+        val name = resolveOpenAppName(state, state.lastUrl)
+        if (name == null || !APP_NAME_REGEX.matches(name)) {
+            postSideEffect(
+                AppSideEffect.Toast(
+                    "Cannot determine the installed app name; cannot open it",
+                    ToastType.ERROR,
+                ),
+            )
+            return@intent
+        }
         val result = withContext(Dispatchers.IO) { scoopClient.openApp(name) }
         if (!result.isSuccess) {
             val detail = result.errorMessage?.takeIf { it.isNotBlank() }
@@ -1105,42 +1263,174 @@ class CreateViewModel(
     }
 
     /** AI install_app tool backend: run the real install and reply JSON to the model. */
-    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.executeInstallApp(
-        bucket: String,
+    fun executeInstallApp(
+        bucket: String?,
+        name: String,
+    ) = intent {
+        // A missing or blank bucket means "direct install": the model asked to
+        // install the current manifest without saving it to any bucket.
+        val reply = if (bucket.isNullOrBlank()) {
+            executeDirectInstallForAi(name)
+        } else {
+            val effect = aiInstallApp(
+                bucket = bucket,
+                name = name,
+                alreadyInstalled = state.installedForUse,
+                install = { app ->
+                    withContext(Dispatchers.IO) {
+                        // Reinstall via forced update when the app was installed before
+                        // this session so the fixed manifest takes effect; respect how
+                        // it was originally installed (global vs local).
+                        val installed = scoopClient.installedSnapshot()[app.name.lowercase()]
+                        if (installed != null) {
+                            scoopClient.update(app, global = installed.isGlobal, force = true)
+                        } else {
+                            scoopClient.install(app, global = false)
+                        }
+                    }
+                },
+            )
+            reduce {
+                state.copy(
+                    installedForUse = effect.installedForUse,
+                    installedShortcuts = effect.installedForUse && manifestHasShortcuts(state.activeManifestJson),
+                )
+            }
+            when {
+                effect.newlyInstalled -> {
+                    refreshInstalledAppRecord(bucket, name)
+                    postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+                }
+                effect.maskedError != null -> postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
+            }
+            effect.resultJson
+        }
+        reduce { state.copy(lastInstallReply = reply) }
+    }
+
+    /**
+     * Direct-install the current manifest on behalf of the AI `install_app`
+     * tool. Shares the install core with the manual path but takes the name
+     * from the model (validated, no resolution chain), exposes the reply JSON
+     * to the model via [lastInstallReply], and tells the user in chat that the
+     * app was installed without saving it to a bucket.
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.executeDirectInstallForAi(
         name: String,
     ): String {
-        val effect = aiInstallApp(
-            bucket = bucket,
+        val manifestJson = state.activeManifestJson
+        if (manifestJson.isBlank()) {
+            val reply = directInstallFailureReply(name, "no manifest to install")
+            postSideEffect(AppSideEffect.Toast("No manifest to install", ToastType.ERROR))
+            return reply
+        }
+        if (!APP_NAME_REGEX.matches(name)) {
+            val reply = directInstallFailureReply(name, "invalid app name: $name")
+            postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets("Invalid app name: $name"), ToastType.ERROR))
+            return reply
+        }
+
+        val outcome = directInstallCore(
+            manifestJson = manifestJson,
             name = name,
-            alreadyInstalled = state.installedForUse,
-            install = { app ->
-                withContext(Dispatchers.IO) {
-                    // Reinstall via forced update when the app was installed before
-                    // this session so the fixed manifest takes effect; respect how
-                    // it was originally installed (global vs local).
-                    val installed = scoopClient.installedSnapshot()[app.name.lowercase()]
-                    if (installed != null) {
-                        scoopClient.update(app, global = installed.isGlobal, force = true)
-                    } else {
-                        scoopClient.install(app, global = false)
-                    }
-                }
-            },
+            successToast = "Installed $name without saving it to a bucket",
         )
-        reduce {
-            state.copy(
-                installedForUse = effect.installedForUse,
-                installedShortcuts = effect.installedForUse && manifestHasShortcuts(state.activeManifestJson),
-            )
-        }
-        when {
-            effect.newlyInstalled -> {
-                refreshInstalledAppRecord(bucket, name)
-                postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+        if (outcome.isSuccess) {
+            reduce {
+                state.copy(messages = state.messages + agentMessage("Installed $name directly, without saving it to a bucket."))
             }
-            effect.maskedError != null -> postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
         }
-        return effect.resultJson
+        return outcome.replyJson
+    }
+
+    /**
+     * JSON reply for a direct AI install. [error] should already be safe to
+     * show the model (pre-masked by the caller when it may hold secrets).
+     */
+    private fun directInstallReply(success: Boolean, name: String, error: String? = null): String =
+        if (success) directInstallSuccessReply(name) else directInstallFailureReply(name, error)
+
+    /**
+     * Shared direct-install core behind the manual and AI paths: write the
+     * manifest to a stable per-app file, install from it, record the orphan
+     * index entry on success, and clean the file up in any outcome. Returns
+     * the reply JSON for the AI path (the manual path ignores it).
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.directInstallCore(
+        manifestJson: String,
+        name: String,
+        successToast: String = "Installed $name",
+    ): DirectInstallOutcome {
+        val directDir = File(System.getenv("LOCALAPPDATA") ?: System.getProperty("java.io.tmpdir"), "scooper/direct-install")
+        val manifestFile = directDir.resolve("$name.json")
+        try {
+            directDir.mkdirs()
+            manifestFile.writeText(manifestJson)
+        } catch (e: IOException) {
+            logger.warn("Direct install: failed to write temp manifest for $name: ${e.message}")
+            val masked = AiErrorTranslator.maskSecrets("Failed to write manifest file: ${e.message}")
+            postSideEffect(AppSideEffect.Toast(masked, ToastType.ERROR))
+            return DirectInstallOutcome(directInstallReply(success = false, name = name, error = masked))
+        }
+
+        try {
+            // Scoop names the install after the manifest file, so the resolved
+            // name must drive both the file name and the recorded app name.
+            val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+            // Uninstall and install scope must agree, or a global app would be
+            // uninstalled from global and reinstalled as local (scope flip).
+            val scope = directInstallScope(snapshot, name)
+            val result = withContext(Dispatchers.IO) {
+                scoopClient.installFromManifest(
+                    app = App(name = name, latestVersion = "0"),
+                    manifestFile = manifestFile,
+                    global = scope,
+                    reinstallGlobal = scope,
+                )
+            }
+            if (result.isSuccess) {
+                reduce {
+                    state.copy(
+                        installedForUse = true,
+                        installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
+                        systemInstalled = true,
+                        directInstallName = name,
+                    )
+                }
+                upsertOrphanInstalledApp(manifestJson, name)
+                postSideEffect(AppSideEffect.Toast(successToast, ToastType.SUCCESS))
+                return DirectInstallOutcome(directInstallReply(success = true, name = name))
+            }
+            val detail = result.errorMessage?.takeIf { it.isNotBlank() }
+                ?: "exit code ${result.exitCode}"
+            val masked = AiErrorTranslator.maskSecrets(detail)
+            postSideEffect(AppSideEffect.Toast(masked, ToastType.ERROR))
+            return DirectInstallOutcome(directInstallReply(success = false, name = name, error = masked))
+        } catch (e: Exception) {
+            // A crashing install (process launch failure, etc.) must become a
+            // failed reply instead of escaping into the caller's coroutine;
+            // cancellation is never a failure and propagates.
+            if (e is CancellationException) throw e
+            logger.warn("Direct install of $name crashed: ${e.message}")
+            val masked = AiErrorTranslator.maskSecrets("Install failed: ${e.message}")
+            postSideEffect(AppSideEffect.Toast(masked, ToastType.ERROR))
+            return DirectInstallOutcome(directInstallFailureReply(name, masked))
+        } finally {
+            try {
+                withContext(Dispatchers.IO) {
+                    manifestFile.delete()
+                }
+            } catch (e: Exception) {
+                logger.warn("Direct install: failed to delete temp manifest for $name: ${e.message}")
+            }
+        }
+    }
+
+    /** Outcome of the shared direct-install core: reply JSON for the AI path. */
+    private data class DirectInstallOutcome(
+        val replyJson: String,
+    ) {
+        val isSuccess: Boolean get() = replyJson.contains("\"success\":true")
     }
 
     /** Index the freshly saved manifest for Discover: ensure bucket, upsert when parsed. */
@@ -1152,17 +1442,55 @@ class CreateViewModel(
 
     /** Post-install: refresh the index record so Discover shows the app as installed. */
     private suspend fun refreshInstalledAppRecord(bucket: String, name: String) =
-        refreshInstalledAppRecordCore(bucket, name, scoopClient, appsRepository::upsertApp) { logger.warn(it) }
+        refreshInstalledAppRecordCore(bucket, name, scoopClient, appsRepository::upsertApp, { logger.warn(it) }) { app ->
+            // Publish through ScoopService so every screen reacts to the install.
+            scoopService?.notifyInstalled(app)
+        }
 
     companion object {
         private const val MAX_TEST_LOG_LINES = 200
         private const val MAX_ERROR_SUMMARY_LINES = 5
+
+        /** Maximum number of images that can be attached to a single message. */
+        const val MAX_PENDING_IMAGES = 3
+
+        /** Fixed instruction used when sending images without any text. */
+        const val PURE_IMAGE_INSTRUCTION = "Please inspect the attached screenshot(s) and update the manifest accordingly."
+
+        /** Success reply JSON for a direct install (mode local). */
+        internal fun directInstallSuccessReply(name: String): String =
+            directInstallReplyJson(success = true, name = name)
+
+        /** Failure reply JSON for a direct install; [error] must be safe to show the model. */
+        internal fun directInstallFailureReply(name: String, error: String?): String =
+            directInstallReplyJson(success = false, name = name, error = error)
+
+        /**
+         * Structured error reply for an install_app bridge crash. Mask the
+         * result before handing it to the model.
+         */
+        internal fun installBridgeErrorReply(name: String, error: Throwable): String =
+            directInstallReplyJson(
+                success = false,
+                name = name,
+                error = error.message?.takeIf { it.isNotBlank() }
+                    ?: error::class.simpleName
+                    ?: "install failed",
+            )
+
+        private fun directInstallReplyJson(success: Boolean, name: String, error: String? = null): String = buildJsonObject {
+            put("success", success)
+            put("mode", "local")
+            put("app", name)
+            if (error != null) put("error", error)
+        }.toString()
     }
 
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startGeneration(
         rawUrlInput: String,
         noteInput: String,
         resumeFrom: AiErrorAction? = null,
+        images: List<PendingImage> = emptyList(),
     ) {
         val missing = scoopAiBridge.readSettings().missingReason()
         if (missing != null) {
@@ -1205,7 +1533,7 @@ class CreateViewModel(
         reduce {
             state.copy(
                 messages = state.messages +
-                    ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt),
+                    ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt, images = images),
                 running = true,
                 currentPhase = initialPhase,
                 assistSession = false,
@@ -1225,6 +1553,7 @@ class CreateViewModel(
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
+                directInstallName = null,
                 systemInstalled = systemInstalledSnapshot,
                 error = null,
                 manifestExhausted = false,
@@ -1234,6 +1563,7 @@ class CreateViewModel(
                 configHint = null,
                 inputUrl = "",
                 inputNote = "",
+                pendingImages = emptyList(),
             )
         }
 
@@ -1306,6 +1636,7 @@ class CreateViewModel(
         instruction: String,
         displayUserText: String? = null,
         source: RevisionSource = RevisionSource.ASSIST,
+        images: List<PendingImage> = emptyList(),
     ) {
         val text = instruction.trim()
         if (text.isBlank()) return
@@ -1338,6 +1669,14 @@ class CreateViewModel(
 
         val userHistory = extractUserHistory(state.messages)
         val userPrompt = displayUserText?.trim().takeUnless { it.isNullOrBlank() } ?: text
+        // A text-only follow-up must still reach the model with the screenshot that
+        // triggered it: replay the most recent user images when this round has none.
+        // Only the freshly attached images are recorded on the new bubble, so a
+        // replayed thumbnail is never rendered as if the user uploaded it again.
+        val imagesToSend = resolveAssistImages(images, state.messages)
+        // History bubble whose images this round replays (text-only rounds only);
+        // flagged after the send so later rounds do not re-send the same images.
+        val replaySourceId = if (images.isEmpty()) replaySourceIn(state.messages)?.id else null
 
         // Read before reduce: suspend call must stay outside the reduce block.
         val systemInstalledSnapshot = snapshotSystemInstalled(state.saveResult?.appName)
@@ -1346,7 +1685,7 @@ class CreateViewModel(
         val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt),
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt, images = images),
                 running = true,
                 currentPhase = "assist",
                 assistSession = true,
@@ -1362,11 +1701,13 @@ class CreateViewModel(
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
+                directInstallName = null,
                 systemInstalled = systemInstalledSnapshot,
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
                 error = null,
+                pendingImages = emptyList(),
             )
         }
 
@@ -1377,6 +1718,7 @@ class CreateViewModel(
             history = userHistory,
             suggestedAppName = state.suggestedAppName,
             overrideModel = modelToUse,
+            images = imagesToSend.map { AiImage(bytes = it.bytes, mimeType = it.mimeType) },
             ignoreAppNames = ignoredNames,
             onPhase = { phase -> handlePhase(phase) },
             onToolActivity = ::routeToolActivity,
@@ -1387,10 +1729,33 @@ class CreateViewModel(
                 executeSaveToBucket(bucket, name, overwrite)
             },
             onInstallApp = { bucket, name ->
-                executeInstallApp(bucket, name)
+                // The engine's handler signature is suspend-and-returns-JSON;
+                // the intent runs on the VM scope, so bridge it and hand the
+                // model the reply only after the install settled. A crash here
+                // must degrade to a failure reply, never escape into the
+                // engine coroutine and kill the assist session.
+                runBlocking {
+                    try {
+                        executeInstallApp(bucket, name).join()
+                        container.stateFlow.value.lastInstallReply
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        AiErrorTranslator.maskSecrets(installBridgeErrorReply(name, e))
+                    }
+                }
             },
             onFinished = { result -> handleFinished(result) },
         )
+
+        replaySourceId?.let { sourceId ->
+            reduce {
+                state.copy(
+                    messages = state.messages.map { msg ->
+                        if (msg.id == sourceId) msg.copy(imagesReplayed = true) else msg
+                    },
+                )
+            }
+        }
     }
 
     /** Route engine tool activity: step-card lines via the channel, verify flags via intent. */
@@ -1759,6 +2124,7 @@ class CreateViewModel(
             installedForUse = installedForUse,
             installedShortcuts = installedShortcuts,
             systemInstalled = systemInstalled,
+            pendingImages = emptyList(),
         )
     }
 
@@ -1768,6 +2134,36 @@ class CreateViewModel(
         supervisorJob.cancel()
     }
 }
+
+/**
+ * App name for the direct-install branch: saved name, then the recorded
+ * direct-install name, then the suggested one, then the URL tail.
+ * Generated manifests carry no top-level name field, so there is no
+ * fallback into the manifest itself.
+ */
+internal fun resolveDirectInstallAppName(
+    saveResult: SaveResult?,
+    directInstallName: String?,
+    suggestedAppName: String?,
+    lastUrl: String,
+): String? {
+    val fromSave = saveResult?.appName?.trim()?.takeUnless { it.isEmpty() }
+    // The direct-install record outranks the suggestion: it is what was
+    // actually installed, the suggestion may name a different revision.
+    val fromDirectRecord = directInstallName?.trim()?.takeUnless { it.isEmpty() }
+    val fromSuggestion = suggestedAppName?.trim()?.takeUnless { it.isEmpty() }
+    // deriveAppName falls back to "app" for any blank URL, which would
+    // install a garbage-named package; only trust a real URL tail.
+    val fromUrl = if (lastUrl.isBlank()) null else GithubUrlParser.deriveAppName(lastUrl)
+    return fromSave ?: fromDirectRecord ?: fromSuggestion ?: fromUrl?.takeUnless { it.isBlank() }
+}
+
+/**
+ * Installed app name for the Open button: the save result first, then the
+ * recorded direct-install name, then the suggested one, then the URL tail.
+ */
+internal fun resolveOpenAppName(state: CreateState, lastUrl: String): String? =
+    resolveDirectInstallAppName(state.saveResult, state.directInstallName, state.suggestedAppName, lastUrl)
 
 /**
  * Drives CreateState from AI verify_install activity: Started shows loading, then a
@@ -2209,6 +2605,7 @@ internal suspend fun refreshInstalledAppRecordCore(
     scoopClient: BucketSaveEnv,
     upsertApp: (App) -> Unit,
     onWarn: (String) -> Unit = {},
+    onInstalled: (suspend (App) -> Unit)? = null,
 ) {
     try {
         withContext(Dispatchers.IO) {
@@ -2216,6 +2613,7 @@ internal suspend fun refreshInstalledAppRecordCore(
             val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
             val app = scoopClient.buildAppsFromManifestNames(bucketDir, setOf("$name.json"), Bucket(name = bucket, url = ""), installed).firstOrNull() ?: return@withContext
             upsertApp(app)
+            onInstalled?.invoke(app)
         }
     } catch (e: Exception) {
         if (e is CancellationException) throw e
@@ -2239,6 +2637,7 @@ internal suspend fun aiInstallApp(
         return AiInstallAppResult(
             resultJson = buildJsonObject {
                 put("success", true)
+                put("mode", "bucket")
                 put("message", "already installed in this session")
             }.toString(),
             installedForUse = true,
@@ -2249,6 +2648,7 @@ internal suspend fun aiInstallApp(
         return AiInstallAppResult(
             resultJson = buildJsonObject {
                 put("success", true)
+                put("mode", "bucket")
                 put("app", name)
                 put("bucket", bucket)
             }.toString(),
@@ -2261,6 +2661,7 @@ internal suspend fun aiInstallApp(
     return AiInstallAppResult(
         resultJson = buildJsonObject {
             put("success", false)
+            put("mode", "bucket")
             put("error", masked)
         }.toString(),
         installedForUse = false,
@@ -2274,6 +2675,13 @@ internal suspend fun aiInstallApp(
  */
 internal fun reinstallGlobal(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
     snapshot[name.lowercase()]?.isGlobal == true
+
+/**
+ * Scope for a direct install of [name]: derived from the same snapshot read
+ * as [reinstallGlobal] so the install and its uninstall step always agree.
+ */
+internal fun directInstallScope(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
+    reinstallGlobal(snapshot, name)
 
 private val trailingWsRegex = Regex("[ \t]+$")
 
@@ -2531,6 +2939,50 @@ private fun normalizeDownloadLine(raw: String): String {
 private const val HISTORY_MAX_ENTRIES = 12
 private const val HISTORY_LINE_MAX = 400
 
+/**
+ * How many recent conversation entries [resolveAssistImages] scans backwards when
+ * looking for an image to replay. Four entries cover "screenshot turn, AI reply,
+ * one more exchange" without reaching arbitrarily far into the session.
+ */
+private const val IMAGE_REPLAY_LOOKBACK = 4
+
+/**
+ * The most recent user message in the lookback window whose images are still worth
+ * replaying, or null. Messages already replayed once are skipped to keep repeated
+ * text-only rounds from re-sending the same (expensive) screenshots.
+ */
+private fun replaySourceIn(history: List<ChatMessage>): ChatMessage? =
+    history.asReversed()
+        .take(IMAGE_REPLAY_LOOKBACK)
+        .firstOrNull { it.role == ChatRole.User && !it.imagesReplayed && it.images.isNotEmpty() }
+
+/**
+ * Images to attach to this assist round. A round with freshly attached images wins;
+ * otherwise the images of the most recent not-yet-replayed user message in the
+ * lookback window are replayed.
+ *
+ * Replay is required because the engine deliberately keeps images out of
+ * [AssistContext] and the checkpoint, so a text-only follow-up such as "fix the
+ * problem above" would otherwise reach the model with no image at all. But each
+ * replayed image costs several thousand vision tokens, so a message whose images
+ * already went out once ([ChatMessage.imagesReplayed]) is skipped: without the
+ * flag, N consecutive text-only rounds would re-send the identical screenshot N
+ * times. Once every image-carrying message in the window has been replayed, this
+ * returns empty and the follow-up runs text-only (the model still sees the image
+ * description markers in the history lines). Cost over context freshness is a
+ * deliberate trade-off.
+ */
+internal fun resolveAssistImages(
+    fresh: List<PendingImage>,
+    history: List<ChatMessage>,
+): List<PendingImage> {
+    if (fresh.isNotEmpty()) return fresh
+    return replaySourceIn(history)
+        ?.images
+        ?.take(CreateViewModel.MAX_PENDING_IMAGES)
+        .orEmpty()
+}
+
 internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
     val relevant = messages.filter { msg ->
         when (msg.role) {
@@ -2544,10 +2996,15 @@ internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
     }
     // Tail only: recent turns matter for coreference in assist/refine prompts.
     return relevant.takeLast(HISTORY_MAX_ENTRIES).map { msg ->
+        val imagePlaceholder = if (msg.role == ChatRole.User && msg.images.isNotEmpty()) {
+            " [${msg.images.size} screenshot${if (msg.images.size > 1) "s" else ""} attached]"
+        } else ""
         val body = when (msg.role) {
-            ChatRole.User ->
-                if (!msg.note.isNullOrBlank()) "${msg.text} (Requirements: ${msg.note})" else msg.text
-            ChatRole.Agent -> msg.text
+            ChatRole.User -> {
+                val base = if (!msg.note.isNullOrBlank()) "${msg.text} (Requirements: ${msg.note})" else msg.text
+                base + imagePlaceholder
+            }
+            ChatRole.Agent -> msg.text + imagePlaceholder
         }
         val prefix = if (msg.role == ChatRole.User) "User: " else "Assistant: "
         val line = prefix + body

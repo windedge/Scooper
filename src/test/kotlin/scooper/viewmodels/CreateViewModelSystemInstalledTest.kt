@@ -2,11 +2,16 @@
 
 package scooper.viewmodels
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onSubscription
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -19,7 +24,9 @@ import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
 import scooper.service.ScoopClient
+import scooper.service.ScoopEvent
 import scooper.service.ScoopLogStream
+import scooper.service.ScoopService
 import scooper.taskqueue.TaskQueue
 import java.io.File
 
@@ -38,6 +45,27 @@ import java.io.File
  * after the assertions.
  */
 class CreateViewModelSystemInstalledTest {
+
+    // Shared per-class temp root (method-parameter File injection needs extra
+    // resolver machinery).
+    @org.junit.jupiter.api.io.TempDir
+    lateinit var tempDir: java.io.File
+
+    /** Same stub approach as CreateViewModelInstallEventTest: the CLI never runs. */
+    private suspend fun <T> withScoopShim(block: suspend () -> T): T {
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"), "scooper-shim-${System.nanoTime()}").apply { mkdirs() }
+        val cmd = dir.resolve("scoop.cmd").apply {
+            writeText("@echo off\r\necho Installing\r\nexit /b 0\r\n")
+            deleteOnExit()
+        }
+        System.setProperty(scooper.util.TEST_SCOOP_SHIM_ENV, cmd.absolutePath)
+        return try {
+            block()
+        } finally {
+            System.clearProperty(scooper.util.TEST_SCOOP_SHIM_ENV)
+            dir.deleteRecursively()
+        }
+    }
 
     @Test
     fun `assist start preserves the system installed fact`(@TempDir tempDir: File) = runBlocking {
@@ -98,6 +126,44 @@ class CreateViewModelSystemInstalledTest {
         assertFalse(reinstallGlobal(snapshot, "testapp"))
     }
 
+    // -----------------------------------------------------------------
+    // directInstallScope: install side must match the reinstall side
+    // -----------------------------------------------------------------
+
+    @Test
+    fun `directInstallScope is true only when the snapshot reports global`() {
+        assertTrue(
+            directInstallScope(mapOf("testapp" to installedInfo(isGlobal = true)), "testapp"),
+            "a globally installed app must reinstall global on the install side too",
+        )
+        assertFalse(
+            directInstallScope(mapOf("testapp" to installedInfo(isGlobal = false)), "testapp"),
+            "a locally installed app must reinstall local",
+        )
+        assertFalse(
+            directInstallScope(emptyMap(), "testapp"),
+            "an app missing from the snapshot installs local",
+        )
+    }
+
+    @Test
+    fun `directInstallScope agrees with reinstallGlobal for every snapshot shape`() {
+        val snapshots = listOf(
+            emptyMap(),
+            mapOf("testapp" to installedInfo(isGlobal = true)),
+            mapOf("testapp" to installedInfo(isGlobal = false)),
+            mapOf("TESTAPP" to installedInfo(isGlobal = true)),
+            mapOf("otherapp" to installedInfo(isGlobal = true)),
+        )
+        for (snapshot in snapshots) {
+            assertEquals(
+                reinstallGlobal(snapshot, "testapp"),
+                directInstallScope(snapshot, "testapp"),
+                "uninstall and install scope must agree for snapshot: $snapshot",
+            )
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
@@ -124,6 +190,7 @@ class CreateViewModelSystemInstalledTest {
     private fun createViewModel(
         rootDir: File,
         presetSystemInstalled: Boolean = false,
+        scoopService: ScoopService? = null,
     ): CreateViewModel {
         val scoopClient = ScoopClient(
             logStream = ScoopLogStream(),
@@ -142,6 +209,7 @@ class CreateViewModelSystemInstalledTest {
                 gitHistoryService = GitHistoryService(),
             ),
             gitHistoryService = GitHistoryService(),
+            scoopService = scoopService,
         )
         runBlocking {
             withContext(Dispatchers.Default) {
@@ -152,6 +220,7 @@ class CreateViewModelSystemInstalledTest {
                                 systemInstalled = presetSystemInstalled,
                                 manifestJson = """{"version":"1.0","homepage":"https://example.com"}""",
                                 suggestedAppName = "testapp",
+                                manifestSaved = true,
                                 saveResult = SaveResult(
                                     success = true,
                                     appName = "testapp",
@@ -169,6 +238,51 @@ class CreateViewModelSystemInstalledTest {
             }
         }
         return vm
+    }
+
+    // ---------------------------------------------------------------------
+    // Install event wiring through the injected ScoopService
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `onInstallSaved publishes AppInstalled through the injected service`(): Unit = runBlocking {
+        withScoopShim {
+        // The refresh reads the bucket manifest after install; without it the
+        // record is skipped and no event is published.
+        java.io.File(tempDir, "buckets/main/bucket").mkdirs()
+        java.io.File(tempDir, "buckets/main/bucket/testapp.json")
+            .writeText("""{"version":"1.2.3","bin":["app.exe"]}""")
+        val scoopClient = ScoopClient(
+            logStream = ScoopLogStream(),
+            taskQueue = TaskQueue(),
+            rootDirOverride = tempDir,
+        )
+        val repository = scooper.service.createInMemoryAppsRepository(scoopClient)
+        val service = ScoopService(scoopClient, repository)
+        val vm = createViewModel(tempDir, scoopService = service)
+        var received: ScoopEvent? = null
+        // Handshake: wait for the collector to actually subscribe before the
+        // install runs, otherwise the event lands with no subscriber around.
+        val ready = CompletableDeferred<Unit>()
+        // first{} returns as soon as the event arrives, so the collector
+        // coroutine finishes by itself instead of hanging forever.
+        val job = launch(Dispatchers.Default) {
+            received = service.events
+                .onSubscription { ready.complete(Unit) }
+                .first { it is ScoopEvent.AppInstalled }
+        }
+        ready.await()
+
+        withContext(Dispatchers.Default) {
+            withTimeout(10_000) { vm.onInstallSaved().join() }
+        }
+        withTimeout(10_000) { job.join() }
+        vm.close()
+
+        val event = received
+        assertTrue(event is ScoopEvent.AppInstalled, "expected AppInstalled, got: $event")
+        assertEquals("testapp", (event as ScoopEvent.AppInstalled).appName)
+        }
     }
 
     /**

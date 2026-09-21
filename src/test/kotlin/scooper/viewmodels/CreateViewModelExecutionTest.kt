@@ -664,6 +664,22 @@ class CreateViewModelExecutionTest {
         assertEquals("✓ Completed in 0ms · 0 steps", executionSummaryCapsuleText(emptyList()))
     }
 
+    @Test
+    fun `executionSummaryCapsuleText with failed true uses cross and Failed wording`() {
+        val steps = listOf(
+            ExecutionStep(phase = "research", title = "r", durationMs = 60_000L),
+            ExecutionStep(phase = "generate", title = "g", durationMs = 19_000L),
+        )
+        assertEquals("✗ Failed in 1m 19s · 2 steps", executionSummaryCapsuleText(steps, failed = true))
+    }
+
+    @Test
+    fun `executionSummaryCapsuleText failed defaults to completed wording`() {
+        val steps = listOf(ExecutionStep(phase = "verify", title = "v", durationMs = 1_200L))
+        assertEquals("✓ Completed in 1.2s · 1 step", executionSummaryCapsuleText(steps))
+        assertEquals("✗ Failed in 1.2s · 1 step", executionSummaryCapsuleText(steps, failed = true))
+    }
+
     // ---------------------------------------------------------------
     // Token usage display: compact count and bubble footer
     // ---------------------------------------------------------------
@@ -925,18 +941,42 @@ class CreateViewModelExecutionTest {
         assertFalse(installActionPrimary(manifestSaved = true, installedForUse = true))
     }
 
-    // installActionEnabled: saved, not installed, and no operation in flight
+    // installActionEnabled: valid manifest, not installed, and no operation in flight
 
     @Test
-    fun `installActionEnabled is true for a saved not-yet-installed idle manifest`() {
+    fun `installActionEnabled is true for a valid unsaved idle manifest`() {
         assertTrue(
             installActionEnabled(
-                manifestSaved = true,
+                manifestJson = """{"version":"1.2.3"}""",
                 installedForUse = false,
                 running = false,
                 testing = false,
                 installing = false,
             ),
+        )
+    }
+
+    @Test
+    fun `installActionEnabled is false for a blank or invalid manifest`() {
+        assertFalse(
+            installActionEnabled(
+                manifestJson = "   ",
+                installedForUse = false,
+                running = false,
+                testing = false,
+                installing = false,
+            ),
+            "blank manifest must disable the install action",
+        )
+        assertFalse(
+            installActionEnabled(
+                manifestJson = "not json",
+                installedForUse = false,
+                running = false,
+                testing = false,
+                installing = false,
+            ),
+            "invalid manifest JSON must disable the install action",
         )
     }
 
@@ -953,19 +993,16 @@ class CreateViewModelExecutionTest {
                 "installing" -> installing = true
             }
             assertFalse(
-                installActionEnabled(manifestSaved = true, installedForUse = false, running = running, testing = testing, installing = installing),
+                installActionEnabled(manifestJson = """{"version":"1.2.3"}""", installedForUse = false, running = running, testing = testing, installing = installing),
                 "$busy in flight must disable the install action",
             )
         }
     }
 
     @Test
-    fun `installActionEnabled is false before save or after install`() {
+    fun `installActionEnabled is false once installed for use`() {
         assertFalse(
-            installActionEnabled(manifestSaved = false, installedForUse = false, running = false, testing = false, installing = false),
-        )
-        assertFalse(
-            installActionEnabled(manifestSaved = true, installedForUse = true, running = false, testing = false, installing = false),
+            installActionEnabled(manifestJson = """{"version":"1.2.3"}""", installedForUse = true, running = false, testing = false, installing = false),
         )
     }
 

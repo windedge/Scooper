@@ -19,7 +19,8 @@ common-text = "1.10.0"
 kotlin-process = "1.5.1"
 reorderable = "2.5.1"
 commonmark = "0.24.0"
-scoop-ai = "0.1.8"
+flatlaf = "3.7"
+scoop-ai = "0.1.9"
 
 
 [libraries]
@@ -33,6 +34,7 @@ exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "e
 exposed-dao = { module = "org.jetbrains.exposed:exposed-dao", version.ref = "exposed" }
 exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
 exposed-java-time = { module = "org.jetbrains.exposed:exposed-java-time", version.ref = "exposed" }
+flatlaf = { module = "com.formdev:flatlaf", version.ref = "flatlaf" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 
 voyager-navigator = { module = "cafe.adriel.voyager:voyager-navigator", version.ref = "voyager" }
