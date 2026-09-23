@@ -124,7 +124,7 @@ class CreateViewModelPendingImageTest {
     }
 
     @Test
-    fun `onSend without manifest keeps pendingImages and adds no message`() = runBlocking {
+    fun `onSend without manifest still starts an assist conversation from images`() = runBlocking {
         val vm = createViewModel()
         withTimeout(5_000) { vm.attachImages(listOf(pngImage("a"))).join() }
 
@@ -133,8 +133,11 @@ class CreateViewModelPendingImageTest {
         }
 
         val state = vm.container.stateFlow.value
-        assertEquals(1, state.pendingImages.size, "images must be kept when there is no manifest yet")
-        assertTrue(state.messages.isEmpty(), "no user bubble expected without a manifest")
+        assertTrue(state.pendingImages.isEmpty(), "images must be consumed by the assist round")
+        val userMessages = state.messages.filter { it.role == ChatRole.User }
+        assertEquals(1, userMessages.size, "exactly one user bubble expected, got: " + state.messages)
+        assertEquals(PURE_IMAGE_INSTRUCTION, userMessages.single().text)
+        assertEquals(listOf("a"), userMessages.single().images.map { it.id })
         vm.close()
     }
 

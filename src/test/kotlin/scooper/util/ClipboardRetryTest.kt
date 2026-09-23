@@ -2,7 +2,6 @@ package scooper.util
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.ClipEntry
-import java.awt.Toolkit
 import java.awt.datatransfer.Clipboard as AwtClipboard
 import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
@@ -84,20 +83,23 @@ class ClipboardRetryTest {
 
     // --------------------------------------------------------------- RetryingAwtClipboard
 
+    // 注意:这里用内存里的 FakeAwtClipboard,不能拿 Toolkit.getDefaultToolkit().systemClipboard。
+    // 否则单元测试会写真实剪贴板,剪贴板管理器(Clippi/CopyQ)会把它当新复制记录,
+    // 同时也会清掉用户正在复制的内容。
     @Test
-    fun `setClipEntry writes and clears the system clipboard`() = kotlinx.coroutines.runBlocking {
-        val awt = Toolkit.getDefaultToolkit().systemClipboard
-        val clipboard = RetryingAwtClipboard(attempts = 4, delayMillis = 10)
+    fun `setClipEntry writes and clears the clipboard`() = kotlinx.coroutines.runBlocking {
+        val fake = FakeAwtClipboard(failTimes = 0)
+        val clipboard = RetryingAwtClipboard(attempts = 4, delayMillis = 10, clipboardSource = { fake })
         val text = "scooper-test-${System.nanoTime()}"
 
         clipboard.setClipEntry(ClipEntry(StringSelection(text)))
         assertEquals(text, readClipboardTextWithRetry(attempts = 4, delayMillis = 10) {
-            awt.getContents(null)?.getTransferData(DataFlavor.stringFlavor) as? String
+            fake.getContents(null)?.getTransferData(DataFlavor.stringFlavor) as? String
         })
 
         clipboard.setClipEntry(null)
         assertEquals("", readClipboardTextWithRetry(attempts = 4, delayMillis = 10) {
-            awt.getContents(null)?.getTransferData(DataFlavor.stringFlavor) as? String
+            fake.getContents(null)?.getTransferData(DataFlavor.stringFlavor) as? String
         })
     }
 }

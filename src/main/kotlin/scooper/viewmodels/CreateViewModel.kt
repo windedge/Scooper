@@ -54,6 +54,7 @@ import scooper.util.logger
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 enum class ChatRole {
     User,
@@ -167,6 +168,26 @@ internal fun resolveDefaultSaveBucket(
  */
 internal fun resolveDefaultCommitToGit(isGitBucket: Boolean, lastPreference: Boolean): Boolean =
     isGitBucket && lastPreference
+
+/**
+ * Reference-aware save default: the produced app name matching a referenced
+ * manifest's name locks that bucket/name as the save dialog default.
+ */
+internal fun referenceSaveDefault(
+    appName: String,
+    refs: List<Pair<String, String>>,
+    availableBuckets: List<String>,
+): Pair<String, String>? {
+    val name = appName.trim()
+    if (name.isEmpty()) return null
+    return refs.lastOrNull { (bucket, refName) ->
+        refName.equals(name, ignoreCase = true) && bucket in availableBuckets
+    }
+}
+
+/** Dialog hint line explaining a reference-locked default; null without a lock. */
+internal fun refLockHintText(lock: Pair<String, String>?): String? =
+    lock?.let { (bucket, name) -> "Pre-filled from @$bucket/$name reference" }
 
 data class QuestionnaireOption(
     val label: String,
@@ -452,6 +473,8 @@ data class CreateState(
     val bucketOptions: List<String> = emptyList(),
     val saveCommitToGit: Boolean = true,
     val saveBucketIsGit: Boolean = true,
+    /** Non-null when the dialog defaults were locked from a @bucket/app reference. */
+    val saveRefHint: String? = null,
     val overwriteConfirmOpen: Boolean = false,
     val testResult: TestResult? = null,
     val saveResult: SaveResult? = null,
@@ -497,6 +520,8 @@ data class CreateState(
     val selectedRevisionId: String? = null,
     /** Images pending to be sent with the next message (max 3). */
     val pendingImages: List<PendingImage> = emptyList(),
+    /** Local bucket/app index for the @ completion menu; loaded lazily, best effort. */
+    val manifestRefSuggestions: List<ManifestRefSuggestion> = emptyList(),
     /** Raw result JSON of the last AI install_app call, for assertions and debugging. */
     val lastInstallReply: String = "",
 ) {
@@ -535,6 +560,9 @@ class CreateViewModel(
     private val repairRoundCounter = RepairRoundCounter()
     private var askUserDeferred: CompletableDeferred<String>? = null
     private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
+
+    /** Guard so the app index is scanned at most once even if several @ tokens appear quickly. */
+    private val manifestRefSuggestionsLoading = AtomicBoolean(false)
 
     private val prettyJson = Json {
         prettyPrint = true
@@ -587,6 +615,19 @@ class CreateViewModel(
     fun onFetchModels() = intent {
         val settings = scoopAiBridge.readSettings()
         fetchAvailableModels(settings.provider, settings.apiKey, settings.baseUrl)
+    }
+
+    /**
+     * Lazily scans the local bucket directories once for the @ completion menu.
+     * Best effort: any failure or empty root just leaves an empty menu, never an error.
+     */
+    fun ensureManifestRefSuggestions() = intent {
+        if (state.manifestRefSuggestions.isNotEmpty()) return@intent
+        if (!manifestRefSuggestionsLoading.compareAndSet(false, true)) return@intent
+        val suggestions = withContext(Dispatchers.IO) { scanManifestRefSuggestions(scoopClient) }
+        if (suggestions.isNotEmpty()) {
+            reduce { state.copy(manifestRefSuggestions = suggestions) }
+        }
     }
 
     private fun fetchAvailableModels(provider: String, apiKey: String, baseUrl: String?) = intent {
@@ -656,28 +697,17 @@ class CreateViewModel(
         // Allow sending when either text or images are present.
         if (text.isBlank() && images.isEmpty()) return@intent
 
-        // Pure-image send (no text): requires an existing manifest; without one
-        // there is nothing to assist on, so keep the images and stop early.
+        // Pure-image send (no text): start (or continue) a conversation from the
+        // screenshots. Without a manifest the session simply has nothing to modify
+        // yet, which the engine handles as a text-only answer.
         if (text.isBlank()) {
-            if (state.manifestJson.isBlank()) {
-                postSideEffect(
-                    AppSideEffect.Toast("Generate a manifest first before sending images", ToastType.ERROR),
-                )
-                return@intent
-            }
             startAssistInternal(PURE_IMAGE_INSTRUCTION, images = images)
             return@intent
         }
 
         reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
 
-        if (isAssistRequest(
-                hasExistingManifest = state.manifestJson.isNotBlank(),
-                lastUrl = state.lastUrl,
-                inputUrl = text,
-                inputNote = text,
-            )
-        ) {
+        if (isAssistRequest(text)) {
             startAssistInternal(resolveAssistInstruction(text, text), images = images)
         } else {
             val (derivedUrl, derivedNote) = GithubUrlParser.extract(text)
@@ -1072,20 +1102,31 @@ class CreateViewModel(
             postSideEffect(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
             return@intent
         }
-        val defaultBucket = resolveDefaultSaveBucket(
-            current = state.saveBucket,
-            lastUsed = scoopAiBridge.readLastBucket(),
-            buckets = buckets,
+        // Reference lock (batch 4): a produced app name matching a referenced
+        // @bucket/app pins that bucket/name as the dialog default (still
+        // editable), overriding the lastBucket memory. No match keeps the
+        // existing resolveDefaultSaveBucket priority.
+        val refLock = referenceSaveDefault(
+            appName = state.suggestedAppName.orEmpty(),
+            refs = userManifestRefs(state.messages),
+            availableBuckets = buckets,
         )
+        val defaultBucket = refLock?.first
+            ?: resolveDefaultSaveBucket(
+                current = state.saveBucket,
+                lastUsed = scoopAiBridge.readLastBucket(),
+                buckets = buckets,
+            )
         val defaultBucketDir = scoopClient.bucketsBaseDir.resolve(defaultBucket)
         val isGit = gitHistoryService.isGitBucket(defaultBucketDir)
         reduce {
             state.copy(
                 saveDialogOpen = true,
-                saveAppName = state.suggestedAppName.orEmpty(),
+                saveAppName = refLock?.second ?: state.suggestedAppName.orEmpty(),
                 saveBucket = defaultBucket,
                 bucketOptions = buckets,
                 saveBucketIsGit = isGit,
+                saveRefHint = refLockHintText(refLock),
                 saveCommitToGit = resolveDefaultCommitToGit(
                     isGitBucket = isGit,
                     lastPreference = scoopAiBridge.readCommitPreference(),
@@ -1640,11 +1681,9 @@ class CreateViewModel(
     ) {
         val text = instruction.trim()
         if (text.isBlank()) return
+        // An empty manifest is a pure conversation session: the engine answers
+        // text-only and never touches state.manifestJson until a URL generates.
         val currentManifest = state.manifestJson
-        if (currentManifest.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("No manifest to assist. Generate one first.", ToastType.ERROR))
-            return
-        }
 
         val missing = scoopAiBridge.readSettings().missingReason()
         if (missing != null) {
@@ -1727,6 +1766,15 @@ class CreateViewModel(
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
             onSaveToBucket = { bucket, name, overwrite ->
                 executeSaveToBucket(bucket, name, overwrite)
+            },
+            // Session-persistent read_manifest_reference wiring: as long as any
+            // user bubble in the conversation referenced @bucket/app (including
+            // this round's message), every round passes the handler so the tool
+            // stays registered; with no references at all it stays absent.
+            onReadManifestRef = if (userManifestRefs(state.messages + ChatMessage(role = ChatRole.User, text = userPrompt)).isEmpty()) {
+                null
+            } else {
+                { bucket, name -> readManifestRefReply(scoopClient, bucket, name) }
             },
             onInstallApp = { bucket, name ->
                 // The engine's handler signature is suspend-and-returns-JSON;
@@ -2452,6 +2500,70 @@ internal suspend fun saveManifestCore(
 }
 
 /**
+ * Backs the engine's `read_manifest_reference` tool (architecture A: the host
+ * owns the local bucket lookup): locate buckets/<bucket>/bucket/<name>.json in
+ * the local scoop root and embed the manifest's raw JSON as a JSON value. Any
+ * failure degrades to a diagnosable success:false reply so the session survives.
+ */
+internal fun readManifestRefReply(scoopClient: ScoopClient, bucket: String, name: String): String {
+    val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
+    if (!bucketDir.isDirectory) {
+        return readManifestRefFailure("bucket '$bucket' not found")
+    }
+    val manifestFile = bucketDir.resolve("bucket/$name.json")
+    if (!manifestFile.isFile) {
+        return readManifestRefFailure("app '$name' not found in bucket '$bucket'")
+    }
+    return try {
+        val manifest = Json.parseToJsonElement(manifestFile.readText())
+        buildJsonObject {
+            put("success", true)
+            put("bucket", bucket)
+            put("name", name)
+            put("path", manifestFile.absolutePath)
+            put("manifest", manifest)
+        }.toString()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        readManifestRefFailure("failed to read manifest for '$name' in bucket '$bucket': ${e.message}")
+    }
+}
+
+private fun readManifestRefFailure(error: String): String = buildJsonObject {
+    put("success", false)
+    put("error", error)
+}.toString()
+
+/**
+ * Builds the @ completion menu index by listing every manifest json directly under
+ * buckets/<bucket>/bucket/, the same layout [readManifestRefReply] reads from, so
+ * every suggestion is actually loadable by the tool. Best effort: unreadable dirs
+ * are skipped; only the directory listing itself failing yields an empty list.
+ */
+internal fun scanManifestRefSuggestions(scoopClient: ScoopClient): List<ManifestRefSuggestion> {
+    val suggestions = mutableListOf<ManifestRefSuggestion>()
+    val bucketDirs = try {
+        scoopClient.bucketsBaseDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
+    } catch (_: Exception) {
+        emptyList()
+    }
+    for (bucketDir in bucketDirs) {
+        val entries = try {
+            bucketDir.resolve("bucket").listFiles() ?: continue
+        } catch (_: Exception) {
+            continue
+        }
+        for (entry in entries) {
+            val fileName = entry.name
+            if (!fileName.endsWith(".json") || !entry.isFile) continue
+            suggestions += ManifestRefSuggestion(bucketDir.name, fileName.removeSuffix(".json"))
+        }
+    }
+    return suggestions
+}
+
+/**
  * Builds the needsBucket reply for a save without an explicit bucket: the model
  * must ask the user to pick one (via ask_user) instead of the host silently
  * applying default bucket rules.
@@ -3012,6 +3124,110 @@ internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
     }
 }
 
+/**
+ * Scans text for @bucket/app reference tokens: "@" at line start or after
+ * whitespace (so email addresses and URL fragments never match), bucket/name
+ * chars only, original casing preserved, deduped in order of appearance.
+ */
+internal fun extractManifestRefs(text: String): List<Pair<String, String>> {
+    val regex = Regex("@([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)")
+    val seen = LinkedHashSet<Pair<String, String>>()
+    for (match in regex.findAll(text)) {
+        // The @ must sit at line start or after whitespace, so email addresses
+        // (letter before @) and in-URL fragments (slash before @) never match.
+        val start = match.range.first
+        if (start > 0 && !text[start - 1].isWhitespace()) continue
+        seen += match.groupValues[1] to match.groupValues[2]
+    }
+    return seen.toList()
+}
+
+/** Merged @bucket/app references across the conversation; only user bubbles count (AI mentions are not references). */
+internal fun userManifestRefs(messages: List<ChatMessage>): List<Pair<String, String>> =
+    messages.filter { it.role == ChatRole.User }
+        .flatMap { extractManifestRefs(it.text) }
+        .distinct()
+
+/**
+ * Incomplete @ token under the caret, or null when no completion applies.
+ * The @ must sit at line start or after whitespace and be followed only by
+ * [A-Za-z0-9_-/]; a fully formed "@bucket/name" followed by whitespace or
+ * line end is done and no longer triggers the menu. The returned query is the
+ * typed text after the @ (may contain "/" for qualified prefixes).
+ */
+internal fun activeManifestRefToken(text: String, caret: Int): String? {
+    if (caret <= 0 || caret > text.length) return null
+    val at = text.lastIndexOf('@', caret - 1)
+    if (at < 0) return null
+    if (at > 0 && !text[at - 1].isWhitespace()) return null
+    val token = text.substring(at + 1, caret)
+    if (token.isEmpty()) return null
+    if (!Regex("[A-Za-z0-9_-/]*").matches(token)) return null
+    return token
+}
+
+/** One piece of user bubble text: plain text or a @bucket/app reference chip. */
+sealed class ManifestRefSegment {
+    data class Text(val text: String) : ManifestRefSegment()
+
+    data class Ref(val bucket: String, val name: String) : ManifestRefSegment() {
+        /** Original token text as typed, preserving casing (e.g. "@Main/Golang"). */
+        val raw: String get() = "@$bucket/$name"
+    }
+}
+
+/**
+ * Splits bubble text into plain-text and reference segments so the UI can render
+ * @bucket/app tokens as chips. Uses the same token rule as [extractManifestRefs]
+ * (email/URL fragments stay plain text); unmatched parts stay text.
+ */
+internal fun splitManifestRefSegments(text: String): List<ManifestRefSegment> {
+    val regex = Regex("@([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)")
+    val segments = mutableListOf<ManifestRefSegment>()
+    var cursor = 0
+    for (match in regex.findAll(text)) {
+        // Same guard as extractManifestRefs: the @ must sit at line start or after
+        // whitespace, so email addresses and in-URL fragments never match.
+        val start = match.range.first
+        if (start > 0 && !text[start - 1].isWhitespace()) continue
+        if (start > cursor) segments += ManifestRefSegment.Text(text.substring(cursor, start))
+        segments += ManifestRefSegment.Ref(match.groupValues[1], match.groupValues[2])
+        cursor = match.range.last + 1
+    }
+    if (cursor < text.length) segments += ManifestRefSegment.Text(text.substring(cursor))
+    return segments
+}
+
+/** One @bucket/app entry in the completion menu index. */
+data class ManifestRefSuggestion(val bucket: String, val name: String) {
+    /** Token inserted into the input when picked, with trailing space. */
+    val insertion: String get() = "@$bucket/$name "
+}
+
+/** Max rows shown in the @ completion menu. */
+internal const val REF_SUGGESTION_LIMIT = 8
+
+/**
+ * Filters the app index for the completion menu: case-insensitive prefix match on
+ * name, on bucket, or on the qualified "bucket/name" form; capped at
+ * [REF_SUGGESTION_LIMIT]. Pure function.
+ */
+internal fun filterRefSuggestions(
+    suggestions: List<ManifestRefSuggestion>,
+    prefix: String,
+): List<ManifestRefSuggestion> {
+    val p = prefix.trim().lowercase()
+    return suggestions.asSequence()
+        .filter { s ->
+            val qualified = "${s.bucket}/${s.name}".lowercase()
+            s.name.lowercase().startsWith(p) || s.bucket.lowercase().startsWith(p) ||
+                (p.contains('/') && qualified.startsWith(p))
+        }
+        .sortedWith(compareBy({ it.name.lowercase() }, { it.bucket.lowercase() }))
+        .take(REF_SUGGESTION_LIMIT)
+        .toList()
+}
+
 internal fun isLikelyUrl(text: String): Boolean {
     val trimmed = text.trim()
     return trimmed.startsWith("http://", ignoreCase = true) ||
@@ -3020,22 +3236,14 @@ internal fun isLikelyUrl(text: String): Boolean {
 }
 
 /**
- * Determines whether a send action is an assist request (incremental modification)
- * or a fresh generation.
+ * Determines whether a send action is an assist request (incremental modification
+ * or conversation) or a fresh generation: a GitHub URL generates, everything else
+ * assists. Failure-prone inputs (non-GitHub URL prefixes, bare domains) degrade
+ * to assist instead of raising an invalid-URL error; empty input assist is a
+ * defensive no-op path.
  */
-internal fun isAssistRequest(
-    hasExistingManifest: Boolean,
-    lastUrl: String,
-    inputUrl: String,
-    inputNote: String,
-): Boolean {
-    if (!hasExistingManifest) return false
-    val rawUrl = inputUrl.trim()
-    val rawNote = inputNote.trim()
-    if (rawNote.isNotBlank() && (rawUrl.isBlank() || rawUrl == lastUrl)) return true
-    if (!isLikelyUrl(rawUrl) && rawUrl.isNotBlank()) return true
-    return false
-}
+internal fun isAssistRequest(input: String): Boolean =
+    GithubUrlParser.extract(input.trim()).first == null
 
 internal fun resolveAssistInstruction(
     inputUrl: String,

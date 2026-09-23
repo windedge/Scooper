@@ -72,14 +72,19 @@ internal fun writeWithRetry(
 class RetryingAwtClipboard(
     private val attempts: Int = 8,
     private val delayMillis: Long = 40,
-) : Clipboard {
-    private val awtClipboard: AwtClipboard? by lazy {
+    /**
+     * 剪贴板来源。默认取系统剪贴板;测试必须注入内存实现。
+     * 否则单元测试会写入/清空用户真实的系统剪贴板,剪贴板管理器会把它记录成历史条目。
+     */
+    private val clipboardSource: () -> AwtClipboard? = {
         try {
             Toolkit.getDefaultToolkit().systemClipboard
         } catch (_: HeadlessException) {
             null
         }
-    }
+    },
+) : Clipboard {
+    private val awtClipboard: AwtClipboard? by lazy { clipboardSource() }
 
     override suspend fun getClipEntry(): ClipEntry? {
         val text = withContext(Dispatchers.IO) {

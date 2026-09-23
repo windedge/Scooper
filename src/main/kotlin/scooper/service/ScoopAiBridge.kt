@@ -216,6 +216,12 @@ open class ScoopAiBridge(
          */
         onInstallApp: (suspend (bucket: String?, name: String) -> String)? = null,
         /**
+         * Host read callback backing the engine's `read_manifest_reference`
+         * tool. Signature: (bucket, name) -> result JSON. Only wired into an
+         * assist session; when null the tool is not registered.
+         */
+        onReadManifestRef: (suspend (bucket: String, name: String) -> String)? = null,
+        /**
          * App names the engine's conflict check must ignore, e.g. the manifest
          * this session itself just saved: at verify time it is already in the
          * bucket, so counting it as a conflict is a false positive.
@@ -243,6 +249,7 @@ open class ScoopAiBridge(
         },
         saveToBucketHandler = onSaveToBucket,
         installAppHandler = onInstallApp,
+        readManifestRefHandler = onReadManifestRef,
     )
 
     /**
@@ -256,7 +263,7 @@ open class ScoopAiBridge(
      * satisfy the requested stage it degrades to a full regeneration (the
      * checkpoint is kept, never cleared, on failure or cancel).
      */
-    fun startGenerate(
+    open fun startGenerate(
         url: String,
         userPrompt: String?,
         resumeFrom: AiErrorAction? = null,
@@ -357,6 +364,13 @@ open class ScoopAiBridge(
          * to any bucket. When null the assist session runs without the tool.
          */
         onInstallApp: (suspend (bucket: String?, name: String) -> String)? = null,
+        /**
+         * Host read callback backing the engine's `read_manifest_reference` tool.
+         * Signature: (bucket, name) -> result JSON. The host passes a handler
+         * for every assist round of a session where the user referenced any
+         * local manifest with @bucket/app; when null the tool is not registered.
+         */
+        onReadManifestRef: (suspend (bucket: String, name: String) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
         generateJob?.cancel()
@@ -381,6 +395,7 @@ open class ScoopAiBridge(
                     onQuestionnaire = onQuestionnaire,
                     onSaveToBucket = onSaveToBucket,
                     onInstallApp = onInstallApp,
+                    onReadManifestRef = onReadManifestRef,
                     ignoreAppNames = ignoreAppNames,
                 )
                 val checkpoint = checkpointService.snapshot()

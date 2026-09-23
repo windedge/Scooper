@@ -12,69 +12,60 @@ import scooper.service.AiErrorAction
 class CreateViewModelAssistTest {
 
     @Test
-    fun `isAssistRequest returns true when manifest exists, note is present and url is blank`() {
-        val result = isAssistRequest(
-            hasExistingManifest = true,
-            lastUrl = "https://github.com/sharkdp/fd",
-            inputUrl = "",
-            inputNote = "Please remove arm64 support",
+    fun `isAssistRequest returns true for plain text without a github url`() {
+        assertTrue(
+            isAssistRequest("Please remove arm64 support"),
+            "Should route to assist when input has no GitHub URL",
         )
-        assertTrue(result, "Should route to assist when URL is blank and note is provided")
     }
 
     @Test
-    fun `isAssistRequest returns true when manifest exists, note is present and url matches lastUrl`() {
-        val result = isAssistRequest(
-            hasExistingManifest = true,
-            lastUrl = "https://github.com/sharkdp/fd",
-            inputUrl = "https://github.com/sharkdp/fd",
-            inputNote = "Add start menu shortcut",
+    fun `isAssistRequest returns true when a full url matches lastUrl only in note`() {
+        // url/note mirror: both carry the same text; no github URL means assist.
+        assertTrue(
+            isAssistRequest("Add start menu shortcut"),
+            "Natural language must assist even when a manifest exists",
         )
-        assertTrue(result, "Should route to assist when URL matches last generated URL")
     }
 
     @Test
-    fun `isAssistRequest returns false when no manifest exists yet`() {
-        val result = isAssistRequest(
-            hasExistingManifest = false,
-            lastUrl = "",
-            inputUrl = "https://github.com/sharkdp/fd",
-            inputNote = "prefer portable",
+    fun `isAssistRequest returns true when no manifest exists yet`() {
+        assertTrue(
+            isAssistRequest("prefer portable"),
+            "First message may be plain conversation without a manifest",
         )
-        assertFalse(result, "Should not route to assist when no manifest exists")
     }
 
     @Test
     fun `isAssistRequest returns false when user inputs a brand new different url`() {
-        val result = isAssistRequest(
-            hasExistingManifest = true,
-            lastUrl = "https://github.com/sharkdp/fd",
-            inputUrl = "https://github.com/BurntSushi/ripgrep",
-            inputNote = "prefer portable",
+        assertFalse(
+            isAssistRequest("https://github.com/BurntSushi/ripgrep"),
+            "Should start fresh generation when a GitHub URL is given",
         )
-        assertFalse(result, "Should start fresh generation when new URL is given")
     }
 
     @Test
-    fun `isAssistRequest returns false when note is blank`() {
-        val result = isAssistRequest(
-            hasExistingManifest = true,
-            lastUrl = "https://github.com/sharkdp/fd",
-            inputUrl = "https://github.com/sharkdp/fd",
-            inputNote = "   ",
+    fun `isAssistRequest returns false for a valid github url even when manifest exists`() {
+        assertFalse(
+            isAssistRequest("https://github.com/sharkdp/fd"),
+            "A valid GitHub URL always triggers generation",
         )
-        assertFalse(result, "Should not assist when note is blank")
     }
 
     @Test
-    fun `isAssistRequest returns true when manifest exists and instruction is entered in url field`() {
-        val result = isAssistRequest(
-            hasExistingManifest = true,
-            lastUrl = "https://github.com/sharkdp/fd",
-            inputUrl = "去掉notes字段",
-            inputNote = "",
+    fun `isAssistRequest returns true for non github url and empty input`() {
+        // "http://example.com/app.zip" looks like a URL but is not GitHub: assist.
+        assertTrue(isAssistRequest("http://example.com/app.zip"))
+        // Defensive: empty input routes to assist rather than dying in generate.
+        assertTrue(isAssistRequest(""))
+    }
+
+    @Test
+    fun `isAssistRequest returns true when instruction is entered in url field`() {
+        assertTrue(
+            isAssistRequest("去掉notes字段"),
+            "Should route to assist when user types natural language in url field",
         )
-        assertTrue(result, "Should route to assist when user types natural language in url field")
         assertEquals("去掉notes字段", resolveAssistInstruction("去掉notes字段", ""))
     }
 

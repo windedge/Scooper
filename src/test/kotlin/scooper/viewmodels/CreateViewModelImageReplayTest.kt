@@ -348,6 +348,7 @@ class CreateViewModelImageReplayTest {
             onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
             onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)?,
             onInstallApp: (suspend (bucket: String?, name: String) -> String)?,
+            onReadManifestRef: (suspend (bucket: String, name: String) -> String)?,
             onFinished: (Result<com.scoopai.core.ManifestResult>) -> Unit,
         ) {
             captured.add(images)

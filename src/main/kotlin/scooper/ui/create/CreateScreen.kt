@@ -71,6 +71,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -93,9 +94,11 @@ import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.key.Key
@@ -112,6 +115,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogState
+
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -149,6 +153,11 @@ import scooper.viewmodels.DiffLine
 import scooper.viewmodels.DiffLineType
 import scooper.viewmodels.ExecutionStep
 import scooper.viewmodels.ManifestRevision
+import scooper.viewmodels.ManifestRefSegment
+import scooper.viewmodels.ManifestRefSuggestion
+import scooper.viewmodels.activeManifestRefToken
+import scooper.viewmodels.filterRefSuggestions
+import scooper.viewmodels.splitManifestRefSegments
 import scooper.viewmodels.PendingImage
 import scooper.viewmodels.ReviewActionChip
 import scooper.viewmodels.SaveGitHint
@@ -247,6 +256,7 @@ fun CreateScreen(
                 onCancel = { viewModel.onCancel() },
                 onAttachImages = viewModel::attachImages,
                 onRemovePendingImage = viewModel::removePendingImage,
+                onEnsureRefSuggestions = viewModel::ensureManifestRefSuggestions,
             )
         } else {
             ChatWorkspace(
@@ -266,6 +276,7 @@ fun CreateScreen(
                 onOpenApp = { viewModel.onOpenApp() },
                 onAttachImages = viewModel::attachImages,
                 onRemovePendingImage = viewModel::removePendingImage,
+                onEnsureRefSuggestions = viewModel::ensureManifestRefSuggestions,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
                 onDismissTestResult = viewModel::onDismissTestResult,
@@ -294,6 +305,7 @@ fun CreateScreen(
             bucketOptions = state.bucketOptions,
             commitToGit = state.saveCommitToGit,
             isGitBucket = state.saveBucketIsGit,
+            refHint = state.saveRefHint,
             onAppNameChange = viewModel::onSaveAppNameChange,
             onBucketChange = viewModel::onSaveBucketChange,
             onCommitToGitChange = viewModel::onSaveCommitToGitChange,
@@ -787,6 +799,7 @@ private fun SaveToBucketDialog(
     bucketOptions: List<String>,
     commitToGit: Boolean,
     isGitBucket: Boolean,
+    refHint: String? = null,
     onAppNameChange: (String) -> Unit,
     onBucketChange: (String) -> Unit,
     onCommitToGitChange: (Boolean) -> Unit,
@@ -838,6 +851,13 @@ private fun SaveToBucketDialog(
                             "Letters, digits, '.', '_' and '-' only.",
                             style = typography.caption.copy(color = colors.textMuted),
                         )
+                        if (refHint != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                refHint,
+                                style = typography.caption.copy(color = colors.primary),
+                            )
+                        }
 
                         Spacer(Modifier.height(16.dp))
 
@@ -1063,6 +1083,7 @@ private fun EmptyWorkspace(
     onCancel: () -> Unit,
     onAttachImages: (List<PendingImage>) -> Unit,
     onRemovePendingImage: (String) -> Unit,
+    onEnsureRefSuggestions: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -1112,6 +1133,7 @@ private fun EmptyWorkspace(
             onCancel = onCancel,
             onAttachImages = onAttachImages,
             onRemovePendingImage = onRemovePendingImage,
+            onEnsureRefSuggestions = onEnsureRefSuggestions,
             modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
         )
         Spacer(Modifier.height(24.dp))
@@ -1155,6 +1177,7 @@ private fun ChatWorkspace(
     onAction: (AiErrorAction) -> Unit,
     onAttachImages: (List<PendingImage>) -> Unit,
     onRemovePendingImage: (String) -> Unit,
+    onEnsureRefSuggestions: () -> Unit = {},
 ) {
     @Composable
     fun PreviewArtifactPanel() {
@@ -1300,6 +1323,7 @@ private fun ChatWorkspace(
                         onCancel = onCancel,
                         onAttachImages = onAttachImages,
                         onRemovePendingImage = onRemovePendingImage,
+                        onEnsureRefSuggestions = onEnsureRefSuggestions,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -1400,6 +1424,7 @@ private fun ChatWorkspace(
                     onCancel = onCancel,
                     onAttachImages = onAttachImages,
                     onRemovePendingImage = onRemovePendingImage,
+                    onEnsureRefSuggestions = onEnsureRefSuggestions,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -1478,20 +1503,36 @@ private fun ChatBubble(
                         }
                         // Reply body first (proposal 5.5): Markdown subset for agent
                         // replies with a local 4-line collapse toggle; plain monospace
-                        // for user instructions; error bubbles keep their text path.
+                        // for user instructions with @bucket/app chips; error bubbles
+                        // keep their text rendering path.
                         if (!isUser && !isErrorBubble) {
                             CollapsibleAgentBody(text = message.text)
+                        } else if (isUser) {
+                            val segments = remember(message.text) { splitManifestRefSegments(message.text) }
+                            if (segments.size == 1 && segments[0] is ManifestRefSegment.Text) {
+                                // No references: unchanged single Text for selection.
+                                BubbleBodyText(message.text, isUser)
+                            } else {
+                                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                                    segments.forEach { segment ->
+                                        when (segment) {
+                                            is ManifestRefSegment.Text -> Text(
+                                                segment.text,
+                                                style = typography.caption.copy(
+                                                    color = colors.onSurface,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    lineHeight = typography.caption.fontSize * 1.5f,
+                                                ),
+                                            )
+                                            is ManifestRefSegment.Ref -> Box(Modifier.padding(horizontal = 1.dp)) {
+                                                ManifestRefChip(segment)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         } else {
-                            // User instructions stay plain monospace; error bubbles keep the
-                            // existing error rendering path (actions / technicalDetails below).
-                            Text(
-                                message.text,
-                                style = typography.caption.copy(
-                                    color = colors.onSurface,
-                                    fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
-                                    lineHeight = typography.caption.fontSize * 1.5f,
-                                ),
-                            )
+                            BubbleBodyText(message.text, isUser)
                         }
                         // Expanded steps sit after the body inside a faint neutral
                         // block so they do not stick to the reply text. Error bubbles
@@ -2356,14 +2397,24 @@ private fun ManifestPreviewCard(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 actionChips.take(3).forEach { chip ->
+                                    // Solid fill reads as a button; the former 12% tint
+                                    // with colored text looked like a weak hyperlink.
+                                    var chipHovered by remember { mutableStateOf(false) }
                                     val chipColor = if (chip.isPrimary) colors.primary else colors.warningDefault
+                                    val chipFill = when {
+                                        !enabled -> chipColor
+                                        chipHovered -> if (chip.isPrimary) colors.primaryHover else colors.warningHover
+                                        else -> chipColor
+                                    }
+                                    val chipContentColor = if (chip.isPrimary) Color.White else colors.onWarning
                                     Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = chipColor.copy(alpha = 0.12f),
-                                        border = BorderStroke(1.dp, chipColor.copy(alpha = 0.4f)),
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = chipFill,
                                         modifier = Modifier
+                                            .alpha(if (enabled) 1f else 0.5f)
                                             .cursorHand()
-                                            .clip(RoundedCornerShape(4.dp))
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .onHover { chipHovered = it }
                                             .clickable(enabled = enabled) {
                                                 onApplyActionChip(chip)
                                             }
@@ -2372,10 +2423,10 @@ private fun ManifestPreviewCard(
                                         Text(
                                             chip.label,
                                             style = typography.caption.copy(
-                                                color = chipColor,
+                                                color = chipContentColor,
                                                 fontWeight = FontWeight.SemiBold,
-                                                fontSize = 11.sp,
-                                                lineHeight = 14.sp,
+                                                fontSize = 12.sp,
+                                                lineHeight = 16.sp,
                                             ),
                                         )
                                     }
@@ -3064,6 +3115,88 @@ private fun readClipboardImage(): PendingImage? {
     return null
 }
 
+/** View model of the @ completion menu: one filterable app index row. */
+private data class RefMenuEntry(
+    val suggestion: ManifestRefSuggestion,
+    /** "bucket/name", matching the token the user is typing. */
+    val label: String,
+)
+
+/** Dropdown list shown above the input while an @ token is being typed. */
+@Composable
+private fun ManifestRefSuggestionMenu(
+    suggestions: List<ManifestRefSuggestion>,
+    selectedIndex: Int,
+    onPick: (ManifestRefSuggestion) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = colors.surface,
+        elevation = 6.dp,
+        border = BorderStroke(1.dp, colors.borderDefault),
+        modifier = Modifier.widthIn(max = 360.dp),
+    ) {
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            suggestions.forEachIndexed { index, suggestion ->
+                val entry = RefMenuEntry(suggestion, "${suggestion.bucket}/${suggestion.name}")
+                val highlighted = index == selectedIndex
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (highlighted) colors.primarySubtle else Color.Transparent)
+                        .cursorHand()
+                        .clickable { onPick(suggestion) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        entry.label,
+                        style = typography.caption.copy(
+                            color = if (highlighted) colors.primary else colors.textTitle,
+                            fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Small inline chip for a @bucket/app reference inside a user bubble. */
+@Composable
+private fun ManifestRefChip(ref: ManifestRefSegment.Ref) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = colors.primary.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, colors.primary.copy(alpha = 0.4f)),
+        modifier = Modifier.cursorHand(),
+    ) {
+        Text(
+            ref.raw,
+            style = typography.caption.copy(
+                color = colors.primary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+            ),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
+/** Plain bubble body text with the original mono/default styling. */
+@Composable
+private fun BubbleBodyText(text: String, isUser: Boolean) {
+    Text(
+        text,
+        style = typography.caption.copy(
+            color = colors.onSurface,
+            fontFamily = if (isUser) FontFamily.Monospace else FontFamily.Default,
+            lineHeight = typography.caption.fontSize * 1.5f,
+        ),
+    )
+}
+
 @Composable
 private fun Composer(
     state: CreateState,
@@ -3077,14 +3210,20 @@ private fun Composer(
     onCancel: () -> Unit,
     onAttachImages: (List<PendingImage>) -> Unit,
     onRemovePendingImage: (String) -> Unit,
+    onEnsureRefSuggestions: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var inputText by remember { mutableStateOf(state.inputNote.ifBlank { state.inputUrl }) }
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     // Shared so every pending thumbnail opens the same preview strip.
     var previewImage by remember { mutableStateOf<PendingImage?>(null) }
+
+    // @ completion state: keep the selection with the text so the caret word can
+    // be detected and replaced; the menu never sends the message on Enter.
+    var fieldValue by remember { mutableStateOf(TextFieldValue(state.inputNote.ifBlank { state.inputUrl })) }
+    var refMenuIndex by remember { mutableStateOf(-1) }
+    var refFieldHeightPx by remember { mutableStateOf(0) }
 
     LaunchedEffect(inputFocusTick) {
         focusRequester.requestFocus()
@@ -3093,20 +3232,50 @@ private fun Composer(
     LaunchedEffect(state.inputNote, state.inputUrl) {
         val latest = state.inputNote.ifBlank { state.inputUrl }
         if (latest.isEmpty()) {
-            inputText = ""
-        } else if (latest != inputText && !focused) {
-            inputText = latest
+            fieldValue = TextFieldValue("")
+        } else if (latest != fieldValue.text && !focused) {
+            fieldValue = TextFieldValue(latest)
         }
     }
 
     fun submit() {
         if (state.running || state.testing) return
-        if (inputText.isBlank() && state.pendingImages.isEmpty()) return
-        val text = inputText.trim()
-        inputText = ""
+        if (fieldValue.text.isBlank() && state.pendingImages.isEmpty()) return
+        val text = fieldValue.text.trim()
+        fieldValue = TextFieldValue("")
+        refMenuIndex = -1
         onUrlChange("")
         onNoteChange("")
         onSend(text, text)
+    }
+
+    val activeRefQuery = activeManifestRefToken(fieldValue.text, fieldValue.selection.min)
+    var refMenuOpen by remember { mutableStateOf(true) }
+    val refSuggestions = if (activeRefQuery != null) {
+        remember(activeRefQuery, state.manifestRefSuggestions) {
+            filterRefSuggestions(state.manifestRefSuggestions, activeRefQuery)
+        }
+    } else {
+        emptyList()
+    }
+    val refMenuVisible = activeRefQuery != null && refSuggestions.isNotEmpty() && refMenuOpen
+
+    fun applyRefSuggestion(suggestion: ManifestRefSuggestion) {
+        val query = activeRefQuery ?: return
+        val start = fieldValue.selection.min
+        val text = fieldValue.text
+        val before = text.substring(0, start - query.length)
+        val after = text.substring(start)
+        val insertion = suggestion.insertion
+        val newText = before + insertion + after
+        val caret = (before.length + insertion.length).coerceAtMost(newText.length)
+        fieldValue = TextFieldValue(newText, TextRange(caret))
+        // The completed token no longer matches activeManifestRefToken, but keep
+        // the menu shut anyway so re-typing the same prefix starts fresh.
+        refMenuOpen = false
+        refMenuIndex = -1
+        onUrlChange(newText)
+        onNoteChange(newText)
     }
 
     Column(
@@ -3151,11 +3320,18 @@ private fun Composer(
                 verticalAlignment = Alignment.Bottom,
             ) {
             BasicTextField(
-                value = inputText,
+                value = fieldValue,
                 onValueChange = { value ->
-                    inputText = value
-                    onUrlChange(value)
-                    onNoteChange(value)
+                    fieldValue = value
+                    refMenuIndex = -1
+                    refMenuOpen = true
+                    onUrlChange(value.text)
+                    onNoteChange(value.text)
+                    // Use the NEW text/selection: typing @ must trigger the lazy
+                    // index fetch in the same frame, not one keystroke later.
+                    if (activeManifestRefToken(value.text, value.selection.min) != null) {
+                        onEnsureRefSuggestions()
+                    }
                 },
                 enabled = !state.running && !state.testing,
                 singleLine = false,
@@ -3174,7 +3350,33 @@ private fun Composer(
                     .focusRequester(focusRequester)
                     .onFocusChanged { focused = it.isFocused }
                     .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter &&
+                        // The @ menu consumes navigation keys first, so its
+                        // Enter never reaches the send path below.
+                        if (refMenuVisible) {
+                            val menuSize = refSuggestions.size
+                            when {
+                                event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
+                                    refMenuIndex = (refMenuIndex + 1).mod(menuSize)
+                                    true
+                                }
+                                event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp -> {
+                                    refMenuIndex = (refMenuIndex - 1).mod(menuSize)
+                                    true
+                                }
+                                event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter) &&
+                                    !event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed -> {
+                                    if (refMenuIndex in 0 until menuSize) {
+                                        applyRefSuggestion(refSuggestions[refMenuIndex])
+                                    }
+                                    true
+                                }
+                                event.type == KeyEventType.KeyDown && event.key == Key.Escape -> {
+                                    refMenuOpen = false
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else if (event.type == KeyEventType.KeyDown && event.key == Key.Enter &&
                             !event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed
                         ) {
                             submit()
@@ -3198,17 +3400,18 @@ private fun Composer(
                         }
                     },
                 decorationBox = { inner ->
-                    Box(
+                    BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .onSizeChanged { refFieldHeightPx = it.height },
                         contentAlignment = Alignment.CenterStart,
                     ) {
-                        if (inputText.isEmpty()) {
+                        if (fieldValue.text.isEmpty()) {
                             val placeholderText = if (state.manifestJson.isNotBlank()) {
                                 "Ask AI to modify this manifest (e.g. remove notes, add shortcuts)..."
                             } else {
-                                "Enter GitHub URL (e.g. https://github.com/owner/repo)..."
+                                "Ask anything, paste a GitHub URL, or reference @bucket/app"
                             }
                             Text(
                                 placeholderText,
@@ -3219,6 +3422,24 @@ private fun Composer(
                             )
                         }
                         inner()
+
+                        // @ completion menu: floats above the input row inside the
+                        // same bubble; lift it by the field height so it opens above
+                        // the text instead of covering it.
+                        if (refMenuVisible) {
+                            Popup(
+                                alignment = Alignment.BottomStart,
+                                offset = IntOffset(0, -refFieldHeightPx),
+                                onDismissRequest = { refMenuOpen = false },
+                                properties = PopupProperties(focusable = false),
+                            ) {
+                                ManifestRefSuggestionMenu(
+                                    suggestions = refSuggestions,
+                                    selectedIndex = refMenuIndex.coerceIn(0, refSuggestions.lastIndex),
+                                    onPick = ::applyRefSuggestion,
+                                )
+                            }
+                        }
                     }
                 },
             )
@@ -3275,7 +3496,7 @@ private fun Composer(
                 } else {
                     Button(
                         onClick = { submit() },
-                        enabled = !state.testing && (inputText.isNotBlank() || state.pendingImages.isNotEmpty()),
+                        enabled = !state.testing && (fieldValue.text.isNotBlank() || state.pendingImages.isNotEmpty()),
                         modifier = Modifier.cursorHand().height(34.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(backgroundColor = colors.primary),
@@ -3307,4 +3528,3 @@ private fun Composer(
         }
     }
 }
-

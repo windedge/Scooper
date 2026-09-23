@@ -37,6 +37,7 @@ val Red700 = Color(0xFFB91C1C)
 
 // ── Amber (warning) ─────────────────────────────────
 val Amber500 = Color(0xFFF59E0B)
+val Amber600 = Color(0xFFD97706)
 
 // ── Purple (analyze phase / accents) ────────────────
 val Purple50 = Color(0xFFF5F3FF)
@@ -109,6 +110,13 @@ val Colors.dangerBg: Color
 
 val Colors.warningDefault: Color
     get() = Amber500
+
+val Colors.warningHover: Color
+    get() = Amber600
+
+// Dark ink keeps contrast on the bright amber fill.
+val Colors.onWarning: Color
+    get() = Slate900
 
 // Standard component colors (convenience aliases)
 
