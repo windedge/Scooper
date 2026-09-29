@@ -404,11 +404,10 @@ private fun AskUserBubble(
                                 modifier = Modifier
                                     .weight(1f)
                                     .cursorHand()
-                                    .clickable { currentTab = index }
-                                    .padding(vertical = 4.dp),
+                                    .clickable { currentTab = index },
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center,
                                 ) {
@@ -443,11 +442,10 @@ private fun AskUserBubble(
                             modifier = Modifier
                                 .weight(1f)
                                 .cursorHand()
-                                .clickable { currentTab = questions.size }
-                                .padding(vertical = 4.dp),
+                                .clickable { currentTab = questions.size },
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center,
                             ) {
@@ -2407,6 +2405,8 @@ private fun ManifestPreviewCard(
                                         else -> chipColor
                                     }
                                     val chipContentColor = if (chip.isPrimary) Color.White else colors.onWarning
+                                    // Padding on the Text keeps the Surface background and the
+                                    // clickable area the same size.
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
                                         color = chipFill,
@@ -2417,11 +2417,11 @@ private fun ManifestPreviewCard(
                                             .onHover { chipHovered = it }
                                             .clickable(enabled = enabled) {
                                                 onApplyActionChip(chip)
-                                            }
-                                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                                            },
                                     ) {
                                         Text(
                                             chip.label,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                             style = typography.caption.copy(
                                                 color = chipContentColor,
                                                 fontWeight = FontWeight.SemiBold,
@@ -3231,15 +3231,21 @@ private fun Composer(
 
     LaunchedEffect(state.inputNote, state.inputUrl) {
         val latest = state.inputNote.ifBlank { state.inputUrl }
-        if (latest.isEmpty()) {
-            fieldValue = TextFieldValue("")
-        } else if (latest != fieldValue.text && !focused) {
-            fieldValue = TextFieldValue(latest)
+        when {
+            // Clearing must win even while focused: after a send the VM resets
+            // both inputs to "" and the still-focused field would otherwise
+            // keep showing the sent text with an inert Send button.
+            latest.isEmpty() -> fieldValue = TextFieldValue("")
+            // Text is only pushed in while unfocused so active typing is not
+            // clobbered by VM round-trips.
+            latest != fieldValue.text && !focused -> fieldValue = TextFieldValue(latest)
         }
     }
 
     fun submit() {
-        if (state.running || state.testing) return
+        // installing too: Enter during a direct install must not fire a send
+        // behind the VM guard and lose the typed text to the reset below.
+        if (state.running || state.testing || state.installing) return
         if (fieldValue.text.isBlank() && state.pendingImages.isEmpty()) return
         val text = fieldValue.text.trim()
         fieldValue = TextFieldValue("")
@@ -3250,7 +3256,9 @@ private fun Composer(
     }
 
     val activeRefQuery = activeManifestRefToken(fieldValue.text, fieldValue.selection.min)
-    var refMenuOpen by remember { mutableStateOf(true) }
+    // Starts closed: a stale session (stray @ left in the text after a send)
+    // must not swallow Enter in the menu branch and block typing.
+    var refMenuOpen by remember { mutableStateOf(false) }
     val refSuggestions = if (activeRefQuery != null) {
         remember(activeRefQuery, state.manifestRefSuggestions) {
             filterRefSuggestions(state.manifestRefSuggestions, activeRefQuery)
@@ -3258,7 +3266,11 @@ private fun Composer(
     } else {
         emptyList()
     }
-    val refMenuVisible = activeRefQuery != null && refSuggestions.isNotEmpty() && refMenuOpen
+    val refMenuVisible = isRefMenuVisible(
+        hasActiveToken = activeRefQuery != null,
+        hasSuggestions = refSuggestions.isNotEmpty(),
+        menuOpen = refMenuOpen,
+    )
 
     fun applyRefSuggestion(suggestion: ManifestRefSuggestion) {
         val query = activeRefQuery ?: return
@@ -3528,3 +3540,7 @@ private fun Composer(
         }
     }
 }
+
+/** Whether the @ completion popup is currently shown above the composer. */
+internal fun isRefMenuVisible(hasActiveToken: Boolean, hasSuggestions: Boolean, menuOpen: Boolean): Boolean =
+    hasActiveToken && hasSuggestions && menuOpen

@@ -3,6 +3,7 @@ package scooper.service
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -22,7 +23,8 @@ object PhaseSummaryFormatter {
             "assist" -> "Working on your request..."
             "repair" -> {
                 val count = if (attempt > 0) attempt else 1
-                "Repairing manifest (attempt $count/3)..."
+                // No hardcoded denominator: the retry budget is engine-side config.
+                "Repairing manifest (attempt $count)..."
             }
             "verify" -> "Validating manifest..."
             else -> "Working on phase: $phase..."
@@ -32,7 +34,10 @@ object PhaseSummaryFormatter {
     fun formatPhaseOutput(phase: String, outputJson: String): String? {
         if (outputJson.isBlank()) return null
         return try {
-            val root = json.parseToJsonElement(outputJson) as? JsonObject ?: return null
+            // The engine may wrap the manifest in a code fence and ride phase
+            // activities under the top-level _meta key; strip/harvest before dispatch.
+            val root = extractJsonObject(outputJson) ?: return null
+            extractActivities(root)?.let { return it }
             when (phase.lowercase()) {
                 "research" -> formatResearchSummary(root)
                 "analyze" -> formatAnalyzeSummary(root)
@@ -45,6 +50,47 @@ object PhaseSummaryFormatter {
         } catch (_: Exception) {
             null
         }
+    }
+
+    // Tolerates a fenced manifest (```json ... ```) plus surrounding chatter;
+    // returns null only when no JSON object can be located.
+    private fun extractJsonObject(outputJson: String): JsonObject? {
+        val direct = runCatching { json.parseToJsonElement(outputJson) }.getOrNull()
+        if (direct is JsonObject) return direct
+
+        val fenceRegex = Regex("```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?\\s*```")
+        fenceRegex.find(outputJson)?.let { match ->
+            val candidate = runCatching { json.parseToJsonElement(match.groupValues[1]) }.getOrNull()
+            if (candidate is JsonObject) return candidate
+        }
+
+        val trimmed = outputJson.trim()
+        val start = trimmed.indexOf('{')
+        val end = trimmed.lastIndexOf('}')
+        if (start >= 0 && end > start) {
+            val candidate = runCatching { json.parseToJsonElement(trimmed.substring(start, end + 1)) }.getOrNull()
+            if (candidate is JsonObject) return candidate
+        }
+        return null
+    }
+
+    // Reads root["_meta"]["activities"]; accepts an array of strings or a single
+    // string. Returns null so the caller falls back to the per-phase template.
+    private fun extractActivities(root: JsonObject): String? {
+        val meta = root["_meta"] as? JsonObject ?: return null
+        val activities = meta["activities"]
+        val lines: List<String>? = when (activities) {
+            // All-string arrays only; anything else falls back to the template.
+            is JsonArray ->
+                if (activities.all { it is JsonPrimitive && it.isString }) {
+                    activities.map { it.jsonPrimitive.content }
+                } else {
+                    null
+                }
+            is JsonPrimitive -> if (activities.isString) listOf(activities.content) else null
+            else -> null
+        }?.map { it.trim() }?.filter { it.isNotEmpty() }
+        return if (lines.isNullOrEmpty()) null else lines.joinToString("\n")
     }
 
     private fun formatResearchSummary(root: JsonObject): String {

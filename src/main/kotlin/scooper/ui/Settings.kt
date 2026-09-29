@@ -512,7 +512,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 title = "Base URL",
                 subtitle = "Required for openai-compatible. Do not append /v1; client adds /v1/chat/completions.",
                 state = baseUrlState,
-                placeholder = "http://192.168.40.130:8317",
+                placeholder = "https://api.openai.com",
             )
             Divider(color = colors.divider)
             PrefRow(

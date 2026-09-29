@@ -7,10 +7,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -559,6 +561,16 @@ class CreateViewModel(
     private var assistAttemptCount = 0
     private val repairRoundCounter = RepairRoundCounter()
     private var askUserDeferred: CompletableDeferred<String>? = null
+
+    /**
+     * Child job running the current real install launched by [onInstallSaved].
+     * The job owns the busy flag: its own finally clears `installing`, so a
+     * user cancel cannot leave the flag stuck behind a blocked event loop.
+     */
+    private var installingJob: Job? = null
+
+    /** Child job of the current test install; see [installingJob]. */
+    private var testInstallJob: Job? = null
     private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
 
     /** Guard so the app index is scanned at most once even if several @ tokens appear quickly. */
@@ -800,16 +812,23 @@ class CreateViewModel(
     }
 
     fun onCancel() = intent {
-        if (!state.running) return@intent
         askUserDeferred?.complete(DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         askUserDeferred = null
         scoopAiBridge.cancel()
+        // A real install or test install running in parallel is stopped too:
+        // each child job owns its busy flag and clears it in its own finally,
+        // so the send guard is never stuck.
+        installingJob?.cancel()
+        testInstallJob?.cancel()
         reduce {
-            // Cancel just folds the execution card without auto-expanding it.
-            state.copy(askUserRequest = null).finishGeneration(
-                messages = state.messages + agentMessage("Generation cancelled by user."),
-                error = null,
-            )
+            // Guard the whole UI with every busy flag false even when the engine
+            // already emitted its own cancelling bubble first: a duplicate
+            // bubble is harmless, a stuck busy flag is not.
+            state.copy(askUserRequest = null, running = false, testing = false, installing = false)
+                .finishGeneration(
+                    messages = state.messages + agentMessage("Generation cancelled by user."),
+                    error = null,
+                )
         }
         postSideEffect(AppSideEffect.Toast("Cancelled", ToastType.INFO))
     }
@@ -844,14 +863,14 @@ class CreateViewModel(
             "Starting test install as $testName...",
         )
 
-        reduce {
-            state.copy(
-                testing = true,
-                testResult = null,
-                messages = state.messages + startMsg,
-            )
-        }
-
+        testInstallJob = coroutineScope.launch {
+            reduce {
+                state.copy(
+                    testing = true,
+                    testResult = null,
+                    messages = state.messages + startMsg,
+                )
+            }
         var resultMsg: ChatMessage? = null
         var testResult: TestResult? = null
         try {
@@ -899,8 +918,9 @@ class CreateViewModel(
                     log = log,
                 )
             }
+        } catch (e: CancellationException) {
+            // User cancel: settle the flag below in finally, no error bubble.
         } catch (e: Exception) {
-            if (e is CancellationException) throw e
             val message = e.message?.takeIf { it.isNotBlank() }
                 ?: e::class.simpleName
                 ?: "Test install failed"
@@ -921,14 +941,19 @@ class CreateViewModel(
                 logger.warn("Test install cleanup threw for $testName: ${e.message}")
             }
             // Single reduce at end so intermediate success/error is not lost to Orbit races.
+            val wasCancelled = coroutineContext.job.isCancelled
+            testInstallJob = null
             reduce {
                 state.copy(
                     testing = false,
-                    testResult = testResult,
+                    // A cancelled run owns no result: the late stale outcome must
+                    // not overwrite the chat card the cancel already settled.
+                    testResult = if (wasCancelled) state.testResult else testResult,
                     installVerified = if (testResult?.success == true) true else state.installVerified,
                     messages = state.messages + listOfNotNull(resultMsg),
                 )
             }
+        }
         }
     }
 
@@ -964,51 +989,56 @@ class CreateViewModel(
         val saveResult = state.saveResult
         val saved = state.manifestSaved && saveResult != null
 
-        reduce { state.copy(installing = true) }
-        try {
-            if (saved) {
-                // ScoopClient.install addresses "bucket/name", so the bucket must be set.
-                // An app installed before this session needs a forced update (reinstall
-                // from bucket) so the fixed manifest takes effect; same-version scoop
-                // update without --force is a no-op exit 0.
-                val name = saveResult.appName
-                val bucket = saveResult.bucket
-                val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
-                val systemInstalled = snapshot.containsKey(name.lowercase())
-                val result = withContext(Dispatchers.IO) {
-                    if (systemInstalled) {
-                        scoopClient.update(
-                            App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                            global = reinstallGlobal(snapshot, name),
-                            force = true,
-                        )
+        installingJob = coroutineScope.launch {
+            reduce { state.copy(installing = true) }
+            try {
+                if (saved) {
+                    // ScoopClient.install addresses "bucket/name", so the bucket must be set.
+                    // An app installed before this session needs a forced update (reinstall
+                    // from bucket) so the fixed manifest takes effect; same-version scoop
+                    // update without --force is a no-op exit 0.
+                    val name = saveResult.appName
+                    val bucket = saveResult.bucket
+                    val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+                    val systemInstalled = snapshot.containsKey(name.lowercase())
+                    val result = withContext(Dispatchers.IO) {
+                        if (systemInstalled) {
+                            scoopClient.update(
+                                App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                                global = reinstallGlobal(snapshot, name),
+                                force = true,
+                            )
+                        } else {
+                            scoopClient.install(
+                                App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
+                                global = false,
+                            )
+                        }
+                    }
+                    if (result.isSuccess) {
+                        reduce {
+                            state.copy(
+                                installedForUse = true,
+                                installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
+                                systemInstalled = true,
+                            )
+                        }
+                        refreshInstalledAppRecord(bucket, name)
+                        postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
                     } else {
-                        scoopClient.install(
-                            App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                            global = false,
-                        )
+                        val detail = result.errorMessage?.takeIf { it.isNotBlank() }
+                            ?: "exit code ${result.exitCode}"
+                        postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
                     }
-                }
-                if (result.isSuccess) {
-                    reduce {
-                        state.copy(
-                            installedForUse = true,
-                            installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
-                            systemInstalled = true,
-                        )
-                    }
-                    refreshInstalledAppRecord(bucket, name)
-                    postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
                 } else {
-                    val detail = result.errorMessage?.takeIf { it.isNotBlank() }
-                        ?: "exit code ${result.exitCode}"
-                    postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+                    installFromCurrentManifest(manifestJson)
                 }
-            } else {
-                installFromCurrentManifest(manifestJson)
+            } finally {
+                // Always clear the flag inside the child job: success,
+                // failure and a user cancel all release the send guard here.
+                installingJob = null
+                reduce { state.copy(installing = false) }
             }
-        } finally {
-            reduce { state.copy(installing = false) }
         }
     }
 

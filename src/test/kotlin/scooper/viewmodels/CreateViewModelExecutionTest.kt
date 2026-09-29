@@ -98,11 +98,11 @@ class CreateViewModelExecutionTest {
     fun `repair counter renders the attempt label through formatPhaseStart`() {
         val counter = RepairRoundCounter()
         assertEquals(
-            "Repairing manifest (attempt 1/3)...",
+            "Repairing manifest (attempt 1)...",
             PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = counter.onPhase("repair")),
         )
         assertEquals(
-            "Repairing manifest (attempt 2/3)...",
+            "Repairing manifest (attempt 2)...",
             PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = counter.onPhase("repair")),
         )
     }

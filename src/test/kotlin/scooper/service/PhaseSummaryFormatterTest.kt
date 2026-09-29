@@ -51,13 +51,20 @@ class PhaseSummaryFormatterTest {
     @Test
     fun `formatPhaseStart returns attempt count for repair`() {
         assertEquals(
-            "Repairing manifest (attempt 1/3)...",
+            "Repairing manifest (attempt 1)...",
             PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = 1),
         )
         assertEquals(
-            "Repairing manifest (attempt 2/3)...",
+            "Repairing manifest (attempt 2)...",
             PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = 2),
         )
+    }
+
+    @Test
+    fun `formatPhaseStart repair shows attempt without hardcoded denominator`() {
+        val text = PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = 4)
+        assertEquals("Repairing manifest (attempt 4)...", text)
+        assertFalse(text.contains("/3"))
     }
 
     @Test
@@ -202,5 +209,93 @@ class PhaseSummaryFormatterTest {
     fun `formatPhaseOutput returns null for verify which has no output summary`() {
         val manifestJson = """{"version": "1.0"}"""
         assertNull(PhaseSummaryFormatter.formatPhaseOutput("verify", manifestJson))
+    }
+
+    // -------------------------------------------------------------------------
+    // formatPhaseOutput: _meta.activities (phase activities, engine 0.1.11)
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `formatPhaseOutput prefers _meta activities array for generate output`() {
+        val output = """
+            {
+                "_meta": {"activities": ["Added checkver for GitHub releases", "Set bin to fd.exe"]},
+                "version": "10.2.0",
+                "checkver": "github"
+            }
+        """.trimIndent()
+        assertEquals(
+            "Added checkver for GitHub releases\nSet bin to fd.exe",
+            PhaseSummaryFormatter.formatPhaseOutput("generate", output),
+        )
+    }
+
+    @Test
+    fun `formatPhaseOutput prefers _meta activities array for repair output`() {
+        val output = """
+            {
+                "_meta": {"activities": ["Added persist directive to keep config"]},
+                "version": "1.2.0",
+                "persist": ["config"]
+            }
+        """.trimIndent()
+        assertEquals(
+            "Added persist directive to keep config",
+            PhaseSummaryFormatter.formatPhaseOutput("repair", output),
+        )
+    }
+
+    @Test
+    fun `formatPhaseOutput falls back to template when _meta activities missing`() {
+        val output = """{"version": "10.2.0", "checkver": "github"}"""
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("generate", output)
+        assertTrue(summary!!.contains("Generated manifest v10.2.0"))
+        assertTrue(summary.contains("checkver"))
+    }
+
+    @Test
+    fun `formatPhaseOutput falls back to template on empty or non-string activities`() {
+        val emptyArray = """{"_meta": {"activities": []}, "version": "1.0"}"""
+        val summaryEmpty = PhaseSummaryFormatter.formatPhaseOutput("generate", emptyArray)
+        assertTrue(summaryEmpty!!.contains("Generated manifest v1.0"))
+
+        val mixedArray = """{"_meta": {"activities": ["ok entry", 42]}, "version": "1.0"}"""
+        val summaryMixed = PhaseSummaryFormatter.formatPhaseOutput("generate", mixedArray)
+        assertTrue(summaryMixed!!.contains("Generated manifest v1.0"))
+
+        val blankString = """{"_meta": {"activities": "   "}, "version": "1.0"}"""
+        val summaryBlank = PhaseSummaryFormatter.formatPhaseOutput("generate", blankString)
+        assertTrue(summaryBlank!!.contains("Generated manifest v1.0"))
+    }
+
+    @Test
+    fun `formatPhaseOutput accepts string shaped activities as single bullet`() {
+        val output = """{"_meta": {"activities": "Lowered architecture to 32bit"}, "version": "1.0"}"""
+        assertEquals(
+            "Lowered architecture to 32bit",
+            PhaseSummaryFormatter.formatPhaseOutput("repair", output),
+        )
+    }
+
+    @Test
+    fun `formatPhaseOutput strips code fence before summarizing repair output`() {
+        val fenced = """
+            ```json
+            {
+                "version": "2.1.0",
+                "bin": "app.exe"
+            }
+            ```
+        """.trimIndent()
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("repair", fenced)
+        assertTrue(summary!!.contains("Updated manifest v2.1.0"))
+        assertTrue(summary.contains("bin"))
+    }
+
+    @Test
+    fun `formatPhaseOutput still summarizes unfenced manifest after fence stripping change`() {
+        val plain = """{"version": "3.0.0", "persist": ["data"]}"""
+        val summary = PhaseSummaryFormatter.formatPhaseOutput("assist", plain)
+        assertTrue(summary!!.contains("Updated manifest v3.0.0"))
     }
 }

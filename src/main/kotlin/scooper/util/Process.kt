@@ -72,14 +72,23 @@ suspend fun executeSuspend(
     onFinish: suspend (exitValue: Int) -> Unit,
 ): ProcessResult {
     val command = buildCommand(commandArgs, asShell)
+    // destroyForcibly = true: cmd.exe ignores the pipe close of a graceful
+    // destroy, so a cancelled long-running scoop would keep the UI busy
+    // flags stuck until the command finished by itself.
     val result = process(
         *command,
         stdout = Redirect.CAPTURE,
         stderr = Redirect.CAPTURE,
         directory = workingDir,
         env = env,
-        consumer = consumer,
-        charset = charset
+        // Wrap the consumer so cancellation surfaces from the streaming
+        // branch too, not only from the waitFor interruptible call.
+        consumer = { line ->
+            currentCoroutineContext().ensureActive()
+            consumer(line)
+        },
+        charset = charset,
+        destroyForcibly = true,
     )
     onFinish(result.resultCode)
     return result
