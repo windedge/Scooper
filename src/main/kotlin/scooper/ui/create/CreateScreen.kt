@@ -162,7 +162,6 @@ import scooper.viewmodels.PendingImage
 import scooper.viewmodels.ReviewActionChip
 import scooper.viewmodels.SaveGitHint
 import scooper.viewmodels.SaveResult
-import scooper.viewmodels.TestResult
 import scooper.viewmodels.computeDetailedLineDiff
 import scooper.viewmodels.executionSummaryCapsuleText
 import scooper.viewmodels.manifestTestSucceeded
@@ -270,7 +269,6 @@ fun CreateScreen(
                 onSend = { url, note -> viewModel.onSend(url, note) },
                 onCancel = { viewModel.onCancel() },
                 onCopyDone = viewModel::onCopyDone,
-                onTestInstall = { viewModel.onTestInstall() },
                 onSave = { viewModel.onSave() },
                 onInstallSaved = { viewModel.onInstallSaved() },
                 onOpenApp = { viewModel.onOpenApp() },
@@ -279,10 +277,8 @@ fun CreateScreen(
                 onEnsureRefSuggestions = viewModel::ensureManifestRefSuggestions,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
                 onDismissSaveResult = viewModel::onDismissSaveResult,
-                onDismissTestResult = viewModel::onDismissTestResult,
                 onAnswerAskUser = viewModel::onAnswerAskUser,
                 onCancelAskUser = viewModel::onCancelAskUser,
-                onFixFromTestFailure = { summary, logTail -> viewModel.onFixFromTestFailure(summary, logTail) },
                 onSelectRevision = viewModel::onSelectRevision,
                 onRevertToRevision = viewModel::onRevertToRevision,
                 onApplyActionChip = viewModel::onApplyActionChip,
@@ -1136,7 +1132,7 @@ private fun EmptyWorkspace(
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            "Paste a GitHub repository URL and press Send.\nAfter the manifest is ready, you can Test Install / Save.",
+            "Paste a GitHub repository URL and press Send.\nAfter the manifest is ready, you can save it.",
             style = typography.caption.copy(
                 color = colors.textMuted,
                 lineHeight = 20.sp,
@@ -1158,16 +1154,13 @@ private fun ChatWorkspace(
     onSend: (url: String, note: String) -> Unit,
     onCancel: () -> Unit,
     onCopyDone: () -> Unit,
-    onTestInstall: () -> Unit,
     onSave: () -> Unit,
     onInstallSaved: () -> Unit,
     onOpenApp: () -> Unit,
     onGoToDiscover: () -> Unit,
     onDismissSaveResult: () -> Unit,
-    onDismissTestResult: () -> Unit,
     onAnswerAskUser: (String) -> Unit,
     onCancelAskUser: () -> Unit,
-    onFixFromTestFailure: (summary: String, logTail: String) -> Unit,
     onSelectRevision: (String?) -> Unit,
     onRevertToRevision: (String) -> Unit,
     onApplyActionChip: (ReviewActionChip) -> Unit,
@@ -1185,7 +1178,7 @@ private fun ChatWorkspace(
                 manifestJson = state.activeManifestJson,
                 enabled = !state.running && !state.testing,
                 testing = state.testing,
-                testSucceeded = manifestTestSucceeded(state.testResult, state.installVerified, state.manifestSaved),
+                testSucceeded = manifestTestSucceeded(state.installVerified, state.manifestSaved),
                 manifestSaved = state.manifestSaved,
                 hasSaveResult = state.saveResult != null,
                 installing = state.installing,
@@ -1202,18 +1195,10 @@ private fun ChatWorkspace(
                 onSelectRevision = onSelectRevision,
                 onRevertToRevision = onRevertToRevision,
                 onCopyDone = onCopyDone,
-                onTestInstall = onTestInstall,
                 onSave = onSave,
                 onInstallSaved = onInstallSaved,
                 onOpenApp = onOpenApp,
             )
-            state.testResult?.let { result ->
-                TestResultPanel(
-                    result = result,
-                    onFixWithAi = onFixFromTestFailure,
-                    onDismiss = onDismissTestResult,
-                )
-            }
             state.saveResult?.let { result ->
                 SaveResultPanel(
                     result = result,
@@ -1238,7 +1223,6 @@ private fun ChatWorkspace(
             state.messages.size,
             state.manifestJson,
             state.running,
-            state.testResult,
             state.saveResult,
             state.askUserRequest,
             state.activeExecution?.steps?.size,
@@ -2056,7 +2040,6 @@ private fun ManifestPreviewCard(
     onSelectRevision: ((String?) -> Unit)? = null,
     onRevertToRevision: ((String) -> Unit)? = null,
     onCopyDone: () -> Unit,
-    onTestInstall: () -> Unit,
     onSave: () -> Unit,
     onInstallSaved: () -> Unit = {},
     onOpenApp: () -> Unit = {},
@@ -2064,7 +2047,6 @@ private fun ManifestPreviewCard(
     val clipboard = LocalClipboardManager.current
     var expanded by remember { mutableStateOf(false) }
     var showDiff by remember { mutableStateOf(false) }
-    val testName = "$appName-scooper-test"
     val scroll = rememberScrollState()
     val previewHScroll = rememberScrollState()
 
@@ -2143,12 +2125,9 @@ private fun ManifestPreviewCard(
                     )
                 }
                 Text(
-                    "suggested: $appName  ·  test: $testName",
+                    "suggested: $appName",
                     style = typography.caption.copy(color = colors.textMuted),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(start = 12.dp),
-                    textAlign = TextAlign.End,
                 )
             }
 
@@ -2457,15 +2436,8 @@ private fun ManifestPreviewCard(
                     },
                     enabled = true,
                 )
-                // After a passing test install, Save to Bucket becomes the primary
-                // action; once the manifest is saved both buttons are plain.
-                SmallActionButton(
-                    label = "Test Install",
-                    onClick = onTestInstall,
-                    enabled = enabled && !testing && !invalidJson,
-                    primary = !testSucceeded,
-                    loading = testing,
-                )
+                // After an AI verify_install passed, Save to Bucket becomes the
+                // primary action; once the manifest is saved the button is plain.
                 SmallActionButton(
                     label = "Save to Bucket",
                     onClick = onSave,
@@ -2498,214 +2470,6 @@ private fun ManifestPreviewCard(
                         onClick = { onRevertToRevision(selectedRevisionId) },
                         enabled = enabled && !testing,
                     )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TestResultPanel(
-    result: TestResult,
-    onFixWithAi: ((summary: String, logTail: String) -> Unit)? = null,
-    onDismiss: (() -> Unit)? = null,
-) {
-    val accent = if (result.success) colors.updateDefault else colors.dangerDefault
-    val icon = if (result.success) Lucide.CircleCheck else Lucide.CircleX
-    var expanded by remember { mutableStateOf(false) }
-    val logText = remember(result.log) {
-        result.log.lines().takeLast(100).joinToString("\n")
-    }
-
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.35f)),
-        color = colors.surface,
-        elevation = 0.dp,
-        modifier = Modifier.fillMaxWidth().widthIn(max = 760.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = accent,
-                )
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        if (result.success) {
-                            "Test install succeeded: ${result.testName} (uninstalled)"
-                        } else {
-                            "Test install failed: ${result.testName}"
-                        },
-                        style = typography.body2.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textTitle,
-                        ),
-                    )
-                    if (result.success && result.prewarmedCount > 0) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "${result.prewarmedCount} cache ${if (result.prewarmedCount == 1) "entry" else "entries"} reused",
-                            style = typography.caption.copy(color = colors.textMuted),
-                        )
-                    }
-                    if (!result.success && !result.errorMessage.isNullOrBlank()) {
-                        Spacer(Modifier.height(6.dp))
-                        // SelectionContainer can only copy laid-out text: ellipsized lines past
-                        // maxLines are not selectable, so keep maxLines generous enough that the
-                        // visible error stays fully copyable while the panel stays bounded.
-                        SelectableContainer {
-                            Text(
-                                parseAnsiColors(result.errorMessage),
-                                style = typography.caption.copy(
-                                    color = colors.dangerDefault,
-                                    fontFamily = FontFamily.Monospace,
-                                    lineHeight = typography.caption.fontSize * 1.45f,
-                                ),
-                                maxLines = 12,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-                if (onDismiss != null) {
-                    TextButton(
-                        onClick = onDismiss,
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.cursorHand().size(28.dp),
-                    ) {
-                        Icon(
-                            Lucide.X,
-                            contentDescription = "Dismiss",
-                            modifier = Modifier.size(16.dp),
-                            tint = colors.textMuted,
-                        )
-                    }
-                }
-            }
-
-            if (result.log.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(
-                        onClick = { expanded = !expanded },
-                        contentPadding = PaddingValues(0.dp),
-                        modifier = Modifier.cursorLink().height(28.dp),
-                    ) {
-                        Text(
-                            if (expanded) "Hide log" else "View log",
-                            style = typography.caption.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = accent,
-                            ),
-                        )
-                    }
-                    if (!result.success && onFixWithAi != null) {
-                        Button(
-                            onClick = {
-                                val summary = result.errorMessage ?: "Test install failed"
-                                val logTail = result.log.takeLast(1000)
-                                onFixWithAi(summary, logTail)
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                backgroundColor = colors.dangerDefault,
-                                contentColor = Color.White,
-                            ),
-                            shape = RoundedCornerShape(6.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                            modifier = Modifier.cursorHand().height(28.dp),
-                            elevation = null,
-                        ) {
-                            Icon(
-                                Lucide.RefreshCw,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint = Color.White,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "Ask AI to fix",
-                                style = typography.caption.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White,
-                                ),
-                            )
-                        }
-                    }
-                }
-                AnimatedVisibility(
-                    visible = expanded,
-                    enter = expandVertically(expandFrom = Alignment.Top),
-                    exit = shrinkVertically(shrinkTowards = Alignment.Top),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 240.dp)
-                            .border(1.dp, colors.borderDefault, RoundedCornerShape(8.dp))
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.inputBackground),
-                    ) {
-                        SelectableContainer {
-                            Text(
-                                parseAnsiColors(logText),
-                                style = typography.caption.copy(
-                                    color = colors.onSurface,
-                                    fontFamily = FontFamily.Monospace,
-                                    lineHeight = typography.caption.fontSize * 1.45f,
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(10.dp),
-                            )
-                        }
-                    }
-                }
-            } else if (!result.success && onFixWithAi != null) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Button(
-                        onClick = {
-                            val summary = result.errorMessage ?: "Test install failed"
-                            onFixWithAi(summary, "")
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = colors.dangerDefault,
-                            contentColor = Color.White,
-                        ),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                        modifier = Modifier.cursorHand().height(28.dp),
-                        elevation = null,
-                    ) {
-                        Icon(
-                            Lucide.RefreshCw,
-                            contentDescription = null,
-                            modifier = Modifier.size(13.dp),
-                            tint = Color.White,
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            "Ask AI to fix",
-                            style = typography.caption.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                            ),
-                        )
-                    }
                 }
             }
         }

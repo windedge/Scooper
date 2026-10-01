@@ -330,18 +330,17 @@ internal fun formatTokenFooter(usage: TokenUsage?): String? {
 }
 
 /**
- * Test Install's primary highlight is dismissed when the manifest has been exercised or
- * persisted: a passing test install, a completed AI verify_install, or a bucket save.
+ * The install highlight is dismissed once the manifest has been exercised or persisted:
+ * a completed AI verify_install or a bucket save.
  */
 internal fun manifestTestSucceeded(
-    testResult: TestResult?,
     installVerified: Boolean,
     manifestSaved: Boolean,
-): Boolean = testResult?.success == true || installVerified || manifestSaved
+): Boolean = installVerified || manifestSaved
 
 /**
- * Save to Bucket is nudged as the primary action only after a passing test install and
- * before the manifest has actually been saved.
+ * Save to Bucket is nudged as the primary action once the manifest is verified but
+ * before it has actually been saved.
  */
 internal fun saveToBucketPrimary(testSucceeded: Boolean, manifestSaved: Boolean): Boolean = testSucceeded && !manifestSaved
 

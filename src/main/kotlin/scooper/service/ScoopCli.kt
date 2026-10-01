@@ -42,10 +42,5 @@ interface ScoopCli {
         global: Boolean,
         reinstallGlobal: Boolean,
     ): CommandResult
-    /**
-     * Test-install a local manifest under a dedicated temporary app name.
-     * Does NOT uninstall any real/official app - only the given [testAppName].
-     */
-    suspend fun testInstallManifest(testAppName: String, manifestFile: File): TestInstallResult
     fun stop()
 }

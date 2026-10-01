@@ -59,7 +59,6 @@ object ToolActivityFormatter {
             "validate", "validateManifest" -> "Validating manifest..."
             "__review_manifest__", "reviewManifest" -> "Reviewing manifest..."
             "writeManifest" -> "Writing manifest..."
-            "testInstall" -> "Testing installation..."
             "verify_install" -> "Running real install test (scoop install/uninstall)"
             "uninstall" -> "Cleaning up test install"
             "__ask_user__", "askUser" -> "Waiting for user input..."
@@ -87,7 +86,6 @@ object ToolActivityFormatter {
             "validate", "validateManifest" -> "Manifest validated"
             "__review_manifest__", "reviewManifest" -> "Manifest reviewed"
             "writeManifest" -> "Manifest written"
-            "testInstall" -> "Test install finished"
             "verify_install" -> formatVerifyInstallCompleted(toolResult)
             "__ask_user__", "askUser" -> "User answered"
             "save_to_bucket" -> formatSaveToBucketCompleted(toolResult)

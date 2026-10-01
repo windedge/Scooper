@@ -113,13 +113,6 @@ data class ChatMessage(
     val imagesReplayed: Boolean = false,
 )
 
-data class TestResult(
-    val success: Boolean,
-    val testName: String,
-    val errorMessage: String? = null,
-    val prewarmedCount: Int = 0,
-    val log: String = "",
-)
 
 /** Git commit hint shown on the SaveResultPanel when the bucket is a Git repository. */
 data class SaveGitHint(
@@ -232,7 +225,6 @@ data class AskUserRequest(
 enum class RevisionSource {
     INITIAL_GENERATE,
     ASSIST,
-    TEST_FIX,
     REVERT,
 }
 
@@ -339,23 +331,9 @@ data class ReviewActionChip(
 fun extractReviewActionChips(
     issues: List<String>,
     invalidJson: Boolean,
-    testResult: TestResult? = null,
 ): List<ReviewActionChip> {
     val chips = mutableListOf<ReviewActionChip>()
 
-    if (testResult != null && !testResult.success) {
-        val summary = testResult.errorMessage?.lineSequence()?.firstOrNull()?.take(80) ?: "Installation check failed"
-        val logTail = testResult.log.lines().takeLast(15).joinToString("\n")
-        val fixPrompt = "The test installation failed with error: $summary\nInstallation log output:\n$logTail\nPlease analyze the failure and adjust the manifest (such as extract_dir, pre_install, installer script, or url fragment) to fix the installation error."
-        chips.add(
-            ReviewActionChip(
-                id = "test_fix",
-                label = "⚡ Fix install failure",
-                prompt = fixPrompt,
-                isPrimary = true,
-            )
-        )
-    }
 
     if (invalidJson) {
         chips.add(
@@ -478,9 +456,8 @@ data class CreateState(
     /** Non-null when the dialog defaults were locked from a @bucket/app reference. */
     val saveRefHint: String? = null,
     val overwriteConfirmOpen: Boolean = false,
-    val testResult: TestResult? = null,
     val saveResult: SaveResult? = null,
-    /** True when a real install test passed (Test Install button or AI verify_install). */
+    /** True when a real install test passed (AI verify_install). */
     val installVerified: Boolean = false,
     /** True when the current manifest has been saved to a bucket. */
     val manifestSaved: Boolean = false,
@@ -502,7 +479,7 @@ data class CreateState(
     /** True when generation finished but the manifest is not ready (assist exhausted or invalid JSON). */
     val manifestExhausted: Boolean = false,
     /** True when the finished manifest is not valid Scoop manifest JSON (blank counts as invalid).
-     *  Drives Test Install / Save to Bucket button gating (see [C2 exhausted escape door]). */
+     *  Drives Save to Bucket button gating (see [C2 exhausted escape door]). */
     val manifestInvalidJson: Boolean = false,
     /** Unresolved validation/review issues when [manifestExhausted] is true. */
     val manifestIssues: List<String> = emptyList(),
@@ -544,7 +521,7 @@ data class CreateState(
         }
 
     val reviewActionChips: List<ReviewActionChip>
-        get() = extractReviewActionChips(manifestIssues, manifestInvalidJson, testResult)
+        get() = extractReviewActionChips(manifestIssues, manifestInvalidJson)
 }
 
 class CreateViewModel(
@@ -569,8 +546,6 @@ class CreateViewModel(
      */
     private var installingJob: Job? = null
 
-    /** Child job of the current test install; see [installingJob]. */
-    private var testInstallJob: Job? = null
     private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
 
     /** Guard so the app index is scanned at most once even if several @ tokens appear quickly. */
@@ -815,11 +790,10 @@ class CreateViewModel(
         askUserDeferred?.complete(DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         askUserDeferred = null
         scoopAiBridge.cancel()
-        // A real install or test install running in parallel is stopped too:
-        // each child job owns its busy flag and clears it in its own finally,
-        // so the send guard is never stuck.
+        // A real install running in parallel is stopped too: the child job
+        // owns its busy flag and clears it in its own finally, so the send
+        // guard is never stuck.
         installingJob?.cancel()
-        testInstallJob?.cancel()
         reduce {
             // Guard the whole UI with every busy flag false even when the engine
             // already emitted its own cancelling bubble first: a duplicate
@@ -841,126 +815,6 @@ class CreateViewModel(
         reduce { state.copy(saveResult = null) }
     }
 
-    fun onDismissTestResult() = intent {
-        reduce { state.copy(testResult = null) }
-    }
-
-    fun onTestInstall() = intent {
-        if (state.running || state.testing) {
-            postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
-            return@intent
-        }
-        val manifestJson = state.manifestJson
-        if (manifestJson.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("No manifest to test install", ToastType.ERROR))
-            return@intent
-        }
-
-        val baseName = state.suggestedAppName?.takeIf { it.isNotBlank() } ?: "app"
-        val testName = "$baseName-scooper-test"
-        val tempFile = File(System.getProperty("java.io.tmpdir"), "$testName.json")
-        val startMsg = agentMessage(
-            "Starting test install as $testName...",
-        )
-
-        testInstallJob = coroutineScope.launch {
-            reduce {
-                state.copy(
-                    testing = true,
-                    testResult = null,
-                    messages = state.messages + startMsg,
-                )
-            }
-        var resultMsg: ChatMessage? = null
-        var testResult: TestResult? = null
-        try {
-            val content = rewriteManifestName(manifestJson, testName)
-            withContext(Dispatchers.IO) {
-                tempFile.writeText(content)
-            }
-
-            val result = withContext(Dispatchers.IO) {
-                scoopClient.testInstallManifest(testName, tempFile)
-            }
-            logger.info(
-                "Test install finished for $testName: exitCode=${result.exitCode}, " +
-                    "isSuccess=${result.isSuccess}, errorMessage=${result.errorMessage}, " +
-                    "prewarmed=${result.prewarmedCount}",
-            )
-
-            val log = tailLines(result.output, MAX_TEST_LOG_LINES)
-
-            if (result.isSuccess) {
-                resultMsg = agentMessage(
-                    "Test install passed for $testName. Package installed successfully and cleaned up.",
-                )
-                testResult = TestResult(
-                    success = true,
-                    testName = testName,
-                    prewarmedCount = result.prewarmedCount,
-                    log = log,
-                )
-            } else {
-                val detail = result.errorMessage?.takeIf { it.isNotBlank() }
-                    ?: "exit code ${result.exitCode}"
-                val safe = AiErrorTranslator.maskSecrets(detail)
-                resultMsg = agentMessage(
-                    "Test install failed for $testName: $safe",
-                )
-                val summary = AiErrorTranslator.maskSecrets(
-                    errorSummary(result.errorMessage, result.output, MAX_ERROR_SUMMARY_LINES),
-                )
-                testResult = TestResult(
-                    success = false,
-                    testName = testName,
-                    errorMessage = summary.ifBlank { safe },
-                    prewarmedCount = result.prewarmedCount,
-                    log = log,
-                )
-            }
-        } catch (e: CancellationException) {
-            // User cancel: settle the flag below in finally, no error bubble.
-        } catch (e: Exception) {
-            val message = e.message?.takeIf { it.isNotBlank() }
-                ?: e::class.simpleName
-                ?: "Test install failed"
-            logger.error("Test install failed: $message")
-            val safe = AiErrorTranslator.maskSecrets(message)
-            resultMsg = agentMessage(safe)
-            testResult = TestResult(
-                success = false,
-                testName = testName,
-                errorMessage = safe,
-            )
-        } finally {
-            try {
-                withContext(Dispatchers.IO) {
-                    cleanupTestInstall(testName, tempFile)
-                }
-            } catch (e: Exception) {
-                logger.warn("Test install cleanup threw for $testName: ${e.message}")
-            }
-            // Single reduce at end so intermediate success/error is not lost to Orbit races.
-            val wasCancelled = coroutineContext.job.isCancelled
-            testInstallJob = null
-            reduce {
-                state.copy(
-                    testing = false,
-                    // A cancelled run owns no result: the late stale outcome must
-                    // not overwrite the chat card the cancel already settled.
-                    testResult = if (wasCancelled) state.testResult else testResult,
-                    installVerified = if (testResult?.success == true) true else state.installVerified,
-                    messages = state.messages + listOfNotNull(resultMsg),
-                )
-            }
-        }
-        }
-    }
-
-    fun onFixFromTestFailure(summary: String, logTail: String) = intent {
-        onSend(input = buildFixFromTestFailurePrompt(summary, logTail))
-    }
-
     fun onApplyActionChip(chip: ReviewActionChip) = intent {
         applyActionChipBlockToast(state.manifestJson, state.running, state.testing)?.let { (text, type) ->
             postSideEffect(AppSideEffect.Toast(text, type))
@@ -969,7 +823,7 @@ class CreateViewModel(
         startAssistInternal(
             instruction = chip.prompt,
             displayUserText = "⚡ Apply fix: ${chip.label}",
-            source = if (chip.isPrimary && chip.id == "test_fix") RevisionSource.TEST_FIX else RevisionSource.ASSIST,
+            source = RevisionSource.ASSIST,
         )
     }
 
@@ -1504,10 +1358,14 @@ class CreateViewModel(
         val isSuccess: Boolean get() = replyJson.contains("\"success\":true")
     }
 
-    /** Index the freshly saved manifest for Discover: ensure bucket, upsert when parsed. */
+    /** Index the freshly saved manifest for Discover: ensure bucket, drop the
+     *  stale direct-install orphan row (the bucket row takes over), upsert. */
     private suspend fun indexSavedApp(bucket: String, app: App?): Boolean {
         appsRepository.ensureBucket(bucket)
-        app?.let { appsRepository.upsertApp(it) }
+        if (app != null) {
+            appsRepository.deleteOrphanInstalled(app.name)
+            appsRepository.upsertApp(app)
+        }
         return app != null
     }
 
@@ -1519,9 +1377,6 @@ class CreateViewModel(
         }
 
     companion object {
-        private const val MAX_TEST_LOG_LINES = 200
-        private const val MAX_ERROR_SUMMARY_LINES = 5
-
         /** Maximum number of images that can be attached to a single message. */
         const val MAX_PENDING_IMAGES = 3
 
@@ -1620,7 +1475,6 @@ class CreateViewModel(
                 lastNote = userPrompt.orEmpty(),
                 manifestJson = "",
                 suggestedAppName = appGuess,
-                testResult = null,
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
@@ -1766,7 +1620,6 @@ class CreateViewModel(
                 ),
                 inputUrl = "",
                 inputNote = "",
-                testResult = null,
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
@@ -2038,54 +1891,6 @@ class CreateViewModel(
         }
     }
 
-    /** If the manifest has a top-level name field, rewrite it to the test app name. */
-    private fun rewriteManifestName(raw: String, testName: String): String {
-        return try {
-            val element = prettyJson.parseToJsonElement(raw)
-            val obj = element.jsonObject
-            if (!obj.containsKey("name")) return raw
-            val rewritten = JsonObject(
-                obj.toMutableMap().apply { put("name", JsonPrimitive(testName)) },
-            )
-            prettyJson.encodeToString(JsonElement.serializer(), rewritten)
-        } catch (_: Exception) {
-            raw
-        }
-    }
-
-    private suspend fun cleanupTestInstall(testName: String, tempFile: File) {
-        try {
-            val installed = scoopClient.localInstalledAppDirs.any {
-                it.name.equals(testName, ignoreCase = true)
-            }
-            if (installed) {
-                // purge = true: test installs must not leave persist data behind.
-                scoopClient.uninstall(
-                    App(name = testName, latestVersion = "0"),
-                    global = false,
-                    purge = true,
-                )
-            }
-        } catch (e: Exception) {
-            logger.warn("Test install cleanup failed for $testName: ${e.message}")
-        } finally {
-            try {
-                // Fallback: older scoop ignores -p or the uninstall may have
-                // failed, so remove the persist dir directly (best-effort).
-                if (scoopClient.cleanupPersistDir(testName)) {
-                    logger.info("Removed leftover persist dir for test app $testName")
-                }
-            } catch (e: Exception) {
-                logger.warn("Failed to remove persist dir for test app $testName: ${e.message}")
-            }
-            try {
-                if (tempFile.exists()) tempFile.delete()
-            } catch (e: Exception) {
-                logger.warn("Failed to delete temp manifest ${tempFile.absolutePath}: ${e.message}")
-            }
-        }
-    }
-
     private fun agentError(presentation: AiErrorPresentation): ChatMessage = ChatMessage(
         role = ChatRole.Agent,
         text = presentation.title,
@@ -2262,48 +2067,10 @@ internal fun applyInstallVerifyActivity(state: CreateState, activity: ToolActivi
     }
 }
 
-/** Keep only the last [maxLines] lines of a log to avoid huge panels. */
-internal fun tailLines(text: String, maxLines: Int): String {
-    val lines = text.lines()
-    if (lines.size <= maxLines) return text
-    return lines.takeLast(maxLines).joinToString("\n")
-}
-
-/**
- * Build a short failure summary: the detected error line plus the tail of the install log.
- *
- * The detected line is prepended (it is usually NOT in the log tail), so the tail is capped
- * at [maxLines] - 1 to guarantee the detected line survives the final cut.
- */
-internal fun errorSummary(errorMessage: String?, log: String, maxLines: Int): String {
-    val detected = errorMessage?.trim().orEmpty()
-    if (detected.isEmpty()) return tailLines(log, maxLines)
-    val tail = tailLines(log, maxLines - 1)
-    val combined = if (detected in tail) tail else "$detected\n$tail"
-    return tailLines(combined, maxLines)
-}
-
 private val bucketPrettyJson = Json {
     prettyPrint = true
     prettyPrintIndent = "    "
 }
-
-/**
- * Builds the user prompt sent when fixing a manifest from a failed install test.
- * The failure details (summary + log excerpt) are already included, so assist must
- * fix the manifest directly instead of re-running the install test.
- */
-internal fun buildFixFromTestFailurePrompt(summary: String, logTail: String): String =
-    buildString {
-        appendLine("The test install for manifest failed. Please fix the manifest according to the test failure:")
-        appendLine("Do NOT run a new install test first; the failure details above are sufficient. Fix the manifest directly.")
-        appendLine("Error summary: $summary")
-        val cleanLog = logTail.trim()
-        if (cleanLog.isNotBlank()) {
-            appendLine("Install log excerpt:")
-            appendLine(cleanLog.takeLast(1000))
-        }
-    }.trim()
 
 /**
  * Builds the `git add && git commit` command for saving a manifest into a Git bucket,
@@ -2865,9 +2632,9 @@ internal fun isNameConflictOnly(issues: List<String>, invalidJson: Boolean): Boo
 /**
  * Classify a finished generation result.
  *
- * The exhausted flag alone must NOT disable Test Install / Save: a valid JSON manifest
- * with unresolved assist issues can still be test-installed (the UI keeps the buttons
- * enabled and only [invalidJson] gates them).
+ * The exhausted flag alone must NOT disable Save: a valid JSON manifest
+ * with unresolved assist issues can still be saved (the UI keeps the button
+ * enabled and only [invalidJson] gates it).
  */
 internal fun classifyManifestFinish(manifest: String, exhausted: Boolean): FinishClassification {
     val invalidJson = !isScoopManifestJson(manifest)

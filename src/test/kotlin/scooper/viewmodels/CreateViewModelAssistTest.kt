@@ -246,7 +246,7 @@ class CreateViewModelAssistTest {
     @Test
     fun `extractReviewActionChips generates appropriate chips for name conflict and invalid json`() {
         val issues = listOf("Conflict: app name 'micro' already exists in official bucket")
-        val chips = extractReviewActionChips(issues = issues, invalidJson = false, testResult = null)
+        val chips = extractReviewActionChips(issues = issues, invalidJson = false)
         assertTrue(chips.any { it.label.contains("Fix name conflict") }, "Should have name conflict chip")
     }
 
@@ -256,22 +256,15 @@ class CreateViewModelAssistTest {
             "Illegal persist path: C:\\data must be relative",
             "License bare GPL-3.0 should use explicit suffix",
         )
-        val chips = extractReviewActionChips(issues = issues, invalidJson = false, testResult = null)
+        val chips = extractReviewActionChips(issues = issues, invalidJson = false)
         assertTrue(chips.any { it.label.contains("Fix persist") }, "Should have persist chip")
         assertTrue(chips.any { it.label.contains("Fix license") }, "Should have license chip")
     }
 
     @Test
     fun `extractReviewActionChips generates chip for invalid JSON`() {
-        val chips = extractReviewActionChips(issues = emptyList(), invalidJson = true, testResult = null)
+        val chips = extractReviewActionChips(issues = emptyList(), invalidJson = true)
         assertTrue(chips.any { it.label.contains("Fix JSON") }, "Should have JSON fix chip")
-    }
-
-    @Test
-    fun `extractReviewActionChips generates primary test fix chip when test failed`() {
-        val failedResult = TestResult(testName = "test", success = false, errorMessage = "Failed to run test", log = "exit code 1")
-        val chips = extractReviewActionChips(issues = emptyList(), invalidJson = false, testResult = failedResult)
-        assertTrue(chips.any { it.isPrimary && it.label.contains("Fix install failure") }, "Should have primary test fix chip")
     }
 
     @Test

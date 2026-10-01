@@ -523,55 +523,6 @@ class ScoopClient(
         }
     }
 
-    /**
-     * Install a local manifest as [testAppName] for validation.
-     * Only uninstalls an existing install of the same test name - never the real app.
-     */
-    override suspend fun testInstallManifest(testAppName: String, manifestFile: File): TestInstallResult {
-        val alreadyInstalled = localInstalledAppDirs.any {
-            it.name.equals(testAppName, ignoreCase = true)
-        }
-        if (alreadyInstalled) {
-            logStream.emit("Uninstalling existing test app $testAppName before test install...")
-            val uninstallResult = executeAndLogCapture(mutableListOf("scoop", "uninstall", testAppName))
-            if (uninstallResult.exitCode != 0) return uninstallResult
-        }
-
-        val prewarmed = prewarmTestInstallCache(testAppName, manifestFile)
-        logger.info("Prewarmed $prewarmed cache file(s) for test install of $testAppName")
-
-        val installArgs = mutableListOf(
-            "scoop", "install", manifestFile.absolutePath, "-s",
-        )
-        val installResult = executeAndLogCapture(installArgs)
-        return installResult.copy(prewarmedCount = prewarmed)
-    }
-
-    // ==================== Test Install Persist Cleanup ====================
-
-    /** The persist dir of [name] under [root] when it exists, null otherwise. */
-    internal fun persistCleanupTarget(root: File, name: String): File? =
-        persistDir(root, name).takeIf { it.exists() }
-
-    /**
-     * Best-effort removal of a test app's leftover persist directory under [root]
-     * (defaults to the client root). Returns true when the directory was removed.
-     * Fallback for scoop versions without `-p` support or a failed uninstall:
-     * scoop uninstall keeps `persist/<app>` by default, so delete it directly.
-     * Never throws.
-     */
-    internal fun cleanupPersistDir(name: String, root: File = rootDir): Boolean {
-        val target = persistCleanupTarget(root, name) ?: return false
-        logger.info("Removing leftover persist dir of test app $name: ${target.absolutePath}")
-        val removed = deleteRecursivelyQuietly(target)
-        if (removed) {
-            logger.info("Removed persist dir: ${target.absolutePath}")
-        } else {
-            logger.warn("Failed to fully remove persist dir: ${target.absolutePath}")
-        }
-        return removed
-    }
-
     /** Recursive delete that reports failure instead of throwing. */
     internal fun deleteRecursivelyQuietly(target: File): Boolean = try {
         target.deleteRecursively()

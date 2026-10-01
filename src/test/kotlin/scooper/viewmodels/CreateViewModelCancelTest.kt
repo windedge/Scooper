@@ -115,24 +115,6 @@ class CreateViewModelCancelTest {
         }
     }
 
-    @Test
-    fun `cancel during a hung test install releases the send guard`() = runBlocking {
-        withScoopShim(hangSeconds = 6) {
-            val vm = createVm()
-            try {
-                presetInstallable(vm)
-                vm.onTestInstall()
-                awaitTestInstallStart(vm)
-                withContext(Dispatchers.Default) {
-                    withTimeout(5_000) { vm.onCancel().join() }
-                }
-                awaitGuardReleased(vm)
-            } finally {
-                vm.close()
-            }
-        }
-    }
-
     // ---------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------
@@ -183,11 +165,6 @@ class CreateViewModelCancelTest {
     /** Waits until the direct install intent has flipped installing=true. */
     private suspend fun awaitInstallStart(vm: CreateViewModel) {
         awaitState(vm) { it.installing }
-    }
-
-    /** Waits until the test install intent has flipped testing=true. */
-    private suspend fun awaitTestInstallStart(vm: CreateViewModel) {
-        awaitState(vm) { it.testing }
     }
 
     /** Waits until every busy flag is down after the cancel. */

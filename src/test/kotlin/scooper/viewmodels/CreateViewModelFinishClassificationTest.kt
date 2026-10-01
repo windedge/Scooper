@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
  * TDD tests for [classifyManifestFinish] / [isScoopManifestJson], the top-level pure
  * functions extracted from CreateViewModel so the exhausted escape-door rule is directly
  * testable: a valid JSON manifest with assist exhaustion must keep invalidJson=false so
- * the UI can still enable Test Install / Save; only invalid JSON disables the buttons.
+ * the UI can still enable Save; only invalid JSON disables the buttons.
  *
  * Validity uses the CLI bar: kotlinx Json parse AND root element is a JsonObject;
  * blank manifest counts as invalid.
@@ -36,7 +36,7 @@ class CreateViewModelFinishClassificationTest {
     @Test
     fun `valid JSON with exhaustion keeps invalidJson false but finishedWithIssues true`() {
         val c = classifyManifestFinish(validManifest, exhausted = true)
-        assertFalse(c.invalidJson, "valid JSON must not disable Test Install / Save")
+        assertFalse(c.invalidJson, "valid JSON must not disable Save")
         assertTrue(c.finishedWithIssues, "badge/toast must still report issues")
     }
 

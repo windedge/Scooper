@@ -415,6 +415,15 @@ class AppsRepository(
         AppEntity.wrapRows(query).toList().forEach { it.delete() }
     } }
 
+    /** Delete orphan (bucketId null) INSTALLED rows for [appName].
+     *  Called when the app is saved to a bucket: the bucket row takes over. */
+    fun deleteOrphanInstalled(appName: String) = synchronized(writeLock) { transaction {
+        Apps.deleteWhere {
+            (Apps.name eq appName) and (Apps.bucketId eq null) and
+                    (Apps.status eq AppStatus.INSTALLED.name.lowercase())
+        }
+    } }
+
     /** Insert or update a single app. If the app already exists (by name), update it; otherwise create a new record. */
     fun upsertApp(app: App) = synchronized(writeLock) { transaction {
         val bkt = app.bucket?.name?.let {
