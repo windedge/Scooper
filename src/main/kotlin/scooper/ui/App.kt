@@ -25,7 +25,7 @@ import scooper.ui.components.PaginationBar
 import scooper.viewmodels.AppsViewModel
 
 @Composable
-fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
+fun AppScreen(scope: String, bucket: String? = null, appsViewModel: AppsViewModel = koinInject()) {
     val taskQueue: TaskQueue = koinInject()
     val state by appsViewModel.container.stateFlow.collectAsState()
     val apps = state.apps
@@ -41,8 +41,8 @@ fun AppScreen(scope: String, appsViewModel: AppsViewModel = koinInject()) {
 
     var selectedApp by remember { mutableStateOf<App?>(null) }
 
-    LaunchedEffect(scope) {
-        appsViewModel.applyFilters(scope = scope)
+    LaunchedEffect(scope, bucket) {
+        appsViewModel.applyFilters(scope = scope, bucket = bucket ?: "")
     }
 
     // Version picker dialog

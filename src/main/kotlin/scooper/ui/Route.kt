@@ -1,7 +1,7 @@
 package scooper.ui
 
 sealed class AppRoute {
-    data class Apps(val scope: String) : AppRoute()
+    data class Apps(val scope: String, val bucket: String? = null) : AppRoute()
     object Splash : AppRoute()
     object Buckets : AppRoute()
     object Cleanup : AppRoute()

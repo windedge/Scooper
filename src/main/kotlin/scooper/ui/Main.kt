@@ -300,7 +300,7 @@ fun main() {
                                             Layout {
                                                 val routeKey = when (val route = currentRoute.value) {
                                                     AppRoute.Splash -> "splash"
-                                                    is AppRoute.Apps -> "apps:${route.scope}"
+                                                    is AppRoute.Apps -> "apps:${route.scope}:${route.bucket}"
                                                     AppRoute.Buckets -> "buckets"
                                                     AppRoute.Cleanup -> "cleanup"
                                                     AppRoute.ScoopSearch -> "scoopSearch"
@@ -315,7 +315,7 @@ fun main() {
                                                     EnterAnimation(animateContent) {
                                                         when (val route = currentRoute.value) {
                                                             AppRoute.Splash -> {}
-                                                            is AppRoute.Apps -> AppScreen(route.scope)
+                                                            is AppRoute.Apps -> AppScreen(route.scope, route.bucket)
                                                             AppRoute.Buckets -> BucketsScreen()
                                                             AppRoute.Cleanup -> CleanupScreen()
                                                             AppRoute.ScoopSearch -> ScoopSearchScreen()

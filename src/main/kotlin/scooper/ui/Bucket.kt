@@ -24,10 +24,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogState
 import org.koin.compose.koinInject
+import scooper.util.navigation.LocalBackStack
+import scooper.util.navigation.core.BackStack
 import scooper.data.Bucket
 import scooper.util.KNOWN_BUCKETS
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.noRippleClickable
 import scooper.util.onHover
 import scooper.util.safeBrowse
 import scooper.viewmodels.AppsViewModel
@@ -245,12 +248,15 @@ fun BucketsScreen(appsViewModel: AppsViewModel = koinInject()) {
 
 @Composable
 fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
+    val navigator = LocalBackStack.current as BackStack<AppRoute>
     var isHover by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .onHover { isHover = it }
             .background(if (isHover) colors.backgroundHover else colors.surface)
+            .cursorHand()
+            .clickable { navigator.popupAllAndPush(AppRoute.Apps(scope = "", bucket = bucket.name)) }
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -271,13 +277,16 @@ fun BucketRow(bucket: Bucket, onDelete: () -> Unit) {
         }
 
         if (isHover) {
-            IconButton(
-                onClick = onDelete,
+            var deleteHover by remember { mutableStateOf(false) }
+            Box(
                 modifier = Modifier
                     .size(32.dp)
+                    .onHover { deleteHover = it }
                     .clip(RoundedCornerShape(6.dp))
-                    .background(colors.dangerBg)
+                    .background(if (deleteHover) colors.dangerBg else Color.Transparent)
                     .cursorHand()
+                    .noRippleClickable(onDelete),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Lucide.Trash2,
