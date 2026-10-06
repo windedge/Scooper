@@ -225,7 +225,7 @@ internal fun collapseActiveExecution(
  * everything still buffered when the run finishes must not leak into the next run
  * or mutate a finalized state. After this loop the channel is empty.
  */
-internal fun drainActivityEvents(channel: Channel<ToolActivity>) {
+internal fun drainActivityEvents(channel: Channel<Pair<ToolActivity, Long>>) {
     while (true) {
         val result = channel.tryReceive()
         if (result.isFailure) break

@@ -35,13 +35,19 @@ object ToolActivityFormatter {
     fun format(activity: ToolActivity): String {
         val name = activity.toolName
         return when (activity) {
-            is ToolActivity.Started -> formatStarted(name, activity.toolArgs)
-            is ToolActivity.Completed -> formatCompleted(name, activity.toolResult)
+            is ToolActivity.Started -> formatStarted(name, activity.intent)
+            is ToolActivity.Completed -> formatCompleted(name, activity.toolResult, activity.intent)
             is ToolActivity.Failed -> "Tool $name failed: ${activity.error}"
         }
     }
 
-    private fun formatStarted(name: String, args: String?): String {
+    /**
+     * Intent line for the start of a tool call. The model's self-declared intent
+     * takes precedence over the generic per-tool wording; falls back to the
+     * generic line when the engine reported no intent.
+     */
+    private fun formatStarted(name: String, intent: String?): String {
+        if (!intent.isNullOrBlank()) return intent
         return when (name) {
             "fetchRepoInfo" -> "Querying repository info..."
             "fetchLatestRelease" -> "Fetching latest release..."
@@ -68,7 +74,14 @@ object ToolActivityFormatter {
         }
     }
 
-    private fun formatCompleted(name: String, toolResult: String): String {
+    /**
+     * Outcome line for a finished tool call. The batch intent (same as the
+     * Started line) takes precedence so the persistent completion line keeps
+     * showing why the tool ran; falls back to the per-tool result wording when
+     * the engine reported no intent.
+     */
+    private fun formatCompleted(name: String, toolResult: String, intent: String?): String {
+        if (!intent.isNullOrBlank()) return intent
         return when (name) {
             "fetchRepoInfo" -> "Repository info fetched"
             "fetchLatestRelease" -> "Latest release fetched"

@@ -461,10 +461,10 @@ class CreateViewModelExecutionTest {
 
     @Test
     fun `drainActivityEvents discards residual buffered events`() {
-        val channel = Channel<ToolActivity>(Channel.UNLIMITED)
-        channel.trySend(ToolActivity.Started("fetchRepoInfo", "{}"))
-        channel.trySend(ToolActivity.Completed("fetchRepoInfo", "ok"))
-        channel.trySend(ToolActivity.Started("writeManifest", "{}"))
+        val channel = Channel<Pair<ToolActivity, Long>>(Channel.UNLIMITED)
+        channel.trySend(ToolActivity.Started("fetchRepoInfo", "{}") to 1L)
+        channel.trySend(ToolActivity.Completed("fetchRepoInfo", "ok") to 1L)
+        channel.trySend(ToolActivity.Started("writeManifest", "{}") to 1L)
 
         drainActivityEvents(channel)
 
@@ -474,7 +474,7 @@ class CreateViewModelExecutionTest {
 
     @Test
     fun `drainActivityEvents on an empty channel returns immediately`() {
-        val channel = Channel<ToolActivity>(Channel.UNLIMITED)
+        val channel = Channel<Pair<ToolActivity, Long>>(Channel.UNLIMITED)
         drainActivityEvents(channel)
         assertTrue(channel.tryReceive().isFailure)
         channel.close()

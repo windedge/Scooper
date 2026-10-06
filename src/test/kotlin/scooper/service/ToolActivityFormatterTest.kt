@@ -47,6 +47,82 @@ class ToolActivityFormatterTest {
         )
     }
 
+    // ---------------------------------------------------------------
+    // intent (engine 0.1.12)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `Started event prefers the model intent over the generic wording`() {
+        assertEquals(
+            "Fetched repo info to confirm latest version",
+            ToolActivityFormatter.format(
+                ToolActivity.Started(
+                    "fetchRepoInfo",
+                    """{"repo":"sharkdp/fd"}""",
+                    intent = "Fetched repo info to confirm latest version",
+                ),
+            ),
+        )
+        assertEquals(
+            "Computing SHA256 to verify download integrity",
+            ToolActivityFormatter.format(
+                ToolActivity.Started(
+                    "computeSha256FromUrl",
+                    """{"url":"https://..."}""",
+                    intent = "Computing SHA256 to verify download integrity",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `Started event falls back to generic wording when intent is null or blank`() {
+        assertEquals(
+            "Querying repository info...",
+            ToolActivityFormatter.format(ToolActivity.Started("fetchRepoInfo", "{}", intent = null)),
+        )
+        assertEquals(
+            "Computing SHA256 hash...",
+            ToolActivityFormatter.format(ToolActivity.Started("computeSha256FromUrl", "{}", intent = "   ")),
+        )
+    }
+
+    @Test
+    fun `Completed event prefers the model intent over the generic wording`() {
+        assertEquals(
+            "Fetched repo info to confirm latest version",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed(
+                    "fetchRepoInfo",
+                    """{"name":"fd"}""",
+                    intent = "Fetched repo info to confirm latest version",
+                ),
+            ),
+        )
+        assertEquals(
+            "Running a real install test to validate shortcuts",
+            ToolActivityFormatter.format(
+                ToolActivity.Completed(
+                    "verify_install",
+                    """{"success":true}""",
+                    intent = "Running a real install test to validate shortcuts",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `Completed event falls back to result wording when intent is null or blank`() {
+        assertEquals(
+            "Repository info fetched",
+            ToolActivityFormatter.format(ToolActivity.Completed("fetchRepoInfo", "{}", intent = null)),
+        )
+        assertEquals(
+            "SHA256 hash computed",
+            ToolActivityFormatter.format(ToolActivity.Completed("computeSha256FromUrl", "abc123", intent = "   ")),
+        )
+    }
+
     @Test
     fun `Completed event formats cleanly in English`() {
         assertEquals(

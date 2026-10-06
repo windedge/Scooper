@@ -20,7 +20,7 @@ kotlin-process = "1.5.1"
 reorderable = "2.5.1"
 commonmark = "0.24.0"
 flatlaf = "3.7"
-scoop-ai = "0.1.11"
+scoop-ai = "0.1.13"
 
 
 [libraries]

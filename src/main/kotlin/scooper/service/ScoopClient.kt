@@ -213,8 +213,10 @@ class ScoopClient(
      */
     fun installedAppRecord(name: String): App? {
         val current = rootDir.resolve("apps/${name.lowercase()}/current")
-        val manifestFile = current.resolve("manifest.json")
-        if (!manifestFile.exists()) return null
+        // Recent Scoop writes scoop-manifest.json; older versions manifest.json.
+        val manifestFile = listOf("manifest.json", "scoop-manifest.json")
+            .map { current.resolve(it) }
+            .firstOrNull { it.exists() } ?: return null
         val json = tryParseManifest(manifestFile) ?: return null
         // Scoop installs <root>/apps/<name>/<version> with current as a junction,
         // so the real path names the version; plain directories fall back to the

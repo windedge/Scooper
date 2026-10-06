@@ -485,6 +485,8 @@ data class CreateState(
     val manifestIssues: List<String> = emptyList(),
     /** Transient execution progress of the running session; null when idle. */
     val activeExecution: ActiveExecution? = null,
+    /** Monotonic engine-run tag; callbacks captured under an older epoch are dropped. */
+    val generationEpoch: Long = 0L,
     /** Model selected for generation in Create workspace. */
     val selectedModel: String = "",
     /** Available models fetched from remote endpoint. */
@@ -546,7 +548,16 @@ class CreateViewModel(
      */
     private var installingJob: Job? = null
 
-    private val activityChannel = Channel<ToolActivity>(Channel.UNLIMITED)
+    /**
+     * Monotonic tag of the engine run the async callbacks belong to. Start
+     * paths capture it before registering the callbacks; the handle* callbacks
+     * drop events captured under an older epoch, and onCancel bumps it so the
+     * cancelled run's queued callbacks become stale immediately.
+     */
+    private var generationEpoch: Long = 0L
+
+    /** Pairs each activity with the epoch of the run that produced it. */
+    private val activityChannel = Channel<Pair<ToolActivity, Long>>(Channel.UNLIMITED)
 
     /** Guard so the app index is scanned at most once even if several @ tokens appear quickly. */
     private val manifestRefSuggestionsLoading = AtomicBoolean(false)
@@ -558,10 +569,10 @@ class CreateViewModel(
 
     init {
         coroutineScope.launch {
-            activityChannel.receiveAsFlow().collect { activity ->
+            activityChannel.receiveAsFlow().collect { (activity, epoch) ->
                 val text = ToolActivityFormatter.format(activity)
                 intent {
-                    if (state.running) {
+                    if (state.running && epochMatches(epoch)) {
                         reduce {
                             state.copy(
                                 activeExecution = attachToolActivity(state.activeExecution, activity, text),
@@ -709,6 +720,7 @@ class CreateViewModel(
 
     fun onReset() = intent {
         scoopAiBridge.cancel()
+        reduce { state.copy(generationEpoch = state.generationEpoch + 1) }
         drainActivityEvents(activityChannel)
         checkpointService.reset()
         assistAttemptCount = 0
@@ -790,6 +802,11 @@ class CreateViewModel(
         askUserDeferred?.complete(DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         askUserDeferred = null
         scoopAiBridge.cancel()
+        // Invalidate the cancelled run's pending callbacks before the engine
+        // job unwinds: its CancellationException onFinished is delivered
+        // through Orbit's serial dispatch channel after this intent, so it
+        // would otherwise run after a new generation has set running=true.
+        reduce { state.copy(generationEpoch = state.generationEpoch + 1) }
         // A real install running in parallel is stopped too: the child job
         // owns its busy flag and clears it in its own finally, so the send
         // guard is never stuck.
@@ -1494,6 +1511,13 @@ class CreateViewModel(
 
         assistAttemptCount = 0
         repairRoundCounter.reset()
+        // Tag this run: the bridge cancels the previous job and Orbit then
+        // replays the cancelled run's queued CancellationException callback
+        // after the new run has already set running=true, so every async
+        // callback carries the epoch it started under and drops itself when
+        // the state has moved on to a newer run.
+        val epoch = state.generationEpoch + 1
+        reduce { state.copy(generationEpoch = epoch) }
         val modelToUse = state.selectedModel
         scoopAiBridge.startGenerate(
             url = urlFromField,
@@ -1501,12 +1525,12 @@ class CreateViewModel(
             resumeFrom = resumeFrom,
             overrideModel = modelToUse,
             ignoreAppNames = ignoredNames,
-            onPhase = { phase -> handlePhase(phase) },
-            onToolActivity = ::routeToolActivity,
-            onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
+            onPhase = { phase -> handlePhase(epoch, phase) },
+            onToolActivity = { act -> routeToolActivity(epoch, act) },
+            onPhaseOutput = { phase, out -> handlePhaseOutput(epoch, phase, out) },
             onAskUser = { question -> handleAskUser(question) },
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
-            onFinished = { result -> handleFinished(result) },
+            onFinished = { result -> handleFinished(epoch, result) },
         )
     }
 
@@ -1633,6 +1657,9 @@ class CreateViewModel(
             )
         }
 
+        // Same epoch tagging as startGeneration (see the comment there).
+        val epoch = state.generationEpoch + 1
+        reduce { state.copy(generationEpoch = epoch) }
         val modelToUse = state.selectedModel
         scoopAiBridge.startAssist(
             currentManifest = currentManifest,
@@ -1642,13 +1669,14 @@ class CreateViewModel(
             overrideModel = modelToUse,
             images = imagesToSend.map { AiImage(bytes = it.bytes, mimeType = it.mimeType) },
             ignoreAppNames = ignoredNames,
-            onPhase = { phase -> handlePhase(phase) },
-            onToolActivity = ::routeToolActivity,
-            onPhaseOutput = { phase, out -> handlePhaseOutput(phase, out) },
+            onPhase = { phase -> handlePhase(epoch, phase) },
+            onToolActivity = { act -> routeToolActivity(epoch, act) },
+            onPhaseOutput = { phase, out -> handlePhaseOutput(epoch, phase, out) },
             onAskUser = { question -> handleAskUser(question) },
             onQuestionnaire = { questions -> handleQuestionnaire(questions) },
             onSaveToBucket = { bucket, name, overwrite ->
-                executeSaveToBucket(bucket, name, overwrite)
+                if (epochMatches(epoch)) executeSaveToBucket(bucket, name, overwrite)
+                else STALE_EPOCH_SAVE_REPLY_JSON
             },
             // Session-persistent read_manifest_reference wiring: as long as any
             // user bubble in the conversation referenced @bucket/app (including
@@ -1660,6 +1688,7 @@ class CreateViewModel(
                 { bucket, name -> readManifestRefReply(scoopClient, bucket, name) }
             },
             onInstallApp = { bucket, name ->
+                if (!epochMatches(epoch)) return@startAssist STALE_EPOCH_INSTALL_REPLY_JSON
                 // The engine's handler signature is suspend-and-returns-JSON;
                 // the intent runs on the VM scope, so bridge it and hand the
                 // model the reply only after the install settled. A crash here
@@ -1675,7 +1704,7 @@ class CreateViewModel(
                     }
                 }
             },
-            onFinished = { result -> handleFinished(result) },
+            onFinished = { result -> handleFinished(epoch, result) },
         )
 
         replaySourceId?.let { sourceId ->
@@ -1689,18 +1718,27 @@ class CreateViewModel(
         }
     }
 
-    /** Route engine tool activity: step-card lines via the channel, verify flags via intent. */
-    private fun routeToolActivity(act: ToolActivity) {
-        activityChannel.trySend(act)
-        handleToolActivity(act)
+    /** Epoch guard: true when [epoch] still matches the live engine run. */
+    private fun epochMatches(epoch: Long): Boolean =
+        container.stateFlow.value.generationEpoch == epoch
+
+    /**
+     * Route engine tool activity: step-card lines via the channel, verify flags
+     * via intent. Both the channel event and the verify flag are tagged with the
+     * epoch so late events of a cancelled run are dropped on both paths.
+     */
+    private fun routeToolActivity(epoch: Long, act: ToolActivity) {
+        if (!epochMatches(epoch)) return
+        activityChannel.trySend(act to epoch)
+        if (isInstallVerifyActivity(act)) handleToolActivity(act)
     }
 
     private fun handleToolActivity(act: ToolActivity) = intent {
         reduce { applyInstallVerifyActivity(state, act) }
     }
 
-    private fun handlePhase(phase: String) = intent {
-        if (!state.running) return@intent
+    private fun handlePhase(epoch: Long, phase: String) = intent {
+        if (!epochMatches(epoch)) return@intent
         val titleText = PhaseSummaryFormatter.formatPhaseStart(
             phase = phase,
             appName = state.suggestedAppName,
@@ -1720,8 +1758,8 @@ class CreateViewModel(
         }
     }
 
-    private fun handlePhaseOutput(phase: String, outputJson: String) = intent {
-        if (!state.running) return@intent
+    private fun handlePhaseOutput(epoch: Long, phase: String, outputJson: String) = intent {
+        if (!epochMatches(epoch)) return@intent
         val summary = PhaseSummaryFormatter.formatPhaseOutput(phase, outputJson) ?: return@intent
         reduce {
             state.copy(
@@ -1730,7 +1768,8 @@ class CreateViewModel(
         }
     }
 
-    private fun handleFinished(result: Result<ManifestResult>) = intent {
+    private fun handleFinished(epoch: Long, result: Result<ManifestResult>) = intent {
+        if (!epochMatches(epoch)) return@intent
         result.fold(
             onSuccess = { manifestResult ->
                 if (manifestResult.answered) {
@@ -2052,6 +2091,14 @@ internal fun resolveOpenAppName(state: CreateState, lastUrl: String): String? =
  * Drives CreateState from AI verify_install activity: Started shows loading, then a
  * Completed/Failed hides it; a verified success flips [CreateState.installVerified].
  */
+/** Reply handed to the engine when a tool call lands after its run was cancelled. */
+internal const val STALE_EPOCH_SAVE_REPLY_JSON = "{\"success\":false,\"error\":\"cancelled\"}"
+internal const val STALE_EPOCH_INSTALL_REPLY_JSON = "{\"success\":false,\"mode\":\"local\",\"error\":\"cancelled\"}"
+
+/** True when the activity drives the verify-install busy flag (see [applyInstallVerifyActivity]). */
+internal fun isInstallVerifyActivity(activity: ToolActivity): Boolean =
+    activity.toolName == "verify_install"
+
 internal fun applyInstallVerifyActivity(state: CreateState, activity: ToolActivity): CreateState {
     if (activity.toolName != "verify_install") return state
     return when (activity) {

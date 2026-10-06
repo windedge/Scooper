@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.HorizontalScrollbar
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
@@ -812,10 +813,10 @@ private fun SaveToBucketDialog(
     ) {
         Surface(
             color = colors.surface,
-            modifier = Modifier.width(420.dp).height(410.dp),
+            modifier = Modifier.width(420.dp),
         ) {
             Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f).padding(24.dp)) {
+                Box(Modifier.padding(24.dp)) {
                     Column(Modifier.fillMaxWidth()) {
                         Text(
                             "App name",
@@ -1171,40 +1172,52 @@ private fun ChatWorkspace(
     onEnsureRefSuggestions: () -> Unit = {},
 ) {
     @Composable
-    fun PreviewArtifactPanel() {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ManifestPreviewCard(
-                appName = state.suggestedAppName ?: "app",
-                manifestJson = state.activeManifestJson,
-                enabled = !state.running && !state.testing,
-                testing = state.testing,
-                testSucceeded = manifestTestSucceeded(state.installVerified, state.manifestSaved),
-                manifestSaved = state.manifestSaved,
-                hasSaveResult = state.saveResult != null,
-                installing = state.installing,
-                installedForUse = state.installedForUse,
-                systemInstalled = state.systemInstalled,
-                running = state.running,
-                issues = state.manifestIssues,
-                exhausted = state.manifestExhausted,
-                invalidJson = state.manifestInvalidJson,
-                revisions = state.revisions,
-                selectedRevisionId = state.selectedRevisionId,
-                actionChips = state.reviewActionChips,
-                onApplyActionChip = onApplyActionChip,
-                onSelectRevision = onSelectRevision,
-                onRevertToRevision = onRevertToRevision,
-                onCopyDone = onCopyDone,
-                onSave = onSave,
-                onInstallSaved = onInstallSaved,
-                onOpenApp = onOpenApp,
-            )
-            state.saveResult?.let { result ->
-                SaveResultPanel(
-                    result = result,
-                    onGoToDiscover = onGoToDiscover,
-                    onDismiss = onDismissSaveResult,
+    fun PreviewArtifactPanel(
+        modifier: Modifier = Modifier,
+        fillRemainingHeight: Boolean = false,
+    ) {
+        Box(modifier = modifier) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ManifestPreviewCard(
+                    modifier = if (fillRemainingHeight) Modifier.weight(1f) else Modifier,
+                    appName = state.suggestedAppName ?: "app",
+                    manifestJson = state.activeManifestJson,
+                    enabled = !state.running && !state.testing,
+                    testing = state.testing,
+                    testSucceeded = manifestTestSucceeded(state.installVerified, state.manifestSaved),
+                    manifestSaved = state.manifestSaved,
+                    hasSaveResult = state.saveResult != null,
+                    installing = state.installing,
+                    installedForUse = state.installedForUse,
+                    systemInstalled = state.systemInstalled,
+                    running = state.running,
+                    issues = state.manifestIssues,
+                    exhausted = state.manifestExhausted,
+                    invalidJson = state.manifestInvalidJson,
+                    revisions = state.revisions,
+                    selectedRevisionId = state.selectedRevisionId,
+                    scrollableCard = fillRemainingHeight,
+                    actionChips = state.reviewActionChips,
+                    onApplyActionChip = onApplyActionChip,
+                    onSelectRevision = onSelectRevision,
+                    onRevertToRevision = onRevertToRevision,
+                    onCopyDone = onCopyDone,
+                    onSave = onSave,
+                    onInstallSaved = onInstallSaved,
+                    onOpenApp = onOpenApp,
                 )
+                state.saveResult?.let { result ->
+                    SaveResultPanel(
+                        result = result,
+                        onGoToDiscover = onGoToDiscover,
+                        onDismiss = onDismissSaveResult,
+                    )
+                }
             }
         }
     }
@@ -1319,25 +1332,18 @@ private fun ChatWorkspace(
                         color = colors.borderDefault,
                     )
 
-                    // Right column: Manifest Artifact Panel
-                    val rightScrollState = rememberScrollState()
+                    // Right column: Manifest Artifact Panel. The Column inside the
+                    // panel is not scrollable itself so weight(1f) can stretch the
+                    // preview card; scrolling happens inside the card.
                     Box(
                         modifier = Modifier
                             .weight(0.52f)
                             .fillMaxHeight()
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(end = 12.dp)
-                                .verticalScroll(rightScrollState),
-                        ) {
-                            PreviewArtifactPanel()
-                        }
-                        VerticalScrollbar(
-                            adapter = rememberScrollbarAdapter(rightScrollState),
-                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                        PreviewArtifactPanel(
+                            modifier = Modifier.fillMaxSize().padding(end = 12.dp),
+                            fillRemainingHeight = true,
                         )
                     }
                 }
@@ -1384,7 +1390,7 @@ private fun ChatWorkspace(
                         }
                         if (state.manifestJson.isNotBlank()) {
                             item(key = "manifest-card") {
-                                PreviewArtifactPanel()
+                                PreviewArtifactPanel(fillRemainingHeight = false)
                             }
                         }
                     }
@@ -1659,7 +1665,7 @@ private fun ChatBubble(
 
 private fun actionLabel(action: AiErrorAction): String = when (action) {
     AiErrorAction.OPEN_SETTINGS -> "Open Settings"
-    AiErrorAction.RETRY_FULL -> "Regenerate"
+    AiErrorAction.RETRY_FULL -> "Restart"
     AiErrorAction.RETRY_FROM_ANALYZE -> "Retry from analyze"
     AiErrorAction.RETRY_FROM_GENERATE -> "Retry from generate"
     AiErrorAction.RETRY_ANSWER -> "Retry"
@@ -2019,6 +2025,10 @@ private fun TypingDots(modifier: Modifier = Modifier) {
 
 @Composable
 private fun ManifestPreviewCard(
+    modifier: Modifier = Modifier,
+    // Only height-bound cards may scroll internally; a wrap-content card inside
+    // an unbounded parent (LazyColumn item) would crash.
+    scrollableCard: Boolean = false,
     appName: String,
     manifestJson: String,
     enabled: Boolean,
@@ -2045,16 +2055,17 @@ private fun ManifestPreviewCard(
     onOpenApp: () -> Unit = {},
 ) {
     val clipboard = LocalClipboardManager.current
-    var expanded by remember { mutableStateOf(false) }
     var showDiff by remember { mutableStateOf(false) }
-    val scroll = rememberScrollState()
     val previewHScroll = rememberScrollState()
+    // Scrolls the card body (header / manifest / actions) when the card is
+    // height-constrained by the parent panel.
+    val cardScroll = rememberScrollState()
 
     // A new revision (or switching revisions) resets the preview back to the top:
     // the previous JSON may have been scrolled to its bottom, and the user should
     // always start reading from the manifest head.
     LaunchedEffect(manifestJson, selectedRevisionId) {
-        scroll.scrollTo(0)
+        cardScroll.scrollTo(0)
         previewHScroll.scrollTo(0)
     }
 
@@ -2078,9 +2089,17 @@ private fun ManifestPreviewCard(
         border = BorderStroke(1.dp, colors.borderDefault),
         color = colors.surface,
         elevation = 0.dp,
-        modifier = Modifier.fillMaxWidth().widthIn(max = 760.dp),
+        modifier = modifier.fillMaxWidth().widthIn(max = 760.dp),
     ) {
-        Column {
+        Box {
+            Column(
+                // Height-bound mode fills the bounded panel height so the weighted
+                // preview region can take the remaining space and scroll internally;
+                // the header and the action row stay pinned. A card-level
+                // verticalScroll here would measure the preview with unbounded height,
+                // wrap the full manifest and push the action row below the fold.
+                modifier = if (scrollableCard) Modifier.fillMaxSize() else Modifier,
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2237,15 +2256,21 @@ private fun ManifestPreviewCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 200.dp, max = if (expanded) 2000.dp else 360.dp)
+                    .then(
+                        // Height bound: take the space left between the pinned header
+                        // and action row and scroll the manifest inside. Unbounded
+                        // parent (LazyColumn item): wrap with a minimum height.
+                        if (scrollableCard) Modifier.weight(1f) else Modifier.heightIn(min = 200.dp),
+                    )
                     .background(colors.inputBackground),
             ) {
-                SelectableContainer {
+                val previewContent: @Composable () -> Unit = { SelectableContainer {
                     if (showDiff && previousRev != null && detailedDiff.isNotEmpty()) {
+                        // No own vertical scrolling: the card-level scroll handles
+                        // overflow when the card is height bound.
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .verticalScroll(scroll)
                                 .padding(vertical = 8.dp),
                         ) {
                             detailedDiff.forEach { line ->
@@ -2300,43 +2325,77 @@ private fun ManifestPreviewCard(
                                 lineHeight = typography.body2.fontSize * 1.55f,
                             ),
                             // No soft wrap: overlong urls scroll horizontally instead
-                            // of folding mid-token (vertical scrolling is kept).
+                            // of folding mid-token. Vertical scrolling is owned by the
+                            // card-level scroll.
                             softWrap = false,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .verticalScroll(scroll)
                                 .horizontalScroll(previewHScroll)
                                 .padding(14.dp),
                         )
                     }
+                } }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (scrollableCard) {
+                                Modifier.verticalScroll(cardScroll)
+                            } else {
+                                Modifier
+                            },
+                        ),
+                ) {
+                    previewContent()
+                }
+                if (scrollableCard) {
+                    // The thumb is transparent when the content fits, so a short
+                    // manifest keeps the preview region clean.
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(cardScroll),
+                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                    )
+                    HorizontalScrollbar(
+                        adapter = rememberScrollbarAdapter(previewHScroll),
+                        // End padding keeps the horizontal bar clear of the
+                        // vertical scrollbar (default thickness 8dp).
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(end = 8.dp),
+                    )
                 }
             }
 
             if (issues.isNotEmpty() || (invalidJson && actionChips.isNotEmpty())) {
                 val hasNameConflictOnly = isNameConflictOnly(issues, invalidJson)
-                SelectableContainer {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                            .border(
-                                1.dp,
-                                colors.warningDefault.copy(alpha = 0.35f),
-                                RoundedCornerShape(8.dp),
-                            )
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.warningDefault.copy(alpha = 0.08f))
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            if (hasNameConflictOnly) "Notice: Name conflict detected:" else "Generation finished with issues:",
-                            style = typography.caption.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.warningDefault,
-                            ),
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .border(
+                            1.dp,
+                            colors.warningDefault.copy(alpha = 0.35f),
+                            RoundedCornerShape(8.dp),
                         )
-                        issues.forEach { issue ->
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.warningDefault.copy(alpha = 0.08f))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        if (hasNameConflictOnly) "Notice: Name conflict detected:" else "Generation finished with issues:",
+                        style = typography.caption.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.warningDefault,
+                        ),
+                    )
+                    issues.forEach { issue ->
+                        // Chips row stays outside SelectableContainer below: with
+                        // isMouseSelectionBetweenTextEnabled=true its container-level
+                        // mouse selection gesture races the chip clickable and eats
+                        // the press (Main pass), so only issue rows are selectable.
+                        SelectableContainer {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.Top,
@@ -2355,60 +2414,60 @@ private fun ManifestPreviewCard(
                                 )
                             }
                         }
-                        if (!invalidJson) {
-                            Text(
-                                if (hasNameConflictOnly) {
-                                    "Manifest is valid JSON; choose a different name when saving to a bucket."
-                                } else {
-                                    "Manifest is valid JSON; you may still test / install it."
-                                },
-                                style = typography.caption.copy(color = colors.textMuted),
-                                modifier = Modifier.padding(top = 4.dp),
-                            )
-                        }
+                    }
+                    if (!invalidJson) {
+                        Text(
+                            if (hasNameConflictOnly) {
+                                "Manifest is valid JSON; choose a different name when saving to a bucket."
+                            } else {
+                                "Manifest is valid JSON; you may still test / install it."
+                            },
+                            style = typography.caption.copy(color = colors.textMuted),
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
 
-                        if (actionChips.isNotEmpty() && onApplyActionChip != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                actionChips.take(3).forEach { chip ->
-                                    // Solid fill reads as a button; the former 12% tint
-                                    // with colored text looked like a weak hyperlink.
-                                    var chipHovered by remember { mutableStateOf(false) }
-                                    val chipColor = if (chip.isPrimary) colors.primary else colors.warningDefault
-                                    val chipFill = when {
-                                        !enabled -> chipColor
-                                        chipHovered -> if (chip.isPrimary) colors.primaryHover else colors.warningHover
-                                        else -> chipColor
-                                    }
-                                    val chipContentColor = if (chip.isPrimary) Color.White else colors.onWarning
-                                    // Padding on the Text keeps the Surface background and the
-                                    // clickable area the same size.
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = chipFill,
-                                        modifier = Modifier
-                                            .alpha(if (enabled) 1f else 0.5f)
-                                            .cursorHand()
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .onHover { chipHovered = it }
-                                            .clickable(enabled = enabled) {
-                                                onApplyActionChip(chip)
-                                            },
-                                    ) {
-                                        Text(
-                                            chip.label,
-                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                            style = typography.caption.copy(
-                                                color = chipContentColor,
-                                                fontWeight = FontWeight.SemiBold,
-                                                fontSize = 12.sp,
-                                                lineHeight = 16.sp,
-                                            ),
-                                        )
-                                    }
+                    if (actionChips.isNotEmpty() && onApplyActionChip != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            actionChips.take(3).forEach { chip ->
+                                // Solid fill reads as a button; the former 12% tint
+                                // with colored text looked like a weak hyperlink.
+                                var chipHovered by remember { mutableStateOf(false) }
+                                val chipColor = if (chip.isPrimary) colors.primary else colors.warningDefault
+                                val chipFill = when {
+                                    !enabled -> chipColor
+                                    chipHovered -> if (chip.isPrimary) colors.primaryHover else colors.warningHover
+                                    else -> chipColor
+                                }
+                                val chipContentColor = if (chip.isPrimary) Color.White else colors.onWarning
+                                // Padding on the Text keeps the Surface background and the
+                                // clickable area the same size.
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = chipFill,
+                                    modifier = Modifier
+                                        .alpha(if (enabled) 1f else 0.5f)
+                                        .cursorHand()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .onHover { chipHovered = it }
+                                        .clickable(enabled = enabled) {
+                                            onApplyActionChip(chip)
+                                        },
+                                ) {
+                                    Text(
+                                        chip.label,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                        style = typography.caption.copy(
+                                            color = chipContentColor,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
+                                        ),
+                                    )
                                 }
                             }
                         }
@@ -2423,11 +2482,6 @@ private fun ManifestPreviewCard(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SmallActionButton(
-                    label = if (expanded) "Collapse" else "Expand",
-                    onClick = { expanded = !expanded },
-                    enabled = true,
-                )
                 SmallActionButton(
                     label = "Copy",
                     onClick = {
@@ -2471,6 +2525,7 @@ private fun ManifestPreviewCard(
                         enabled = enabled && !testing,
                     )
                 }
+            }
             }
         }
     }
