@@ -65,6 +65,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -123,6 +124,7 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.koin.compose.koinInject
+import scooper.viewmodels.CreateTabController
 import scooper.ui.AppRoute
 import scooper.ui.components.ConfirmDialog
 import scooper.ui.components.DialogTextField
@@ -157,6 +159,7 @@ import scooper.viewmodels.ManifestRevision
 import scooper.viewmodels.ManifestRefSegment
 import scooper.viewmodels.ManifestRefSuggestion
 import scooper.viewmodels.activeManifestRefToken
+import scooper.viewmodels.composerSendEnabled
 import scooper.viewmodels.filterRefSuggestions
 import scooper.viewmodels.splitManifestRefSegments
 import scooper.viewmodels.PendingImage
@@ -179,6 +182,7 @@ import scooper.viewmodels.DOWNLOAD_DETAIL_MAX
 import scooper.viewmodels.elideUrlMiddle
 import scooper.viewmodels.isFailedExecutionStep
 import scooper.viewmodels.isNameConflictOnly
+import scooper.viewmodels.saveUpdatedHintText
 import scooper.viewmodels.shouldRenderFullExecutionSteps
 import java.awt.EventQueue
 import java.awt.FileDialog
@@ -211,13 +215,38 @@ internal fun chatListItemCount(
 @Suppress("UNCHECKED_CAST")
 @Composable
 fun CreateScreen(
-    viewModel: CreateViewModel = koinInject(),
+    viewModel: CreateViewModel,
+    tabController: CreateTabController = koinInject(),
 ) {
     val state by viewModel.container.stateFlow.collectAsState()
+    val tabUiState by tabController.uiState.collectAsState()
     val navigator = LocalBackStack.current as BackStack<AppRoute>
     val listState = rememberLazyListState()
-    // Tick bumped on every reset; input composable requests keyboard focus when it changes.
+    // Tick bumped on every reset; input composable requests keyboard effect when it changes.
+    // Also bumped on tab switch so the Composer re-requests focus for the new tab.
     var inputFocusTick by remember { mutableStateOf(0) }
+    LaunchedEffect(tabUiState.activeTabId) { inputFocusTick++ }
+
+    // Composer prefill (Discover "Chat with AI" handoff seam): when the active
+    // tab has a pending prefill, push it into the composer input and select the
+    // @bucket/app token so the handoff is visible at a glance. The text rides
+    // with the tick so the composer write never waits on the VM state round
+    // trip; consume afterwards so it is not reapplied.
+    var prefillSelectTick by remember { mutableStateOf(0) }
+    var prefillSelectText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(tabUiState.activeTabId, tabUiState.tabs) {
+        val activeTabId = tabUiState.activeTabId
+        val prefill = tabUiState.tabs
+            .firstOrNull { it.tabId == tabUiState.activeTabId }
+            ?.composerPrefill
+        if (prefill != null && activeTabId != null) {
+            viewModel.onNoteChange(prefill)
+            prefillSelectText = prefill
+            prefillSelectTick++
+            inputFocusTick++
+            tabController.consumeComposerPrefill(activeTabId)
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.refreshAiConfig()
@@ -228,14 +257,29 @@ fun CreateScreen(
             .fillMaxSize()
             .background(colors.surface),
     ) {
-        CreateTopBar(
-            canReset = !state.isEmpty,
-            onReset = {
-                viewModel.onReset()
-                inputFocusTick++
-            },
-            onOpenAiSettings = { navigator.push(AppRoute.Settings.AI) },
-        )
+        // Header block: title row plus session tabs share one bordered box, so
+        // the bottom border doubles as the divider between header and content.
+        // New sessions are created from the header "+ New Session" button only.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, colors.borderDefault)),
+        ) {
+            CreateTopBar(
+                onNewSession = tabController::createTab,
+                onOpenAiSettings = { navigator.push(AppRoute.Settings.AI) },
+            )
+            // Hide the tab strip while there is a single session; it only
+            // carries switching/closing affordances relevant to multiple tabs.
+            if (tabUiState.tabs.size > 1) {
+                CreateTabBar(
+                    tabs = tabUiState.tabs,
+                    activeTabId = tabUiState.activeTabId,
+                    onSelect = tabController::selectTab,
+                    onClose = tabController::closeTabRequest,
+                )
+            }
+        }
 
         if (!state.aiConfigured) {
             AiConfigBanner(
@@ -247,43 +291,20 @@ fun CreateScreen(
         if (state.isEmpty) {
             EmptyWorkspace(
                 state = state,
+                viewModel = viewModel,
                 inputFocusTick = inputFocusTick,
-                onUrlChange = viewModel::onUrlChange,
-                onNoteChange = viewModel::onNoteChange,
-                onModelChange = viewModel::onModelChange,
-                onFetchModels = viewModel::onFetchModels,
-                onSend = { url, note -> viewModel.onSend(url, note) },
-                onCancel = { viewModel.onCancel() },
-                onAttachImages = viewModel::attachImages,
-                onRemovePendingImage = viewModel::removePendingImage,
-                onEnsureRefSuggestions = viewModel::ensureManifestRefSuggestions,
+                prefillSelectTick = prefillSelectTick,
+                prefillSelectText = prefillSelectText,
             )
         } else {
             ChatWorkspace(
                 state = state,
+                viewModel = viewModel,
                 listState = listState,
                 inputFocusTick = inputFocusTick,
-                onUrlChange = viewModel::onUrlChange,
-                onNoteChange = viewModel::onNoteChange,
-                onModelChange = viewModel::onModelChange,
-                onFetchModels = viewModel::onFetchModels,
-                onSend = { url, note -> viewModel.onSend(url, note) },
-                onCancel = { viewModel.onCancel() },
-                onCopyDone = viewModel::onCopyDone,
-                onSave = { viewModel.onSave() },
-                onInstallSaved = { viewModel.onInstallSaved() },
-                onOpenApp = { viewModel.onOpenApp() },
-                onAttachImages = viewModel::attachImages,
-                onRemovePendingImage = viewModel::removePendingImage,
-                onEnsureRefSuggestions = viewModel::ensureManifestRefSuggestions,
+                prefillSelectTick = prefillSelectTick,
+                prefillSelectText = prefillSelectText,
                 onGoToDiscover = { navigator.popupAllAndPush(AppRoute.Apps(scope = "")) },
-                onDismissSaveResult = viewModel::onDismissSaveResult,
-                onAnswerAskUser = viewModel::onAnswerAskUser,
-                onCancelAskUser = viewModel::onCancelAskUser,
-                onSelectRevision = viewModel::onSelectRevision,
-                onRevertToRevision = viewModel::onRevertToRevision,
-                onApplyActionChip = viewModel::onApplyActionChip,
-                onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
                 onAction = { action ->
                     if (action == AiErrorAction.OPEN_SETTINGS) {
                         navigator.push(AppRoute.Settings.AI)
@@ -318,6 +339,19 @@ fun CreateScreen(
             confirmText = "Overwrite",
             onConfirm = viewModel::onConfirmOverwrite,
             onCancel = viewModel::onDismissOverwrite,
+        )
+    }
+
+    // Closing a guarded tab asks for confirmation; rendered with the tab bar
+    // so the dialog only exists while the Create page is visible.
+    if (tabUiState.pendingCloseTabId != null) {
+        ConfirmDialog(
+            text = "Discard this session? Unsaved work cannot be recovered.",
+            title = "Close Tab",
+            confirmText = "Discard",
+            destructiveConfirm = true,
+            onConfirm = tabController::confirmCloseTab,
+            onCancel = tabController::cancelCloseTab,
         )
     }
 }
@@ -692,6 +726,13 @@ private fun AskUserBubble(
                                 }
                             }
                         }
+                    } else {
+                        // No options and no write-in: the composer below is
+                        // the only way to answer, so point the user at it.
+                        Text(
+                            "No options provided. Type your answer in the composer below.",
+                            style = typography.caption.copy(color = colors.textMuted),
+                        )
                     }
                 }
             }
@@ -815,7 +856,9 @@ private fun SaveToBucketDialog(
             color = colors.surface,
             modifier = Modifier.width(420.dp),
         ) {
-            Column(Modifier.fillMaxSize()) {
+            // fillMaxWidth only: since CMP 1.7 the layer Dialog measures content with
+            // window-bounded constraints, so fillMaxSize stretches the dialog full-height.
+            Column(Modifier.fillMaxWidth()) {
                 Box(Modifier.padding(24.dp)) {
                     Column(Modifier.fillMaxWidth()) {
                         Text(
@@ -951,61 +994,63 @@ private fun SaveToBucketDialog(
 
 @Composable
 private fun CreateTopBar(
-    canReset: Boolean,
-    onReset: () -> Unit,
+    onNewSession: () -> Unit,
     onOpenAiSettings: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(BorderStroke(1.dp, colors.borderDefault))
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .padding(top = 16.dp, start = 24.dp, end = 24.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
-        Column(Modifier.weight(1f)) {
+        Row(Modifier.weight(1f)) {
             Text(
                 "Create",
                 style = typography.h5.copy(
                     fontWeight = FontWeight.Bold,
                     color = colors.textTitle,
                 ),
+                modifier = Modifier.alignByBaseline(),
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.width(14.dp))
             Text(
                 "Generate Scoop manifest with AI from a GitHub URL",
                 style = typography.body2.copy(color = colors.textBody),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .alignByBaseline(),
             )
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (canReset) {
-                OutlinedButton(
-                    onClick = onReset,
-                    modifier = Modifier.cursorHand().height(32.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    border = BorderStroke(1.dp, colors.borderDefault),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textBody),
-                    elevation = null,
-                ) {
-                    Icon(
-                        Lucide.Plus,
-                        contentDescription = "New Session",
-                        modifier = Modifier.size(15.dp),
-                        tint = colors.textBody,
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        "New Session",
-                        style = typography.caption.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = colors.textBody,
-                        ),
-                    )
-                }
+            OutlinedButton(
+                onClick = onNewSession,
+                modifier = Modifier.cursorHand().height(32.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                shape = RoundedCornerShape(6.dp),
+                border = BorderStroke(1.dp, colors.borderDefault),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textBody),
+                elevation = null,
+            ) {
+                Icon(
+                    Lucide.Plus,
+                    contentDescription = "New Session",
+                    modifier = Modifier.size(15.dp),
+                    tint = colors.textBody,
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "New Session",
+                    style = typography.caption.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textBody,
+                    ),
+                )
             }
             // No Idle badge here: it carried no information next to New Session.
             // While a run is active, the phase is indicated by the execution card
@@ -1066,19 +1111,50 @@ private fun AiConfigBanner(
     }
 }
 
+/**
+ * The one Composer instance behind the Create page: wired straight to the
+ * tab's [CreateViewModel] so workspaces never forward its callbacks. The
+ * key(viewModel) recreates the composer (and its focus state) when the tab
+ * controller swaps the active view model.
+ */
+@Composable
+private fun CreateComposerHost(
+    state: CreateState,
+    viewModel: CreateViewModel,
+    inputFocusTick: Int,
+    prefillSelectTick: Int,
+    prefillSelectText: String?,
+    centered: Boolean,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+) {
+    key(viewModel) {
+        Composer(
+            state = state,
+            centered = centered,
+            inputFocusTick = inputFocusTick,
+            prefillSelectTick = prefillSelectTick,
+            prefillSelectText = prefillSelectText,
+            onUrlChange = viewModel::onUrlChange,
+            onNoteChange = viewModel::onNoteChange,
+            onModelChange = viewModel::onModelChange,
+            onFetchModels = viewModel::onFetchModels,
+            onSend = { url, note -> viewModel.onSend(url = url, note = note) },
+            onCancel = viewModel::onCancel,
+            onAttachImages = viewModel::attachImages,
+            onRemovePendingImage = viewModel::removePendingImage,
+            onEnsureRefSuggestions = viewModel::ensureManifestRefSuggestions,
+            modifier = modifier,
+        )
+    }
+}
+
 @Composable
 private fun EmptyWorkspace(
     state: CreateState,
+    viewModel: CreateViewModel,
     inputFocusTick: Int,
-    onUrlChange: (String) -> Unit,
-    onNoteChange: (String) -> Unit,
-    onModelChange: (String) -> Unit,
-    onFetchModels: () -> Unit,
-    onSend: (url: String, note: String) -> Unit,
-    onCancel: () -> Unit,
-    onAttachImages: (List<PendingImage>) -> Unit,
-    onRemovePendingImage: (String) -> Unit,
-    onEnsureRefSuggestions: () -> Unit = {},
+    prefillSelectTick: Int,
+    prefillSelectText: String?,
 ) {
     Column(
         modifier = Modifier
@@ -1087,6 +1163,10 @@ private fun EmptyWorkspace(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        // While the draft carries a @bucket/app reference the hero switches to
+        // modify-oriented copy (the AI reads the referenced manifest); deleting
+        // the token falls back to the create copy with no extra state machine.
+        val refToken = state.composerManifestRef
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
@@ -1100,7 +1180,7 @@ private fun EmptyWorkspace(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Lucide.Plus,
+                    if (refToken == null) Lucide.Plus else Lucide.MessageSquarePlus,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = colors.primary,
@@ -1108,7 +1188,11 @@ private fun EmptyWorkspace(
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                "Create a Scoop manifest with AI",
+                if (refToken == null) {
+                    "Create a Scoop manifest with AI"
+                } else {
+                    "Chat about $refToken"
+                },
                 style = typography.h6.copy(
                     fontWeight = FontWeight.SemiBold,
                     color = colors.textTitle,
@@ -1116,24 +1200,22 @@ private fun EmptyWorkspace(
             )
         }
         Spacer(Modifier.height(20.dp))
-        Composer(
+        CreateComposerHost(
             state = state,
-            centered = true,
+            viewModel = viewModel,
             inputFocusTick = inputFocusTick,
-            onUrlChange = onUrlChange,
-            onNoteChange = onNoteChange,
-            onModelChange = onModelChange,
-            onFetchModels = onFetchModels,
-            onSend = onSend,
-            onCancel = onCancel,
-            onAttachImages = onAttachImages,
-            onRemovePendingImage = onRemovePendingImage,
-            onEnsureRefSuggestions = onEnsureRefSuggestions,
+            prefillSelectTick = prefillSelectTick,
+            prefillSelectText = prefillSelectText,
+            centered = true,
             modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            "Paste a GitHub repository URL and press Send.\nAfter the manifest is ready, you can save it.",
+            if (refToken == null) {
+                "Paste a GitHub repository URL and press Send. After the manifest is ready, you can save it."
+            } else {
+                "Describe what to change. The AI reads the referenced manifest before answering."
+            },
             style = typography.caption.copy(
                 color = colors.textMuted,
                 lineHeight = 20.sp,
@@ -1146,30 +1228,13 @@ private fun EmptyWorkspace(
 @Composable
 private fun ChatWorkspace(
     state: CreateState,
+    viewModel: CreateViewModel,
     listState: androidx.compose.foundation.lazy.LazyListState,
     inputFocusTick: Int,
-    onUrlChange: (String) -> Unit,
-    onNoteChange: (String) -> Unit,
-    onModelChange: (String) -> Unit,
-    onFetchModels: () -> Unit,
-    onSend: (url: String, note: String) -> Unit,
-    onCancel: () -> Unit,
-    onCopyDone: () -> Unit,
-    onSave: () -> Unit,
-    onInstallSaved: () -> Unit,
-    onOpenApp: () -> Unit,
+    prefillSelectTick: Int,
+    prefillSelectText: String?,
     onGoToDiscover: () -> Unit,
-    onDismissSaveResult: () -> Unit,
-    onAnswerAskUser: (String) -> Unit,
-    onCancelAskUser: () -> Unit,
-    onSelectRevision: (String?) -> Unit,
-    onRevertToRevision: (String) -> Unit,
-    onApplyActionChip: (ReviewActionChip) -> Unit,
-    onToggleExecutionExpanded: (String) -> Unit,
     onAction: (AiErrorAction) -> Unit,
-    onAttachImages: (List<PendingImage>) -> Unit,
-    onRemovePendingImage: (String) -> Unit,
-    onEnsureRefSuggestions: () -> Unit = {},
 ) {
     @Composable
     fun PreviewArtifactPanel(
@@ -1203,19 +1268,19 @@ private fun ChatWorkspace(
                     selectedRevisionId = state.selectedRevisionId,
                     scrollableCard = fillRemainingHeight,
                     actionChips = state.reviewActionChips,
-                    onApplyActionChip = onApplyActionChip,
-                    onSelectRevision = onSelectRevision,
-                    onRevertToRevision = onRevertToRevision,
-                    onCopyDone = onCopyDone,
-                    onSave = onSave,
-                    onInstallSaved = onInstallSaved,
-                    onOpenApp = onOpenApp,
+                    onApplyActionChip = viewModel::onApplyActionChip,
+                    onSelectRevision = viewModel::onSelectRevision,
+                    onRevertToRevision = viewModel::onRevertToRevision,
+                    onCopyDone = viewModel::onCopyDone,
+                    onSave = viewModel::onSave,
+                    onInstallSaved = viewModel::onInstallSaved,
+                    onOpenApp = viewModel::onOpenApp,
                 )
                 state.saveResult?.let { result ->
                     SaveResultPanel(
                         result = result,
                         onGoToDiscover = onGoToDiscover,
-                        onDismiss = onDismissSaveResult,
+                        onDismiss = viewModel::onDismissSaveResult,
                     )
                 }
             }
@@ -1282,7 +1347,7 @@ private fun ChatWorkspace(
                                     message = message,
                                     onAction = onAction,
                                     expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
-                                    onToggleExecutionExpanded = onToggleExecutionExpanded,
+                                    onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
                                 )
                             }
                             state.activeExecution?.let { active ->
@@ -1294,8 +1359,8 @@ private fun ChatWorkspace(
                                 item(key = "ask-user-bubble-${request.id}") {
                                     AskUserBubble(
                                         request = request,
-                                        onAnswer = onAnswerAskUser,
-                                        onCancel = onCancelAskUser,
+                                        onAnswer = viewModel::onAnswerAskUser,
+                                        onCancel = viewModel::onCancelAskUser,
                                     )
                                 }
                             }
@@ -1306,20 +1371,13 @@ private fun ChatWorkspace(
                         )
                     }
 
-                    Composer(
+                    CreateComposerHost(
                         state = state,
-                        centered = false,
+                        viewModel = viewModel,
                         inputFocusTick = inputFocusTick,
-                        onUrlChange = onUrlChange,
-                        onNoteChange = onNoteChange,
-                        onModelChange = onModelChange,
-                        onFetchModels = onFetchModels,
-                        onSend = onSend,
-                        onCancel = onCancel,
-                        onAttachImages = onAttachImages,
-                        onRemovePendingImage = onRemovePendingImage,
-                        onEnsureRefSuggestions = onEnsureRefSuggestions,
-                        modifier = Modifier.fillMaxWidth(),
+                        prefillSelectTick = prefillSelectTick,
+                        prefillSelectText = prefillSelectText,
+                        centered = false,
                     )
                 }
 
@@ -1367,12 +1425,12 @@ private fun ChatWorkspace(
                         contentPadding = PaddingValues(vertical = 4.dp),
                     ) {
                         items(state.messages, key = { it.id }) { message ->
-                            ChatBubble(
-                                message = message,
-                                onAction = onAction,
-                                expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
-                                onToggleExecutionExpanded = onToggleExecutionExpanded,
-                            )
+                                ChatBubble(
+                                    message = message,
+                                    onAction = onAction,
+                                    expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
+                                    onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
+                                )
                         }
                         state.activeExecution?.let { active ->
                             item(key = "active-execution") {
@@ -1383,8 +1441,8 @@ private fun ChatWorkspace(
                             item(key = "ask-user-bubble-${request.id}") {
                                 AskUserBubble(
                                     request = request,
-                                    onAnswer = onAnswerAskUser,
-                                    onCancel = onCancelAskUser,
+                                    onAnswer = viewModel::onAnswerAskUser,
+                                    onCancel = viewModel::onCancelAskUser,
                                 )
                             }
                         }
@@ -1400,20 +1458,13 @@ private fun ChatWorkspace(
                     )
                 }
 
-                Composer(
+                CreateComposerHost(
                     state = state,
-                    centered = false,
+                    viewModel = viewModel,
                     inputFocusTick = inputFocusTick,
-                    onUrlChange = onUrlChange,
-                    onNoteChange = onNoteChange,
-                    onModelChange = onModelChange,
-                    onFetchModels = onFetchModels,
-                    onSend = onSend,
-                    onCancel = onCancel,
-                    onAttachImages = onAttachImages,
-                    onRemovePendingImage = onRemovePendingImage,
-                    onEnsureRefSuggestions = onEnsureRefSuggestions,
-                    modifier = Modifier.fillMaxWidth(),
+                    prefillSelectTick = prefillSelectTick,
+                    prefillSelectText = prefillSelectText,
+                    centered = false,
                 )
             }
         }
@@ -2643,6 +2694,16 @@ private fun SaveResultPanel(
                 ),
             )
 
+            // In-place overwrite of an existing manifest (e.g. the reference save
+            // lock); distinguishes an update from a brand-new save on the card.
+            saveUpdatedHintText(result)?.let { hint ->
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    hint,
+                    style = typography.caption.copy(color = colors.textMuted),
+                )
+            }
+
             result.gitHint?.let { hint ->
                 Spacer(Modifier.height(8.dp))
                 Column(
@@ -3021,6 +3082,8 @@ private fun Composer(
     state: CreateState,
     centered: Boolean,
     inputFocusTick: Int,
+    prefillSelectTick: Int,
+    prefillSelectText: String?,
     onUrlChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
     onModelChange: (String) -> Unit,
@@ -3044,6 +3107,22 @@ private fun Composer(
     var refMenuIndex by remember { mutableStateOf(-1) }
     var refFieldHeightPx by remember { mutableStateOf(0) }
 
+    // Prefill handoff (Discover "Chat with AI"): land the token in the field
+    // fully selected before focus lands, so the handoff is visible at a glance.
+    // The prefill carries a trailing space that terminates the @ token; the
+    // selection stops before it so typing replaces only the reference.
+    // Declaration order matters: this effect runs before the focus effect below.
+    var handledSelectTick by remember { mutableStateOf(0) }
+    LaunchedEffect(prefillSelectTick) {
+        val text = prefillSelectText
+        if (prefillSelectTick != handledSelectTick && text != null) {
+            handledSelectTick = prefillSelectTick
+            // Exclude the trailing space from the highlight so typing replaces
+            // only the reference and the separator space survives.
+            val selectEnd = (text.length - 1).coerceAtLeast(0)
+            fieldValue = TextFieldValue(text, TextRange(0, selectEnd))
+        }
+    }
     LaunchedEffect(inputFocusTick) {
         focusRequester.requestFocus()
     }
@@ -3062,9 +3141,20 @@ private fun Composer(
     }
 
     fun submit() {
-        // installing too: Enter during a direct install must not fire a send
-        // behind the VM guard and lose the typed text to the reset below.
-        if (state.running || state.testing || state.installing) return
+        // composerSendEnabled covers installing too: Enter during a direct
+        // install must not fire a send behind the VM guard and lose the typed
+        // text to the reset below. A pending questionnaire unlocks the
+        // composer; the VM routes the send to the questionnaire answer.
+        val askUserPending = state.askUserRequest != null
+        if (!composerSendEnabled(
+                running = state.running,
+                testing = state.testing,
+                askUserPending = askUserPending,
+                installing = state.installing,
+            )
+        ) {
+            return
+        }
         if (fieldValue.text.isBlank() && state.pendingImages.isEmpty()) return
         val text = fieldValue.text.trim()
         fieldValue = TextFieldValue("")
@@ -3164,7 +3254,12 @@ private fun Composer(
                         onEnsureRefSuggestions()
                     }
                 },
-                enabled = !state.running && !state.testing,
+                enabled = composerSendEnabled(
+                    running = state.running,
+                    testing = state.testing,
+                    askUserPending = state.askUserRequest != null,
+                    installing = state.installing,
+                ),
                 singleLine = false,
                 maxLines = 6,
                 textStyle = typography.body2.copy(
@@ -3239,10 +3334,11 @@ private fun Composer(
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         if (fieldValue.text.isEmpty()) {
-                            val placeholderText = if (state.manifestJson.isNotBlank()) {
-                                "Ask AI to modify this manifest (e.g. remove notes, add shortcuts)..."
-                            } else {
-                                "Ask anything, paste a GitHub URL, or reference @bucket/app"
+                            val placeholderText = when {
+                                state.askUserRequest != null -> "Type your answer..."
+                                state.manifestJson.isNotBlank() ->
+                                    "Ask AI to modify this manifest (e.g. remove notes, add shortcuts)..."
+                                else -> "Ask anything, paste a GitHub URL, or reference @bucket/app"
                             }
                             Text(
                                 placeholderText,
@@ -3299,7 +3395,7 @@ private fun Composer(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (state.running) {
+                if (state.running && state.askUserRequest == null) {
                     OutlinedButton(
                         onClick = onCancel,
                         modifier = Modifier.cursorHand().height(34.dp),

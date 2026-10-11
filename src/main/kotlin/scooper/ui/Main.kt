@@ -39,7 +39,7 @@ import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
 import scooper.ui.icons.*
-import scooper.viewmodels.CreateViewModel
+import scooper.viewmodels.CreateTabController
 import scooper.viewmodels.ScoopSearchViewModel
 import scooper.viewmodels.SettingsViewModel
 import scooper.ui.create.CreateScreen
@@ -117,7 +117,7 @@ fun main() {
     val settingsViewModel: SettingsViewModel = koinInject()
     val cleanupViewModel: CleanupViewModel = koinInject()
     val scoopSearchViewModel: ScoopSearchViewModel = koinInject()
-    val createViewModel: CreateViewModel = koinInject()
+    val createTabController: CreateTabController = koinInject()
 
     // Window-level mutable state shared between Window onPreviewKeyEvent and content
     val focusSearchRequester = mutableStateOf(0)
@@ -160,7 +160,7 @@ fun main() {
         settingsViewModel.close()
         cleanupViewModel.close()
         scoopSearchViewModel.close()
-        createViewModel.close()
+        createTabController.close()
         exitApplication()
     }
 
@@ -234,14 +234,18 @@ fun main() {
             val snackbarHostState = remember { CustomSnackbarHostState() }
             var statusText by remember { mutableStateOf("") }
 
+            // Tab controller state drives the sidebar run badge and merges
+            // per-tab side effects into the shared snackbar stream.
+            val createTabUiState by createTabController.uiState.collectAsState()
+
             // Collect all side effects from all ViewModels
-            LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel, createViewModel) {
+            LaunchedEffect(appsViewModel, settingsViewModel, cleanupViewModel, scoopSearchViewModel, createTabController) {
                 merge(
                     appsViewModel.container.sideEffectFlow,
                     settingsViewModel.container.sideEffectFlow,
                     cleanupViewModel.container.sideEffectFlow,
                     scoopSearchViewModel.container.sideEffectFlow,
-                    createViewModel.container.sideEffectFlow,
+                    createTabController.sideEffectFlow,
                 ).collect { sideEffect ->
                     when (sideEffect) {
                         is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text, sideEffect.type)
@@ -271,7 +275,10 @@ fun main() {
                             }
 
                             val appsState by appsViewModel.container.stateFlow.collectAsState()
-                            val createState by createViewModel.container.stateFlow.collectAsState()
+                            val activeCreateViewModel = remember(createTabUiState.activeTabId) {
+                                createTabController.activeViewModel()
+                            }
+                            val activeCreateState by activeCreateViewModel.container.stateFlow.collectAsState()
 
                             Column(Modifier.fillMaxSize()) {
                                 CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
@@ -281,7 +288,7 @@ fun main() {
                                         if (!isSettings && !isOutput) {
                                             SidebarNav(
                                                 updateCount = appsState.updateCount,
-                                                createRunning = createState.running,
+                                                createRunning = activeCreateState.running,
                                             )
                                         }
                                         Column(Modifier.weight(1f)) {
@@ -315,11 +322,18 @@ fun main() {
                                                     EnterAnimation(animateContent) {
                                                         when (val route = currentRoute.value) {
                                                             AppRoute.Splash -> {}
-                                                            is AppRoute.Apps -> AppScreen(route.scope, route.bucket)
+                                                            is AppRoute.Apps -> AppScreen(
+                                                                route.scope,
+                                                                route.bucket,
+                                                                onModifyWithAi = discoverModifyHandler(route.scope) { bucket, name ->
+                                                                    createTabController.openModifySession(bucket, name)
+                                                                    navigator.popupAllAndPush(AppRoute.Create)
+                                                                },
+                                                            )
                                                             AppRoute.Buckets -> BucketsScreen()
                                                             AppRoute.Cleanup -> CleanupScreen()
                                                             AppRoute.ScoopSearch -> ScoopSearchScreen()
-                                                            AppRoute.Create -> CreateScreen()
+                                                            AppRoute.Create -> CreateScreen(viewModel = createTabController.activeViewModel())
                                                             AppRoute.Output -> OutputScreen(onBack = { navigator.pop() })
                                                             is AppRoute.Settings -> SettingScreen()
                                                         }

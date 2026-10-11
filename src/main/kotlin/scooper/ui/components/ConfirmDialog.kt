@@ -31,6 +31,9 @@ fun ConfirmDialog(
     onCancel: () -> Unit,
     confirmText: String? = null,
     cancelText: String? = null,
+    // Destructive confirm renders as a secondary button on the left so the safe
+    // cancel takes the primary spot on the right (Windows convention).
+    destructiveConfirm: Boolean = false,
     state: DialogState = DialogState(size = DpSize(320.dp, 180.dp)),
     content: @Composable (() -> Unit)? = null
 ) {
@@ -54,24 +57,46 @@ fun ConfirmDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onCancel, modifier = Modifier.cursorHand()) {
-                        Text(cancelText ?: "Cancel", color = colors.textBody)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = onConfirm,
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (confirmText == "Delete") colors.dangerDefault else colors.primary
-                        ),
-                        elevation = null,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.cursorHand()
-                    ) {
-                        Text(confirmText ?: "OK", color = Color.White)
+                    if (destructiveConfirm) {
+                        ConfirmSecondaryButton(text = confirmText ?: "OK", onClick = onConfirm)
+                        Spacer(Modifier.width(8.dp))
+                        ConfirmPrimaryButton(
+                            text = cancelText ?: "Cancel",
+                            onClick = onCancel,
+                            backgroundColor = colors.primary,
+                        )
+                    } else {
+                        ConfirmSecondaryButton(text = cancelText ?: "Cancel", onClick = onCancel)
+                        Spacer(Modifier.width(8.dp))
+                        ConfirmPrimaryButton(
+                            text = confirmText ?: "OK",
+                            onClick = onConfirm,
+                            backgroundColor = if (confirmText == "Delete") colors.dangerDefault else colors.primary,
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ConfirmSecondaryButton(text: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.cursorHand()) {
+        Text(text, color = MaterialTheme.colors.textBody)
+    }
+}
+
+@Composable
+private fun ConfirmPrimaryButton(text: String, onClick: () -> Unit, backgroundColor: Color) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(backgroundColor = backgroundColor),
+        elevation = null,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.cursorHand()
+    ) {
+        Text(text, color = Color.White)
     }
 }
 

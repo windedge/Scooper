@@ -12,6 +12,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -85,6 +86,89 @@ class CreateViewModelManifestRefTest {
     @Test
     fun `extractManifestRefs returns empty for text without references`() {
         assertTrue(extractManifestRefs("remove the notes field please").isEmpty())
+    }
+
+    // ---------------------------------------------------------------
+    // activeManifestRefToken: incomplete @ token under the caret
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `activeManifestRefToken returns query for bare at token`() {
+        // Regression: the token regex used to contain an illegal range and threw
+        // PatternSyntaxException as soon as the user typed one char after @.
+        assertEquals("m", activeManifestRefToken("@m", 2))
+        assertEquals("main/go", activeManifestRefToken("try @main/go now", 12))
+    }
+
+    @Test
+    fun `activeManifestRefToken accepts dash underscore and slash in token`() {
+        assertEquals("a-b_c/d", activeManifestRefToken("@a-b_c/d", 8))
+    }
+
+    @Test
+    fun `activeManifestRefToken accepts token with a single slash`() {
+        // Mid-typing a qualified prefix: bucket typed, app half-typed.
+        assertEquals("b/c", activeManifestRefToken("@b/c", 4))
+        assertEquals("b/", activeManifestRefToken("@b/", 3))
+    }
+
+    @Test
+    fun `activeManifestRefToken rejects token with more than one slash`() {
+        // A reference is always @bucket/app (see extractManifestRefs); a token
+        // with a second slash can never become one, so the menu must not open.
+        assertNull(activeManifestRefToken("@b/c/d", 6))
+        assertNull(activeManifestRefToken("try @b/c/d now", 10))
+    }
+
+    @Test
+    fun `activeManifestRefToken returns null for caret right after at`() {
+        // Typing @: caret sits right after it, token is empty, no menu yet.
+        assertNull(activeManifestRefToken("@", 1))
+    }
+
+    @Test
+    fun `activeManifestRefToken returns null when at is not at word boundary`() {
+        assertNull(activeManifestRefToken("a@b", 3))
+        assertNull(activeManifestRefToken("a@b", 1))
+    }
+
+    @Test
+    fun `activeManifestRefToken returns null when token contains invalid chars`() {
+        // Whitespace or punctuation after @ ends the token: menu must not open.
+        assertNull(activeManifestRefToken("@main golang", 7))
+        assertNull(activeManifestRefToken("@ma.in/go", 9))
+    }
+
+    // ---------------------------------------------------------------
+    // CreateState.composerManifestRef: source of the empty-state copy
+    // switch (create hero vs modify hero while the draft holds a ref)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `composerManifestRef returns first reference token with at prefix`() {
+        assertEquals(
+            "@main/golang",
+            CreateState(inputUrl = "please update @main/golang, and see @extras/vscode too").composerManifestRef,
+        )
+    }
+
+    @Test
+    fun `composerManifestRef is null for plain URL or empty draft`() {
+        assertNull(CreateState(inputUrl = "https://github.com/BurntSushi/ripgrep").composerManifestRef)
+        assertNull(CreateState(inputUrl = "").composerManifestRef)
+    }
+
+    @Test
+    fun `composerManifestRef reads note first and falls back to url`() {
+        // The composer draft is note.ifBlank { url }; note is primary when both carry text.
+        assertEquals(
+            "@main/golang",
+            CreateState(inputUrl = "@extras/vscode", inputNote = "@main/golang add shortcuts").composerManifestRef,
+        )
+        assertEquals(
+            "@extras/vscode",
+            CreateState(inputUrl = "@extras/vscode", inputNote = "").composerManifestRef,
+        )
     }
 
     // ---------------------------------------------------------------

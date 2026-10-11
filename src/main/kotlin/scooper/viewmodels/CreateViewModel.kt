@@ -29,6 +29,7 @@ import kotlinx.serialization.json.put
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
 import org.orbitmvi.orbit.container
+import org.orbitmvi.orbit.syntax.Syntax
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
@@ -183,6 +184,14 @@ internal fun referenceSaveDefault(
 /** Dialog hint line explaining a reference-locked default; null without a lock. */
 internal fun refLockHintText(lock: Pair<String, String>?): String? =
     lock?.let { (bucket, name) -> "Pre-filled from @$bucket/$name reference" }
+
+/**
+ * SaveResultPanel hint for an in-place overwrite: set by saveManifestCore when
+ * the target file existed before the write, so a deleted referenced manifest
+ * degrades to a fresh save without a hint. Null for a fresh save.
+ */
+internal fun saveUpdatedHintText(result: SaveResult): String? =
+    if (result.overwritten) "Updated existing manifest at ${result.bucket}/${result.appName}" else null
 
 data class QuestionnaireOption(
     val label: String,
@@ -524,10 +533,18 @@ data class CreateState(
 
     val reviewActionChips: List<ReviewActionChip>
         get() = extractReviewActionChips(manifestIssues, manifestInvalidJson)
+
+    /** First @bucket/app token in the composer draft (note wins over URL), or null
+     *  when the draft has none. Drives the Create empty-state copy switch: a
+     *  reference turns the hero into modify-oriented guidance. */
+    val composerManifestRef: String?
+        get() = extractManifestRefs(inputNote.ifBlank { inputUrl })
+            .firstOrNull()
+            ?.let { "@${it.first}/${it.second}" }
 }
 
 class CreateViewModel(
-    private val scoopAiBridge: ScoopAiBridge,
+    internal val scoopAiBridge: ScoopAiBridge,
     private val checkpointService: InMemoryAiCheckpointService,
     private val scoopClient: ScoopClient,
     private val appsRepository: AppsRepository,
@@ -547,6 +564,46 @@ class CreateViewModel(
      * user cancel cannot leave the flag stuck behind a blocked event loop.
      */
     private var installingJob: Job? = null
+
+    /**
+     * True when this instance backs a non-active tab of a multi-tab Create
+     * page. A background tab's engine events fold silently into its own state
+     * (visible when the user returns to the tab) instead of popping toasts.
+     * Volatile: written by the tab controller, read from engine callbacks.
+ */
+    @Volatile
+    internal var isBackgroundTab: Boolean = false
+
+    // ---------------------------------------------------------------
+    // tab-bar knowledge, pushed down from CreateTabController so it never
+    // digs into container.stateFlow.value
+    // ---------------------------------------------------------------
+
+    /** True while an engine run, test install or app install is in flight. */
+    internal val isBusy: Boolean
+        get() = container.stateFlow.value.let { it.running || it.testing || it.installing }
+
+    /** True when the session holds a manifest that has not been saved yet. */
+    internal val hasUnsavedWork: Boolean
+        get() = container.stateFlow.value.let { it.manifestJson.isNotBlank() && !it.manifestSaved }
+
+    /** Blank session that can be reused as a Discover handoff target. */
+    internal val isBlankForHandoff: Boolean
+        get() = container.stateFlow.value.let {
+            it.messages.isEmpty() && it.manifestJson.isBlank() &&
+                !it.running && !it.testing && !it.installing
+        }
+
+    /**
+     * Tab bar label candidate: the engine's suggested app name, else the
+     * Discover handoff name, else the url tail; null when nothing applies.
+     */
+    internal fun tabTitleCandidate(handoffTitle: String?): String? =
+        container.stateFlow.value.let { s ->
+            s.suggestedAppName
+                ?: handoffTitle
+                ?: s.lastUrl.trimEnd('/').substringAfterLast('/').takeIf { it.isNotBlank() }
+        }
 
     /**
      * Monotonic tag of the engine run the async callbacks belong to. Start
@@ -662,7 +719,7 @@ class CreateViewModel(
             val capped = combined.take(MAX_PENDING_IMAGES)
             val dropped = combined.size - capped.size
             reduce { state.copy(pendingImages = capped) }
-            postSideEffect(
+            postToast(
                 AppSideEffect.Toast(
                     "At most $MAX_PENDING_IMAGES images allowed, $dropped dropped",
                     ToastType.INFO,
@@ -686,11 +743,20 @@ class CreateViewModel(
     }
 
     fun onSend(input: String? = null, url: String? = null, note: String? = null) = intent {
-        if (state.running || state.testing || state.installing) {
-            postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+        // A pending questionnaire owns the composer: free text is the answer,
+        // not a new request. Blank input is a no-op: the engine is legitimately
+        // running while waiting, so it must not trip the busy guard below.
+        val text = (input ?: note ?: url ?: state.inputUrl).trim()
+        if (state.askUserRequest != null) {
+            if (text.isNotBlank()) {
+                answerAskUserInternal(text)
+            }
             return@intent
         }
-        val text = (input ?: note ?: url ?: state.inputUrl).trim()
+        if (state.running || state.testing || state.installing) {
+            postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+            return@intent
+        }
         val images = state.pendingImages
         // Allow sending when either text or images are present.
         if (text.isBlank() && images.isEmpty()) return@intent
@@ -718,23 +784,6 @@ class CreateViewModel(
         startAssistInternal(instruction)
     }
 
-    fun onReset() = intent {
-        scoopAiBridge.cancel()
-        reduce { state.copy(generationEpoch = state.generationEpoch + 1) }
-        drainActivityEvents(activityChannel)
-        checkpointService.reset()
-        assistAttemptCount = 0
-        reduce {
-            CreateState(
-                selectedModel = state.selectedModel,
-                availableModels = state.availableModels,
-                aiConfigured = state.aiConfigured,
-                configHint = state.configHint,
-                pendingImages = emptyList(),
-            )
-        }
-    }
-
     /**
      * Handle a recovery action offered on an AI error bubble.
      * OPEN_SETTINGS navigation is owned by the UI layer (the VM has no navigator).
@@ -754,7 +803,7 @@ class CreateViewModel(
                 if (state.running) return@intent
                 val url = state.lastUrl.ifBlank { state.inputUrl }
                 if (url.isBlank()) {
-                    postSideEffect(AppSideEffect.Toast("Nothing to retry", ToastType.ERROR))
+                    postToast(AppSideEffect.Toast("Nothing to retry", ToastType.ERROR))
                     return@intent
                 }
                 // Resume only when the checkpoint covers the requested stage (RETRY_FULL
@@ -772,6 +821,14 @@ class CreateViewModel(
 
 
     fun onAnswerAskUser(answer: String) = intent {
+        answerAskUserInternal(answer)
+    }
+
+    /**
+     * Shared answer path for option taps and composer free text: folds the
+     * card, appends the user bubble and releases the waiting engine deferred.
+     */
+    private suspend fun Syntax<CreateState, AppSideEffect>.answerAskUserInternal(answer: String) {
         val text = answer.trim()
         val response = text.ifBlank { DEFAULT_AUTONOMOUS_PROCEED_ANSWER }
         val request = state.askUserRequest
@@ -821,11 +878,11 @@ class CreateViewModel(
                     error = null,
                 )
         }
-        postSideEffect(AppSideEffect.Toast("Cancelled", ToastType.INFO))
+        postToast(AppSideEffect.Toast("Cancelled", ToastType.INFO))
     }
 
     fun onCopyDone() = intent {
-        postSideEffect(AppSideEffect.Toast("Manifest copied to clipboard", ToastType.SUCCESS))
+        postToast(AppSideEffect.Toast("Manifest copied to clipboard", ToastType.SUCCESS))
     }
 
     fun onDismissSaveResult() = intent {
@@ -834,7 +891,7 @@ class CreateViewModel(
 
     fun onApplyActionChip(chip: ReviewActionChip) = intent {
         applyActionChipBlockToast(state.manifestJson, state.running, state.testing)?.let { (text, type) ->
-            postSideEffect(AppSideEffect.Toast(text, type))
+            postToast(AppSideEffect.Toast(text, type))
             return@intent
         }
         startAssistInternal(
@@ -849,12 +906,12 @@ class CreateViewModel(
      *  straight from a local manifest file (direct install). */
     fun onInstallSaved() = intent {
         if (state.running || state.testing || state.installing) {
-            postSideEffect(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+            postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
             return@intent
         }
         val manifestJson = state.activeManifestJson
         if (manifestJson.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("No manifest to install", ToastType.INFO))
+            postToast(AppSideEffect.Toast("No manifest to install", ToastType.INFO))
             return@intent
         }
         val saveResult = state.saveResult
@@ -895,11 +952,11 @@ class CreateViewModel(
                             )
                         }
                         refreshInstalledAppRecord(bucket, name)
-                        postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+                        postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
                     } else {
                         val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                             ?: "exit code ${result.exitCode}"
-                        postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+                        postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
                     }
                 } else {
                     installFromCurrentManifest(manifestJson)
@@ -922,7 +979,7 @@ class CreateViewModel(
     ) {
         val name = resolveDirectInstallAppName(state.saveResult, state.directInstallName, state.suggestedAppName, state.lastUrl)
         if (name == null || !APP_NAME_REGEX.matches(name)) {
-            postSideEffect(
+            postToast(
                 AppSideEffect.Toast(
                     "Cannot determine the app name; save it to a bucket or enter an URL first",
                     ToastType.ERROR,
@@ -977,7 +1034,7 @@ class CreateViewModel(
         if (!state.installedForUse) return@intent
         val name = resolveOpenAppName(state, state.lastUrl)
         if (name == null || !APP_NAME_REGEX.matches(name)) {
-            postSideEffect(
+            postToast(
                 AppSideEffect.Toast(
                     "Cannot determine the installed app name; cannot open it",
                     ToastType.ERROR,
@@ -989,18 +1046,18 @@ class CreateViewModel(
         if (!result.isSuccess) {
             val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                 ?: "exit code ${result.exitCode}"
-            postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
         }
     }
 
     fun onSave() = intent {
         if (state.manifestJson.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
+            postToast(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
             return@intent
         }
         val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }.sorted()
         if (buckets.isEmpty()) {
-            postSideEffect(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
+            postToast(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
             return@intent
         }
         // Reference lock (batch 4): a produced app name matching a referenced
@@ -1085,7 +1142,7 @@ class CreateViewModel(
     ) {
         val manifestJson = state.manifestJson
         if (manifestJson.isBlank()) {
-            postSideEffect(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
+            postToast(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
             reduce {
                 state.copy(
                     saveDialogOpen = false,
@@ -1097,7 +1154,7 @@ class CreateViewModel(
 
         val name = state.saveAppName.trim()
         if (name.isEmpty() || !APP_NAME_REGEX.matches(name)) {
-            postSideEffect(
+            postToast(
                 AppSideEffect.Toast(
                     "App name may only contain letters, digits, '.', '_' and '-'",
                     ToastType.ERROR,
@@ -1108,7 +1165,7 @@ class CreateViewModel(
 
         val bucket = state.saveBucket.trim()
         if (bucket.isEmpty() || bucket !in scoopClient.bucketNames) {
-            postSideEffect(AppSideEffect.Toast("Please select a valid bucket", ToastType.ERROR))
+            postToast(AppSideEffect.Toast("Please select a valid bucket", ToastType.ERROR))
             return
         }
 
@@ -1127,7 +1184,7 @@ class CreateViewModel(
 
             is BucketSaveOutcome.Failed -> {
                 logger.error("Save to bucket failed: ${outcome.message}")
-                postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(outcome.message), ToastType.ERROR))
+                postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(outcome.message), ToastType.ERROR))
             }
 
             is BucketSaveOutcome.Saved -> {
@@ -1142,7 +1199,7 @@ class CreateViewModel(
                 }
                 scoopAiBridge.persistLastBucket(bucket)
                 scoopAiBridge.persistCommitPreference(commitToGit)
-                postSideEffect(
+                postToast(
                     AppSideEffect.Toast(
                         "Saved ${outcome.appName}.json to bucket/${outcome.bucket}",
                         ToastType.SUCCESS,
@@ -1241,9 +1298,9 @@ class CreateViewModel(
             when {
                 effect.newlyInstalled -> {
                     refreshInstalledAppRecord(bucket, name)
-                    postSideEffect(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+                    postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
                 }
-                effect.maskedError != null -> postSideEffect(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
+                effect.maskedError != null -> postToast(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
             }
             effect.resultJson
         }
@@ -1263,12 +1320,12 @@ class CreateViewModel(
         val manifestJson = state.activeManifestJson
         if (manifestJson.isBlank()) {
             val reply = directInstallFailureReply(name, "no manifest to install")
-            postSideEffect(AppSideEffect.Toast("No manifest to install", ToastType.ERROR))
+            postToast(AppSideEffect.Toast("No manifest to install", ToastType.ERROR))
             return reply
         }
         if (!APP_NAME_REGEX.matches(name)) {
             val reply = directInstallFailureReply(name, "invalid app name: $name")
-            postSideEffect(AppSideEffect.Toast(AiErrorTranslator.maskSecrets("Invalid app name: $name"), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets("Invalid app name: $name"), ToastType.ERROR))
             return reply
         }
 
@@ -1311,7 +1368,7 @@ class CreateViewModel(
         } catch (e: IOException) {
             logger.warn("Direct install: failed to write temp manifest for $name: ${e.message}")
             val masked = AiErrorTranslator.maskSecrets("Failed to write manifest file: ${e.message}")
-            postSideEffect(AppSideEffect.Toast(masked, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(masked, ToastType.ERROR))
             return DirectInstallOutcome(directInstallReply(success = false, name = name, error = masked))
         }
 
@@ -1340,13 +1397,13 @@ class CreateViewModel(
                     )
                 }
                 upsertOrphanInstalledApp(manifestJson, name)
-                postSideEffect(AppSideEffect.Toast(successToast, ToastType.SUCCESS))
+                postToast(AppSideEffect.Toast(successToast, ToastType.SUCCESS))
                 return DirectInstallOutcome(directInstallReply(success = true, name = name))
             }
             val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                 ?: "exit code ${result.exitCode}"
             val masked = AiErrorTranslator.maskSecrets(detail)
-            postSideEffect(AppSideEffect.Toast(masked, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(masked, ToastType.ERROR))
             return DirectInstallOutcome(directInstallReply(success = false, name = name, error = masked))
         } catch (e: Exception) {
             // A crashing install (process launch failure, etc.) must become a
@@ -1355,7 +1412,7 @@ class CreateViewModel(
             if (e is CancellationException) throw e
             logger.warn("Direct install of $name crashed: ${e.message}")
             val masked = AiErrorTranslator.maskSecrets("Install failed: ${e.message}")
-            postSideEffect(AppSideEffect.Toast(masked, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(masked, ToastType.ERROR))
             return DirectInstallOutcome(directInstallFailureReply(name, masked))
         } finally {
             try {
@@ -1444,7 +1501,7 @@ class CreateViewModel(
                     error = missing,
                 )
             }
-            postSideEffect(AppSideEffect.Toast(missing, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(missing, ToastType.ERROR))
             return
         }
 
@@ -1452,7 +1509,7 @@ class CreateViewModel(
         if (urlFromField == null) {
             val msg = "Please enter a GitHub repository URL (github.com/owner/repo)."
             reduce { state.copy(error = msg) }
-            postSideEffect(AppSideEffect.Toast(msg, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(msg, ToastType.ERROR))
             return
         }
 
@@ -1602,7 +1659,7 @@ class CreateViewModel(
                     error = missing,
                 )
             }
-            postSideEffect(AppSideEffect.Toast(missing, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(missing, ToastType.ERROR))
             return
         }
 
@@ -1733,6 +1790,17 @@ class CreateViewModel(
         if (isInstallVerifyActivity(act)) handleToolActivity(act)
     }
 
+    /**
+     * Suppresses user-facing toasts for a background tab; state changes still
+     * fold into the tab so switching back shows the up-to-date session.
+     */
+    internal fun shouldPostToast(): Boolean = !isBackgroundTab
+
+    /** Toast gate for background tabs (see [shouldPostToast]). */
+    internal suspend fun Syntax<CreateState, AppSideEffect>.postToast(sideEffect: AppSideEffect) {
+        if (shouldPostToast()) postSideEffect(sideEffect)
+    }
+
     private fun handleToolActivity(act: ToolActivity) = intent {
         reduce { applyInstallVerifyActivity(state, act) }
     }
@@ -1809,7 +1877,7 @@ class CreateViewModel(
                             executionExpanded = true,
                         )
                     }
-                    postSideEffect(AppSideEffect.Toast("No Windows assets found", ToastType.ERROR))
+                    postToast(AppSideEffect.Toast("No Windows assets found", ToastType.ERROR))
                     return@fold
                 }
 
@@ -1880,7 +1948,7 @@ class CreateViewModel(
                         systemInstalled = systemInstalledSnapshot,
                     )
                 }
-                postSideEffect(
+                postToast(
                     AppSideEffect.Toast(toastText, toastType),
                 )
             },
@@ -1915,7 +1983,7 @@ class CreateViewModel(
                         executionExpanded = true,
                     )
                 }
-                postSideEffect(AppSideEffect.Toast(safe, ToastType.ERROR))
+                postToast(AppSideEffect.Toast(safe, ToastType.ERROR))
             },
         )
     }
@@ -1977,7 +2045,7 @@ class CreateViewModel(
                 manifestSaved = false,
             )
         }
-        postSideEffect(AppSideEffect.Toast("Reverted to revision #${target.revisionNumber}", ToastType.INFO))
+        postToast(AppSideEffect.Toast("Reverted to revision #${target.revisionNumber}", ToastType.INFO))
     }
 
     private fun CreateState.finishGeneration(
@@ -2051,7 +2119,8 @@ class CreateViewModel(
     }
 
     override fun close() {
-        // Cancel in-flight generation only; bridge is a Koin singleton shared for app lifetime
+        // The bridge is per-tab and owned by the controller lifecycle, but
+        // cancelling in-flight generation here keeps tab-less VM usages safe.
         scoopAiBridge.cancel()
         supervisorJob.cancel()
     }
@@ -2718,6 +2787,18 @@ private val IGNORED_HISTORY_TEXTS = setOf(
     "Let AI decide",
 )
 
+/**
+ * Whether the composer may accept and send input. A pending questionnaire
+ * unlocks the composer even while the engine is running: the send is routed
+ * to the questionnaire answer instead of starting a new request.
+ */
+internal fun composerSendEnabled(
+    running: Boolean,
+    testing: Boolean,
+    askUserPending: Boolean,
+    installing: Boolean = false,
+): Boolean = askUserPending || (!running && !testing && !installing)
+
 internal fun resolveAskUserBubbleText(response: String, isDownloadPrompt: Boolean): String {
     if (!isDownloadPrompt) return response
     return when {
@@ -2994,11 +3075,15 @@ internal fun userManifestRefs(messages: List<ChatMessage>): List<Pair<String, St
 
 /**
  * Incomplete @ token under the caret, or null when no completion applies.
- * The @ must sit at line start or after whitespace and be followed only by
- * [A-Za-z0-9_-/]; a fully formed "@bucket/name" followed by whitespace or
- * line end is done and no longer triggers the menu. The returned query is the
- * typed text after the @ (may contain "/" for qualified prefixes).
+ * The @ must sit at line start or after whitespace and be followed by bucket
+ * and name chars with at most one "/" (same shape as [extractManifestRefs]
+ * tokens: a reference is always @bucket/app); a fully formed "@bucket/name"
+ * followed by whitespace or line end is done and no longer triggers the menu.
+ * The returned query is the typed text after the @ and may contain the "/" of
+ * a qualified prefix.
  */
+private val REF_TOKEN_REGEX = Regex("[A-Za-z0-9_-]*(/?[A-Za-z0-9_-]*)?")
+
 internal fun activeManifestRefToken(text: String, caret: Int): String? {
     if (caret <= 0 || caret > text.length) return null
     val at = text.lastIndexOf('@', caret - 1)
@@ -3006,7 +3091,7 @@ internal fun activeManifestRefToken(text: String, caret: Int): String? {
     if (at > 0 && !text[at - 1].isWhitespace()) return null
     val token = text.substring(at + 1, caret)
     if (token.isEmpty()) return null
-    if (!Regex("[A-Za-z0-9_-/]*").matches(token)) return null
+    if (!REF_TOKEN_REGEX.matches(token)) return null
     return token
 }
 

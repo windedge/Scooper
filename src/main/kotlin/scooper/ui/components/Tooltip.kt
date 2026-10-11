@@ -34,6 +34,7 @@ enum class TooltipPosition {
 fun Tooltip(
     text: String = "...",
     position: TooltipPosition = TooltipPosition.Bottom,
+    enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -67,6 +68,12 @@ fun Tooltip(
             )
         }
     }
+    if (!enabled) {
+        // Disabled tooltips render the content bare so hover never triggers
+        // the tooltip popup (used e.g. when the tab title is not truncated).
+        Box { content() }
+        return
+    }
     TooltipArea(
         tooltip = {
             Surface(
@@ -76,7 +83,7 @@ fun Tooltip(
             ) {
                 Text(
                     text = text,
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                     color = MaterialTheme.colors.onSurface,
                     style = MaterialTheme.typography.caption,
                 )

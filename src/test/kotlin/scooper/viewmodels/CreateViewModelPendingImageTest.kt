@@ -142,21 +142,6 @@ class CreateViewModelPendingImageTest {
     }
 
     // ---------------------------------------------------------------
-    // Real VM: reset
-    // ---------------------------------------------------------------
-
-    @Test
-    fun `onReset clears pendingImages`() = runBlocking {
-        val vm = createViewModel()
-        withTimeout(5_000) {
-            vm.attachImages(listOf(pngImage("a"), jpegImage("b"))).join()
-            vm.onReset().join()
-        }
-        assertTrue(vm.container.stateFlow.value.pendingImages.isEmpty())
-        vm.close()
-    }
-
-    // ---------------------------------------------------------------
     // Helpers: real VM setup
     // ---------------------------------------------------------------
 

@@ -2,6 +2,7 @@ package scooper.service
 
 import com.scoopai.core.ManifestResult
 import com.scoopai.core.agent.BinaryImage
+import com.scoopai.core.artifacts.ResumeData
 import com.scoopai.tools.DefaultScoopAiFactory
 import com.scoopai.tools.DefaultToolRegistryFactory
 import com.scoopai.tools.ScoopAiConfig
@@ -200,13 +201,22 @@ open class ScoopAiBridge(
         }
     }
 
+    /**
+     * The five engine event callbacks that always travel together through the
+     * run entry points. Only the assist path wires the host tool handlers, so
+     * those stay separate parameters next to this bundle.
+     */
+    protected data class GeneratorCallbacks(
+        val onPhase: ((String) -> Unit)?,
+        val onPhaseOutput: ((String, String) -> Unit)?,
+        val onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)?,
+        val onAskUser: (suspend (String) -> String)?,
+        val onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
+    )
+
     private fun createGenerator(
         settings: AiSettingsSnapshot,
-        onPhase: ((String) -> Unit)?,
-        onPhaseOutput: ((String, String) -> Unit)?,
-        onToolActivity: ((com.scoopai.core.ToolActivity) -> Unit)?,
-        onAskUser: (suspend (String) -> String)?,
-        onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)?,
+        callbacks: GeneratorCallbacks,
         onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)? = null,
         /**
          * Host install callback backing the engine's `install_app` tool.
@@ -229,14 +239,14 @@ open class ScoopAiBridge(
         ignoreAppNames: Set<String> = emptySet(),
     ) = DefaultScoopAiFactory.createGenerator(
         config = toScoopAiConfig(settings),
-        onPhase = onPhase,
+        onPhase = callbacks.onPhase,
         onPhaseOutput = { phase, output ->
             checkpointService.update(phase, output)
-            onPhaseOutput?.invoke(phase, output)
+            callbacks.onPhaseOutput?.invoke(phase, output)
         },
-        onToolActivity = onToolActivity,
-        askUserHandler = onAskUser,
-        questionnaireHandler = onQuestionnaire,
+        onToolActivity = callbacks.onToolActivity,
+        askUserHandler = callbacks.onAskUser,
+        questionnaireHandler = callbacks.onQuestionnaire,
         usedAppNamesProvider = if (ignoreAppNames.isEmpty()) {
             UsedAppNameScanner::scanDefault
         } else {
@@ -251,6 +261,67 @@ open class ScoopAiBridge(
         installAppHandler = onInstallApp,
         readManifestRefHandler = onReadManifestRef,
     )
+
+    /**
+     * Network boundary of [startGenerate]: build the generator and run it.
+     * Split out so tests can override only this seam while the real single
+     * slot cancel / launch / onFinished / cancellation path stays under test.
+     */
+    protected open suspend fun runGenerate(
+        settings: AiSettingsSnapshot,
+        url: String,
+        userPrompt: String?,
+        resumeData: ResumeData?,
+        callbacks: GeneratorCallbacks,
+        ignoreAppNames: Set<String>,
+    ): ManifestResult {
+        val generator = createGenerator(
+            settings = settings,
+            callbacks = callbacks,
+            ignoreAppNames = ignoreAppNames,
+        )
+        logger.info("Scoop AI generate start: $url")
+        return generator.generate(url = url, userPrompt = userPrompt, resumeData = resumeData)
+    }
+
+    /**
+     * Network boundary of [startAssist]: build the generator and run it
+     * (see [runGenerate] for why this seam exists).
+     */
+    protected open suspend fun runAssist(
+        settings: AiSettingsSnapshot,
+        currentManifest: String,
+        instruction: String,
+        history: List<String>,
+        suggestedAppName: String?,
+        images: List<AiImage>,
+        evidence: String?,
+        callbacks: GeneratorCallbacks,
+        onSaveToBucket: (suspend (bucket: String?, name: String?, overwrite: Boolean) -> String)?,
+        onInstallApp: (suspend (bucket: String?, name: String) -> String)?,
+        onReadManifestRef: (suspend (bucket: String, name: String) -> String)?,
+        ignoreAppNames: Set<String>,
+    ): ManifestResult {
+        val generator = createGenerator(
+            settings = settings,
+            callbacks = callbacks,
+            onSaveToBucket = onSaveToBucket,
+            onInstallApp = onInstallApp,
+            onReadManifestRef = onReadManifestRef,
+            ignoreAppNames = ignoreAppNames,
+        )
+        logger.info(
+            "Scoop AI assist start: $instruction (history=${history.size}, hasEvidence=${evidence != null})",
+        )
+        return generator.assist(
+            manifestJson = currentManifest,
+            instruction = instruction,
+            history = history,
+            evidence = evidence,
+            suggestedAppName = suggestedAppName,
+            images = images.map { BinaryImage(bytes = it.bytes, mimeType = it.mimeType) },
+        )
+    }
 
     /**
      * Start generation on the bridge IO scope. Previous job is cancelled.
@@ -277,6 +348,55 @@ open class ScoopAiBridge(
         onQuestionnaire: (suspend (List<com.scoopai.tools.interaction.Question>) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
+        launchExclusiveRun("Scoop AI generate", overrideModel, onFinished) { settings ->
+            val resumeData = if (resumeFrom != null) {
+                val data = buildResumeData(
+                    cp = checkpointService.snapshot(),
+                    from = resumeFrom,
+                    runId = UUID.randomUUID().toString(),
+                )
+                if (data != null) {
+                    logger.info("Resuming from $resumeFrom (runId=${data.runId})")
+                } else {
+                    logger.warn("Checkpoint cannot resume from $resumeFrom; falling back to full regeneration")
+                }
+                data
+            } else {
+                // Fresh run: start a new checkpoint for this url/prompt.
+                checkpointService.beginRun(url, userPrompt.orEmpty())
+                null
+            }
+
+            val result = runGenerate(
+                settings = settings,
+                url = url,
+                userPrompt = userPrompt,
+                resumeData = resumeData,
+                callbacks = GeneratorCallbacks(
+                    onPhase = onPhase,
+                    onPhaseOutput = onPhaseOutput,
+                    onToolActivity = onToolActivity,
+                    onAskUser = onAskUser,
+                    onQuestionnaire = onQuestionnaire,
+                ),
+                ignoreAppNames = ignoreAppNames,
+            )
+            onFinished(Result.success(result))
+        }
+    }
+
+    /**
+     * Shared wrapper for the two engine entry points: cancels the previous
+     * run, resolves settings (missing settings fail fast through [onFinished])
+     * and wraps [body] in the common cancel/cleanup error handling. [errorLabel]
+     * only feeds the error log line.
+     */
+    private fun launchExclusiveRun(
+        errorLabel: String,
+        overrideModel: String?,
+        onFinished: (Result<ManifestResult>) -> Unit,
+        body: suspend (AiSettingsSnapshot) -> Unit,
+    ) {
         generateJob?.cancel()
         generateJob = scope.launch {
             try {
@@ -289,42 +409,12 @@ open class ScoopAiBridge(
                     onFinished(Result.failure(IllegalStateException(missing)))
                     return@launch
                 }
-
-                val resumeData = if (resumeFrom != null) {
-                    val data = buildResumeData(
-                        cp = checkpointService.snapshot(),
-                        from = resumeFrom,
-                        runId = UUID.randomUUID().toString(),
-                    )
-                    if (data != null) {
-                        logger.info("Resuming from $resumeFrom (runId=${data.runId})")
-                    } else {
-                        logger.warn("Checkpoint cannot resume from $resumeFrom; falling back to full regeneration")
-                    }
-                    data
-                } else {
-                    // Fresh run: start a new checkpoint for this url/prompt.
-                    checkpointService.beginRun(url, userPrompt.orEmpty())
-                    null
-                }
-
-                val generator = createGenerator(
-                    settings = settings,
-                    onPhase = onPhase,
-                    onPhaseOutput = onPhaseOutput,
-                    onToolActivity = onToolActivity,
-                    onAskUser = onAskUser,
-                    onQuestionnaire = onQuestionnaire,
-                    ignoreAppNames = ignoreAppNames,
-                )
-                logger.info("Scoop AI generate start: $url")
-                val result = generator.generate(url = url, userPrompt = userPrompt, resumeData = resumeData)
-                onFinished(Result.success(result))
+                body(settings)
             } catch (e: CancellationException) {
                 onFinished(Result.failure(e))
                 throw e
             } catch (e: Exception) {
-                logger.error("Scoop AI generate failed: ${e.message}", e)
+                logger.error("$errorLabel failed: ${e.message}", e)
                 onFinished(Result.failure(e))
             } finally {
                 DefaultToolRegistryFactory.cleanup()
@@ -373,54 +463,32 @@ open class ScoopAiBridge(
         onReadManifestRef: (suspend (bucket: String, name: String) -> String)? = null,
         onFinished: (Result<ManifestResult>) -> Unit,
     ) {
-        generateJob?.cancel()
-        generateJob = scope.launch {
-            try {
-                val rawSettings = readSettings()
-                val settings = if (!overrideModel.isNullOrBlank()) {
-                    rawSettings.copy(model = overrideModel.trim())
-                } else rawSettings
-                val missing = settings.missingReason()
-                if (missing != null) {
-                    onFinished(Result.failure(IllegalStateException(missing)))
-                    return@launch
-                }
+        launchExclusiveRun("Scoop AI assist", overrideModel, onFinished) { settings ->
+            val checkpoint = checkpointService.snapshot()
+            val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }
+                ?: checkpoint?.researchJson?.takeIf { it.isNotBlank() }
 
-                val generator = createGenerator(
-                    settings = settings,
+            val result = runAssist(
+                settings = settings,
+                currentManifest = currentManifest,
+                instruction = instruction,
+                history = history,
+                suggestedAppName = suggestedAppName,
+                images = images,
+                evidence = evidence,
+                callbacks = GeneratorCallbacks(
                     onPhase = onPhase,
                     onPhaseOutput = onPhaseOutput,
                     onToolActivity = onToolActivity,
                     onAskUser = onAskUser,
                     onQuestionnaire = onQuestionnaire,
-                    onSaveToBucket = onSaveToBucket,
-                    onInstallApp = onInstallApp,
-                    onReadManifestRef = onReadManifestRef,
-                    ignoreAppNames = ignoreAppNames,
-                )
-                val checkpoint = checkpointService.snapshot()
-                val evidence = checkpoint?.analyzeJson?.takeIf { it.isNotBlank() }
-                    ?: checkpoint?.researchJson?.takeIf { it.isNotBlank() }
-
-                logger.info("Scoop AI assist start: $instruction (history=${history.size}, hasEvidence=${evidence != null})")
-                val result = generator.assist(
-                    manifestJson = currentManifest,
-                    instruction = instruction,
-                    history = history,
-                    evidence = evidence,
-                    suggestedAppName = suggestedAppName,
-                    images = images.map { BinaryImage(bytes = it.bytes, mimeType = it.mimeType) },
-                )
-                onFinished(Result.success(result))
-            } catch (e: CancellationException) {
-                onFinished(Result.failure(e))
-                throw e
-            } catch (e: Exception) {
-                logger.error("Scoop AI assist failed: ${e.message}", e)
-                onFinished(Result.failure(e))
-            } finally {
-                DefaultToolRegistryFactory.cleanup()
-            }
+                ),
+                onSaveToBucket = onSaveToBucket,
+                onInstallApp = onInstallApp,
+                onReadManifestRef = onReadManifestRef,
+                ignoreAppNames = ignoreAppNames,
+            )
+            onFinished(Result.success(result))
         }
     }
 

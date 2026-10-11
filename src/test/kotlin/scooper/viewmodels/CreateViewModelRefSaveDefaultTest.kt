@@ -280,4 +280,101 @@ class CreateViewModelRefSaveDefaultTest {
             vm.close()
         }
     }
+
+    // ---------------------------------------------------------------
+    // Save-in-place hint (batch 3): saveUpdatedHintText over the real
+    // save flow; the trustworthy source is SaveResult.overwritten, set
+    // by saveManifestCore when the target file existed before the write.
+    // ---------------------------------------------------------------
+
+    /** onSave + confirm, walking the overwrite prompt the same way the UI does. */
+    private suspend fun saveThroughDialog(vm: CreateViewModel) {
+        withContext(Dispatchers.Default) { vm.onSave().join() }
+        withContext(Dispatchers.Default) { vm.onConfirmSave().join() }
+        if (vm.container.stateFlow.value.overwriteConfirmOpen) {
+            withContext(Dispatchers.Default) { vm.onConfirmOverwrite().join() }
+        }
+    }
+
+    @Test
+    fun `reference save over an existing manifest surfaces the updated hint`() = runBlocking {
+        makeBucket("main")
+        makeBucket("extras")
+        // The referenced manifest exists on disk, so the locked save overwrites it.
+        tempDir.resolve("buckets").resolve("main").resolve("bucket").resolve("fd.json")
+            .writeText("{\"version\":\"1.0.0\"}")
+        val vm = createViewModel(configWithLastBucket("extras"))
+        try {
+            preset(
+                vm,
+                manifestJson = "{\"version\":\"1.2.3\"}",
+                messages = listOf(ChatMessage(role = ChatRole.User, text = "参考 @main/fd 的写法")),
+            )
+
+            saveThroughDialog(vm)
+
+            val s = vm.container.stateFlow.value
+            assertEquals(true, s.saveResult?.overwritten, "the save must report an in-place overwrite")
+            assertEquals(
+                "Updated existing manifest at main/fd",
+                s.saveResult?.let(::saveUpdatedHintText),
+                "an overwrite of the referenced manifest must surface the updated hint",
+            )
+        } finally {
+            vm.close()
+        }
+    }
+
+    @Test
+    fun `fresh save without an existing manifest shows no updated hint`() = runBlocking {
+        makeBucket("main")
+        makeBucket("extras")
+        val vm = createViewModel(configWithLastBucket("extras"))
+        try {
+            preset(
+                vm,
+                manifestJson = "{\"version\":\"1.2.3\"}",
+                messages = listOf(ChatMessage(role = ChatRole.User, text = "做个便携版")),
+            )
+
+            saveThroughDialog(vm)
+
+            val s = vm.container.stateFlow.value
+            assertEquals(false, s.saveResult?.overwritten, "a fresh save must not be flagged as overwrite")
+            assertNull(
+                s.saveResult?.let(::saveUpdatedHintText),
+                "a fresh save must not show the updated hint",
+            )
+        } finally {
+            vm.close()
+        }
+    }
+
+    @Test
+    fun `reference whose target manifest is gone shows no updated hint`() = runBlocking {
+        makeBucket("main")
+        makeBucket("extras")
+        // The reference locks the dialog, but the target file was deleted by
+        // someone else, so the save is a fresh write, not an update.
+        val vm = createViewModel(configWithLastBucket("extras"))
+        try {
+            preset(
+                vm,
+                manifestJson = "{\"version\":\"1.2.3\"}",
+                messages = listOf(ChatMessage(role = ChatRole.User, text = "参考 @main/fd 的写法")),
+            )
+
+            saveThroughDialog(vm)
+
+            val s = vm.container.stateFlow.value
+            assertEquals("main", s.saveBucket, "sanity: the reference lock applied")
+            assertEquals(false, s.saveResult?.overwritten, "a missing target makes the save a fresh write")
+            assertNull(
+                s.saveResult?.let(::saveUpdatedHintText),
+                "a reference whose target is gone must not show the updated hint",
+            )
+        } finally {
+            vm.close()
+        }
+    }
 }

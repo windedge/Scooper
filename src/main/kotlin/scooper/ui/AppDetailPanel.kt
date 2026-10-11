@@ -67,6 +67,7 @@ fun AppDetailPanel(
     app: App,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onModifyWithAi: ((App) -> Unit)? = null,
     gitHubService: GitHubService = koinInject(),
     scoopClient: ScoopClient = koinInject(),
 ) {
@@ -119,7 +120,7 @@ fun AppDetailPanel(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
-            DetailHeader(app, onClose)
+            DetailHeader(app, onClose, onModifyWithAi)
 
             // Scrollable content
             val listState = rememberLazyListState()
@@ -162,7 +163,7 @@ fun AppDetailPanel(
 // ==================== Header ====================
 
 @Composable
-private fun DetailHeader(app: App, onClose: () -> Unit) {
+private fun DetailHeader(app: App, onClose: () -> Unit, onModifyWithAi: ((App) -> Unit)?) {
     val colors = MaterialTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -186,7 +187,40 @@ private fun DetailHeader(app: App, onClose: () -> Unit) {
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
+        // Chat with AI: opens a Create session prefilled with @bucket/app.
+        // Hidden for orphan/installed apps without a bucket because the
+        // reference pipeline has no manifest to point at.
+        val bucketName = app.bucket?.name
+        if (onModifyWithAi != null && bucketName != null) {
+            Tooltip(
+                "Chat about @${bucketName}/${app.name} with AI",
+                position = TooltipPosition.Top,
+            ) {
+                OutlinedButton(
+                    onClick = { onModifyWithAi(app) },
+                    modifier = Modifier.height(28.dp).cursorHand(),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = colors.primary,
+                    ),
+                    shape = RoundedCornerShape(6.dp),
+                    elevation = null,
+                ) {
+                    Icon(
+                        Lucide.MessageSquarePlus,
+                        "Chat with AI",
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Chat with AI",
+                        style = typography.caption.copy(fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+        }
         var closeHover by remember { mutableStateOf(false) }
         Box(
             modifier = Modifier.size(28.dp)
