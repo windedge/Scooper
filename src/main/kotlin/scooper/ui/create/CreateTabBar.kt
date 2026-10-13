@@ -79,16 +79,17 @@ fun CreateTabBar(
                 .onPointerEvent(PointerEventType.Scroll) { event ->
                     // horizontalScroll only consumes x deltas (tilted wheel or
                     // trackpad pan); a plain vertical wheel is dropped, so route
-                    // y notches into the horizontal state browser-style. Consume
+                    // y notches into the horizontal state browser-style: wheel
+                    // down scrolls forward (reveals tabs on the right). Consume
                     // them only while the strip can still move so an idle strip
                     // keeps forwarding the wheel to its ancestors.
                     val notches = event.changes.sumOf { it.scrollDelta.y.toDouble() }.toFloat()
                     if (notches != 0f) {
                         val canMove =
-                            if (notches < 0f) tabScrollState.canScrollForward else tabScrollState.canScrollBackward
+                            if (notches > 0f) tabScrollState.canScrollForward else tabScrollState.canScrollBackward
                         if (canMove) {
                             val stepPx = with(density) { 48.dp.toPx() }
-                            tabScrollState.dispatchRawDelta(-notches * stepPx)
+                            tabScrollState.dispatchRawDelta(notches * stepPx)
                             event.changes.forEach { it.consume() }
                         }
                     }

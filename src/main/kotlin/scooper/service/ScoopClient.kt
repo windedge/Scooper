@@ -32,6 +32,15 @@ data class InstalledAppInfo(
     val appDir: File,
 )
 
+/** Launch decision for an installed app: a start command from the install dir, or a Start Menu lnk. */
+internal sealed interface LaunchTarget {
+    /** cmd /c start command with its working directory. */
+    data class StartCommand(val args: List<String>, val workDir: File) : LaunchTarget
+
+    /** Start Menu shortcut file launched by absolute path. */
+    data class Lnk(val file: File) : LaunchTarget
+}
+
 /**
  * Adapter for Scoop CLI and filesystem operations.
  * Provides low-level access to the local Scoop environment.
@@ -850,24 +859,11 @@ class ScoopClient(
     /** Read the manifest JSON content for an app. */
     fun getManifestContent(app: App): String? = findManifest(app)?.readText()
 
-    /** Open a shortcut of an installed app. */
+    /** Open a shortcut of an installed app (Discover). Delegates to the unified launcher;
+     *  ShortCut.title carries the manifest target path, used as the preferred shortcut. */
     fun openShortcut(app: App, shortcutIndex: Int = 0) {
-        val shortcuts = app.shortcuts ?: return
-        if (shortcutIndex !in shortcuts.indices) return
-
-        val root = if (app.global) globalRootDir else rootDir
-        val appDir = root.resolve("apps/${app.name}/current")
-        if (!appDir.exists()) return
-
-        val shortcut = shortcuts[shortcutIndex]
-        // shortcut.title is the exe relative path (e.g. "Fiddler.exe"), shortcut.path is the display name
-        val target = appDir.resolve(shortcut.title.replace('\\', '/'))
-        val dir = target.parentFile
-
-        logger.info("Opening shortcut: ${target.absolutePath}")
-        ProcessBuilder("cmd", "/c", "start", "", target.absolutePath)
-            .directory(dir)
-            .start()
+        val shortcut = app.shortcuts?.getOrNull(shortcutIndex) ?: return
+        launchInstalledApp(app.name, preferredShortcut = shortcut.title, global = app.global)
     }
 
     /** Start Menu shortcut file of an installed app under the given per-user app data dir. */
@@ -896,43 +892,150 @@ class ScoopClient(
     }
 
     /** Shortcut display names declared by a manifest, top level or per architecture. */
-    internal fun shortcutNamesFromManifest(manifestJson: String?): List<String> {
+    internal fun shortcutNamesFromManifest(manifestJson: String?): List<String> =
+        manifestShortcutPairs(manifestJson).map { it.second }.distinct()
+
+    /** Manifest shortcut pairs (target path, display name), top level or per architecture. */
+    internal fun manifestShortcutPairs(manifestJson: String?): List<Pair<String, String>> {
         if (manifestJson.isNullOrBlank()) return emptyList()
         val root = runCatching {
             ScoopClient.manifestJson.parseToJsonElement(manifestJson) as? JsonObject
         }.getOrNull() ?: return emptyList()
 
-        fun namesOf(container: JsonElement?): List<String> =
-            (container as? JsonObject)?.get("shortcuts")
-                ?.let { it as? JsonArray }
-                ?.mapNotNull { entry ->
-                    (entry as? JsonArray)?.getOrNull(1)
-                        ?.let { (it as? JsonPrimitive)?.contentOrNull }
-                        ?.takeIf { it.isNotBlank() }
+        fun pairsOf(container: JsonElement?): List<Pair<String, String>> {
+            val entries = (container as? JsonObject)?.get("shortcuts") as? JsonArray ?: return emptyList()
+            return entries.mapNotNull { entry ->
+                val pair = entry as? JsonArray ?: return@mapNotNull null
+                val target = (pair.getOrNull(0) as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                val display = (pair.getOrNull(1) as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                target to display
+            }
+        }
+
+        val archPairs = (root["architecture"] as? JsonObject)?.values.orEmpty().flatMap { pairsOf(it) }
+        return pairsOf(root) + archPairs
+    }
+
+    /** Manifest file names Scoop installs into apps/<name>/current/. */
+    private val installedManifestFiles = listOf("manifest.json", "scoop-manifest.json")
+
+    /**
+     * Launch an installed app (Create flow). Thin delegate to the unified launcher.
+     */
+    fun openApp(name: String): CommandResult = launchInstalledApp(name)
+
+    /**
+     * Single launch mechanism for installed apps. Target priority: the preferred
+     * shortcut, then the first manifest shortcut, then the first .exe bin, then
+     * the Start Menu .lnk. See [resolveLaunchTarget].
+     */
+    internal fun launchInstalledApp(name: String, preferredShortcut: String? = null, global: Boolean = false): CommandResult {
+        val root = if (global) globalRootDir else (installedAppRoot(name) ?: rootDir)
+        val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }?.let(::File)
+        val target = resolveLaunchTarget(
+            name = name,
+            installDir = root.resolve("apps/$name/current"),
+            manifestJson = installedAppManifest(name),
+            preferredShortcut = preferredShortcut,
+            appDataDir = appData,
+        )
+        logger.info("Opening app {}: {}", name, target)
+        return when (target) {
+            is LaunchTarget.StartCommand -> {
+                ProcessBuilder(target.args).directory(target.workDir).start()
+                CommandResult(0)
+            }
+            is LaunchTarget.Lnk -> {
+                ProcessBuilder("cmd", "/c", "start", "", target.file.absolutePath).start()
+                CommandResult(0)
+            }
+            null -> CommandResult(1, "No launchable target found for app: $name")
+        }
+    }
+
+    /**
+     * Resolve what to launch for an installed app, null when nothing qualifies.
+     * Priority: the preferred shortcut (matched by target path or display name
+     * against any manifest shortcut pair), then the first manifest shortcut,
+     * then the first .exe bin, then the Start Menu .lnk.
+     */
+    internal fun resolveLaunchTarget(
+        name: String,
+        installDir: File,
+        manifestJson: String?,
+        preferredShortcut: String?,
+        appDataDir: File?,
+    ): LaunchTarget? {
+        val shortcutPairs = manifestShortcutPairs(manifestJson)
+        val preferred = preferredShortcut?.let { pref ->
+            shortcutPairs.firstOrNull { (target, display) ->
+                sameShortcutPath(target, pref) || display.equals(pref, ignoreCase = true)
+            }
+        }
+        return when {
+            preferred != null -> startCommand(installDir, preferred.first)
+            shortcutPairs.isNotEmpty() -> startCommand(installDir, shortcutPairs.first().first)
+            else -> openAppCommand(installDir, manifestBinExePaths(manifestJson))
+        } ?: appDataDir?.let { dir ->
+            resolveStartMenuShortcut(name, shortcutPairs.map { it.second }, dir)?.let(LaunchTarget::Lnk)
+        }
+    }
+
+    /** Compare manifest target paths ignoring separator direction and case (Windows paths). */
+    private fun sameShortcutPath(a: String, b: String): Boolean =
+        a.replace('\\', '/').equals(b.replace('\\', '/'), ignoreCase = true)
+
+    /** Root dir that actually contains apps/<name>/, local first then global. */
+    private fun installedAppRoot(name: String): File? =
+        listOf(rootDir, globalRootDir).firstOrNull { it.resolve("apps/$name/current").exists() }
+
+    /** exe bin paths from a manifest: top level string/list and per architecture. */
+    internal fun manifestBinExePaths(manifestJson: String?): List<String> {
+        if (manifestJson.isNullOrBlank()) return emptyList()
+        val root = runCatching {
+            ScoopClient.manifestJson.parseToJsonElement(manifestJson) as? JsonObject
+        }.getOrNull() ?: return emptyList()
+
+        fun exePathsOf(container: JsonElement?): List<String> =
+            (container as? JsonObject)?.get("bin")
+                ?.let { bin ->
+                    when (bin) {
+                        is JsonPrimitive -> listOfNotNull(bin.contentOrNull)
+                        is JsonArray -> bin.mapNotNull { entry ->
+                            when (entry) {
+                                is JsonPrimitive -> entry.contentOrNull
+                                is JsonArray -> (entry.firstOrNull() as? JsonPrimitive)?.contentOrNull
+                                else -> null
+                            }
+                        }
+                        else -> null
+                    }
                 }
+                ?.filter { it.isNotBlank() }
                 .orEmpty()
 
-        val archNames = (root["architecture"] as? JsonObject)?.values.orEmpty().flatMap { namesOf(it) }
-        return (namesOf(root) + archNames).distinct()
+        val archPaths = (root["architecture"] as? JsonObject)?.values.orEmpty().flatMap { exePathsOf(it) }
+        return (exePathsOf(root) + archPaths).filter { it.endsWith(".exe", ignoreCase = true) }.distinct()
     }
 
-    /** Launch an installed app through its Start Menu shortcut. */
-    fun openApp(name: String): CommandResult {
-        val appData = System.getenv("APPDATA")?.takeIf { it.isNotBlank() }
-            ?: return CommandResult(1, "APPDATA environment variable is not set")
-        val lnk = resolveStartMenuShortcut(name, installedShortcutNames(name), File(appData))
-            ?: return CommandResult(1, "Start Menu shortcut not found: $name")
-        ProcessBuilder("cmd", "/c", "start", "", lnk.absolutePath).start()
-        return CommandResult(0)
-    }
+    /** Start command for a manifest target path, run with the install dir as working dir. */
+    internal fun startCommand(installDir: File, target: String): LaunchTarget.StartCommand =
+        LaunchTarget.StartCommand(listOf("cmd", "/c", "start", "", target), installDir)
 
-    /** Shortcut names from the manifest Scoop copied into the installed app directory. */
-    private fun installedShortcutNames(name: String): List<String> =
+    /** Start command for the first exe bin, null when none qualifies. */
+    internal fun openAppCommand(installDir: File, binPaths: List<String>): LaunchTarget.StartCommand? =
+        binPaths.firstOrNull { it.endsWith(".exe", ignoreCase = true) }
+            ?.let { startCommand(installDir, it) }
+
+    /** Manifest text Scoop stores in the installed app directory, null when absent. */
+    private fun installedAppManifest(name: String): String? =
         listOf(rootDir, globalRootDir)
-            .map { it.resolve("apps/$name/current/manifest.json") }
+            .map { root -> installedManifestFiles.map { root.resolve("apps/$name/current/$it") } }
+            .flatten()
             .firstOrNull { it.isFile }
-            ?.let { shortcutNamesFromManifest(it.readText()) }
-            .orEmpty()
+            ?.readText()
 
     private fun normalizeShortcutKey(value: String): String =
         value.lowercase().filter { it.isLetterOrDigit() }

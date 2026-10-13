@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import scooper.data.UIConfig
 import scooper.repository.AppsRepository
 import scooper.repository.ConfigRepository
@@ -39,6 +41,58 @@ class CreateViewModelManifestRefTest {
 
     @TempDir
     lateinit var tempDir: File
+
+    // ---------------------------------------------------------------
+    // applyRefSuggestion: replacing the active token must consume its @
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `applyRefSuggestion replaces typed at-token with single at reference and trailing space`() {
+        val field = TextFieldValue("@extr", TextRange(5))
+        val out = applyRefSuggestion(
+            field = field,
+            query = "extr",
+            suggestion = ManifestRefSuggestion("extras", "7tt"),
+        )
+        assertEquals("@extras/7tt ", out.text)
+        assertEquals(12, out.selection.min)
+        assertEquals(12, out.selection.max)
+    }
+
+    @Test
+    fun `applyRefSuggestion replaces token in the middle of text`() {
+        val field = TextFieldValue("use @gol please", TextRange(8))
+        val out = applyRefSuggestion(
+            field = field,
+            query = "gol",
+            suggestion = ManifestRefSuggestion("main", "golang"),
+        )
+        assertEquals("use @main/golang  please", out.text)
+        assertEquals(17, out.selection.min)
+    }
+
+    @Test
+    fun `applyRefSuggestion does not duplicate the reference when insertion equals the typed token`() {
+        val field = TextFieldValue("@main/golang", TextRange(12))
+        val out = applyRefSuggestion(
+            field = field,
+            query = "main/golang",
+            suggestion = ManifestRefSuggestion("main", "golang"),
+        )
+        assertEquals("@main/golang ", out.text)
+        assertEquals(13, out.selection.min)
+    }
+
+    @Test
+    fun `applyRefSuggestion returns field unchanged when token is missing`() {
+        val field = TextFieldValue("abc", TextRange(3))
+        val out = applyRefSuggestion(
+            field = field,
+            query = "zz",
+            suggestion = ManifestRefSuggestion("main", "golang"),
+        )
+        assertEquals(field, out)
+    }
 
     // ---------------------------------------------------------------
     // extractManifestRefs: pure scanning rule

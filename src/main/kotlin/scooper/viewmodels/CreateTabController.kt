@@ -31,22 +31,18 @@ data class CreateTab(
 }
 
 /**
- * Immutable snapshot for the tab bar. [guardClose] is true when the tab holds
- * an unsaved manifest or a busy run, so closing it needs a confirm dialog.
- * [composerPrefill] is non-null while a Discover handoff text waits to be
- * consumed by the composer.
+ * Immutable snapshot for the tab bar. [composerPrefill] is non-null while a
+ * Discover handoff text waits to be consumed by the composer.
  */
 data class CreateTabUiState(
     val tabs: List<CreateTabInfo> = emptyList(),
     val activeTabId: String? = null,
-    /** Tab whose close was requested but is waiting for the confirm dialog. */
-    val pendingCloseTabId: String? = null,
 )
 
 data class CreateTabInfo(
     val tabId: String,
     val title: String,
-    /** True when closing this tab needs a confirm dialog. */
+    /** True when the tab holds an unsaved manifest or a busy run. */
     val guardClose: Boolean,
     /** Non-null while a Discover handoff text waits to be consumed. */
     val composerPrefill: String? = null,
@@ -112,29 +108,11 @@ class CreateTabController(
     }
 
     /**
-     * Close request from the tab bar. A guarded tab (unsaved manifest or busy
-     * run) raises the confirm dialog instead of closing right away; a blank or
-     * fully saved tab closes immediately.
+     * Close request from the tab bar. Closes right away; the close chain
+     * (watcher cancel + VM close + bridge close) also cancels a busy run.
      */
     fun closeTabRequest(tabId: String) {
-        val tab = tabs.firstOrNull { it.tabId == tabId } ?: return
-        if (tab.viewModel.hasUnsavedWork || tab.viewModel.isBusy) {
-            mutableUiState.value = mutableUiState.value.copy(pendingCloseTabId = tabId)
-            return
-        }
         closeTabInternal(tabId)
-    }
-
-    /** Confirms the pending close (discard-is-unrecoverable dialog). */
-    fun confirmCloseTab() {
-        val id = mutableUiState.value.pendingCloseTabId ?: return
-        mutableUiState.value = mutableUiState.value.copy(pendingCloseTabId = null)
-        closeTabInternal(id)
-    }
-
-    /** Keeps the tab and dismisses the confirm dialog. */
-    fun cancelCloseTab() {
-        mutableUiState.value = mutableUiState.value.copy(pendingCloseTabId = null)
     }
 
     /**
@@ -155,6 +133,10 @@ class CreateTabController(
         }
         prefills[target.tabId] = ref
         handoffTitles[target.tabId] = name.trim()
+        // Seed the referenced name into the VM so the tab title and the engine's
+        // assist calls carry it; without it the finished-run fallback chain
+        // would derive the name from a blank lastUrl.
+        target.viewModel.seedSuggestedAppName(name)
         activeId = target.tabId
         rebuild()
     }

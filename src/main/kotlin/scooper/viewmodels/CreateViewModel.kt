@@ -1,5 +1,7 @@
 package scooper.viewmodels
 
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import com.scoopai.core.ManifestResult
 import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
@@ -593,6 +595,16 @@ class CreateViewModel(
             it.messages.isEmpty() && it.manifestJson.isBlank() &&
                 !it.running && !it.testing && !it.installing
         }
+
+    /**
+     * Discover "Chat with AI" handoff: the tab controller seeds the
+     * referenced @bucket/app name so the tab title and engine calls carry it
+     * before any run finishes; a later result overwrites it as usual.
+     */
+    internal fun seedSuggestedAppName(name: String) = intent {
+        val trimmed = name.trim()
+        if (trimmed.isNotEmpty()) reduce { state.copy(suggestedAppName = trimmed) }
+    }
 
     /**
      * Tab bar label candidate: the engine's suggested app name, else the
@@ -3155,6 +3167,31 @@ internal fun filterRefSuggestions(
         .sortedWith(compareBy({ it.name.lowercase() }, { it.bucket.lowercase() }))
         .take(REF_SUGGESTION_LIMIT)
         .toList()
+}
+
+/**
+ * Replaces the active @ token under the caret with the picked suggestion.
+ * [query] is the token text after the @ (as returned by activeManifestRefToken),
+ * so the removal span extends one char left to consume the @ itself and the
+ * insertion (which already carries its own @) never doubles it.
+ * Returns the field unchanged when the token text is no longer at the caret.
+ */
+internal fun applyRefSuggestion(
+    field: TextFieldValue,
+    query: String,
+    suggestion: ManifestRefSuggestion,
+): TextFieldValue {
+    val caret = field.selection.min
+    if (caret < query.length + 1) return field
+    val text = field.text
+    val start = caret - query.length - 1
+    if (text.getOrNull(start) != '@') return field
+    if (text.substring(start + 1, caret) != query) return field
+    val insertion = suggestion.insertion
+    val before = text.substring(0, start)
+    val after = text.substring(caret)
+    val newText = before + insertion + after
+    return TextFieldValue(newText, TextRange(before.length + insertion.length))
 }
 
 internal fun isLikelyUrl(text: String): Boolean {

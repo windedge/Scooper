@@ -10,7 +10,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import scooper.repository.ConfigRepository
@@ -23,8 +22,8 @@ import scooper.taskqueue.TaskQueue
 import java.io.File
 
 /**
- * TDD for multi-tab Create sessions: tab lifecycle (create / switch / close /
- * close guard) and the Discover "Chat with AI" prefill seam.
+ * TDD for multi-tab Create sessions: tab lifecycle (create / switch / close)
+ * and the Discover "Chat with AI" prefill seam.
  *
  * The controller owns one CreateViewModel per tab sharing the same
  * dependencies; the single default tab must behave exactly like the old
@@ -50,7 +49,12 @@ class CreateViewModelTabTest {
     ) {
         val startedUrls = java.util.Collections.synchronizedList(mutableListOf<String>())
         var cancelled = false
-        val gate = CompletableDeferred<com.scoopai.core.ManifestResult>()
+        var gate = CompletableDeferred<com.scoopai.core.ManifestResult>()
+
+        /** Fresh gate so the next run suspends again instead of reusing the completed one. */
+        fun resetGate() {
+            gate = CompletableDeferred()
+        }
 
         override suspend fun runGenerate(
             settings: ScoopAiBridge.AiSettingsSnapshot,
@@ -204,7 +208,7 @@ class CreateViewModelTabTest {
     }
 
     // ---------------------------------------------------------------
-    // close guard
+    // close
     // ---------------------------------------------------------------
 
     @Test
@@ -217,12 +221,11 @@ class CreateViewModelTabTest {
             controller.closeTabRequest(second)
             awaitTab(controller) { it.tabs.size == 1 }
             assertEquals(1, controller.uiState.value.tabs.size)
-            assertFalse(controller.uiState.value.pendingCloseTabId != null)
         }
     }
 
     @Test
-    fun `closeTabRequest with unsaved manifest asks for confirmation then discards on confirm`() = runBlocking {
+    fun `closeTabRequest on a tab with an unsaved manifest closes it directly`() = runBlocking {
         createController().use { controller ->
             val tabId = controller.activeTabId()
             withContext(Dispatchers.Default) {
@@ -231,27 +234,7 @@ class CreateViewModelTabTest {
             awaitTab(controller) { it.tabs.first { t -> t.tabId == tabId }.guardClose }
 
             controller.closeTabRequest(tabId)
-            assertEquals(tabId, controller.uiState.value.pendingCloseTabId, "busy tab must raise the confirm dialog")
-
-            controller.confirmCloseTab()
             awaitTab(controller) { it.tabs.none { t -> t.tabId == tabId } }
-            assertNull(controller.uiState.value.pendingCloseTabId)
-        }
-    }
-
-    @Test
-    fun `confirm cancel keeps the tab`() = runBlocking {
-        createController().use { controller ->
-            val tabId = controller.activeTabId()
-            withContext(Dispatchers.Default) {
-                withTimeout(5_000) { controller.activeViewModel().onSend(url = "github.com/owner/repo").join() }
-            }
-            awaitTab(controller) { it.tabs.first { t -> t.tabId == tabId }.guardClose }
-
-            controller.closeTabRequest(tabId)
-            controller.cancelCloseTab()
-            awaitTab(controller) { it.pendingCloseTabId == null }
-            assertEquals(1, controller.uiState.value.tabs.size)
         }
     }
 
@@ -281,8 +264,6 @@ class CreateViewModelTabTest {
             awaitTab(controller) { it.tabs.first { t -> t.tabId == only }.guardClose }
 
             controller.closeTabRequest(only)
-            assertEquals(only, controller.uiState.value.pendingCloseTabId)
-            controller.confirmCloseTab()
             awaitTab(controller) { it.tabs.size == 1 && it.tabs.first().tabId != only }
 
             val replacement = controller.activeTabId()
@@ -305,20 +286,17 @@ class CreateViewModelTabTest {
             awaitTab(controller) { it.tabs.size == 2 }
 
             controller.closeTabRequest(first)
-            assertEquals(first, controller.uiState.value.pendingCloseTabId)
-            controller.confirmCloseTab()
             awaitTab(controller) { it.tabs.size == 1 }
             assertTrue(controller.uiState.value.tabs.first().tabId != first)
         }
     }
 
     // ---------------------------------------------------------------
-    // close guard: a saved tab (SaveResult card visible) must close without
-    // the confirm dialog (bug: isGuarded ignored saveResult)
+    // close: saved vs running tabs
     // ---------------------------------------------------------------
 
     @Test
-    fun `closeTabRequest on a saved tab closes it directly without confirmation`() = runBlocking {
+    fun `closeTabRequest on a saved tab closes it directly`() = runBlocking {
         tempDir.resolve("buckets").resolve("main").mkdirs()
         createController().use { controller ->
             val tabId = controller.activeTabId()
@@ -339,12 +317,11 @@ class CreateViewModelTabTest {
 
             controller.closeTabRequest(tabId)
             awaitTab(controller) { it.tabs.none { t -> t.tabId == tabId } }
-            assertNull(controller.uiState.value.pendingCloseTabId, "saved tab must close without the confirm dialog")
         }
     }
 
     @Test
-    fun `closeTabRequest still guards a running tab even after a previous save`() = runBlocking {
+    fun `closeTabRequest on a running tab closes it directly and cancels the run`() = runBlocking {
         tempDir.resolve("buckets").resolve("main").mkdirs()
         createController().use { controller ->
             val tabId = controller.activeTabId()
@@ -363,13 +340,17 @@ class CreateViewModelTabTest {
             awaitPredicate { vm.container.stateFlow.value.manifestSaved }
 
             // A new run starts on the saved tab: the tab is busy again.
+            val bridge = controller.bridgeFor(tabId) as RecordingBridge
+            bridge.resetGate()
             withContext(Dispatchers.Default) {
                 withTimeout(5_000) { vm.onSend(url = "github.com/owner/repo2").join() }
             }
             awaitTab(controller) { it.tabs.first { t -> t.tabId == tabId }.guardClose }
+            awaitPredicate { bridge.startedUrls.size == 2 }
+
             controller.closeTabRequest(tabId)
-            assertEquals(tabId, controller.uiState.value.pendingCloseTabId, "running tab must raise the confirm dialog")
-            controller.cancelCloseTab()
+            awaitTab(controller) { it.tabs.none { t -> t.tabId == tabId } }
+            awaitPredicate { bridge.cancelled }
         }
     }
 
@@ -440,6 +421,34 @@ class CreateViewModelTabTest {
             val tab = controller.uiState.value.tabs.first { it.tabId != first }
             assertEquals("@extras/sumatrapdf ", tab.composerPrefill)
             assertEquals("sumatrapdf", tab.title, "handoff names the tab after the app right away")
+        }
+    }
+
+    @Test
+    fun `openModifySession seeds the blank tab with the referenced app name`() = runBlocking {
+        createController().use { controller ->
+            controller.openModifySession(bucket = "main", name = "ripgrep")
+            awaitPredicate {
+                controller.activeViewModel().container.stateFlow.value.suggestedAppName == "ripgrep"
+            }
+            assertEquals(1, controller.uiState.value.tabs.size, "blank tab must be reused, not duplicated")
+        }
+    }
+
+    @Test
+    fun `openModifySession seeds the referenced app name on a newly opened tab`() = runBlocking {
+        createController().use { controller ->
+            val first = controller.activeTabId()
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) { controller.activeViewModel().onSend(url = "github.com/owner/repo").join() }
+            }
+            awaitTab(controller) { it.tabs.first { t -> t.tabId == first }.guardClose }
+
+            controller.openModifySession(bucket = "extras", name = "sumatrapdf")
+            awaitTab(controller) { it.tabs.size == 2 && it.activeTabId != first }
+            awaitPredicate {
+                controller.activeViewModel().container.stateFlow.value.suggestedAppName == "sumatrapdf"
+            }
         }
     }
 

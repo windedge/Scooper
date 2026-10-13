@@ -341,19 +341,6 @@ fun CreateScreen(
             onCancel = viewModel::onDismissOverwrite,
         )
     }
-
-    // Closing a guarded tab asks for confirmation; rendered with the tab bar
-    // so the dialog only exists while the Create page is visible.
-    if (tabUiState.pendingCloseTabId != null) {
-        ConfirmDialog(
-            text = "Discard this session? Unsaved work cannot be recovered.",
-            title = "Close Tab",
-            confirmText = "Discard",
-            destructiveConfirm = true,
-            onConfirm = tabController::confirmCloseTab,
-            onCancel = tabController::cancelCloseTab,
-        )
-    }
 }
 
 @Composable
@@ -3104,7 +3091,7 @@ private fun Composer(
     // @ completion state: keep the selection with the text so the caret word can
     // be detected and replaced; the menu never sends the message on Enter.
     var fieldValue by remember { mutableStateOf(TextFieldValue(state.inputNote.ifBlank { state.inputUrl })) }
-    var refMenuIndex by remember { mutableStateOf(-1) }
+    var refMenuIndex by remember { mutableStateOf(initialRefMenuIndex()) }
     var refFieldHeightPx by remember { mutableStateOf(0) }
 
     // Prefill handoff (Discover "Chat with AI"): land the token in the field
@@ -3158,7 +3145,7 @@ private fun Composer(
         if (fieldValue.text.isBlank() && state.pendingImages.isEmpty()) return
         val text = fieldValue.text.trim()
         fieldValue = TextFieldValue("")
-        refMenuIndex = -1
+        refMenuIndex = initialRefMenuIndex()
         onUrlChange("")
         onNoteChange("")
         onSend(text, text)
@@ -3183,20 +3170,15 @@ private fun Composer(
 
     fun applyRefSuggestion(suggestion: ManifestRefSuggestion) {
         val query = activeRefQuery ?: return
-        val start = fieldValue.selection.min
-        val text = fieldValue.text
-        val before = text.substring(0, start - query.length)
-        val after = text.substring(start)
-        val insertion = suggestion.insertion
-        val newText = before + insertion + after
-        val caret = (before.length + insertion.length).coerceAtMost(newText.length)
-        fieldValue = TextFieldValue(newText, TextRange(caret))
+        val updated = scooper.viewmodels.applyRefSuggestion(fieldValue, query, suggestion)
+        if (updated == fieldValue) return
+        fieldValue = updated
         // The completed token no longer matches activeManifestRefToken, but keep
         // the menu shut anyway so re-typing the same prefix starts fresh.
         refMenuOpen = false
-        refMenuIndex = -1
-        onUrlChange(newText)
-        onNoteChange(newText)
+        refMenuIndex = initialRefMenuIndex()
+        onUrlChange(updated.text)
+        onNoteChange(updated.text)
     }
 
     Column(
@@ -3244,7 +3226,7 @@ private fun Composer(
                 value = fieldValue,
                 onValueChange = { value ->
                     fieldValue = value
-                    refMenuIndex = -1
+                    refMenuIndex = initialRefMenuIndex()
                     refMenuOpen = true
                     onUrlChange(value.text)
                     onNoteChange(value.text)
@@ -3282,17 +3264,17 @@ private fun Composer(
                             val menuSize = refSuggestions.size
                             when {
                                 event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> {
-                                    refMenuIndex = (refMenuIndex + 1).mod(menuSize)
+                                    refMenuIndex = clampRefMenuIndex(refMenuIndex + 1, menuSize)
                                     true
                                 }
                                 event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp -> {
-                                    refMenuIndex = (refMenuIndex - 1).mod(menuSize)
+                                    refMenuIndex = clampRefMenuIndex(refMenuIndex - 1, menuSize)
                                     true
                                 }
                                 event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter) &&
                                     !event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed -> {
-                                    if (refMenuIndex in 0 until menuSize) {
-                                        applyRefSuggestion(refSuggestions[refMenuIndex])
+                                    if (menuSize > 0) {
+                                        applyRefSuggestion(refSuggestions[clampRefMenuIndex(refMenuIndex, menuSize)])
                                     }
                                     true
                                 }
@@ -3362,7 +3344,7 @@ private fun Composer(
                             ) {
                                 ManifestRefSuggestionMenu(
                                     suggestions = refSuggestions,
-                                    selectedIndex = refMenuIndex.coerceIn(0, refSuggestions.lastIndex),
+                                    selectedIndex = clampRefMenuIndex(refMenuIndex, refSuggestions.size),
                                     onPick = ::applyRefSuggestion,
                                 )
                             }
@@ -3459,3 +3441,16 @@ private fun Composer(
 /** Whether the @ completion popup is currently shown above the composer. */
 internal fun isRefMenuVisible(hasActiveToken: Boolean, hasSuggestions: Boolean, menuOpen: Boolean): Boolean =
     hasActiveToken && hasSuggestions && menuOpen
+
+/** Initial @ menu highlight: open on the first row so a bare Enter works. */
+internal const val REF_MENU_UNSET = -1
+
+internal fun initialRefMenuIndex(): Int = 0
+
+/**
+ * Keeps the @ menu selection inside 0 until size-1; [REF_MENU_UNSET] and any
+ * stale out-of-range index land on the first item, an empty list resets to
+ * [REF_MENU_UNSET].
+ */
+internal fun clampRefMenuIndex(index: Int, size: Int): Int =
+    if (size <= 0) REF_MENU_UNSET else index.coerceIn(0, size - 1)
