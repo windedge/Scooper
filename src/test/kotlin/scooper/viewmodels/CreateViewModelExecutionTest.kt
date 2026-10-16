@@ -1062,4 +1062,135 @@ class CreateViewModelExecutionTest {
         assertTrue(installed)
         assertTrue(shortcuts)
     }
+
+    // ---------------------------------------------------------------
+    // Whole-run tool activity fold: collapsed keeps only the trailing
+    // phase tag line (plus its running state); every activity detail
+    // line, including the last one, hides behind the fold toggle.
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `visibleExecutionSteps collapsed keeps only the last step with empty toolActivities`() {
+        val steps = listOf(
+            ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
+            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c")),
+        )
+        val visible = visibleExecutionSteps(steps, expanded = false)
+        assertEquals(1, visible.size)
+        assertEquals("analyze", visible[0].phase)
+        assertTrue(visible[0].toolActivities.isEmpty())
+    }
+
+    @Test
+    fun `visibleExecutionSteps collapsed keeps the trailing running phase tag and hides its activities`() {
+        val steps = listOf(
+            ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
+            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c"), isRunning = true),
+        )
+        val visible = visibleExecutionSteps(steps, expanded = false)
+        // Collapsed is just the current phase tag line (TypingDots/liveActivity
+        // render from isRunning/currentActivity outside this function).
+        assertEquals(1, visible.size)
+        assertEquals("analyze", visible[0].phase)
+        assertTrue(visible[0].isRunning)
+        assertTrue(visible[0].toolActivities.isEmpty())
+    }
+
+    @Test
+    fun `visibleExecutionSteps collapsed drops even the finished activity lines of the last step`() {
+        val steps = listOf(
+            ExecutionStep(
+                "analyze",
+                "Analyzing package...",
+                toolActivities = listOf("✔ flat archive", "✔ flat archive arm64"),
+                summary = "Detected strategy 'portable_zip'",
+            ),
+            ExecutionStep("verify", "Validating manifest...", isRunning = true),
+        )
+        val visible = visibleExecutionSteps(steps, expanded = false)
+        assertEquals(listOf("verify"), visible.map { it.phase })
+        assertTrue(visible[0].toolActivities.isEmpty())
+    }
+
+    @Test
+    fun `visibleExecutionSteps collapsed keeps the last finished step summary without its activity lines`() {
+        val steps = listOf(
+            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ a", "✔ b")),
+            ExecutionStep("verify", "Validating", summary = "Manifest validated"),
+        )
+        val visible = visibleExecutionSteps(steps, expanded = false)
+        assertEquals(listOf("verify"), visible.map { it.phase })
+        assertEquals("Manifest validated", visible[0].summary)
+        assertTrue(visible[0].toolActivities.isEmpty())
+    }
+
+    @Test
+    fun `visibleExecutionSteps expanded shows every step untouched`() {
+        val steps = listOf(
+            ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
+            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c")),
+        )
+        assertEquals(steps, visibleExecutionSteps(steps, expanded = true))
+    }
+
+    @Test
+    fun `visibleExecutionSteps collapsed folds a single activity into the toggle as well`() {
+        val steps = listOf(
+            ExecutionStep("research", "Researching", toolActivities = listOf("✔ only")),
+        )
+        val visible = visibleExecutionSteps(steps, expanded = false)
+        assertEquals(1, visible.size)
+        assertEquals("research", visible[0].phase)
+        assertTrue(visible[0].toolActivities.isEmpty())
+    }
+
+    @Test
+    fun `visibleExecutionSteps with no activities keeps the last phase placeholder`() {
+        val steps = listOf(
+            ExecutionStep("research", "Researching", toolActivities = emptyList()),
+            ExecutionStep("analyze", "Analyzing", toolActivities = emptyList()),
+        )
+        val visible = visibleExecutionSteps(steps, expanded = false)
+        assertEquals(1, visible.size)
+        assertEquals("analyze", visible[0].phase)
+        assertTrue(visible[0].toolActivities.isEmpty())
+    }
+
+    @Test
+    fun `visibleExecutionSteps collapsed on empty steps returns nothing`() {
+        assertTrue(visibleExecutionSteps(emptyList(), expanded = false).isEmpty())
+    }
+
+    @Test
+    fun `earlierExecutionActivityCount counts every activity line across all phases`() {
+        val steps = listOf(
+            ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
+            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c", "✔ d")),
+        )
+        assertEquals(4, earlierExecutionActivityCount(steps))
+    }
+
+    @Test
+    fun `earlierExecutionActivityCount counts a single activity line so the toggle shows`() {
+        assertEquals(
+            1,
+            earlierExecutionActivityCount(
+                listOf(ExecutionStep("research", "Researching", toolActivities = listOf("✔ a"))),
+            ),
+        )
+    }
+
+    @Test
+    fun `earlierExecutionActivityCount with no activities is zero so the toggle stays hidden`() {
+        assertEquals(
+            0,
+            earlierExecutionActivityCount(
+                listOf(
+                    ExecutionStep("research", "Researching", toolActivities = emptyList()),
+                    ExecutionStep("analyze", "Analyzing", toolActivities = emptyList(), isRunning = true),
+                ),
+            ),
+        )
+        assertEquals(0, earlierExecutionActivityCount(emptyList()))
+    }
 }

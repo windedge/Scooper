@@ -155,6 +155,26 @@ internal fun attachToolActivity(
 }
 
 /**
+ * Steps a card renders for the given whole-run fold state: collapsed keeps
+ * only the trailing step's phase tag line (with its isRunning/TypingDots state);
+ * every tool activity detail line, including the last one, hides behind the
+ * fold. Expanded shows every step untouched. Pure function.
+ */
+internal fun visibleExecutionSteps(steps: List<ExecutionStep>, expanded: Boolean): List<ExecutionStep> {
+    if (expanded) return steps
+    val last = steps.lastOrNull() ?: return emptyList()
+    return listOf(last.copy(toolActivities = emptyList()))
+}
+
+/**
+ * Number of activity lines hidden by the collapsed whole-run fold (every detail
+ * line across all phases, since collapsed renders no activity row at all);
+ * 0 when there is nothing to fold. Pure function.
+ */
+internal fun earlierExecutionActivityCount(steps: List<ExecutionStep>): Int =
+    steps.sumOf { it.toolActivities.size }
+
+/**
  * Write a phase-output summary onto the most recent step of [phase]. Unknown phases
  * leave the state unchanged. Pure function.
  */

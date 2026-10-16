@@ -13,6 +13,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.HorizontalScrollbar
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,9 +38,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -160,6 +158,7 @@ import scooper.viewmodels.ManifestRefSegment
 import scooper.viewmodels.ManifestRefSuggestion
 import scooper.viewmodels.activeManifestRefToken
 import scooper.viewmodels.composerSendEnabled
+import scooper.viewmodels.earlierExecutionActivityCount
 import scooper.viewmodels.filterRefSuggestions
 import scooper.viewmodels.splitManifestRefSegments
 import scooper.viewmodels.PendingImage
@@ -181,6 +180,7 @@ import scooper.viewmodels.formatTokenFooter
 import scooper.viewmodels.DOWNLOAD_DETAIL_MAX
 import scooper.viewmodels.elideUrlMiddle
 import scooper.viewmodels.isFailedExecutionStep
+import scooper.viewmodels.visibleExecutionSteps
 import scooper.viewmodels.isNameConflictOnly
 import scooper.viewmodels.saveUpdatedHintText
 import scooper.viewmodels.shouldRenderFullExecutionSteps
@@ -195,23 +195,6 @@ import java.io.FilenameFilter
 import javax.imageio.ImageIO
 import org.slf4j.LoggerFactory
 
-/**
- * Number of items in the chat LazyColumn, shared by the LazyColumn content and the
- * auto-scroll itemCount so the scroll target index is always valid (proposal 5.2).
- * The manifest preview card joins the chat list only in the single-column (narrow)
- * layout; the wide layout renders it in the right pane instead.
- */
-internal fun chatListItemCount(
-    messageCount: Int,
-    hasActiveExecution: Boolean,
-    hasAskUserRequest: Boolean,
-    includeManifestCard: Boolean,
-    manifestJsonNotBlank: Boolean,
-): Int = messageCount +
-    (if (hasActiveExecution) 1 else 0) +
-    (if (hasAskUserRequest) 1 else 0) +
-    (if (includeManifestCard && manifestJsonNotBlank) 1 else 0)
-
 @Suppress("UNCHECKED_CAST")
 @Composable
 fun CreateScreen(
@@ -221,7 +204,7 @@ fun CreateScreen(
     val state by viewModel.container.stateFlow.collectAsState()
     val tabUiState by tabController.uiState.collectAsState()
     val navigator = LocalBackStack.current as BackStack<AppRoute>
-    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
     // Tick bumped on every reset; input composable requests keyboard effect when it changes.
     // Also bumped on tab switch so the Composer re-requests focus for the new tab.
     var inputFocusTick by remember { mutableStateOf(0) }
@@ -300,7 +283,7 @@ fun CreateScreen(
             ChatWorkspace(
                 state = state,
                 viewModel = viewModel,
-                listState = listState,
+                scrollState = scrollState,
                 inputFocusTick = inputFocusTick,
                 prefillSelectTick = prefillSelectTick,
                 prefillSelectText = prefillSelectText,
@@ -1151,8 +1134,8 @@ private fun EmptyWorkspace(
         verticalArrangement = Arrangement.Center,
     ) {
         // While the draft carries a @bucket/app reference the hero switches to
-        // modify-oriented copy (the AI reads the referenced manifest); deleting
-        // the token falls back to the create copy with no extra state machine.
+        // modify-oriented title and icon; deleting the token falls back to the
+        // create copy with no extra state machine.
         val refToken = state.composerManifestRef
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1196,19 +1179,6 @@ private fun EmptyWorkspace(
             centered = true,
             modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
         )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            if (refToken == null) {
-                "Paste a GitHub repository URL and press Send. After the manifest is ready, you can save it."
-            } else {
-                "Describe what to change. The AI reads the referenced manifest before answering."
-            },
-            style = typography.caption.copy(
-                color = colors.textMuted,
-                lineHeight = 20.sp,
-            ),
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -1216,7 +1186,7 @@ private fun EmptyWorkspace(
 private fun ChatWorkspace(
     state: CreateState,
     viewModel: CreateViewModel,
-    listState: androidx.compose.foundation.lazy.LazyListState,
+    scrollState: ScrollState,
     inputFocusTick: Int,
     prefillSelectTick: Int,
     prefillSelectText: String?,
@@ -1281,9 +1251,9 @@ private fun ChatWorkspace(
         val showArtifactPanel = state.manifestJson.isNotBlank()
 
         // Auto-scroll chat when messages / manifest / tool activities change. The
-        // item count shares chatListItemCount with the LazyColumn content below so
-        // the scroll target index is always valid (messages, optional active
-        // execution card, optional ask-user card, manifest card in narrow layout).
+        // chat list is a plain scrollable Column, so its settled content height
+        // (scrollState.maxValue) is the scroll target; keying on maxValue re-anchors
+        // the list once the newly added content is measured.
         LaunchedEffect(
             state.messages.size,
             state.manifestJson,
@@ -1293,16 +1263,10 @@ private fun ChatWorkspace(
             state.activeExecution?.steps?.size,
             state.activeExecution?.steps?.lastOrNull()?.toolActivities?.size,
             state.activeExecution?.currentActivity,
+            scrollState.maxValue,
         ) {
-            val itemCount = chatListItemCount(
-                messageCount = state.messages.size,
-                hasActiveExecution = state.activeExecution != null,
-                hasAskUserRequest = state.askUserRequest != null,
-                includeManifestCard = !isWideScreen,
-                manifestJsonNotBlank = state.manifestJson.isNotBlank(),
-            )
-            if (itemCount > 0) {
-                listState.animateScrollToItem(itemCount - 1)
+            if (scrollState.maxValue > 0) {
+                scrollState.animateScrollTo(scrollState.maxValue)
             }
         }
 
@@ -1320,30 +1284,39 @@ private fun ChatWorkspace(
                             .fillMaxWidth()
                             .padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                     ) {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize().padding(end = 12.dp),
+                        // Plain Column keeps the scrollbar thumb length stable: a
+                        // LazyColumn reports an average-of-visible-items content size,
+                        // so the thumb grows and shrinks while scrolling. fillMaxSize +
+                        // verticalScroll keeps the viewport floor so the bottom
+                        // arrangement still sticks short chats to the composer.
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(end = 12.dp)
+                                .verticalScroll(scrollState)
+                                .padding(vertical = 4.dp),
                             // Chat-app behaviour: short conversations stick to the
                             // composer instead of floating in the middle; the spare
                             // space stays above the first message.
                             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
-                            contentPadding = PaddingValues(vertical = 4.dp),
                         ) {
-                            items(state.messages, key = { it.id }) { message ->
-                                ChatBubble(
-                                    message = message,
-                                    onAction = onAction,
-                                    expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
-                                    onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
-                                )
+                            state.messages.forEach { message ->
+                                key(message.id) {
+                                    ChatBubble(
+                                        message = message,
+                                        onAction = onAction,
+                                        expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
+                                        onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
+                                    )
+                                }
                             }
                             state.activeExecution?.let { active ->
-                                item(key = "active-execution") {
+                                key("active-execution") {
                                     ActiveExecutionCard(active = active)
                                 }
                             }
                             state.askUserRequest?.let { request ->
-                                item(key = "ask-user-bubble-${request.id}") {
+                                key("ask-user-bubble-${request.id}") {
                                     AskUserBubble(
                                         request = request,
                                         onAnswer = viewModel::onAnswerAskUser,
@@ -1353,7 +1326,7 @@ private fun ChatWorkspace(
                             }
                         }
                         VerticalScrollbar(
-                            adapter = rememberScrollbarAdapter(listState),
+                            adapter = rememberScrollbarAdapter(scrollState),
                             modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
                         )
                     }
@@ -1402,30 +1375,37 @@ private fun ChatWorkspace(
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp, vertical = 8.dp),
                 ) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize().padding(end = 12.dp),
+                    // Plain Column for the same stable-thumb reason as the wide
+                    // layout above; the manifest preview joins the flow as a normal
+                    // child instead of a lazy item.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(end = 12.dp)
+                            .verticalScroll(scrollState)
+                            .padding(vertical = 4.dp),
                         // Chat-app behaviour: short conversations stick to the
                         // composer instead of floating in the middle; the spare
                         // space stays above the first message.
                         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom),
-                        contentPadding = PaddingValues(vertical = 4.dp),
                     ) {
-                        items(state.messages, key = { it.id }) { message ->
+                        state.messages.forEach { message ->
+                            key(message.id) {
                                 ChatBubble(
                                     message = message,
                                     onAction = onAction,
                                     expandableExecutionSteps = shouldRenderFullExecutionSteps(state.messages, message.id),
                                     onToggleExecutionExpanded = viewModel::onToggleExecutionExpanded,
                                 )
+                            }
                         }
                         state.activeExecution?.let { active ->
-                            item(key = "active-execution") {
+                            key("active-execution") {
                                 ActiveExecutionCard(active = active)
                             }
                         }
                         state.askUserRequest?.let { request ->
-                            item(key = "ask-user-bubble-${request.id}") {
+                            key("ask-user-bubble-${request.id}") {
                                 AskUserBubble(
                                     request = request,
                                     onAnswer = viewModel::onAnswerAskUser,
@@ -1434,13 +1414,13 @@ private fun ChatWorkspace(
                             }
                         }
                         if (state.manifestJson.isNotBlank()) {
-                            item(key = "manifest-card") {
+                            key("manifest-card") {
                                 PreviewArtifactPanel(fillRemainingHeight = false)
                             }
                         }
                     }
                     VerticalScrollbar(
-                        adapter = rememberScrollbarAdapter(listState),
+                        adapter = rememberScrollbarAdapter(scrollState),
                         modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
                     )
                 }
@@ -1574,6 +1554,9 @@ private fun ChatBubble(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
+                                    // The capsule above is the only fold for the
+                                    // finalized card: expanding it reveals every
+                                    // phase and activity row. No inner fold.
                                     message.executionSteps.forEach { step ->
                                         ExecutionStepBlock(
                                             step = step,
@@ -1764,8 +1747,14 @@ private fun phaseColors(phase: String): Triple<Color, Color, Color> {
 
 @Composable
 private fun ActiveExecutionCard(active: ActiveExecution) {
-    // Transient run card (stage 3 ActiveExecutionCard): auto-expanded while the
-    // session runs, with the active phase highlighted and a live tool-activity line.
+    // Transient run card (stage 3 ActiveExecutionCard): one fold covers the whole
+    // run (not per phase). Collapsed by default, it keeps only the current (last)
+    // phase tag line with its running indicator; every activity detail line hides
+    // behind the "N earlier steps" toggle. The card leaves the chat list between
+    // runs, so the fold state resets then.
+    var activitiesExpanded by remember { mutableStateOf(false) }
+    val hiddenCount = earlierExecutionActivityCount(active.steps)
+    val visibleSteps = visibleExecutionSteps(active.steps, activitiesExpanded)
     Surface(
         color = colors.inputBackground,
         contentColor = colors.textTitle,
@@ -1791,7 +1780,14 @@ private fun ActiveExecutionCard(active: ActiveExecution) {
                     ),
                 )
             }
-            active.steps.forEach { step ->
+            if (hiddenCount > 0) {
+                EarlierStepsToggle(
+                    hiddenCount = hiddenCount,
+                    expanded = activitiesExpanded,
+                    onToggle = { activitiesExpanded = !activitiesExpanded },
+                )
+            }
+            visibleSteps.forEach { step ->
                 ExecutionStepBlock(
                     step = step,
                     liveActivity = if (step.isRunning) active.currentActivity else null,
@@ -1889,12 +1885,42 @@ private fun StepPhaseTag(phase: String, isFailed: Boolean = false) {
     )
 }
 
+/** Toggle row revealing the whole-run activity history hidden by the fold. */
+@Composable
+private fun EarlierStepsToggle(hiddenCount: Int, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier
+            .cursorHand()
+            .clickable { onToggle() }
+            .padding(horizontal = 2.dp, vertical = 1.dp),
+    ) {
+        Icon(
+            if (expanded) Lucide.ChevronUp else Lucide.ChevronDown,
+            contentDescription = if (expanded) "Collapse earlier steps" else "Expand earlier steps",
+            modifier = Modifier.size(12.dp),
+            tint = colors.textMuted,
+        )
+        Text(
+            if (hiddenCount == 1) "1 earlier step" else "$hiddenCount earlier steps",
+            style = typography.caption.copy(
+                color = colors.primary,
+                fontSize = typography.caption.fontSize * 0.92f,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
+    }
+}
+
 @Composable
 private fun ExecutionStepBlock(
     step: ExecutionStep,
     isFailed: Boolean = false,
     liveActivity: String? = null,
 ) {
+    // Whole-run fold lives on the card level (see ActiveExecutionCard / the
+    // finalized steps block); a step block always renders all its activity lines.
     val titleColor = when {
         isFailed -> colors.dangerDefault
         step.isRunning -> colors.primary
@@ -2929,14 +2955,13 @@ private fun pickImages(onAttach: (List<PendingImage>) -> Unit) {
     }
 }
 
-/** Compact plus button inside the input box, bottom-right aligned. */
+/** Round attach button in the composer action strip. */
 @Composable
 private fun InlineAttachButton(enabled: Boolean, onAttachImages: (List<PendingImage>) -> Unit) {
     val colors = MaterialTheme.colors
     Tooltip("Attach image (paste also works: Ctrl+V)", position = TooltipPosition.Top) {
         Box(
             modifier = Modifier
-                .padding(bottom = 8.dp)
                 .size(30.dp)
                 .clip(CircleShape)
                 .background(colors.inputBackground)
@@ -3181,17 +3206,16 @@ private fun Composer(
         onNoteChange(updated.text)
     }
 
+    // One bordered box (ChatGPT/Claude style): text area on top, action strip
+    // with attach, model selector and Send along the bottom inside the box.
     Column(
-        modifier = modifier
-            .then(
-                if (centered) {
-                    Modifier
-                } else {
-                    Modifier
-                        .border(BorderStroke(1.dp, colors.borderDefault))
-                        .padding(horizontal = 24.dp, vertical = 12.dp)
-                }
-            ),
+        modifier = modifier.then(
+            if (centered) {
+                Modifier
+            } else {
+                Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            }
+        ),
     ) {
         Column(
             modifier = Modifier
@@ -3218,10 +3242,6 @@ private fun Composer(
                     }
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
             BasicTextField(
                 value = fieldValue,
                 onValueChange = { value ->
@@ -3253,7 +3273,7 @@ private fun Composer(
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { submit() }),
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .heightIn(min = 46.dp, max = 150.dp)
                     .focusRequester(focusRequester)
                     .onFocusChanged { focused = it.isFocused }
@@ -3311,7 +3331,7 @@ private fun Composer(
                     BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                            .padding(start = 14.dp, top = 12.dp, end = 14.dp, bottom = 4.dp)
                             .onSizeChanged { refFieldHeightPx = it.height },
                         contentAlignment = Alignment.CenterStart,
                     ) {
@@ -3352,31 +3372,27 @@ private fun Composer(
                     }
                 },
             )
+
+            // Action strip along the bottom inside the box: attach and model
+            // selector on the left, Cancel/Send on the right.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 InlineAttachButton(
                     enabled = !state.running && !state.testing && state.pendingImages.size < MAX_PENDING_IMAGES,
                     onAttachImages = onAttachImages,
                 )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CompactModelSelector(
-                selectedModel = state.selectedModel,
-                availableModels = state.availableModels,
-                loading = state.fetchingModels,
-                onModelChange = onModelChange,
-                onFetchModels = onFetchModels,
-                enabled = !state.running && !state.testing,
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+                CompactModelSelector(
+                    selectedModel = state.selectedModel,
+                    availableModels = state.availableModels,
+                    loading = state.fetchingModels,
+                    onModelChange = onModelChange,
+                    onFetchModels = onFetchModels,
+                    enabled = !state.running && !state.testing,
+                )
+                Spacer(Modifier.weight(1f))
                 if (state.running && state.askUserRequest == null) {
                     OutlinedButton(
                         onClick = onCancel,

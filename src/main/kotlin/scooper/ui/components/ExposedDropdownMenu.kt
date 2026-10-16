@@ -20,6 +20,14 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalDensity
@@ -52,6 +60,26 @@ internal fun filterByTokens(items: List<String>, query: String): List<String> {
     if (tokens.isEmpty()) return items
     return items.filter { item -> tokens.all { item.contains(it, ignoreCase = true) } }
 }
+
+/**
+ * Keyboard highlight index for the model menu: unset only while the list is
+ * empty; otherwise a valid row index.
+ */
+internal const val MENU_HIGHLIGHT_UNSET = -1
+
+/**
+ * Row the menu opens on: the selected entry's index in the selectable rows
+ * (custom "use query" row included), or the first row when it is absent.
+ * Exact match, mirroring how the checkmark row is rendered.
+ */
+internal fun initialMenuHighlightIndex(selected: String, entries: List<String>): Int {
+    val index = entries.indexOfFirst { it == selected }
+    return if (index >= 0) index else 0
+}
+
+/** Keeps the keyboard highlight inside 0 until size-1; an empty list maps to unset. */
+internal fun clampMenuIndex(index: Int, size: Int): Int =
+    if (size <= 0) MENU_HIGHLIGHT_UNSET else index.coerceIn(0, size - 1)
 
 /**
  * Safe wrapper for VerticalScrollbar that protects against Compose Desktop's
@@ -251,6 +279,7 @@ fun SearchableDropdownMenuPopup(
     maxWidth: Dp = 360.dp,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     showCustomQueryOption: Boolean = true,
+    keyboardNavigation: Boolean = false,
 ) {
     if (!expanded) return
 
@@ -267,6 +296,25 @@ fun SearchableDropdownMenuPopup(
 
     val isCustomQuery = showCustomQueryOption && searchQuery.isNotBlank() &&
         items.none { it.equals(searchQuery.trim(), ignoreCase = true) }
+
+    // Keyboard navigation state (composer only): highlighted row over the
+    // selectable entries (custom "use query" row first, then filtered items).
+    // The popup leaves composition when collapsed, so the highlight is
+    // re-resolved on every open and whenever the query or model list changes:
+    // it starts on the selected entry when the filter keeps it visible,
+    // otherwise falls back to the first row.
+    val selectableEntries = remember(filteredItems, isCustomQuery, searchQuery) {
+        buildList {
+            if (isCustomQuery) add(searchQuery.trim())
+            addAll(filteredItems)
+        }
+    }
+    var highlightIndex by remember {
+        mutableStateOf(initialMenuHighlightIndex(selectedItem, selectableEntries))
+    }
+    LaunchedEffect(selectableEntries, selectedItem) {
+        highlightIndex = initialMenuHighlightIndex(selectedItem, selectableEntries)
+    }
 
     val density = LocalDensity.current
     val positionProvider = remember(density, offset) {
@@ -367,7 +415,41 @@ fun SearchableDropdownMenuPopup(
                                     onValueChange = onSearchQueryChange,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .focusRequester(searchFocusRequester),
+                                        .focusRequester(searchFocusRequester)
+                                        .onPreviewKeyEvent { event ->
+                                            if (!keyboardNavigation || event.type != KeyEventType.KeyDown) {
+                                                false
+                                            } else when (event.key) {
+                                                Key.DirectionDown -> {
+                                                    highlightIndex = clampMenuIndex(
+                                                        highlightIndex + 1,
+                                                        selectableEntries.size,
+                                                    )
+                                                    true
+                                                }
+                                                Key.DirectionUp -> {
+                                                    highlightIndex = clampMenuIndex(
+                                                        highlightIndex - 1,
+                                                        selectableEntries.size,
+                                                    )
+                                                    true
+                                                }
+                                                Key.Enter, Key.NumPadEnter -> {
+                                                    if (!event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed &&
+                                                        selectableEntries.isNotEmpty()
+                                                    ) {
+                                                        onItemSelected(selectableEntries[highlightIndex])
+                                                        onDismissRequest()
+                                                    }
+                                                    !event.isShiftPressed && !event.isCtrlPressed && !event.isAltPressed
+                                                }
+                                                Key.Escape -> {
+                                                    onDismissRequest()
+                                                    true
+                                                }
+                                                else -> false
+                                            }
+                                        },
                                     singleLine = true,
                                     textStyle = typography.caption.copy(color = colors.textTitle),
                                     cursorBrush = SolidColor(colors.primary),
@@ -438,11 +520,16 @@ fun SearchableDropdownMenuPopup(
                 // 2. Custom Option
                 if (isCustomQuery) {
                     var customHover by remember { mutableStateOf(false) }
+                    val customHighlighted = keyboardNavigation && highlightIndex == 0
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(34.dp)
-                            .background(if (customHover) colors.primarySubtle.copy(alpha = 0.6f) else colors.surface)
+                            .background(
+                                if (customHighlighted) colors.primarySubtle
+                                else if (customHover) colors.primarySubtle.copy(alpha = 0.6f)
+                                else colors.surface
+                            )
                             .onHover { customHover = it }
                             .cursorHand()
                             .clickable {
@@ -475,6 +562,27 @@ fun SearchableDropdownMenuPopup(
 
                 // 3. List with Scrollbar
                 val scrollState = rememberScrollState()
+                if (keyboardNavigation) {
+                    // Keep the highlighted row inside the viewport. Model rows
+                    // have a fixed 32.dp height; the custom "use query" row
+                    // lives above the scroll area and never needs scrolling.
+                    // viewportSize is part of the keys so a freshly opened
+                    // menu also scrolls to the highlighted selected row once
+                    // the first layout pass reports a real viewport height.
+                    val rowHeightPx = with(density) { 32.dp.roundToPx() }
+                    LaunchedEffect(highlightIndex, selectableEntries, scrollState.viewportSize) {
+                        if (scrollState.viewportSize == 0) return@LaunchedEffect
+                        val rowIndex = highlightIndex - (if (isCustomQuery) 1 else 0)
+                        if (rowIndex < 0) return@LaunchedEffect
+                        val top = rowIndex * rowHeightPx
+                        val bottom = top + rowHeightPx
+                        val viewportEnd = scrollState.value + scrollState.viewportSize
+                        when {
+                            top < scrollState.value -> scrollState.animateScrollTo(top)
+                            bottom > viewportEnd -> scrollState.animateScrollTo(bottom - scrollState.viewportSize)
+                        }
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .heightIn(max = 220.dp)
@@ -534,15 +642,18 @@ fun SearchableDropdownMenuPopup(
                                 }
                             }
                             else -> {
-                                filteredItems.forEach { item ->
+                                val customRowOffset = if (isCustomQuery) 1 else 0
+                                filteredItems.forEachIndexed { index, item ->
                                     var itemHover by remember { mutableStateOf(false) }
                                     val isSelected = item == selectedItem
+                                    val isHighlighted = keyboardNavigation &&
+                                        highlightIndex == index + customRowOffset
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(32.dp)
                                             .background(
-                                                if (isSelected) colors.primarySubtle
+                                                if (isSelected || isHighlighted) colors.primarySubtle
                                                 else if (itemHover) colors.primarySubtle.copy(alpha = 0.45f)
                                                 else colors.surface,
                                             )
@@ -559,8 +670,8 @@ fun SearchableDropdownMenuPopup(
                                         Text(
                                             item,
                                             style = typography.caption.copy(
-                                                color = if (isSelected) colors.primary else colors.textTitle,
-                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                                color = if (isSelected || isHighlighted) colors.primary else colors.textTitle,
+                                                fontWeight = if (isSelected || isHighlighted) FontWeight.SemiBold else FontWeight.Normal,
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -852,6 +963,7 @@ fun CompactModelSelector(
             loading = loading,
             onFetch = onFetchModels,
             offset = DpOffset(0.dp, 4.dp),
+            keyboardNavigation = true,
         )
     }
 }
