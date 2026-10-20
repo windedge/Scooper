@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import scooper.util.OperationCancelledException
 import scooper.util.logger
 
 @Suppress("unused")
@@ -31,11 +32,24 @@ class TaskQueue {
     private val _progressFlow = MutableStateFlow<Int?>(null)
     val progressFlow: StateFlow<Int?> = _progressFlow.asStateFlow()
 
+    @Volatile
+    private var runningTaskName: String? = null
+
+    /**
+     * Set by [cancelRunningTask]. Task bodies do blocking work coroutine cancellation cannot
+     * interrupt, so they poll [isRunningTaskCancelled] to abort cooperatively.
+     */
+    @Volatile
+    private var runningTaskCancelled = false
+
     private val mutex = Mutex()
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
-    /** Signal channel to notify when a new task is added. */
-    private val _taskSignal = kotlinx.coroutines.channels.Channel<Unit>(Channel.RENDEZVOUS)
+    /**
+     * Signal channel to notify when a new task is added. Conflated so addTask never
+     * suspends: a rendezvous send would block the caller while another task runs.
+     */
+    private val _taskSignal = kotlinx.coroutines.channels.Channel<Unit>(Channel.CONFLATED)
 
     init {
         coroutineScope.launch {
@@ -59,15 +73,26 @@ class TaskQueue {
 
         try {
             logger.info("Run task: ${task::class.simpleName}: ${task.name}")
+            runningTaskName = task.name
+            runningTaskCancelled = false
             _progressFlow.value = null
             _runningTaskFlow.emit(task)
             task.execute()
             _resultFlow.emit(Result.success(task))
         } catch (e: Exception) {
-            logger.error(e.stackTraceToString())
-            _resultFlow.emit(Result.failure(e))
+            // A cancelled task aborts by throwing, which is not an error worth a stack trace.
+            if (!runningTaskCancelled) logger.error(e.stackTraceToString())
+            _resultFlow.emit(
+                if (runningTaskCancelled) {
+                    Result.failure(OperationCancelledException("Task cancelled: ${task.name}"))
+                } else {
+                    Result.failure(e)
+                },
+            )
         } finally {
             logger.info("Task ended: ${task::class.simpleName}: ${task.name}")
+            runningTaskName = null
+            runningTaskCancelled = false
             _progressFlow.value = null
             _runningTaskFlow.emit(null)
             // After current task finishes, signal if there are pending tasks
@@ -93,13 +118,27 @@ class TaskQueue {
         return pendingTasks.containsKey(name)
     }
 
+    /** True once the user asked the currently running task to stop. */
+    fun isRunningTaskCancelled(): Boolean = runningTaskCancelled
+
+    /**
+     * Ask the currently running task to stop; false when idle. The task body aborts
+     * cooperatively by polling [isRunningTaskCancelled].
+     */
+    fun cancelRunningTask(): Boolean {
+        val running = runningTaskName ?: return false
+        logger.info("Cancel running task $running")
+        runningTaskCancelled = true
+        return true
+    }
+
     suspend fun addTask(task: Task) {
         mutex.withLock {
             logger.info("Add task ${task.name}")
             pendingTasks[task.name] = task
             _pendingTasksFlow.emit(pendingTasks.values.toList())
         }
-        _taskSignal.send(Unit)
+        _taskSignal.trySend(Unit)
     }
 
     suspend fun cancelTask(name: String) {

@@ -134,8 +134,9 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Search input with icon
+        // weight(1f) lets it absorb leftover width so right-side buttons stay visible
         Row(
-            modifier = Modifier.widthIn(min = 140.dp, max = 320.dp).height(36.dp)
+            modifier = Modifier.weight(1f).widthIn(min = 160.dp).height(36.dp)
                 .border(width = 1.dp, color = borderColor, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .background(colors.inputBackground)
@@ -318,7 +319,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(12.dp))
         RefreshScoopButton()
     }
 }

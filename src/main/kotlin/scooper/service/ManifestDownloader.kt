@@ -3,6 +3,7 @@ package scooper.service
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 import scooper.util.getString
+import scooper.util.OperationCancelledException
 import java.io.File
 import java.net.URI
 import java.net.http.HttpClient
@@ -74,10 +75,13 @@ open class ManifestDownloader {
         destFile: File,
         hash: String? = null,
         onProgress: (percent: Int) -> Unit = {},
+        shouldCancel: () -> Boolean,
     ): File? {
+        var tempFile: File? = null
+        if (shouldCancel()) throw OperationCancelledException("Download cancelled: $url")
         return try {
             destFile.parentFile?.mkdirs()
-            val tempFile = File(destFile.parent, destFile.name + ".download")
+            tempFile = File(destFile.parent, destFile.name + ".download")
 
             // HEAD request to get Content-Length
             val contentLengthFromHead = try {
@@ -115,6 +119,7 @@ open class ManifestDownloader {
                 response.body().use { input ->
                     var bytesRead: Int
                     while (input.read(buffer).also { bytesRead = it } != -1) {
+                        if (shouldCancel()) throw OperationCancelledException("Download cancelled: $url")
                         out.write(buffer, 0, bytesRead)
                         digest?.update(buffer, 0, bytesRead)
                         val total = downloaded.addAndGet(bytesRead.toLong())
@@ -142,6 +147,9 @@ open class ManifestDownloader {
             tempFile.renameTo(destFile)
             onProgress(100)
             destFile
+        } catch (e: OperationCancelledException) {
+            tempFile?.delete()
+            throw e
         } catch (e: Exception) {
             logger.error("Download error: ${e.message}", e)
             null

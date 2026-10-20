@@ -251,6 +251,7 @@ class ScoopClientPrewarmCacheTest {
             destFile: File,
             hash: String?,
             onProgress: (Int) -> Unit,
+            shouldCancel: () -> Boolean,
         ): File? {
             downloadCalls++
             downloadedUrls.add(url)

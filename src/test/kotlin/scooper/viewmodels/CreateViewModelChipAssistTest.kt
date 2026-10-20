@@ -133,6 +133,50 @@ class CreateViewModelChipAssistTest {
         }
     }
 
+    @Test
+    fun `clicking the fix name conflict chip starts assist with the conflict prompt`() = runBlocking {
+        val bridge = RecordingBridge(FakeRepo())
+        val vm = createVm(bridge)
+        try {
+            // Conflict-only finish state: manifest valid, nothing running.
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) {
+                    vm.container.orbit {
+                        reduce {
+                            state.copy(
+                                manifestJson = """{"version":"1.0.0","description":"A tool."}""",
+                                manifestIssues = listOf(
+                                    "App name 'fd' conflicts with an existing manifest in a local Scoop bucket. Choose a different name (e.g. prefix with repo name or owner).",
+                                ),
+                                manifestSaved = false,
+                            )
+                        }
+                    }.join()
+                }
+            }
+
+            val chip = vm.container.stateFlow.value.reviewActionChips
+                .firstOrNull { it.label == "Fix name conflict" }
+            assertNotNull(chip, "a conflict issue must produce a Fix name conflict chip")
+
+            vm.onApplyActionChip(chip!!)
+
+            awaitState(vm) { !it.running && it.messages.isNotEmpty() }
+            assertEquals(1, bridge.assistStarts, "chip click must start an assist run")
+            val instruction = bridge.assistInstructions.single()
+            assertTrue(
+                instruction.contains("conflict", ignoreCase = true),
+                "assist prompt must carry the conflict context, was: $instruction",
+            )
+            assertEquals(
+                "⚡ Apply fix: Fix name conflict",
+                vm.container.stateFlow.value.messages.first { it.role == ChatRole.User }.text,
+            )
+        } finally {
+            vm.close()
+        }
+    }
+
     private open class FakeRepo : ConfigRepository() {
         private val config = scooper.data.UIConfig(
             aiProvider = "openai-compatible",

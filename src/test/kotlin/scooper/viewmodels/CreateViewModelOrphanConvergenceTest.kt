@@ -54,6 +54,29 @@ class CreateViewModelOrphanConvergenceTest {
         aiLastBucket = lastBucket,
     )
 
+    /** Stub every scoop command with exit 0; the shim does not record args. */
+    private suspend fun <T> withScoopShim(block: suspend () -> T): T {
+        val dir = File(System.getProperty("java.io.tmpdir"), "scooper-shim-${System.nanoTime()}").apply { mkdirs() }
+        val cmd = dir.resolve("scoop.cmd").apply {
+            writeText("@echo off\r\necho Installing\r\nexit /b 0\r\n")
+            deleteOnExit()
+        }
+        System.setProperty(scooper.util.TEST_SCOOP_SHIM_ENV, cmd.absolutePath)
+        return try {
+            block()
+        } finally {
+            System.clearProperty(scooper.util.TEST_SCOOP_SHIM_ENV)
+            dir.deleteRecursively()
+        }
+    }
+
+    /** Simulates scoop's on-disk layout for an installed app: apps/<name>/current/manifest.json. */
+    private fun presetInstalledManifest(name: String, manifestJson: String) {
+        val current = tempDir.resolve("apps/$name/current")
+        current.mkdirs()
+        current.resolve("manifest.json").writeText(manifestJson)
+    }
+
     /** Scoop on-disk bucket layout: buckets/<name>/bucket/<app>.json (ScoopClient.kt). */
     private fun makeBucketWithManifest(bucket: String, appName: String) {
         val dir = tempDir.resolve("buckets").resolve(bucket).resolve("bucket")
@@ -196,6 +219,36 @@ class CreateViewModelOrphanConvergenceTest {
             assertNull(row?.bucket, "the row must stay an orphan when nothing was indexed")
         } finally {
             vm.close()
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Save to Bucket then direct install keeps a single Discover row
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `direct install after a save keeps one row with the bucket attribution`() = runBlocking {
+        withScoopShim {
+            makeBucketWithManifest("main", "testapp")
+            presetInstalledManifest("testapp", """{"version":"1.2.3"}""")
+            val vm = createViewModel()
+            try {
+                preset(vm, manifestJson = """{"version":"1.2.3"}""")
+                saveThroughDialog(vm)
+                assertEquals(true, vm.container.stateFlow.value.manifestSaved, "save must succeed before install")
+
+                withContext(Dispatchers.Default) {
+                    withTimeout(10_000) { vm.executeInstallApp(bucket = null, name = "testapp").join() }
+                }
+
+                // bucket = null takes the plural upsert path, which must reuse the existing row.
+                val rows = appsRepository.getApps(query = "testapp").value.filter { it.name == "testapp" }
+                assertEquals(1, rows.size, "Discover must show a single row after save then install")
+                assertEquals("main", rows[0].bucket?.name, "the row must keep the bucket attribution")
+                assertEquals(AppStatus.INSTALLED, rows[0].status, "the row must show as installed")
+            } finally {
+                vm.close()
+            }
         }
     }
 }

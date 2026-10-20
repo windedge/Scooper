@@ -2382,6 +2382,10 @@ internal suspend fun saveManifestCore(
             indexedOk = indexSaved(bucket, app)
             if (!indexedOk) onWarn("Saved manifest could not be indexed: $appName.json")
 
+            // A prior direct install recorded the temp manifest path as install source, which
+            // scoop update cannot resolve once the file is gone; re-point it at the bucket.
+            convergeDirectInstallRecords(bucket, appName, installed, onWarn)
+
             val isGit = isGitBucket(bucketDir)
             val manifestVersion = try {
                 (Json.parseToJsonElement(manifestJson) as? JsonObject)?.get("version")?.jsonPrimitive?.content
@@ -2422,6 +2426,30 @@ internal suspend fun saveManifestCore(
         gitCommitted = gitCommitted,
         gitHint = gitHint,
     )
+}
+
+/**
+ * Re-point url-pinned direct-install records for [appName] at [bucket]: scoop re-resolves
+ * apps/<name>/current/scoop-install.json on update, so a stale temp-file url breaks
+ * `scoop update`. Best-effort: failures only warn.
+ */
+private fun convergeDirectInstallRecords(
+    bucket: String,
+    appName: String,
+    installed: Map<String, InstalledAppInfo>,
+    onWarn: (String) -> Unit,
+) {
+    val recordFile = installed[appName.lowercase()]?.appDir?.resolve("current/scoop-install.json") ?: return
+    if (!recordFile.isFile) return
+    try {
+        val record = Json.parseToJsonElement(recordFile.readText()) as? JsonObject ?: return
+        val url = (record["url"] as? JsonPrimitive)?.contentOrNull ?: return
+        if (!url.replace('\\', '/').lowercase().contains("/scooper/direct-install/")) return
+        val converged = JsonObject(record.filterKeys { it != "url" } + ("bucket" to JsonPrimitive(bucket)))
+        recordFile.writeText(converged.toString())
+    } catch (e: Exception) {
+        onWarn("Post-save install-record convergence failed for $appName: ${e.message}")
+    }
 }
 
 /**

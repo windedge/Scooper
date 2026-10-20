@@ -306,10 +306,10 @@ class AppsRepository(
     }
 
     /**
-     * Insert or update apps without touching timestamps. An app with no
-     * bucket matches only a true orphan row (same name, bucketId null), so a
-     * same-name bucket row is never converted into an orphan. Public so the
-     * direct-install path can record an installed app without a bucket.
+     * Insert or update apps without touching timestamps. A no-bucket write converges into a
+     * same-name row (orphan first, then bucket row keeping its attribution) so Save to Bucket
+     * followed by a direct install never yields two Discover entries. Public for the
+     * direct-install path.
      */
     fun upsertApps(apps: List<App>) = synchronized(writeLock) { transaction {
         upsertApps(apps, preserveUpdateAt = false)
@@ -338,13 +338,18 @@ class AppsRepository(
                 // Orphan app (no bucket): find by name where bucket is null
                 val query = Apps.selectAll().where { (Apps.name eq app.name) and (Apps.bucketId eq null) }
                 val existing = AppEntity.wrapRows(query).firstOrNull()
-                if (existing != null) {
+                // No orphan row: reuse the same-name bucket row (attribution kept), otherwise
+                // Save to Bucket followed by a direct install shows two Discover entries.
+                val fallback = existing ?: AppEntity.wrapRows(
+                    Apps.selectAll().where { Apps.name eq app.name }
+                ).minByOrNull { it.id.value }
+                if (fallback != null) {
                     val updatedApp = if (preserveUpdateAt) {
-                        app.copy(createAt = existing.createAt, updateAt = existing.updateAt)
+                        app.copy(createAt = fallback.createAt, updateAt = fallback.updateAt)
                     } else {
-                        app.copy(createAt = existing.createAt)
+                        app.copy(createAt = fallback.createAt)
                     }
-                    existing.update(updatedApp, null)
+                    fallback.update(updatedApp, fallback.bucket)
                 } else {
                     AppEntity.new { update(app, null) }
                 }

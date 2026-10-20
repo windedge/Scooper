@@ -3,8 +3,8 @@ package scooper.taskqueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import scooper.util.OperationCancelledException
 
 /**
  * TaskQueue consumes tasks on a background coroutine, so asserting on
@@ -80,6 +81,7 @@ class TaskQueueTest {
 
         assertEquals(listOf(secondTask), pending.last())
         releaseFirst.complete(Unit)
+        Unit
     }
 
     @Test
@@ -100,6 +102,7 @@ class TaskQueueTest {
         assertFalse(taskQueue.containTask("cancel-me"))
 
         release.complete(Unit)
+        Unit
     }
 
     @Test
@@ -111,5 +114,41 @@ class TaskQueueTest {
     fun `getTask returns null for unknown name`() {
         assertNotNull(taskQueue)
         assertEquals(null, taskQueue.getTask("nonexistent"))
+    }
+    // ---------------------------------------------------------------
+    // Running-task cancellation
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `cancelRunningTask stops the running task and emits cancelled result`() = runBlocking {
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val results = mutableListOf<Result<Task>>()
+        val resultJob = CoroutineScope(Dispatchers.Unconfined).launch {
+            taskQueue.resultFlow.take(1).toList(results)
+        }
+        taskQueue.addTask(Task.Refresh("running") {
+            started.complete(Unit)
+            while (!taskQueue.isRunningTaskCancelled()) {
+                kotlinx.coroutines.delay(10)
+            }
+            // Cancelled task bodies abort by throwing, see ScoopClient download loops.
+            throw OperationCancelledException("cancelled by user")
+        })
+        withTimeout(5000) { started.await() }
+
+        assertEquals("running", taskQueue.runningTaskFlow.first()?.name)
+        assertTrue(taskQueue.cancelRunningTask())
+        withTimeout(5000) { resultJob.join() }
+
+        assertTrue(results.single().isFailure)
+        assertTrue(results.single().exceptionOrNull() is OperationCancelledException)
+        withTimeout(5000) { taskQueue.runningTaskFlow.first { it == null } }
+        Unit
+    }
+
+    @Test
+    fun `cancelRunningTask returns false when the queue is idle`() {
+        assertFalse(taskQueue.cancelRunningTask())
+        assertFalse(taskQueue.isRunningTaskCancelled())
     }
 }

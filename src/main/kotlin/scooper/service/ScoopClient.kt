@@ -16,6 +16,7 @@ import scooper.util.executeSuspend
 import scooper.util.findExecutable
 import scooper.util.getString
 import scooper.util.killAllSubProcesses
+import scooper.util.OperationCancelledException
 import scooper.util.scoopTestEnv
 import java.io.File
 import java.nio.file.Files
@@ -438,8 +439,10 @@ class ScoopClient(
         return executeAndLog(commandArgs)
     }
 
+    /** Single choke point for "stop everything": flag the running task cancelled, then kill its process tree. */
     override fun stop() {
         logger.warn("stopping all processes...")
+        taskQueue.cancelRunningTask()
         killAllSubProcesses()
         logger.warn("all processes stopped")
     }
@@ -648,6 +651,9 @@ class ScoopClient(
         var prewarmed = 0
 
         for ((index, item) in info.items.withIndex()) {
+            if (taskQueue.isRunningTaskCancelled()) {
+                throw OperationCancelledException("Pre-download cancelled for ${app.name}")
+            }
             val cacheName = cacheFileName(app, version, item.url)
             val destFile = cacheDir.resolve(cacheName)
             logStream.emit("$logPrefix url[${index + 1}/$totalItems]: ${item.url}")
@@ -677,10 +683,12 @@ class ScoopClient(
                 url = item.url,
                 destFile = destFile,
                 hash = item.hash,
-            ) { percent ->
-                val overall = (((index + percent / 100f) / totalItems) * 100).toInt().coerceIn(0, 100)
-                taskQueue.updateProgress(overall)
-            }
+                onProgress = { percent ->
+                    val overall = (((index + percent / 100f) / totalItems) * 100).toInt().coerceIn(0, 100)
+                    taskQueue.updateProgress(overall)
+                },
+                shouldCancel = { taskQueue.isRunningTaskCancelled() },
+            )
 
             if (result != null) {
                 logStream.emit("Downloaded to cache: ${result.absolutePath}")

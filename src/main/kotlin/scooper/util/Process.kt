@@ -104,10 +104,22 @@ private fun buildCommand(commandArgs: List<String>, asShell: Boolean): Array<Str
 }
 
 fun killAllSubProcesses() {
-    ProcessHandle.current().descendants().forEach { it.destroy() }
-    while (ProcessHandle.current().descendants().anyMatch { it.isAlive }) {
-        runBlocking { delay(100) }
+    val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+    if (isWindows) {
+        // taskkill /T kills the whole tree and must run while the parent chain (cmd -> pwsh ->
+        // aria2) is alive: killing only the direct child orphans descendants that keep going.
+        for (child in ProcessHandle.current().children().toList()) {
+            runCatching {
+                ProcessBuilder("taskkill", "/PID", child.pid().toString(), "/T", "/F")
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start()
+                    .waitFor()
+            }
+        }
     }
+    // Force-kill whatever is left, including stragglers re-parented mid-kill.
+    ProcessHandle.current().descendants().forEach { it.destroyForcibly() }
 }
 
 fun findExecutable(name: String): String? {
