@@ -457,6 +457,12 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val githubTokenState: TextFieldState = formState.getState("aiGithubToken")
     val aiAutoDownloadState: SwitchState = formState.getState("aiAutoDownload")
 
+    val provider = providerState.value
+    val hints = AiProviderForm.hints(provider)
+    // A base URL of a hidden row belongs to another provider, so it is not
+    // sent to the fetcher or the tester.
+    val effectiveBaseUrl = if (hints.showBaseUrl) baseUrlState.value else null
+
     val formChangedState = rememberFormChanged(formState)
     val hasChanged by formChangedState.hasChanged
 
@@ -478,36 +484,41 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
         SectionCard {
             PrefRowStacked(
                 title = "Provider",
-                subtitle = "OpenAI-compatible API endpoint.",
+                subtitle = hints.providerSubtitle,
             ) {
                 val choices = providerState.choices
                 ExposedDropdownMenu(
                     choices.values.toList(),
-                    selected = choices[providerState.value] ?: providerState.value,
+                    selected = choices[provider] ?: provider,
                     onItemSelected = { label ->
                         providerState.value = choices.filterValues { it == label }.keys.first()
+                        settingsViewModel.onProviderChanged()
                     },
                 )
             }
             Divider(color = colors.divider)
-            AiTextFieldPrefStacked(
-                title = "API Key",
-                subtitle = "Stored locally. Never written to logs or toast messages.",
-                state = apiKeyState,
-                placeholder = "sk-...",
-                isPassword = true,
-            )
-            Divider(color = colors.divider)
-            AiTextFieldPrefStacked(
-                title = "Base URL",
-                subtitle = "Required for openai-compatible. The client appends /v1/chat/completions.",
-                state = baseUrlState,
-                placeholder = "https://api.openai.com",
-            )
-            Divider(color = colors.divider)
+            if (hints.showApiKey) {
+                AiTextFieldPrefStacked(
+                    title = "API Key",
+                    subtitle = hints.apiKeySubtitle,
+                    state = apiKeyState,
+                    placeholder = "sk-...",
+                    isPassword = true,
+                )
+                Divider(color = colors.divider)
+            }
+            if (hints.showBaseUrl) {
+                AiTextFieldPrefStacked(
+                    title = "Base URL",
+                    subtitle = hints.baseUrlSubtitle,
+                    state = baseUrlState,
+                    placeholder = hints.baseUrlPlaceholder,
+                )
+                Divider(color = colors.divider)
+            }
             PrefRowStacked(
                 title = "Model",
-                subtitle = "Search fetched models or type an id manually.",
+                subtitle = hints.modelSubtitle,
             ) {
                 Column {
                     SearchableModelDropdown(
@@ -518,19 +529,19 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                         error = settingsState.modelsState.error,
                         onFetchModels = {
                             settingsViewModel.fetchModels(
-                                provider = providerState.value,
+                                provider = provider,
                                 apiKey = apiKeyState.value,
-                                baseUrl = baseUrlState.value,
+                                baseUrl = effectiveBaseUrl,
                             )
                         },
-                        placeholder = "deepseek-chat",
+                        placeholder = hints.modelPlaceholder,
                         trailingContent = {
                             OutlinedButton(
                                 onClick = {
                                     settingsViewModel.testConnection(
-                                        provider = providerState.value,
+                                        provider = provider,
                                         apiKey = apiKeyState.value,
-                                        baseUrl = baseUrlState.value,
+                                        baseUrl = effectiveBaseUrl,
                                         model = modelState.value,
                                     )
                                 },

@@ -7,6 +7,7 @@ import com.scoopai.tools.DefaultScoopAiFactory
 import com.scoopai.tools.DefaultToolRegistryFactory
 import com.scoopai.tools.ScoopAiConfig
 import com.scoopai.tools.config.UsedAppNameScanner
+import com.scoopai.tools.llm.ProviderEndpoints
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,14 +58,16 @@ open class ScoopAiBridge(
         val autoDownload: Boolean = false,
     ) {
         fun missingReason(): String? {
-            if (provider !in SUPPORTED_PROVIDERS) {
-                return "Provider must be openai-compatible."
+            if (!ProviderCatalog.exists(provider)) {
+                return ProviderEndpoints.unsupportedProviderMessage(provider)
             }
-            if (apiKey.isBlank()) {
-                return "API key is missing. Fill it in Settings > AI, or set SCOOP_AI_API_KEY environment variable."
+            if (ProviderCatalog.requiresApiKey(provider) && apiKey.isBlank()) {
+                val envHint = ProviderCatalog.apiKeyEnvHint(provider)
+                val envNames = if (envHint == null) "SCOOP_AI_API_KEY" else "SCOOP_AI_API_KEY or $envHint"
+                return "API key is missing. Fill it in Settings > AI, or set $envNames environment variable."
             }
-            if (baseUrl.isBlank()) {
-                return "Base URL is required for openai-compatible. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable."
+            if (ProviderCatalog.requiresBaseUrl(provider) && baseUrl.isBlank()) {
+                return "Base URL is required for $provider. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable."
             }
             return null
         }
@@ -74,46 +77,57 @@ open class ScoopAiBridge(
 
     /**
      * Read AI settings with DB first, then environment variable fallback.
-     * Env vars: SCOOP_AI_API_KEY / DEEPSEEK_API_KEY, SCOOP_AI_BASE_URL,
-     * SCOOP_AI_MODEL, SCOOP_AI_PROVIDER, SCOOP_AI_GITHUB_TOKEN / GITHUB_TOKEN.
+     * Env vars: SCOOP_AI_API_KEY plus the environment variable of the
+     * resolved provider (DEEPSEEK_API_KEY / OPENAI_API_KEY /
+     * ANTHROPIC_API_KEY / OPENROUTER_API_KEY / OPENAI_COMPATIBLE_API_KEY),
+     * SCOOP_AI_BASE_URL, SCOOP_AI_MODEL, SCOOP_AI_PROVIDER,
+     * SCOOP_AI_GITHUB_TOKEN / GITHUB_TOKEN.
      */
-    fun readSettings(): AiSettingsSnapshot {
+    fun readSettings(): AiSettingsSnapshot = readSettings { name -> System.getenv(name) }
+
+    /**
+     * Read AI settings with DB first, then environment variable fallback.
+     * The API key fallback uses the environment variable of the resolved
+     * provider, so every provider reads its own key variable.
+     */
+    internal fun readSettings(envLookup: (String) -> String?): AiSettingsSnapshot {
         val config = configRepository.getConfig()
+        val provider = firstNonBlank(
+            config.aiProvider,
+            envLookup("SCOOP_AI_PROVIDER"),
+            DEFAULT_PROVIDER,
+        )
+        val providerEnvKey = ProviderCatalog.apiKeyEnvHint(provider).orEmpty()
         return AiSettingsSnapshot(
-            provider = firstNonBlank(
-                config.aiProvider,
-                env("SCOOP_AI_PROVIDER"),
-                DEFAULT_PROVIDER,
-            ),
+            provider = provider,
             apiKey = firstNonBlank(
                 config.aiApiKey,
-                env("SCOOP_AI_API_KEY"),
-                env("DEEPSEEK_API_KEY"),
+                envLookup("SCOOP_AI_API_KEY"),
+                if (providerEnvKey.isEmpty()) null else envLookup(providerEnvKey),
             ),
             baseUrl = normalizeAiBaseUrl(
                 firstNonBlank(
                     config.aiBaseUrl,
-                    env("SCOOP_AI_BASE_URL"),
+                    envLookup("SCOOP_AI_BASE_URL"),
                 ),
+                provider,
             ),
             model = firstNonBlank(
                 config.aiModel,
-                env("SCOOP_AI_MODEL"),
+                envLookup("SCOOP_AI_MODEL"),
             ),
             githubToken = firstNonBlank(
                 config.aiGithubToken,
-                env("SCOOP_AI_GITHUB_TOKEN"),
-                env("GITHUB_TOKEN"),
+                envLookup("SCOOP_AI_GITHUB_TOKEN"),
+                envLookup("GITHUB_TOKEN"),
             ),
             autoDownload = config.aiAutoDownload,
         )
     }
 
-    private fun env(name: String): String = System.getenv(name)?.trim().orEmpty()
-
-    private fun firstNonBlank(vararg values: String): String {
+    private fun firstNonBlank(vararg values: String?): String {
         for (value in values) {
-            val trimmed = value.trim()
+            val trimmed = value?.trim().orEmpty()
             if (trimmed.isNotEmpty()) return trimmed
         }
         return ""
@@ -565,7 +579,7 @@ open class ScoopAiBridge(
 
     companion object {
         const val DEFAULT_PROVIDER = "openai-compatible"
-        val SUPPORTED_PROVIDERS = setOf("openai-compatible")
+        val SUPPORTED_PROVIDERS: Set<String> = ProviderCatalog.supportedProviderIds.toSet()
 
         /**
          * Pure mapping from an [AiSettingsSnapshot] to a [ScoopAiConfig].
@@ -603,7 +617,14 @@ open class ScoopAiBridge(
             return ScoopAiConfig(
                 provider = settings.provider,
                 apiKey = settings.apiKey,
-                baseUrl = settings.baseUrl.ifBlank { null },
+                // A provider with its own default endpoint must not inherit a
+                // base URL left over from another provider, otherwise the
+                // request silently goes to the stale gateway.
+                baseUrl = if (ProviderCatalog.requiresBaseUrl(settings.provider)) {
+                    settings.baseUrl.ifBlank { null }
+                } else {
+                    null
+                },
                 model = settings.model.ifBlank { null },
                 githubToken = settings.githubToken.ifBlank { null },
                 skipDownloadConfirm = settings.autoDownload,
@@ -614,10 +635,14 @@ open class ScoopAiBridge(
         /**
          * Strip trailing `/v1` (and `/v1/chat/completions`) so openai-compatible
          * clients do not produce a double `/v1` path. Empty input stays empty.
+         *
+         * The suffix is only removed for providers that append their own
+         * versioned path; OpenRouter and Ollama keep the URL as typed.
          */
-        fun normalizeAiBaseUrl(baseUrl: String): String {
+        fun normalizeAiBaseUrl(baseUrl: String, provider: String = DEFAULT_PROVIDER): String {
             var url = baseUrl.trim().trimEnd('/')
             if (url.isEmpty()) return url
+            if (!ProviderCatalog.stripV1Suffix(provider)) return url
             for (suffix in listOf("/v1/chat/completions", "/v1")) {
                 if (url.endsWith(suffix, ignoreCase = true)) {
                     return url.dropLast(suffix.length).trimEnd('/')

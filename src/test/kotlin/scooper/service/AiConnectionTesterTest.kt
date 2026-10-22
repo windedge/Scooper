@@ -10,7 +10,20 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.net.Authenticator
+import java.net.CookieHandler
 import java.net.InetSocketAddress
+import java.net.ProxySelector
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.net.http.WebSocket
+import java.util.Optional
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLParameters
 
 /**
  * TDD tests for [AiConnectionTester], a JDK-HttpClient connectivity probe for
@@ -280,5 +293,349 @@ class AiConnectionTesterTest {
                 baseUrl = "http://example.test/v1/chat/completions",
             ),
         )
+    }
+
+    // ---------------------------------------------------------------
+    // Provider aware protocol dispatch
+    // ---------------------------------------------------------------
+
+    private class RecordedRequest(
+        val method: String,
+        val path: String,
+        val headers: Map<String, List<String>>,
+        val body: String,
+    ) {
+        fun header(name: String): String? =
+            headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }
+                ?.value?.firstOrNull()
+    }
+
+    /** Stub server recording method, path, headers and body of every request. */
+    private class ProtocolStubServer {
+        val server: HttpServer = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        val requests = mutableListOf<RecordedRequest>()
+
+        /** Returns status and body for the requested method and path. */
+        var handler: (String, String) -> Pair<Int, String> = { _, _ -> 404 to """{"error":"not found"}""" }
+
+        val port: Int get() = server.address.port
+        val baseUrl: String get() = "http://127.0.0.1:$port"
+
+        fun start() {
+            server.createContext("/") { exchange: HttpExchange ->
+                val method = exchange.requestMethod
+                val path = exchange.requestURI.path
+                val body = exchange.requestBody.readBytes().toString(Charsets.UTF_8)
+                requests.add(RecordedRequest(method, path, exchange.requestHeaders.toMap(), body))
+                val (status, response) = handler(method, path)
+                val bytes = response.toByteArray()
+                exchange.responseHeaders.add("Content-Type", "application/json")
+                exchange.sendResponseHeaders(status, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            server.start()
+        }
+
+        fun stop() = server.stop(0)
+    }
+
+    /**
+     * HttpClient stub that records the outgoing requests and answers with a
+     * canned response, so a probe against a public default endpoint never
+     * touches the network.
+     */
+    private class RecordingHttpClient(
+        private val responder: (HttpRequest) -> Pair<Int, String>,
+    ) : HttpClient() {
+        val requests = mutableListOf<HttpRequest>()
+
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : Any?> send(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+        ): HttpResponse<T> {
+            requests.add(request)
+            val (status, body) = responder(request)
+            return FakeResponse(status, body) as HttpResponse<T>
+        }
+
+        override fun <T : Any?> sendAsync(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+        ): CompletableFuture<HttpResponse<T>> = throw UnsupportedOperationException()
+
+        override fun <T : Any?> sendAsync(
+            request: HttpRequest,
+            responseBodyHandler: HttpResponse.BodyHandler<T>,
+            pushPromiseHandler: HttpResponse.PushPromiseHandler<T>,
+        ): CompletableFuture<HttpResponse<T>> = throw UnsupportedOperationException()
+
+        override fun cookieHandler(): Optional<CookieHandler> = Optional.empty()
+        override fun connectTimeout(): Optional<java.time.Duration> = Optional.empty()
+        override fun followRedirects(): HttpClient.Redirect = HttpClient.Redirect.NEVER
+        override fun proxy(): Optional<ProxySelector> = Optional.empty()
+        override fun sslContext(): SSLContext = SSLContext.getDefault()
+        override fun sslParameters(): SSLParameters = SSLParameters()
+        override fun authenticator(): Optional<Authenticator> = Optional.empty()
+        override fun version(): HttpClient.Version = HttpClient.Version.HTTP_1_1
+        override fun executor(): Optional<Executor> = Optional.empty()
+        override fun newWebSocketBuilder(): WebSocket.Builder = throw UnsupportedOperationException()
+    }
+
+    private class FakeResponse(
+        private val status: Int,
+        private val body: String,
+    ) : HttpResponse<String> {
+        override fun statusCode(): Int = status
+        override fun request(): HttpRequest? = null
+        override fun previousResponse(): Optional<HttpResponse<String>> = Optional.empty()
+        override fun headers(): java.net.http.HttpHeaders =
+            java.net.http.HttpHeaders.of(emptyMap<String, List<String>>()) { _, _ -> true }
+        override fun body(): String = body
+        override fun sslSession(): Optional<javax.net.ssl.SSLSession> = Optional.empty()
+        override fun uri(): URI = URI.create("http://localhost")
+        override fun version(): HttpClient.Version = HttpClient.Version.HTTP_1_1
+    }
+
+    private val protocolServer = ProtocolStubServer()
+
+    @BeforeEach
+    fun startProtocolServer() = protocolServer.start()
+
+    @AfterEach
+    fun stopProtocolServer() = protocolServer.stop()
+
+    @Test
+    fun `resolveBaseUrl uses the official default endpoint when the user base URL is empty`() {
+        val tester = tester()
+        assertEquals("https://api.deepseek.com", tester.resolveBaseUrl("deepseek", ""))
+        assertEquals("https://api.deepseek.com", tester.resolveBaseUrl("deepseek", null))
+        assertEquals("https://api.openai.com", tester.resolveBaseUrl("openai", ""))
+        assertEquals("https://api.anthropic.com", tester.resolveBaseUrl("anthropic", ""))
+        assertEquals("http://localhost:11434", tester.resolveBaseUrl("ollama", ""))
+        assertEquals("https://openrouter.ai", tester.resolveBaseUrl("openrouter", ""))
+        assertNull(tester.resolveBaseUrl("openai-compatible", ""))
+    }
+
+    @Test
+    fun `deepseek with empty baseUrl probes the official models path and falls back to the official chat path`() = runBlocking {
+        val recorder = RecordingHttpClient { request ->
+            if (request.method() == "GET") 404 to """{"error":"not found"}""" else 200 to """{}"""
+        }
+        val tester = AiConnectionTester(httpClient = recorder)
+
+        val result = tester.test("deepseek", "sk-test", "", null)
+
+        assertTrue(result.ok)
+        assertEquals(
+            listOf("https://api.deepseek.com/models", "https://api.deepseek.com/chat/completions"),
+            recorder.requests.map { it.uri().toString() },
+        )
+        assertEquals("https://api.deepseek.com/chat/completions", result.testedEndpoint)
+    }
+
+    @Test
+    fun `openrouter keeps the api prefix of the user base URL on the chat fallback`() = runBlocking {
+        val recorder = RecordingHttpClient { request ->
+            if (request.method() == "GET") 404 to """{"error":"not found"}""" else 200 to """{}"""
+        }
+        val tester = AiConnectionTester(httpClient = recorder)
+
+        val result = tester.test("openrouter", "sk-test", "https://example.com/api/v1", null)
+
+        assertTrue(result.ok)
+        assertEquals(
+            listOf(
+                "https://example.com/api/v1/models",
+                "https://example.com/api/v1/chat/completions",
+            ),
+            recorder.requests.map { it.uri().toString() },
+        )
+    }
+
+    @Test
+    fun `openai-compatible with empty baseUrl keeps the CONFIG message`() = runBlocking {
+        val result = probe(baseUrl = "")
+
+        assertFalse(result.ok)
+        assertEquals(AiErrorCategory.CONFIG, result.category)
+        assertTrue(
+            result.detail.contains("Base URL is required for provider 'openai-compatible'"),
+            "unexpected detail: ${result.detail}",
+        )
+    }
+
+    @Test
+    fun `anthropic sends the key and the protocol version header without a bearer token`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            if (method == "GET" && path == "/v1/models") {
+                200 to """{"data":[{"type":"model","id":"claude-opus-4-1"}]}"""
+            } else {
+                404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("anthropic", "sk-test", protocolServer.baseUrl, "claude-opus-4-1")
+
+        assertTrue(result.ok)
+        assertEquals(1, result.modelCount)
+        val request = protocolServer.requests.first()
+        assertEquals("GET /v1/models", "${request.method} ${request.path}")
+        assertEquals("sk-test", request.header("x-api-key"))
+        assertEquals("2023-06-01", request.header("anthropic-version"))
+        assertNull(request.header("Authorization"))
+    }
+
+    @Test
+    fun `anthropic falls back to the messages endpoint with max_tokens when the listing fails`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            when {
+                method == "GET" && path == "/v1/models" -> 404 to """{"error":"not found"}"""
+                method == "POST" && path == "/v1/messages" -> 200 to """{"id":"msg_1"}"""
+                else -> 404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("anthropic", "sk-test", protocolServer.baseUrl, "claude-opus-4-1")
+
+        assertTrue(result.ok)
+        assertEquals("${protocolServer.baseUrl}/v1/messages", result.testedEndpoint)
+        val post = protocolServer.requests.first { it.method == "POST" }
+        assertEquals("sk-test", post.header("x-api-key"))
+        assertEquals("2023-06-01", post.header("anthropic-version"))
+        assertNull(post.header("Authorization"))
+        assertTrue(post.body.contains(""""max_tokens":1"""), "body should carry max_tokens:1: ${post.body}")
+        assertTrue(post.body.contains("claude-opus-4-1"), "body should carry the model id")
+        assertTrue(post.body.contains("ping"), "body should carry the ping message")
+    }
+
+    @Test
+    fun `anthropic chat fallback 401 maps to AUTH`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            when {
+                method == "GET" -> 404 to """{"error":"not found"}"""
+                path == "/v1/messages" -> 401 to """{"error":"invalid x-api-key"}"""
+                else -> 404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("anthropic", "sk-test", protocolServer.baseUrl, null)
+
+        assertFalse(result.ok)
+        assertEquals(AiErrorCategory.AUTH, result.category)
+    }
+
+    @Test
+    fun `anthropic chat fallback 404 mentioning model maps to MODEL_NOT_FOUND`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            when {
+                method == "GET" -> 404 to """{"error":"not found"}"""
+                path == "/v1/messages" -> 404 to """{"error":{"message":"model: not found"}}"""
+                else -> 404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("anthropic", "sk-test", protocolServer.baseUrl, null)
+
+        assertFalse(result.ok)
+        assertEquals(AiErrorCategory.MODEL_NOT_FOUND, result.category)
+    }
+
+    @Test
+    fun `anthropic chat fallback 500 maps to SERVER`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            when {
+                method == "GET" -> 404 to """{"error":"not found"}"""
+                path == "/v1/messages" -> 500 to """{"error":"boom"}"""
+                else -> 404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("anthropic", "sk-test", protocolServer.baseUrl, null)
+
+        assertFalse(result.ok)
+        assertEquals(AiErrorCategory.SERVER, result.category)
+    }
+
+    @Test
+    fun `ollama probes the tags endpoint without authentication`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            if (method == "GET" && path == "/api/tags") {
+                200 to """{"models":[{"name":"llama3.2:latest"},{"name":"qwen2.5:7b"}]}"""
+            } else {
+                404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("ollama", "", protocolServer.baseUrl, null)
+
+        assertTrue(result.ok)
+        assertEquals(2, result.modelCount)
+        val request = protocolServer.requests.first()
+        assertEquals("GET /api/tags", "${request.method} ${request.path}")
+        assertNull(request.header("Authorization"))
+    }
+
+    @Test
+    fun `ollama falls back to the chat endpoint without authentication`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            when {
+                method == "GET" && path == "/api/tags" -> 404 to """{"error":"not found"}"""
+                method == "POST" && path == "/api/chat" -> 200 to """{"message":{"content":"pong"}}"""
+                else -> 404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("ollama", "", protocolServer.baseUrl, "llama3.2:latest")
+
+        assertTrue(result.ok)
+        assertEquals("${protocolServer.baseUrl}/api/chat", result.testedEndpoint)
+        val post = protocolServer.requests.first { it.method == "POST" }
+        assertNull(post.header("Authorization"))
+        assertTrue(post.body.contains(""""stream":false"""), "body should disable streaming: ${post.body}")
+        assertTrue(post.body.contains("llama3.2:latest"), "body should carry the model id")
+        assertTrue(post.body.contains("ping"), "body should carry the ping message")
+    }
+
+    @Test
+    fun `ollama does not require an api key`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            if (method == "GET" && path == "/api/tags") {
+                200 to """{"models":[{"name":"llama3.2:latest"}]}"""
+            } else {
+                404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("ollama", "", protocolServer.baseUrl, null)
+
+        assertTrue(result.ok)
+        assertEquals(AiErrorCategory.UNKNOWN, result.category)
+        assertEquals(1, result.modelCount)
+    }
+
+    @Test
+    fun `ollama chat fallback 500 maps to SERVER`() = runBlocking {
+        protocolServer.handler = { method, path ->
+            when {
+                method == "GET" -> 404 to """{"error":"not found"}"""
+                path == "/api/chat" -> 500 to """{"error":"boom"}"""
+                else -> 404 to """{"error":"not found"}"""
+            }
+        }
+
+        val result = tester().test("ollama", "", protocolServer.baseUrl, null)
+
+        assertFalse(result.ok)
+        assertEquals(AiErrorCategory.SERVER, result.category)
+    }
+
+    @Test
+    fun `unknown provider maps to CONFIG without any request`() = runBlocking {
+        val result = tester().test("not-a-provider", "sk-test", protocolServer.baseUrl, null)
+
+        assertFalse(result.ok)
+        assertEquals(AiErrorCategory.CONFIG, result.category)
+        assertTrue(protocolServer.requests.isEmpty(), "no request should reach the stub")
     }
 }

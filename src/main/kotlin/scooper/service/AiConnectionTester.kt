@@ -1,9 +1,12 @@
 package scooper.service
 
+import com.scoopai.tools.llm.ProviderEndpoints
+import com.scoopai.tools.llm.ProviderEndpoints.Endpoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -37,12 +40,15 @@ data class AiConnectionTestResult(
  * Settings.AI. Deliberately independent of scoop-ai / Koog so the user can
  * validate credentials and base URL before ever running a manifest generation.
  *
- * Probe strategy:
- *  1. GET {base}/v1/models - fastest way to confirm auth + reachability, and it
- *     reports the model count so the UI can show whether the configured model
- *     is present.
- *  2. On 404/405/501 (gateways without a models listing) fall back to a minimal
- *     POST {base}/v1/chat/completions.
+ * The probe follows the protocol of the provider, taken from the engine table
+ * [ProviderEndpoints]:
+ *  1. OpenAI family (deepseek / openai / openrouter / openai-compatible):
+ *     `GET {base}/{modelsPath}` with a bearer token. A 404/405/501 answer
+ *     falls back to a minimal `POST {base}/{chatPath}`.
+ *  2. Anthropic: `GET {base}/v1/models` with `x-api-key` and
+ *     `anthropic-version`, falling back to `POST {base}/v1/messages`.
+ *  3. Ollama: `GET {base}/api/tags` without authentication, falling back to
+ *     `POST {base}/api/chat`.
  *
  * Every call runs on [Dispatchers.IO] and honors connect/request timeouts.
  */
@@ -58,15 +64,19 @@ class AiConnectionTester(
     }
 
     /**
-     * Resolve the normalized base URL for [provider]. Returns null when the probe
-     * should not contact any endpoint (openai-compatible requires an explicit
-     * base URL); deepseek falls back to the official API root. Trailing
-     * `/v1` / `/v1/chat/completions` are stripped so the probe builds
-     * `/v1/models` without a doubled path.
+     * Resolve the normalized base URL for [provider]. Returns null when the
+     * probe should not contact any endpoint (openai-compatible requires an
+     * explicit base URL); every other provider falls back to its official
+     * default endpoint. The normalization is provider aware, so a trailing
+     * `/v1` is stripped only for providers that append their own versioned
+     * path.
      */
     internal fun resolveBaseUrl(provider: String, baseUrl: String?): String? {
-        if (baseUrl.isNullOrBlank()) return null
-        return ScoopAiBridge.normalizeAiBaseUrl(baseUrl).ifEmpty { null }
+        val endpoint = ProviderEndpoints.forProvider(provider)
+        val raw = baseUrl?.trim()?.takeIf { it.isNotEmpty() }
+            ?: endpoint?.defaultBaseUrl
+            ?: return null
+        return ScoopAiBridge.normalizeAiBaseUrl(raw, provider).ifEmpty { null }
     }
 
     suspend fun test(
@@ -77,7 +87,17 @@ class AiConnectionTester(
     ): AiConnectionTestResult = withContext(Dispatchers.IO) {
         val start = System.nanoTime()
 
-        if (apiKey.isBlank()) {
+        val endpoint = ProviderEndpoints.forProvider(provider)
+        if (endpoint == null) {
+            return@withContext fail(
+                category = AiErrorCategory.CONFIG,
+                detail = ProviderEndpoints.unsupportedProviderMessage(provider),
+                endpoint = "",
+                start = start,
+            )
+        }
+
+        if (endpoint.requiresApiKey && apiKey.isBlank()) {
             return@withContext fail(
                 category = AiErrorCategory.CONFIG,
                 detail = "API key is empty. Fill it in Settings > AI.",
@@ -97,20 +117,83 @@ class AiConnectionTester(
         }
 
         try {
-            val modelsRes = send("GET", "$base/v1/models", apiKey, null)
-            // Branch order matters: 5xx wins over the 404/405 fallback below.
-            when (modelsRes.statusCode()) {
-                200 -> modelsOk(modelsRes, model, start, base)
-                401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), "$base/v1/models", start)
-                429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), "$base/v1/models", start)
-                in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), "$base/v1/models", start)
-                404, 405, 501 -> chatFallback(base, apiKey, model, start)
-                else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), "$base/v1/models", start)
+            when (provider) {
+                "anthropic" -> testAnthropic(base, apiKey, model, start, endpoint)
+                "ollama" -> testOllama(base, model, start, endpoint)
+                else -> testOpenAi(base, apiKey, model, start, endpoint)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            exceptionResult(e, start, base)
+            exceptionResult(e, start, joinUrl(base, endpoint.modelsPath))
+        }
+    }
+
+    /**
+     * OpenAI family probe: model listing first, chat completion as fallback.
+     */
+    private fun testOpenAi(
+        base: String,
+        apiKey: String,
+        model: String?,
+        start: Long,
+        endpoint: Endpoint,
+    ): AiConnectionTestResult {
+        val modelsUrl = joinUrl(base, endpoint.modelsPath)
+        val modelsRes = send("GET", modelsUrl, apiKey, null, endpoint)
+        // Branch order matters: 5xx wins over the 404/405 fallback below.
+        return when (modelsRes.statusCode()) {
+            200 -> modelsOk(modelsRes, model, start, modelsUrl)
+            401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), modelsUrl, start)
+            429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), modelsUrl, start)
+            in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), modelsUrl, start)
+            404, 405, 501 -> chatFallback(base, apiKey, model, start, endpoint)
+            else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), modelsUrl, start)
+        }
+    }
+
+    /**
+     * Anthropic probe: `GET {base}/v1/models` with the Anthropic headers,
+     * falling back to a minimal `POST {base}/v1/messages`.
+     */
+    private fun testAnthropic(
+        base: String,
+        apiKey: String,
+        model: String?,
+        start: Long,
+        endpoint: Endpoint,
+    ): AiConnectionTestResult {
+        val modelsUrl = joinUrl(base, endpoint.modelsPath)
+        val modelsRes = send("GET", modelsUrl, apiKey, null, endpoint)
+        return when (modelsRes.statusCode()) {
+            200 -> modelsOk(modelsRes, model, start, modelsUrl)
+            401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), modelsUrl, start)
+            429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), modelsUrl, start)
+            in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), modelsUrl, start)
+            404, 405, 501 -> anthropicMessagesFallback(base, apiKey, model, start, endpoint)
+            else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), modelsUrl, start)
+        }
+    }
+
+    /**
+     * Ollama probe: `GET {base}/api/tags` without authentication, falling back
+     * to a minimal `POST {base}/api/chat`.
+     */
+    private fun testOllama(
+        base: String,
+        model: String?,
+        start: Long,
+        endpoint: Endpoint,
+    ): AiConnectionTestResult {
+        val modelsUrl = joinUrl(base, endpoint.modelsPath)
+        val modelsRes = send("GET", modelsUrl, "", null, endpoint)
+        return when (modelsRes.statusCode()) {
+            200 -> ollamaModelsOk(modelsRes, model, start, modelsUrl)
+            401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), modelsUrl, start)
+            429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), modelsUrl, start)
+            in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), modelsUrl, start)
+            404, 405, 501 -> ollamaChatFallback(base, model, start, endpoint)
+            else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), modelsUrl, start)
         }
     }
 
@@ -118,7 +201,7 @@ class AiConnectionTester(
         res: HttpResponse<String>,
         model: String?,
         start: Long,
-        base: String,
+        modelsUrl: String,
     ): AiConnectionTestResult {
         val ids = parseModelIds(res.body())
         val configuredAvailable = model?.takeIf { it.isNotBlank() }?.let { m ->
@@ -129,7 +212,29 @@ class AiConnectionTester(
             category = AiErrorCategory.UNKNOWN, // ok=true carries the success signal
             detail = "Endpoint reachable; ${ids.size} model(s) listed.",
             latencyMs = elapsedMs(start),
-            testedEndpoint = "$base/v1/models",
+            testedEndpoint = modelsUrl,
+            modelCount = ids.size,
+            configuredModelAvailable = configuredAvailable,
+        )
+    }
+
+    /** Ollama lists the models as `{"models": [{"name": "llama3.2:latest"}]}`. */
+    private fun ollamaModelsOk(
+        res: HttpResponse<String>,
+        model: String?,
+        start: Long,
+        modelsUrl: String,
+    ): AiConnectionTestResult {
+        val ids = parseOllamaModelIds(res.body())
+        val configuredAvailable = model?.takeIf { it.isNotBlank() }?.let { m ->
+            ids.any { it == m || it.startsWith("$m:") || it.startsWith("model/$m") }
+        }
+        return AiConnectionTestResult(
+            ok = true,
+            category = AiErrorCategory.UNKNOWN,
+            detail = "Endpoint reachable; ${ids.size} model(s) listed.",
+            latencyMs = elapsedMs(start),
+            testedEndpoint = modelsUrl,
             modelCount = ids.size,
             configuredModelAvailable = configuredAvailable,
         )
@@ -140,38 +245,128 @@ class AiConnectionTester(
         apiKey: String,
         model: String?,
         start: Long,
+        endpoint: Endpoint,
     ): AiConnectionTestResult {
+        val chatUrl = joinUrl(base, endpoint.chatPath)
         return try {
             val body = chatBody(model)
-            val res = send("POST", "$base/v1/chat/completions", apiKey, body)
+            val res = send("POST", chatUrl, apiKey, body, endpoint)
             when (res.statusCode()) {
                 200 -> AiConnectionTestResult(
                     ok = true,
                     category = AiErrorCategory.UNKNOWN,
                     detail = "No models listing; chat completions reachable.",
                     latencyMs = elapsedMs(start),
-                    testedEndpoint = "$base/v1/chat/completions",
+                    testedEndpoint = chatUrl,
                 )
 
                 401, 403 ->
-                    fail(AiErrorCategory.AUTH, readable(res), "$base/v1/chat/completions", start)
+                    fail(AiErrorCategory.AUTH, readable(res), chatUrl, start)
 
                 404 -> if ("model" in res.body().lowercase()) {
-                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), "$base/v1/chat/completions", start)
+                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), chatUrl, start)
                 } else {
-                    fail(AiErrorCategory.BAD_PATH, readable(res), "$base/v1/chat/completions", start)
+                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
                 }
 
                 in 500..599 ->
-                    fail(AiErrorCategory.SERVER, readable(res), "$base/v1/chat/completions", start)
+                    fail(AiErrorCategory.SERVER, readable(res), chatUrl, start)
 
                 else ->
-                    fail(AiErrorCategory.BAD_PATH, readable(res), "$base/v1/chat/completions", start)
+                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            exceptionResult(e, start, base)
+            exceptionResult(e, start, chatUrl)
+        }
+    }
+
+    /**
+     * Anthropic fallback: `POST {base}/v1/messages` with the mandatory
+     * `max_tokens` field and a single ping message.
+     */
+    private fun anthropicMessagesFallback(
+        base: String,
+        apiKey: String,
+        model: String?,
+        start: Long,
+        endpoint: Endpoint,
+    ): AiConnectionTestResult {
+        val chatUrl = joinUrl(base, endpoint.chatPath)
+        return try {
+            val body = anthropicChatBody(model, endpoint)
+            val res = send("POST", chatUrl, apiKey, body, endpoint)
+            when (res.statusCode()) {
+                200 -> AiConnectionTestResult(
+                    ok = true,
+                    category = AiErrorCategory.UNKNOWN,
+                    detail = "No models listing; messages endpoint reachable.",
+                    latencyMs = elapsedMs(start),
+                    testedEndpoint = chatUrl,
+                )
+
+                401, 403 ->
+                    fail(AiErrorCategory.AUTH, readable(res), chatUrl, start)
+
+                404 -> if ("model" in res.body().lowercase()) {
+                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), chatUrl, start)
+                } else {
+                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                }
+
+                in 500..599 ->
+                    fail(AiErrorCategory.SERVER, readable(res), chatUrl, start)
+
+                else ->
+                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            exceptionResult(e, start, chatUrl)
+        }
+    }
+
+    /** Ollama fallback: `POST {base}/api/chat` without authentication. */
+    private fun ollamaChatFallback(
+        base: String,
+        model: String?,
+        start: Long,
+        endpoint: Endpoint,
+    ): AiConnectionTestResult {
+        val chatUrl = joinUrl(base, endpoint.chatPath)
+        return try {
+            val body = ollamaChatBody(model, endpoint)
+            val res = send("POST", chatUrl, "", body, endpoint)
+            when (res.statusCode()) {
+                200 -> AiConnectionTestResult(
+                    ok = true,
+                    category = AiErrorCategory.UNKNOWN,
+                    detail = "No models listing; chat endpoint reachable.",
+                    latencyMs = elapsedMs(start),
+                    testedEndpoint = chatUrl,
+                )
+
+                401, 403 ->
+                    fail(AiErrorCategory.AUTH, readable(res), chatUrl, start)
+
+                404 -> if ("model" in res.body().lowercase()) {
+                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), chatUrl, start)
+                } else {
+                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                }
+
+                in 500..599 ->
+                    fail(AiErrorCategory.SERVER, readable(res), chatUrl, start)
+
+                else ->
+                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            exceptionResult(e, start, chatUrl)
         }
     }
 
@@ -188,14 +383,14 @@ class AiConnectionTester(
         testedEndpoint = endpoint,
     )
 
-    private fun exceptionResult(e: Throwable, start: Long, base: String): AiConnectionTestResult {
+    private fun exceptionResult(e: Throwable, start: Long, endpoint: String): AiConnectionTestResult {
         val category = when (e) {
             is UnknownHostException -> AiErrorCategory.NETWORK_DNS
             is HttpTimeoutException -> AiErrorCategory.TIMEOUT
             is ConnectException -> AiErrorCategory.REFUSED
             else -> AiErrorCategory.UNKNOWN
         }
-        return fail(category, e.message ?: e.javaClass.simpleName, "$base/v1/models", start)
+        return fail(category, e.message ?: e.javaClass.simpleName, endpoint, start)
     }
 
     private fun send(
@@ -203,10 +398,20 @@ class AiConnectionTester(
         url: String,
         apiKey: String,
         body: String?,
+        endpoint: Endpoint,
     ): HttpResponse<String> {
         val builder = HttpRequest.newBuilder(URI.create(url))
-            .header("Authorization", "Bearer $apiKey")
             .timeout(Duration.ofMillis(requestTimeoutMs))
+        val authHeader = endpoint.authHeader
+        if (authHeader != null && apiKey.isNotBlank()) {
+            val value = if (endpoint.bearerAuth) "Bearer $apiKey" else apiKey
+            builder.header(authHeader, value)
+        }
+        val versionHeader = endpoint.apiVersionHeader
+        val version = endpoint.apiVersion
+        if (versionHeader != null && version != null) {
+            builder.header(versionHeader, version)
+        }
         if (body != null) {
             builder.header("Content-Type", "application/json")
                 .method(method, HttpRequest.BodyPublishers.ofString(body))
@@ -230,12 +435,71 @@ class AiConnectionTester(
         })
     }.toString()
 
+    /** Anthropic requires `max_tokens` and rejects a missing model id. */
+    private fun anthropicChatBody(model: String?, endpoint: Endpoint): String = buildJsonObject {
+        put("model", model?.takeIf { it.isNotBlank() } ?: defaultModel(endpoint))
+        put("max_tokens", 1)
+        put("messages", buildJsonArray {
+            add(
+                buildJsonObject {
+                    put("role", "user")
+                    put("content", "ping")
+                },
+            )
+        })
+    }.toString()
+
+    /** Ollama chat request, explicitly non streaming. */
+    private fun ollamaChatBody(model: String?, endpoint: Endpoint): String = buildJsonObject {
+        put("model", model?.takeIf { it.isNotBlank() } ?: defaultModel(endpoint))
+        put("stream", false)
+        put("messages", buildJsonArray {
+            add(
+                buildJsonObject {
+                    put("role", "user")
+                    put("content", "ping")
+                },
+            )
+        })
+    }.toString()
+
+    private fun defaultModel(endpoint: Endpoint): String =
+        ProviderEndpoints.defaultModelId(endpoint.provider) ?: ""
+
+    /**
+     * Join base URL and provider path without duplicating a versioned prefix
+     * the base URL already carries (OpenRouter bases end with `api/v1`).
+     */
+    internal fun joinUrl(base: String, path: String): String {
+        val trimmedBase = base.trimEnd('/')
+        val segments = path.trim('/').split('/').filter { it.isNotEmpty() }
+        if (segments.isEmpty()) return trimmedBase
+        for (count in segments.indices.reversed()) {
+            val prefix = segments.take(count + 1).joinToString("/")
+            if (trimmedBase.endsWith("/$prefix", ignoreCase = true)) {
+                val rest = segments.drop(count + 1)
+                return if (rest.isEmpty()) trimmedBase else "$trimmedBase/${rest.joinToString("/")}"
+            }
+        }
+        return "$trimmedBase/${segments.joinToString("/")}"
+    }
+
     /** Parse `data[].id` from a models-listing JSON body; empty list on any parse error. */
     internal fun parseModelIds(json: String): List<String> {
         return runCatching {
             val root = Json.parseToJsonElement(json).jsonObject
             root["data"]?.jsonArray?.mapNotNull { el ->
                 (el as? JsonObject)?.get("id")?.jsonPrimitive?.content
+            } ?: emptyList()
+        }.getOrDefault(emptyList())
+    }
+
+    /** Parse `models[].name` from an Ollama tags response; empty list on any parse error. */
+    internal fun parseOllamaModelIds(json: String): List<String> {
+        return runCatching {
+            val root = Json.parseToJsonElement(json).jsonObject
+            root["models"]?.jsonArray?.mapNotNull { el ->
+                (el as? JsonObject)?.get("name")?.jsonPrimitive?.contentOrNull
             } ?: emptyList()
         }.getOrDefault(emptyList())
     }

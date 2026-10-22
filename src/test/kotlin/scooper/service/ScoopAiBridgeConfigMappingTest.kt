@@ -2,6 +2,7 @@ package scooper.service
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -83,6 +84,159 @@ class ScoopAiBridgeConfigMappingTest {
     // (Create model selection). Only aiModel changes; every other
     // field must stay untouched.
     // -------------------------------------------------------------
+
+    // -------------------------------------------------------------
+    // Provider aware readiness checks and settings resolution.
+    // The provider metadata comes from the engine endpoint table, so
+    // the host never hardcodes a provider name.
+    // -------------------------------------------------------------
+
+    private fun providerSnapshot(
+        provider: String,
+        apiKey: String = "sk-test",
+        baseUrl: String = "",
+    ) = AiSettingsSnapshot(
+        provider = provider,
+        apiKey = apiKey,
+        baseUrl = baseUrl,
+        model = "test-model",
+        githubToken = "",
+    )
+
+    @Test
+    fun `supported providers cover every engine provider`() {
+        assertEquals(
+            setOf("deepseek", "openai", "anthropic", "ollama", "openrouter", "openai-compatible"),
+            ScoopAiBridge.SUPPORTED_PROVIDERS,
+        )
+    }
+
+    @Test
+    fun `missingReason reports an unsupported provider`() {
+        val reason = providerSnapshot(provider = "unknown").missingReason()
+        assertNotNull(reason)
+        assertTrue(reason!!.contains("Unsupported provider: unknown"), reason)
+        assertTrue(reason.contains("openai-compatible"), reason)
+    }
+
+    @Test
+    fun `missingReason names the provider environment variable for the api key`() {
+        val reason = providerSnapshot(provider = "deepseek", apiKey = "").missingReason()
+        assertNotNull(reason)
+        assertTrue(reason!!.contains("API key"), reason)
+        assertTrue(reason.contains("DEEPSEEK_API_KEY"), reason)
+    }
+
+    @Test
+    fun `missingReason accepts ollama without an api key`() {
+        assertNull(providerSnapshot(provider = "ollama", apiKey = "").missingReason())
+    }
+
+    @Test
+    fun `missingReason accepts anthropic without a base url`() {
+        assertNull(providerSnapshot(provider = "anthropic", baseUrl = "").missingReason())
+    }
+
+    @Test
+    fun `missingReason still requires a base url for openai-compatible`() {
+        val reason = providerSnapshot(provider = "openai-compatible", baseUrl = "").missingReason()
+        assertNotNull(reason)
+        assertTrue(reason!!.contains("Base URL"), reason)
+    }
+
+    @Test
+    fun `missingReason accepts a base url for openai-compatible`() {
+        assertNull(
+            providerSnapshot(provider = "openai-compatible", baseUrl = "http://localhost:8317").missingReason(),
+        )
+    }
+
+    @Test
+    fun `readSettings falls back to the provider environment variable for the api key`() {
+        val bridge = ScoopAiBridge(
+            ConfigRepositoryStub(UIConfig(aiProvider = "deepseek")),
+            InMemoryAiCheckpointService(),
+        )
+        val settings = bridge.readSettings { name -> if (name == "DEEPSEEK_API_KEY") "ds-key" else null }
+        assertEquals("ds-key", settings.apiKey)
+    }
+
+    @Test
+    fun `readSettings does not fall back to another provider environment variable`() {
+        val bridge = ScoopAiBridge(
+            ConfigRepositoryStub(UIConfig(aiProvider = "openai-compatible")),
+            InMemoryAiCheckpointService(),
+        )
+        val settings = bridge.readSettings { name -> if (name == "DEEPSEEK_API_KEY") "ds-key" else null }
+        assertEquals("", settings.apiKey)
+    }
+
+    @Test
+    fun `readSettings falls back to the provider environment variable of each provider`() {
+        val cases = mapOf(
+            "deepseek" to "DEEPSEEK_API_KEY",
+            "openai" to "OPENAI_API_KEY",
+            "anthropic" to "ANTHROPIC_API_KEY",
+            "openrouter" to "OPENROUTER_API_KEY",
+            "openai-compatible" to "OPENAI_COMPATIBLE_API_KEY",
+        )
+        cases.forEach { (provider, envKey) ->
+            val bridge = ScoopAiBridge(
+                ConfigRepositoryStub(UIConfig(aiProvider = provider)),
+                InMemoryAiCheckpointService(),
+            )
+            val settings = bridge.readSettings { name -> if (name == envKey) "key-$provider" else null }
+            assertEquals("key-$provider", settings.apiKey, provider)
+        }
+    }
+
+    @Test
+    fun `buildScoopAiConfig drops a stale base url for providers with a default endpoint`() {
+        val config = ScoopAiBridge.buildScoopAiConfig(
+            providerSnapshot(provider = "deepseek", baseUrl = "http://localhost:8317"),
+        )
+        assertNull(config.baseUrl)
+    }
+
+    @Test
+    fun `buildScoopAiConfig keeps the base url for openai-compatible`() {
+        val config = ScoopAiBridge.buildScoopAiConfig(
+            providerSnapshot(provider = "openai-compatible", baseUrl = "http://localhost:8317"),
+        )
+        assertEquals("http://localhost:8317", config.baseUrl)
+    }
+
+    @Test
+    fun `normalizeAiBaseUrl keeps the v1 suffix for openrouter`() {
+        assertEquals(
+            "https://openrouter.ai/api/v1",
+            ScoopAiBridge.normalizeAiBaseUrl("https://openrouter.ai/api/v1", "openrouter"),
+        )
+    }
+
+    @Test
+    fun `normalizeAiBaseUrl keeps the v1 suffix for ollama`() {
+        assertEquals(
+            "http://localhost:11434/v1",
+            ScoopAiBridge.normalizeAiBaseUrl("http://localhost:11434/v1", "ollama"),
+        )
+    }
+
+    @Test
+    fun `normalizeAiBaseUrl strips the v1 suffix for versioned providers`() {
+        assertEquals("http://localhost:8317", ScoopAiBridge.normalizeAiBaseUrl("http://localhost:8317/v1", "deepseek"))
+        assertEquals("http://localhost:8317", ScoopAiBridge.normalizeAiBaseUrl("http://localhost:8317", "openai"))
+        assertEquals(
+            "http://localhost:8317",
+            ScoopAiBridge.normalizeAiBaseUrl("http://localhost:8317/v1/chat/completions", "anthropic"),
+        )
+    }
+
+    @Test
+    fun `normalizeAiBaseUrl without a provider keeps the legacy behavior`() {
+        assertEquals("http://localhost:8317", ScoopAiBridge.normalizeAiBaseUrl("http://localhost:8317/v1"))
+        assertEquals("http://localhost:8317", ScoopAiBridge.normalizeAiBaseUrl("http://localhost:8317/"))
+    }
 
     private fun fullConfig() = UIConfig(
         aiProvider = "openai-compatible",
@@ -206,6 +360,11 @@ class ScoopAiBridgeConfigMappingTest {
     fun `persistCommitPreference swallows repository failures`() {
         val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
         bridge.persistCommitPreference(false)
+    }
+
+    private class ConfigRepositoryStub(private val config: UIConfig) : ConfigRepository() {
+        override fun getConfig(): UIConfig = config
+        override fun setConfig(config: UIConfig) = Unit
     }
 
     private class FakeConfigRepository : ConfigRepository() {

@@ -16,6 +16,7 @@ import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
 import scooper.service.AiConnectionTestResult
+import scooper.service.ProviderCatalog
 import scooper.service.ScoopAiBridge
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
@@ -123,9 +124,7 @@ class SettingsViewModel(
                 "aiProvider",
                 initial = "openai-compatible",
                 validators = listOf(Validators.ValidChoice()),
-                choices = mapOf(
-                    "openai-compatible" to "OpenAI Compatible",
-                )
+                choices = ProviderCatalog.providers.associate { it.id to it.displayName },
             ),
             TextFieldState("aiApiKey"),
             TextFieldState("aiBaseUrl"),
@@ -198,12 +197,14 @@ class SettingsViewModel(
 
     fun writeAiConfig() {
         // Read TextFieldState / ChoiceState directly - more reliable than getData reflection
+        val provider = aiFormState.getState<ChoiceState>("aiProvider").value.trim()
+            .ifBlank { "openai-compatible" }
         val config = configRepository.getConfig().copy(
-            aiProvider = aiFormState.getState<ChoiceState>("aiProvider").value.trim()
-                .ifBlank { "openai-compatible" },
+            aiProvider = provider,
             aiApiKey = aiFormState.getState<TextFieldState>("aiApiKey").value.trim(),
             aiBaseUrl = ScoopAiBridge.normalizeAiBaseUrl(
                 aiFormState.getState<TextFieldState>("aiBaseUrl").value,
+                provider,
             ),
             aiModel = aiFormState.getState<TextFieldState>("aiModel").value.trim(),
             aiGithubToken = aiFormState.getState<TextFieldState>("aiGithubToken").value.trim(),
@@ -213,6 +214,21 @@ class SettingsViewModel(
         intent {
             reduce { state.copy(uiConfig = config) }
             postSideEffect(AppSideEffect.Toast("AI settings saved", ToastType.SUCCESS))
+        }
+    }
+
+    /**
+     * Drop the probe feedback of the previous provider. The text fields keep
+     * their values, only the test result and the fetch error are reset.
+     */
+    fun onProviderChanged() {
+        intent {
+            reduce {
+                state.copy(
+                    aiTest = state.aiTest.copy(result = null),
+                    modelsState = state.modelsState.copy(error = null),
+                )
+            }
         }
     }
 
