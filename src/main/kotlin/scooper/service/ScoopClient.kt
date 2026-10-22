@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
+import scooper.data.InstallOrigin
 import scooper.data.ShortCut
 import scooper.taskqueue.TaskQueue
 import scooper.util.ProgressParser
@@ -20,6 +21,7 @@ import scooper.util.OperationCancelledException
 import scooper.util.scoopTestEnv
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.Path
 import java.security.MessageDigest
 import java.nio.file.attribute.BasicFileAttributes
 import java.time.LocalDateTime
@@ -52,6 +54,7 @@ class ScoopClient(
     private val downloader: ManifestDownloader = ManifestDownloader(),
     private val rootDirOverride: File? = null,
     private val scoopConfigFile: File? = null,
+    private val globalRootDirOverride: File? = null,
 ) : ScoopCli, BucketSaveEnv {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -63,6 +66,9 @@ class ScoopClient(
             allowComments = true
             allowTrailingComma = true
         }
+
+        /** Scoop prefers scoop-install.json and falls back to the legacy install.json. */
+        private val installRecordFileNames = listOf("scoop-install.json", "install.json")
 
         /** Read a manifest file, stripping a leading UTF-8 BOM. PowerShell-written
          *  manifests are UTF-8 with BOM, which kotlinx.serialization rejects. */
@@ -88,6 +94,7 @@ class ScoopClient(
 
     val globalRootDir: File
         get() {
+            globalRootDirOverride?.let { return it }
             val scoop = System.getenv("SCOOP_GLOBAL")
             if (!scoop.isNullOrEmpty()) {
                 val root = File(scoop)
@@ -361,9 +368,11 @@ class ScoopClient(
         val bucketName = app.bucket?.name
 
         // Fix broken manifest reference left by legacy installVersion (temp file).
-        // Detect via install.json: if bucket is null, the app was installed from a
-        // local manifest that may no longer exist, so reinstall from bucket.
-        if (bucketName != null && isLocalManifestInstall(app.name)) {
+        // Detect via the install record: a recorded url points at a manifest that is
+        // gone, so reinstall from the bucket.
+        if (bucketName != null &&
+            isLocalManifestInstall(app.name, global, rootDir.toPath(), globalRootDir.toPath())
+        ) {
             val uninstallArgs = if (global) {
                 mutableListOf("sudo", "scoop", "uninstall", "-g", app.name)
             } else {
@@ -398,7 +407,11 @@ class ScoopClient(
             mutableListOf("scoop", "update")
         }
         if (force) commandArgs.add("--force")
-        commandArgs.add(app.name)
+        // Explicit <bucket>/<name>: scoop resolves a bare name through the
+        // bucket recorded in install.json, so an update after saving to another
+        // bucket would silently re-read the stale manifest (exit 0, no error).
+        val bucketName = app.bucket?.name
+        commandArgs.add(if (bucketName.isNullOrBlank()) app.name else "$bucketName/${app.name}")
         return commandArgs
     }
 
@@ -1050,7 +1063,7 @@ class ScoopClient(
 
     private suspend fun executeAndLog(args: List<String>): CommandResult {
         val result = executeAndLogCapture(args)
-        return CommandResult(result.exitCode, result.errorMessage)
+        return CommandResult(result.exitCode, result.errorMessage, result.skippedMessage)
     }
 
     private suspend fun executeAndLogCapture(args: List<String>): TestInstallResult {
@@ -1074,7 +1087,11 @@ class ScoopClient(
      *  itself exits nonzero but no line matches, emit a fallback conclusion line so
      *  upstream UI/agent still get an explicit failure reason instead of a bare log tail.
      *  The fallback must not overwrite the real exit code, otherwise the caller
-     *  would lose the actual scoop failure code for diagnostics/retry decisions. */
+     *  would lose the actual scoop failure code for diagnostics/retry decisions.
+     *  Scoop also exits 0 after doing nothing at all (held app, detected running
+     *  process); those cases stay successful but carry a [TestInstallResult.skippedMessage]
+     *  so callers can tell "installed" from "silently skipped". An error line always
+     *  wins over a skip hint. */
     internal fun evaluateInstallOutput(resultCode: Int, outputLines: List<String>): TestInstallResult {
         var errorMessage = outputLines.find {
             " ERROR " in it ||
@@ -1085,20 +1102,92 @@ class ScoopClient(
             errorMessage = "scoop exited with code $resultCode (no error line matched)"
         }
         val exitCode = if (errorMessage != null && resultCode == 0) 1 else resultCode
-        return TestInstallResult(exitCode, errorMessage, outputLines.joinToString("\n"))
+        val skippedMessage = if (exitCode == 0) outputLines.firstNotNullOfOrNull(::skipReasonFor) else null
+        return TestInstallResult(
+            exitCode = exitCode,
+            errorMessage = errorMessage,
+            output = outputLines.joinToString("\n"),
+            skippedMessage = skippedMessage,
+        )
     }
 
-    private fun isLocalManifestInstall(appName: String): Boolean {
-        val installDir = rootDir.resolve("apps/$appName/current")
-        val installJson = installDir.resolve("install.json")
-        if (!installJson.exists()) return false
-        return try {
-            val json = manifestJson.parseToJsonElement(readManifestText(installJson)).jsonObject
-            val bucket = json["bucket"]?.jsonPrimitive?.contentOrNull
-            bucket.isNullOrBlank()
-        } catch (e: Exception) {
-            logger.warn("Failed to read install.json for $appName: ${e.message}")
-            false
+    /** User-facing reason for a scoop run that exited 0 without doing the work.
+     *  Sources: scoop-update.ps1 prints `WARN  '<app>' is held to version x.y.z` for a
+     *  held app and `Running process detected, skip updating.` after test_running_process. */
+    private fun skipReasonFor(line: String): String? {
+        val trimmed = line.trim()
+        return when {
+            "is held to version" in trimmed -> {
+                val detail = trimmed.removePrefix("WARN").trim().ifEmpty { trimmed }
+                "Scoop skipped the update: $detail. Run 'scoop unhold <app>' to allow updates."
+            }
+            "Running process detected, skip updating." in trimmed ->
+                "Scoop skipped the update because the app is still running. Close it and try again."
+            else -> null
         }
+    }
+
+    // ==================== Install records ====================
+
+    /**
+     * Where Scoop recorded the install source for an installed app, plus the bucket
+     * name when one is recorded. Read on demand: adding this to [installedSnapshot]
+     * would turn one directory scan into one file read per installed app.
+     */
+    internal data class InstallRecordInfo(val origin: InstallOrigin, val bucket: String?)
+
+    /**
+     * Read the install record Scoop wrote for an app's current dir. A recorded url wins
+     * over a recorded bucket because scoop-update prefers the url when picking a
+     * reinstall target. Missing or unparsable records yield [InstallOrigin.Unknown].
+     */
+    internal fun readInstallRecord(appDir: Path): InstallRecordInfo {
+        val recordFile = installRecordFileNames
+            .map { appDir.resolve(it) }
+            .firstOrNull { Files.isRegularFile(it) }
+            ?: return InstallRecordInfo(InstallOrigin.Unknown, null)
+
+        val record = try {
+            val json = manifestJson.parseToJsonElement(readManifestText(recordFile.toFile())) as? JsonObject
+            val url = json?.get("url").stringOrNull()
+            val bucket = json?.get("bucket").stringOrNull()
+            InstallRecordInfo(
+                origin = when {
+                    !url.isNullOrBlank() -> InstallOrigin.DirectFile
+                    !bucket.isNullOrBlank() -> InstallOrigin.Bucket
+                    else -> InstallOrigin.Unknown
+                },
+                bucket = bucket?.takeIf { it.isNotBlank() },
+            )
+        } catch (e: Exception) {
+            logger.warn("Failed to read install record $recordFile: ${e.message}")
+            InstallRecordInfo(InstallOrigin.Unknown, null)
+        }
+        return record
+    }
+
+    /** String content of a JSON field, null when absent or not a primitive. */
+    private fun JsonElement?.stringOrNull(): String? =
+        (this as? JsonPrimitive)?.contentOrNull
+
+    /**
+     * True when the installed copy came from a local manifest file (direct install).
+     * Such a record pins a url to a manifest that may no longer exist, so scoop update
+     * cannot re-read it. [global] selects the scope, falling back to the other scope
+     * when the app is not installed under the requested one.
+     */
+    internal fun isLocalManifestInstall(
+        name: String,
+        global: Boolean,
+        rootDir: Path,
+        globalRootDir: Path,
+    ): Boolean {
+        val primary = if (global) globalRootDir else rootDir
+        val fallback = if (global) rootDir else globalRootDir
+        val appDir = listOf(primary, fallback)
+            .map { it.resolve("apps/$name/current") }
+            .firstOrNull { Files.isDirectory(it) }
+            ?: return false
+        return readInstallRecord(appDir).origin == InstallOrigin.DirectFile
     }
 }

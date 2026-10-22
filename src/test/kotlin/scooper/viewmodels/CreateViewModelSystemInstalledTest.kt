@@ -165,6 +165,58 @@ class CreateViewModelSystemInstalledTest {
     }
 
     // ---------------------------------------------------------------------
+    // Save and AI install must keep systemInstalled truthful
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `performSave success recomputes systemInstalled from disk with the saved name`(): Unit = runBlocking {
+        // Already installed on disk; the save itself must flip the fact to true
+        // even though the preset state carried a stale false.
+        File(tempDir, "apps/testapp/current").mkdirs()
+        File(tempDir, "buckets/main/bucket").mkdirs()
+        val (vm, _) = createViewModelWithMemoryRepo()
+        try {
+            presetSaveDialogState(vm, systemInstalled = false)
+
+            withContext(Dispatchers.Default) {
+                withTimeout(10_000) { vm.onConfirmSave().join() }
+            }
+
+            val state = vm.container.stateFlow.value
+            assertTrue(state.manifestSaved, "save must succeed before the flag is judged")
+            assertEquals("testapp", state.saveResult?.appName)
+            assertTrue(state.systemInstalled, "an installed app must read as systemInstalled right after save")
+        } finally {
+            vm.close()
+        }
+    }
+
+    @Test
+    fun `executeInstallApp bucket success marks systemInstalled true`(): Unit = runBlocking {
+        withScoopShim {
+            // The shim stubs every scoop command with exit 0; the bucket
+            // manifest exists so pre-download and record refresh find it.
+            File(tempDir, "buckets/main/bucket").mkdirs()
+            File(tempDir, "buckets/main/bucket/testapp.json")
+                .writeText("""{"version":"1.0","bin":["app.exe"]}""")
+            val (vm, _) = createViewModelWithMemoryRepo()
+            try {
+                presetSaveDialogState(vm, systemInstalled = false, saveDialogOpen = false)
+
+                withContext(Dispatchers.Default) {
+                    withTimeout(10_000) { vm.executeInstallApp(bucket = "main", name = "testapp").join() }
+                }
+
+                val state = vm.container.stateFlow.value
+                assertTrue(state.installedForUse, "bucket install success must mark installedForUse")
+                assertTrue(state.systemInstalled, "bucket install success must mark systemInstalled")
+            } finally {
+                vm.close()
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
 
@@ -238,6 +290,59 @@ class CreateViewModelSystemInstalledTest {
             }
         }
         return vm
+    }
+
+    /**
+     * Like [createViewModel] but with the throwaway sqlite repository so the
+     * save path's indexSavedApp writes never touch a real database.
+     */
+    private fun createViewModelWithMemoryRepo(): Pair<CreateViewModel, ScoopClient> {
+        val scoopClient = ScoopClient(
+            logStream = ScoopLogStream(),
+            taskQueue = TaskQueue(),
+            rootDirOverride = tempDir,
+        )
+        val vm = CreateViewModel(
+            scoopAiBridge = ScoopAiBridge(
+                configRepository = FakeConfigRepository(),
+                checkpointService = InMemoryAiCheckpointService(),
+            ),
+            checkpointService = InMemoryAiCheckpointService(),
+            scoopClient = scoopClient,
+            appsRepository = scooper.service.createInMemoryAppsRepository(scoopClient),
+            gitHistoryService = GitHistoryService(),
+        )
+        return vm to scoopClient
+    }
+
+    /** Presets the inputs performSave reads plus a stale systemInstalled fact. */
+    private fun presetSaveDialogState(
+        vm: CreateViewModel,
+        systemInstalled: Boolean,
+        saveDialogOpen: Boolean = true,
+    ) {
+        runBlocking {
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) {
+                    vm.container.orbit {
+                        reduce {
+                            state.copy(
+                                systemInstalled = systemInstalled,
+                                manifestJson = """{"version":"1.0","homepage":"https://example.com"}""",
+                                suggestedAppName = "testapp",
+                                manifestSaved = false,
+                                saveResult = null,
+                                saveDialogOpen = saveDialogOpen,
+                                saveAppName = "testapp",
+                                saveBucket = "main",
+                                saveCommitToGit = false,
+                                overwriteConfirmOpen = false,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // ---------------------------------------------------------------------

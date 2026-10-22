@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import scooper.data.App
+import scooper.data.Bucket
 import scooper.taskqueue.TaskQueue
 
 /**
@@ -42,6 +43,27 @@ class ScoopClientUpdateForceTest {
     fun `update args keep sudo and -g shape for global force`() {
         val args = client.updateArgs(app(), global = true, force = true)
         assertEquals(listOf("sudo", "scoop", "update", "-g", "--force", "myapp-scooper-test"), args)
+    }
+
+    // ---------------------------------------------------------------
+    // Command assembly: bucket prefix
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `update args address bucket slash name when the app carries a bucket`() {
+        // Scoop resolves a bare name through install.json's recorded bucket;
+        // after saving the manifest to another bucket, only an explicit
+        // <bucket>/<name> makes scoop update read the freshly saved manifest.
+        val app = App(name = "lightning", latestVersion = "0", bucket = Bucket(name = "ladle"))
+        val args = client.updateArgs(app, global = false, force = true)
+        assertEquals(listOf("scoop", "update", "--force", "ladle/lightning"), args)
+    }
+
+    @Test
+    fun `update args keep the plain name when the app has no bucket`() {
+        val args = client.updateArgs(app(), global = false, force = false)
+        assertEquals(listOf("scoop", "update", "myapp-scooper-test"), args)
+        assertFalse(args.last().contains("/"), "no bucket means no prefix")
     }
 
     // ---------------------------------------------------------------

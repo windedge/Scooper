@@ -38,6 +38,7 @@ import kotlinx.coroutines.sync.withLock
 import scooper.ui.icons.*
 import scooper.ui.theme.dangerDefault
 import scooper.ui.theme.updateDefault
+import scooper.ui.theme.warningDefault
 import scooper.viewmodels.ToastType
 import kotlin.coroutines.resume
 
@@ -139,5 +140,6 @@ private fun snackbarStyleForType(type: ToastType): Triple<Color, Color, ImageVec
         ToastType.SUCCESS -> Triple(colors.updateDefault, colors.onPrimary, Lucide.CircleCheck)
         ToastType.ERROR -> Triple(colors.dangerDefault, colors.onPrimary, Lucide.CircleX)
         ToastType.INFO -> Triple(colors.primary, colors.onPrimary, Lucide.Info)
+        ToastType.WARNING -> Triple(colors.warningDefault, colors.onPrimary, Lucide.Info)
     }
 }

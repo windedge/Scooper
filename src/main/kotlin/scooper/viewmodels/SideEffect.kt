@@ -4,6 +4,8 @@ enum class ToastType {
     SUCCESS,
     ERROR,
     INFO,
+    /** The command succeeded but did nothing worth reporting as success (skipped work). */
+    WARNING,
 }
 
 sealed class AppSideEffect {

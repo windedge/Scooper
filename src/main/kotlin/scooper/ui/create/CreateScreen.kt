@@ -168,10 +168,11 @@ import scooper.viewmodels.SaveResult
 import scooper.viewmodels.computeDetailedLineDiff
 import scooper.viewmodels.executionSummaryCapsuleText
 import scooper.viewmodels.manifestTestSucceeded
-import scooper.viewmodels.installActionEnabled
-import scooper.viewmodels.installActionLabel
-import scooper.viewmodels.installActionPrimary
-import scooper.viewmodels.installActionVisible
+import scooper.viewmodels.deploymentAction
+import scooper.viewmodels.deployButtonEnabled
+import scooper.viewmodels.DeploymentAction
+import scooper.viewmodels.deploymentLabel
+import scooper.viewmodels.DeploymentState
 import scooper.viewmodels.manifestHasShortcuts
 import scooper.viewmodels.openAppActionVisible
 import scooper.viewmodels.saveToBucketPrimary
@@ -1216,7 +1217,8 @@ private fun ChatWorkspace(
                     hasSaveResult = state.saveResult != null,
                     installing = state.installing,
                     installedForUse = state.installedForUse,
-                    systemInstalled = state.systemInstalled,
+                    deployment = state.deployment,
+                    saveBucket = state.saveResult?.bucket,
                     running = state.running,
                     issues = state.manifestIssues,
                     exhausted = state.manifestExhausted,
@@ -2106,7 +2108,10 @@ private fun ManifestPreviewCard(
     hasSaveResult: Boolean = false,
     installing: Boolean = false,
     installedForUse: Boolean = false,
-    systemInstalled: Boolean = false,
+    /** Manifest vs installed copy; drives the deploy button label and action. */
+    deployment: DeploymentState = DeploymentState.NoManifest,
+    /** Bucket a save used, so [deploymentAction] can tell same-bucket from foreign. */
+    saveBucket: String? = null,
     revisions: List<ManifestRevision> = emptyList(),
     selectedRevisionId: String? = null,
     actionChips: List<ReviewActionChip> = emptyList(),
@@ -2562,15 +2567,27 @@ private fun ManifestPreviewCard(
                     enabled = enabled && !testing && !invalidJson,
                     primary = saveToBucketPrimary(testSucceeded, manifestSaved),
                 )
-                // Install for real use while the manifest is saved but not yet
-                // installed; once installed the button is hidden and Open appears
-                // when the manifest declares Start Menu shortcuts.
-                if (installActionVisible(installedForUse)) {
+                // Deploy button is driven by the derived deployment state: the
+                // label decides what it says, the action decides what it does
+                // (OpenOnly keeps just the Open button below).
+                val deployAction = deploymentAction(deployment, saveBucket)
+                val deployLabel = deploymentLabel(deployment)
+                if (deployLabel.isNotEmpty() && deployAction != DeploymentAction.OpenOnly) {
                     SmallActionButton(
-                        label = installActionLabel(systemInstalled = systemInstalled),
+                        label = deployLabel,
                         onClick = onInstallSaved,
-                        enabled = installActionEnabled(manifestJson, installedForUse, running, testing, installing),
-                        primary = installActionPrimary(manifestSaved, installedForUse),
+                        // The plan alone gates the button (see [deployButtonEnabled]):
+                        // an install in this session must not lock out a later
+                        // version or bucket change, nor block a retry after a
+                        // failed reinstall.
+                        enabled = deployButtonEnabled(
+                            manifestJson = manifestJson,
+                            action = deployAction,
+                            running = running,
+                            testing = testing,
+                            installing = installing,
+                        ),
+                        primary = manifestSaved && !installedForUse,
                         loading = installing,
                     )
                 }

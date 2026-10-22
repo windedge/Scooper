@@ -477,8 +477,13 @@ data class CreateState(
     /** True when the saved manifest was installed for real use in this session. */
     val installedForUse: Boolean = false,
     /** True when the app was already installed system wide before this session.
-     *  Drives the Reinstall label on the Install button (see [installActionLabel]). */
+     *  Drives the Reinstall label on the Install button (see [installActionLabel]).
+     *  Kept as a shim derived from [deployment] until P1-3 moves the button over. */
     val systemInstalled: Boolean = false,
+    /** Manifest vs installed copy, derived from disk inputs by
+     *  [CreateViewModel.refreshDeploymentState]. The deploy button consumes it from
+     *  P1-3 on; until then it only feeds [systemInstalled]. */
+    val deployment: DeploymentState = DeploymentState.NoManifest,
     /** True when the app installed for use in this session has Start Menu shortcuts. */
     val installedShortcuts: Boolean = false,
     /** Name the app was installed under when saveResult is absent (direct installs). */
@@ -498,6 +503,9 @@ data class CreateState(
     val activeExecution: ActiveExecution? = null,
     /** Monotonic engine-run tag; callbacks captured under an older epoch are dropped. */
     val generationEpoch: Long = 0L,
+    /** Monotonic deployment-refresh tag; an older refresh result must not overwrite
+     *  a newer one (see [CreateViewModel.refreshDeploymentState]). */
+    val deploymentEpoch: Long = 0L,
     /** Model selected for generation in Create workspace. */
     val selectedModel: String = "",
     /** Available models fetched from remote endpoint. */
@@ -890,6 +898,9 @@ class CreateViewModel(
                     error = null,
                 )
         }
+        // A cancelled round may have installed or saved before the cancel, and it
+        // drops the run's plan inputs, so re-derive the deployment from disk.
+        refreshDeploymentStateInIntent()
         postToast(AppSideEffect.Toast("Cancelled", ToastType.INFO))
     }
 
@@ -899,6 +910,9 @@ class CreateViewModel(
 
     fun onDismissSaveResult() = intent {
         reduce { state.copy(saveResult = null) }
+        // The cleared save result no longer feeds the plan (bucket, name), so the
+        // deployment has to be derived again instead of staying on stale inputs.
+        refreshDeploymentStateInIntent()
     }
 
     fun onApplyActionChip(chip: ReviewActionChip) = intent {
@@ -914,8 +928,9 @@ class CreateViewModel(
     }
 
     /** Install the manifest for real use (not the throwaway test install).
-     *  A saved manifest installs from its bucket; an unsaved one installs
-     *  straight from a local manifest file (direct install). */
+     *  The button action is derived from [CreateState.deployment] (see
+     *  [deploymentAction]): direct install, bucket install, forced update,
+     *  uninstall-then-install, or open only. */
     fun onInstallSaved() = intent {
         if (state.running || state.testing || state.installing) {
             postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
@@ -926,58 +941,166 @@ class CreateViewModel(
             postToast(AppSideEffect.Toast("No manifest to install", ToastType.INFO))
             return@intent
         }
-        val saveResult = state.saveResult
-        val saved = state.manifestSaved && saveResult != null
+        // The plan the user saw when clicking. A never-derived state (NoManifest)
+        // means no plan was shown, so the re-derived one is trusted instead.
+        val planDerived = state.deployment != DeploymentState.NoManifest
+        val actionAtClick = deploymentAction(state.deployment, state.saveResult?.bucket)
 
         installingJob = coroutineScope.launch {
             reduce { state.copy(installing = true) }
             try {
-                if (saved) {
-                    // ScoopClient.install addresses "bucket/name", so the bucket must be set.
-                    // An app installed before this session needs a forced update (reinstall
-                    // from bucket) so the fixed manifest takes effect; same-version scoop
-                    // update without --force is a no-op exit 0.
-                    val name = saveResult.appName
-                    val bucket = saveResult.bucket
-                    val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
-                    val systemInstalled = snapshot.containsKey(name.lowercase())
-                    val result = withContext(Dispatchers.IO) {
-                        if (systemInstalled) {
-                            scoopClient.update(
-                                App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                                global = reinstallGlobal(snapshot, name),
-                                force = true,
+                refreshDeploymentStateInIntent()
+                val saveResult = state.saveResult
+                val action = deploymentAction(state.deployment, saveResult?.bucket)
+                if (planDerived && action != actionAtClick) {
+                    // The installed copy moved under the button (another window
+                    // installed, uninstalled or saved): never run the stale plan.
+                    postToast(
+                        AppSideEffect.Toast(
+                            "Deployment state changed, review the button and retry",
+                            ToastType.WARNING,
+                        ),
+                    )
+                    return@launch
+                }
+                when (action) {
+                    DeploymentAction.None ->
+                        if (!planDerived) installLegacy(manifestJson)
+                    DeploymentAction.OpenOnly -> openInstalledApp()
+                    DeploymentAction.InstallDirect -> installFromCurrentManifest(manifestJson)
+                    DeploymentAction.InstallFromBucket ->
+                        if (saveResult != null) {
+                            installFromBucketCore(saveResult.appName, saveResult.bucket, force = false)
+                        } else {
+                            // Never a silent no-op: without a bucket the plan cannot run.
+                            postToast(AppSideEffect.Toast("Save the manifest to a bucket first", ToastType.ERROR))
+                        }
+                    DeploymentAction.UpdateForce -> {
+                        // The installed copy records where it came from, so a cleared
+                        // save result (assist round, dismissed result card) still
+                        // updates the right bucket. Neither source naming a bucket is
+                        // a refusal, never a silent no-op.
+                        val bucket = deployBucket(state.deployment, saveResult?.bucket)
+                        val name = deploymentAppName(state.saveResult, state.suggestedAppName, state.directInstallName)
+                        if (bucket == null || name == null) {
+                            postToast(
+                                AppSideEffect.Toast(
+                                    "Cannot update: no bucket is known for this app",
+                                    ToastType.ERROR,
+                                ),
                             )
                         } else {
-                            scoopClient.install(
-                                App(name = name, latestVersion = "0", bucket = Bucket(bucket)),
-                                global = false,
-                            )
+                            installFromBucketCore(name, bucket, force = true)
                         }
                     }
-                    if (result.isSuccess) {
-                        reduce {
-                            state.copy(
-                                installedForUse = true,
-                                installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
-                                systemInstalled = true,
-                            )
+                    DeploymentAction.UninstallThenInstall ->
+                        if (saveResult != null) {
+                            uninstallThenInstallFromBucket(saveResult.appName, saveResult.bucket)
+                        } else {
+                            // No bucket to install from: the local direct-install core
+                            // already uninstalls the previous copy first.
+                            installFromCurrentManifest(manifestJson)
                         }
-                        refreshInstalledAppRecord(bucket, name)
-                        postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
-                    } else {
-                        val detail = result.errorMessage?.takeIf { it.isNotBlank() }
-                            ?: "exit code ${result.exitCode}"
-                        postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
-                    }
-                } else {
-                    installFromCurrentManifest(manifestJson)
                 }
             } finally {
                 // Always clear the flag inside the child job: success,
                 // failure and a user cancel all release the send guard here.
                 installingJob = null
                 reduce { state.copy(installing = false) }
+            }
+        }
+    }
+
+    /**
+     * Pre-plan routing, kept for callers whose deployment state was never derived
+     * (the button is not rendered then, so only programmatic calls land here).
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.installLegacy(
+        manifestJson: String,
+    ) {
+        val saveResult = state.saveResult
+        if (state.manifestSaved && saveResult != null) {
+            val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+            val systemInstalled = snapshot.containsKey(saveResult.appName.lowercase())
+            installFromBucketCore(saveResult.appName, saveResult.bucket, force = systemInstalled)
+        } else {
+            installFromCurrentManifest(manifestJson)
+        }
+    }
+
+    /**
+     * Install or force-update a bucket manifest. Scoop exits 0 after doing nothing
+     * for a held app or a still-running process, so a skipped result is reported as
+     * a warning and must not claim the app is installed for use.
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.installFromBucketCore(
+        name: String,
+        bucket: String,
+        force: Boolean,
+    ) {
+        val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+        val app = App(name = name, latestVersion = "0", bucket = Bucket(bucket))
+        val result = withContext(Dispatchers.IO) {
+            if (force) {
+                scoopClient.update(app, global = reinstallGlobal(snapshot, name), force = true)
+            } else {
+                scoopClient.install(app, global = false)
+            }
+        }
+        finishBucketInstall(name, bucket, result)
+    }
+
+    /**
+     * Reinstall from the save bucket: uninstall the foreign copy first, then install
+     * from the bucket. The bucket manifest is pre-checked because a missing or
+     * unusable file would leave the app uninstalled with nothing to install from.
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.uninstallThenInstallFromBucket(
+        name: String,
+        bucket: String,
+    ) {
+        val issue = withContext(Dispatchers.IO) { bucketManifestIssue(bucketManifestText(bucket, name)) }
+        if (issue != null) {
+            postToast(AppSideEffect.Toast("Cannot reinstall $name: $issue", ToastType.ERROR))
+            return
+        }
+        val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
+        val app = App(name = name, latestVersion = "0", bucket = Bucket(bucket))
+        // Uninstall and install must agree on the scope, or a global app would be
+        // removed from the global root and reinstalled as a local one.
+        val scope = reinstallGlobal(snapshot, name)
+        val result = withContext(Dispatchers.IO) {
+            val uninstallResult = scoopClient.uninstall(app, global = scope, purge = false)
+            if (!uninstallResult.isSuccess) uninstallResult else scoopClient.install(app, global = scope)
+        }
+        finishBucketInstall(name, bucket, result)
+    }
+
+    /** Record and report the outcome of a bucket install or update. */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.finishBucketInstall(
+        name: String,
+        bucket: String,
+        result: CommandResult,
+    ) {
+        val skipped = result.skippedMessage?.takeIf { it.isNotBlank() }
+        if (result.isSuccess && skipped == null) {
+            reduce {
+                state.copy(
+                    installedForUse = true,
+                    installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
+                    systemInstalled = true,
+                )
+            }
+            refreshInstalledAppRecord(bucket, name)
+        }
+        refreshDeploymentStateInIntent()
+        when {
+            skipped != null -> postToast(AppSideEffect.Toast(skipped, ToastType.WARNING))
+            result.isSuccess -> postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            else -> {
+                val detail = result.errorMessage?.takeIf { it.isNotBlank() }
+                    ?: "exit code ${result.exitCode}"
+                postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
             }
         }
     }
@@ -1041,9 +1164,107 @@ class CreateViewModel(
         withContext(Dispatchers.IO) { scoopClient.installedSnapshot().containsKey(name.lowercase()) }
     } ?: false
 
+    // ---------------------------------------------------------------
+    // deployment state
+    // ---------------------------------------------------------------
+
+    /**
+     * Recompute [CreateState.deployment] from disk: the installed snapshot, the
+     * app's install record and the bucket manifest Scoop would update from. Disk
+     * reads stay outside the state block; the write-back is guarded by
+     * [CreateState.deploymentEpoch] so a slow refresh cannot overwrite a newer one.
+     *
+     * Every step that changes what is installed calls this (wiring points are
+     * listed in [finishWithDeploymentRefresh] and the save/install paths).
+     */
+    internal suspend fun refreshDeploymentState() = intent { refreshDeploymentStateInIntent() }
+
+    /** [refreshDeploymentState] for callers that already run inside an intent. */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.refreshDeploymentStateInIntent() {
+        // Bump before reading: a concurrent, slower refresh bumps later and its
+        // write-back then finds a mismatching epoch and drops itself.
+        val epoch = state.deploymentEpoch + 1
+        reduce { state.copy(deploymentEpoch = epoch) }
+        val inputs = readDeploymentInputs(
+            appName = deploymentAppName(state.saveResult, state.suggestedAppName, state.directInstallName),
+            fallbackManifestJson = state.activeManifestJson,
+            saveBucket = state.saveResult?.bucket,
+            inThisSession = state.installedForUse,
+        )
+        if (state.deploymentEpoch != epoch) return
+        val derived = deriveDeploymentState(inputs)
+        // The session latch may only be dropped when the copy it claimed is gone:
+        // UninstallThenInstall can uninstall and then fail to install, leaving
+        // nothing on disk while the latch still disabled the deploy button.
+        val vanished = derived == DeploymentState.NotInstalled &&
+            state.deployment is DeploymentState.Installed
+        reduce {
+            state.copy(
+                deployment = derived,
+                installedForUse = if (vanished) false else state.installedForUse,
+                installedShortcuts = if (vanished) false else state.installedShortcuts,
+                // systemInstalled is a shim for the legacy button label: an install
+                // in this session already set it, so refresh only confirms it.
+                systemInstalled = derived is DeploymentState.Installed || state.systemInstalled,
+            )
+        }
+    }
+
+    /**
+     * Disk side of [refreshDeploymentStateInIntent]. The bucket copy of the manifest
+     * wins over the session draft because that file is what Scoop will update from;
+     * the draft only stands in when the app was never saved to a bucket.
+     */
+    private suspend fun readDeploymentInputs(
+        appName: String?,
+        fallbackManifestJson: String,
+        saveBucket: String?,
+        inThisSession: Boolean,
+    ): DeploymentInputs = withContext(Dispatchers.IO) {
+        val installedInfo = appName?.let { scoopClient.installedSnapshot()[it.lowercase()] }
+        val record = installedInfo?.let { scoopClient.readInstallRecord(it.appDir.resolve("current").toPath()) }
+        val installed = installedInfo?.let {
+            InstalledRecord(
+                version = it.version,
+                origin = record?.origin ?: InstallOrigin.Unknown,
+                originBucket = record?.bucket,
+            )
+        }
+        val bucketManifest = listOfNotNull(saveBucket, record?.bucket)
+            .distinct()
+            .firstNotNullOfOrNull { bucketManifestText(it, appName) }
+        DeploymentInputs(
+            manifestJson = bucketManifest ?: fallbackManifestJson,
+            appName = appName,
+            saveBucket = saveBucket,
+            installed = installed,
+            inThisSession = inThisSession,
+        )
+    }
+
+    /** Manifest text of [appName] in [bucket], or null when the bucket has no copy. */
+    private fun bucketManifestText(bucket: String, appName: String?): String? {
+        if (appName.isNullOrBlank()) return null
+        val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket).resolve("bucket")
+        val file = listOf(appName, appName.lowercase())
+            .distinct()
+            .map { bucketDir.resolve("$it.json") }
+            .firstOrNull { it.isFile }
+            ?: return null
+        return try {
+            ScoopClient.readManifestText(file)
+        } catch (e: Exception) {
+            logger.warn("Deployment refresh: failed to read $file: ${e.message}")
+            null
+        }
+    }
+
     /** Launch the installed app through its Start Menu shortcut. */
-    fun onOpenApp() = intent {
-        if (!state.installedForUse) return@intent
+    fun onOpenApp() = intent { openInstalledApp() }
+
+    /** [onOpenApp] body, shared with the OpenOnly deploy plan. */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.openInstalledApp() {
+        if (!state.installedForUse) return
         val name = resolveOpenAppName(state, state.lastUrl)
         if (name == null || !APP_NAME_REGEX.matches(name)) {
             postToast(
@@ -1052,7 +1273,7 @@ class CreateViewModel(
                     ToastType.ERROR,
                 ),
             )
-            return@intent
+            return
         }
         val result = withContext(Dispatchers.IO) { scoopClient.openApp(name) }
         if (!result.isSuccess) {
@@ -1200,6 +1421,11 @@ class CreateViewModel(
             }
 
             is BucketSaveOutcome.Saved -> {
+                // Recompute from disk with the name actually saved (it may differ
+                // from the suggested one), so the Install button label stays
+                // truthful for an already installed app after a chat fix + save.
+                // Read before reduce: suspend call must stay outside the block.
+                val systemInstalledSnapshot = snapshotSystemInstalled(outcome.appName)
                 reduce {
                     state.copy(
                         saveDialogOpen = false,
@@ -1207,8 +1433,11 @@ class CreateViewModel(
                         suggestedAppName = outcome.appName,
                         manifestSaved = true,
                         saveResult = saveResultOf(outcome),
+                        systemInstalled = systemInstalledSnapshot,
                     )
                 }
+                // The saved file is what the deploy button will compare against.
+                refreshDeploymentStateInIntent()
                 scoopAiBridge.persistLastBucket(bucket)
                 scoopAiBridge.persistCommitPreference(commitToGit)
                 postToast(
@@ -1262,13 +1491,19 @@ class CreateViewModel(
             onWarn = { logger.warn(it) },
         )
         if (effect.manifestSaved) {
+            // Same recompute as performSave: the AI save may use another name,
+            // so the flag must reflect the freshly saved name on disk.
+            // Read before reduce: suspend call must stay outside the block.
+            val systemInstalledSnapshot = snapshotSystemInstalled(effect.saveResult?.appName)
             reduce {
                 state.copy(
                     suggestedAppName = effect.suggestedAppName,
                     manifestSaved = true,
                     saveResult = effect.saveResult,
+                    systemInstalled = systemInstalledSnapshot,
                 )
             }
+            refreshDeploymentStateInIntent()
         }
         return effect.resultJson
     }
@@ -1305,9 +1540,15 @@ class CreateViewModel(
                 state.copy(
                     installedForUse = effect.installedForUse,
                     installedShortcuts = effect.installedForUse && manifestHasShortcuts(state.activeManifestJson),
+                    systemInstalled = effect.installedForUse || state.systemInstalled,
                 )
             }
+            // Also after a failed attempt: it may have changed what is on disk.
+            refreshDeploymentStateInIntent()
             when {
+                // Scoop can exit 0 after doing nothing (held app, running process).
+                effect.skippedMessage != null ->
+                    postToast(AppSideEffect.Toast(effect.skippedMessage, ToastType.WARNING))
                 effect.newlyInstalled -> {
                     refreshInstalledAppRecord(bucket, name)
                     postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
@@ -1400,6 +1641,13 @@ class CreateViewModel(
                 )
             }
             if (result.isSuccess) {
+                val skipped = result.skippedMessage?.takeIf { it.isNotBlank() }
+                if (skipped != null) {
+                    // Exit 0 without installing anything: warn instead of claiming success.
+                    refreshDeploymentStateInIntent()
+                    postToast(AppSideEffect.Toast(skipped, ToastType.WARNING))
+                    return DirectInstallOutcome(directInstallReply(success = true, name = name, error = null))
+                }
                 reduce {
                     state.copy(
                         installedForUse = true,
@@ -1408,6 +1656,7 @@ class CreateViewModel(
                         directInstallName = name,
                     )
                 }
+                refreshDeploymentStateInIntent()
                 upsertOrphanInstalledApp(manifestJson, name)
                 postToast(AppSideEffect.Toast(successToast, ToastType.SUCCESS))
                 return DirectInstallOutcome(directInstallReply(success = true, name = name))
@@ -1725,6 +1974,9 @@ class CreateViewModel(
                 pendingImages = emptyList(),
             )
         }
+        // The round just cleared the save result, so the plan must come from disk
+        // instead of the (now stale) pre-round inputs.
+        refreshDeploymentStateInIntent()
 
         // Same epoch tagging as startGeneration (see the comment there).
         val epoch = state.generationEpoch + 1
@@ -1848,6 +2100,18 @@ class CreateViewModel(
         }
     }
 
+    /**
+     * Close a generation round: run the branch-specific reduces in [finish], then
+     * refresh the deployment state. Every [handleFinished] branch goes through here
+     * so a newly added branch cannot forget the post-run deployment refresh.
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.finishWithDeploymentRefresh(
+        finish: suspend () -> Unit,
+    ) {
+        finish()
+        refreshDeploymentStateInIntent()
+    }
+
     private fun handleFinished(epoch: Long, result: Result<ManifestResult>) = intent {
         if (!epochMatches(epoch)) return@intent
         result.fold(
@@ -1859,18 +2123,20 @@ class CreateViewModel(
                     // manifest ..." line written from the engine snapshot. Rewrite it
                     // before finishGeneration folds the active execution into the
                     // finalized message.
-                    reduce {
-                        state.copy(
-                            activeExecution = state.activeExecution?.let { active ->
-                                active.copy(steps = markAnsweredSummary(active.steps))
-                            },
-                        )
-                    }
-                    reduce {
-                        state.finishGeneration(
-                            messages = state.messages + agentReplyMessage(answerText, manifestResult.tokenUsage),
-                            error = null,
-                        )
+                    finishWithDeploymentRefresh {
+                        reduce {
+                            state.copy(
+                                activeExecution = state.activeExecution?.let { active ->
+                                    active.copy(steps = markAnsweredSummary(active.steps))
+                                },
+                            )
+                        }
+                        reduce {
+                            state.finishGeneration(
+                                messages = state.messages + agentReplyMessage(answerText, manifestResult.tokenUsage),
+                                error = null,
+                            )
+                        }
                     }
                     return@fold
                 }
@@ -1881,13 +2147,15 @@ class CreateViewModel(
                     // generic notice when it is missing. Abnormal ending: auto-expand.
                     val noAssetsText = manifestResult.explanation?.trim()?.takeIf { it.isNotEmpty() }
                         ?: "No Windows assets found for this repository."
-                    reduce {
-                        state.finishGeneration(
-                            messages = state.messages + agentReplyMessage(noAssetsText, manifestResult.tokenUsage),
-                            error = "No Windows assets found",
-                            suggestedAppName = name,
-                            executionExpanded = true,
-                        )
+                    finishWithDeploymentRefresh {
+                        reduce {
+                            state.finishGeneration(
+                                messages = state.messages + agentReplyMessage(noAssetsText, manifestResult.tokenUsage),
+                                error = "No Windows assets found",
+                                suggestedAppName = name,
+                                executionExpanded = true,
+                            )
+                        }
                     }
                     postToast(AppSideEffect.Toast("No Windows assets found", ToastType.ERROR))
                     return@fold
@@ -1947,18 +2215,20 @@ class CreateViewModel(
                 }
 
                 val systemInstalledSnapshot = snapshotSystemInstalled(name)
-                reduce {
-                    state.finishGeneration(
-                        messages = state.messages + agentReplyMessage(bubbleText, manifestResult.tokenUsage),
-                        error = null,
-                        manifestJson = pretty,
-                        suggestedAppName = name,
-                        manifestExhausted = finishedWithIssues,
-                        manifestInvalidJson = invalidJson,
-                        manifestIssues = issues,
-                        executionExpanded = finishedWithIssues,
-                        systemInstalled = systemInstalledSnapshot,
-                    )
+                finishWithDeploymentRefresh {
+                    reduce {
+                        state.finishGeneration(
+                            messages = state.messages + agentReplyMessage(bubbleText, manifestResult.tokenUsage),
+                            error = null,
+                            manifestJson = pretty,
+                            suggestedAppName = name,
+                            manifestExhausted = finishedWithIssues,
+                            manifestInvalidJson = invalidJson,
+                            manifestIssues = issues,
+                            executionExpanded = finishedWithIssues,
+                            systemInstalled = systemInstalledSnapshot,
+                        )
+                    }
                 }
                 postToast(
                     AppSideEffect.Toast(toastText, toastType),
@@ -1987,13 +2257,17 @@ class CreateViewModel(
                     translated = presentation.actions,
                     resumable = resumableStages,
                 )
-                reduce {
-                    state.finishGeneration(
-                        messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
-                        error = safe,
-                        resumableStages = resumableStages,
-                        executionExpanded = true,
-                    )
+                // Conservative: a failure changes nothing on disk, so the refresh
+                // re-derives the same state instead of clearing it.
+                finishWithDeploymentRefresh {
+                    reduce {
+                        state.finishGeneration(
+                            messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
+                            error = safe,
+                            resumableStages = resumableStages,
+                            executionExpanded = true,
+                        )
+                    }
                 }
                 postToast(AppSideEffect.Toast(safe, ToastType.ERROR))
             },
@@ -2023,6 +2297,15 @@ class CreateViewModel(
         text = text,
     )
 
+    /**
+     * Select a revision for review; null goes back to the latest one. Deployment
+     * policy for this round: the state is derived from [CreateState.activeManifestJson]
+     * only by an explicit refresh, so a selection made here keeps the current
+     * [CreateState.deployment] untouched. Browsing an older revision therefore never
+     * rewrites the deploy state of the session; P1-3 decides whether an install of a
+     * non-latest revision is offered by deriving it from [deploymentAction] against the
+     * selected manifest instead of guessing here.
+     */
     fun onSelectRevision(revisionId: String?) = intent {
         reduce { state.copy(selectedRevisionId = revisionId) }
     }
@@ -2035,6 +2318,13 @@ class CreateViewModel(
         reduce { state.copy(messages = toggleExecutionExpanded(state.messages, messageId)) }
     }
 
+    /**
+     * Append a revert revision and move the session back onto it. Deployment policy for
+     * this round matches [onSelectRevision]: the revert clears the session flags but does
+     * not refresh [CreateState.deployment], because the revert manifest was not saved to
+     * a bucket yet and the bucket copy (what Scoop updates from) did not change. The
+     * refresh happens once the reverted manifest is saved or installed.
+     */
     fun onRevertToRevision(revisionId: String) = intent {
         val target = state.revisions.firstOrNull { it.id == revisionId } ?: return@intent
         val diff = computeManifestDiff(state.manifestJson, target.manifestJson)
@@ -2657,6 +2947,8 @@ internal data class AiInstallAppResult(
     val newlyInstalled: Boolean = false,
     /** Pre-masked error for the failure toast; null when nothing failed. */
     val maskedError: String? = null,
+    /** Set when scoop exited 0 but did nothing (held app, running process). */
+    val skippedMessage: String? = null,
 )
 
 /**
@@ -2709,6 +3001,22 @@ internal suspend fun aiInstallApp(
         )
     }
     val result = install(App(name = name, latestVersion = "0", bucket = Bucket(bucket)))
+    val skipped = result.skippedMessage?.takeIf { it.isNotBlank() }
+    if (result.isSuccess && skipped != null) {
+        // Command succeeded but scoop skipped the work: report the skip to the
+        // model and do not claim the app is installed for use.
+        return AiInstallAppResult(
+            resultJson = buildJsonObject {
+                put("success", true)
+                put("mode", "bucket")
+                put("app", name)
+                put("bucket", bucket)
+                put("skipped", skipped)
+            }.toString(),
+            installedForUse = false,
+            skippedMessage = skipped,
+        )
+    }
     if (result.isSuccess) {
         return AiInstallAppResult(
             resultJson = buildJsonObject {
@@ -2732,6 +3040,27 @@ internal suspend fun aiInstallApp(
         installedForUse = false,
         maskedError = masked,
     )
+}
+
+/**
+ * Why a bucket manifest cannot be installed from, or null when it is usable.
+ * Uninstall-then-install pre-checks this: the uninstall would otherwise leave
+ * the app gone with nothing to install from.
+ */
+internal fun bucketManifestIssue(manifestText: String?): String? {
+    if (manifestText.isNullOrBlank()) return "the bucket has no manifest for this app"
+    val obj = try {
+        Json.parseToJsonElement(manifestText) as? JsonObject
+    } catch (_: Exception) {
+        null
+    } ?: return "the bucket manifest is not valid JSON"
+    if (((obj["version"] as? JsonPrimitive)?.content ?: "").isBlank()) {
+        return "the bucket manifest has no version"
+    }
+    if (obj["url"] == null && obj["architecture"] !is JsonObject) {
+        return "the bucket manifest has no url or architecture"
+    }
+    return null
 }
 
 /**

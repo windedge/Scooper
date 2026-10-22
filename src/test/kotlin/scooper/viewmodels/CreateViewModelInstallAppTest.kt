@@ -57,6 +57,35 @@ class CreateViewModelInstallAppTest {
     }
 
     // ---------------------------------------------------------------------
+    // Skip path: scoop exited 0 but did nothing
+    // ---------------------------------------------------------------------
+
+    @Test
+    fun `skipped install keeps installedForUse false and reports the skip`() = runBlocking {
+        val result = aiInstallApp(
+            bucket = "main",
+            name = "fd",
+            alreadyInstalled = false,
+            install = { _ ->
+                CommandResult(
+                    exitCode = 0,
+                    skippedMessage = "Scoop skipped the update: 'fd' is held to version 1.0. Run 'scoop unhold fd' to allow updates.",
+                )
+            },
+        )
+
+        assertFalse(result.installedForUse, "a skipped command installs nothing")
+        assertFalse(result.newlyInstalled, "a skipped command is not a new install")
+        assertNull(result.maskedError)
+        assertEquals("true", resultJsonField(result.resultJson, "success"))
+        assertTrue(
+            result.resultJson.contains("held to version"),
+            "the model must see the skip reason: ${result.resultJson}",
+        )
+        assertTrue(result.skippedMessage?.contains("held to version") == true)
+    }
+
+    // ---------------------------------------------------------------------
     // Failure paths
     // ---------------------------------------------------------------------
 

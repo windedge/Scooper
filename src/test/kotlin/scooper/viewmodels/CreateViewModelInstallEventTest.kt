@@ -190,7 +190,10 @@ class CreateViewModelInstallEventTest {
     private fun writeInstalledManifest(root: File) {
         val bucketDir = File(root, "buckets/main/bucket")
         bucketDir.mkdirs()
-        bucketDir.resolve("testapp.json").writeText("""{"version":"1.2.3"}""")
+        // architecture keeps the manifest installable without a download (the
+        // uninstall-then-install pre-check needs url or architecture).
+        bucketDir.resolve("testapp.json")
+            .writeText("""{"version":"1.2.3","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         File(root, "apps/testapp/current").mkdirs()
     }
 

@@ -3,6 +3,7 @@ package scooper.viewmodels
 import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
 import kotlinx.coroutines.channels.Channel
+import scooper.util.VersionComparator
 import java.util.Locale
 
 /**
@@ -392,7 +393,8 @@ internal fun newManifestResetsVerification(
     }
 }
 
-/** Install for use is the primary nudge once the manifest is saved and before it is installed. */
+/** Install for use is the primary nudge once the manifest is saved and before it is installed.
+ *  Superseded by deployment* ([deploymentAction]) for the deploy button. */
 internal fun installActionPrimary(manifestSaved: Boolean, installedForUse: Boolean): Boolean =
     manifestSaved && !installedForUse
 
@@ -400,6 +402,7 @@ internal fun installActionPrimary(manifestSaved: Boolean, installedForUse: Boole
  * Install for use is offered for any valid manifest, saved or not, with
  * nothing in flight. An unsaved manifest installs straight from the local
  * file; the save result is no longer part of the gate.
+ * Superseded by deployment* ([deploymentAction]) for the deploy button.
  */
 internal fun installActionEnabled(
     manifestJson: String,
@@ -409,13 +412,15 @@ internal fun installActionEnabled(
     installing: Boolean,
 ): Boolean = isScoopManifestJson(manifestJson) && !installedForUse && !running && !testing && !installing
 
-/** Install is hidden once the app is installed for use; Open replaces it. */
+/** Install is hidden once the app is installed for use; Open replaces it.
+ *  Superseded by deployment* ([deploymentLabel] / [deploymentAction]). */
 internal fun installActionVisible(installedForUse: Boolean): Boolean = !installedForUse
 
 /**
  * Label for the install action. When the app was installed outside this session
  * (system install), a saved manifest needs a reinstall to apply fixes, so the
  * label says Reinstall instead of Install.
+ * Superseded by deployment* ([deploymentLabel]) for the deploy button.
  */
 internal fun installActionLabel(systemInstalled: Boolean): String =
     if (systemInstalled) "Reinstall" else "Install"
@@ -439,3 +444,181 @@ internal fun manifestHasShortcuts(manifestJson: String): Boolean {
 /** Open is offered once the app is installed for use and its manifest declares shortcuts. */
 internal fun openAppActionVisible(installedForUse: Boolean, manifestShortcutsAvailable: Boolean): Boolean =
     installedForUse && manifestShortcutsAvailable
+
+/**
+ * How the manifest version relates to the installed one. Older means the manifest
+ * is older than what is installed; Unknown covers non-comparable tags like "nightly".
+ */
+enum class VersionRelation { Older, Same, Newer, Unknown }
+
+/**
+ * Re-exported so viewmodel code keeps using the unqualified name; the constant itself
+ * lives in data/ because the service layer reads install records too.
+ */
+typealias InstallOrigin = scooper.data.InstallOrigin
+
+/**
+ * Deployment state derived purely from manifest + install record inputs.
+ * Consumed by [deploymentLabel] / [deploymentAction]; no UI wiring yet.
+ */
+sealed interface DeploymentState {
+    data object NoManifest : DeploymentState
+    data object InvalidManifest : DeploymentState
+    data object UnresolvedName : DeploymentState
+    data object NotInstalled : DeploymentState
+
+    data class Installed(
+        val installedVersion: String,
+        val manifestVersion: String?,
+        val relation: VersionRelation,
+        val origin: InstallOrigin,
+        val originBucket: String?,
+        val inThisSession: Boolean,
+    ) : DeploymentState
+}
+
+/** What the deploy button should do for a state; None renders disabled. */
+enum class DeploymentAction {
+    None, InstallDirect, InstallFromBucket, UpdateForce, UninstallThenInstall, OpenOnly
+}
+
+/** Inputs for [deriveDeploymentState]; strings instead of File so it stays pure. */
+data class DeploymentInputs(
+    val manifestJson: String?,
+    val appName: String? = null,
+    val saveBucket: String? = null,
+    val installed: InstalledRecord? = null,
+    val inThisSession: Boolean = false,
+)
+
+/** The installed copy as far as deployment decisions need to know. */
+data class InstalledRecord(
+    val version: String,
+    val origin: InstallOrigin,
+    val originBucket: String?,
+)
+
+/**
+ * App name the deployment state is derived for, in resolution order: the name a
+ * save actually used (a save may rename the app), the engine suggestion, then the
+ * name a direct install used. Blank candidates are skipped. Pure function.
+ */
+internal fun deploymentAppName(
+    saveResult: SaveResult?,
+    suggestedAppName: String?,
+    directInstallName: String?,
+): String? = listOf(
+    saveResult?.appName,
+    suggestedAppName,
+    directInstallName,
+).firstOrNull { !it.isNullOrBlank() }
+
+/**
+ * Derive the deployment state. Version comparison: exact string equality means Same
+ * (Scoop compares versions as strings, so 2024.01 vs 2024.1 are different); natural
+ * order then decides Newer/Older, with compare==0-but-different-strings counted as
+ * Newer so the button offers Update instead of a no-op reinstall. Versions that do
+ * not start with a digit ("nightly") are not comparable: relation Unknown and a null
+ * manifestVersion. Pure function.
+ */
+internal fun deriveDeploymentState(inputs: DeploymentInputs): DeploymentState {
+    if (inputs.manifestJson.isNullOrBlank()) return DeploymentState.NoManifest
+    val manifestVersion = manifestVersionOf(inputs.manifestJson)
+        ?: return DeploymentState.InvalidManifest
+    if (inputs.appName.isNullOrBlank()) return DeploymentState.UnresolvedName
+    val installed = inputs.installed ?: return DeploymentState.NotInstalled
+    val comparable = isComparableVersion(manifestVersion) && isComparableVersion(installed.version)
+    val relation = when {
+        !comparable -> VersionRelation.Unknown
+        manifestVersion == installed.version -> VersionRelation.Same
+        VersionComparator.compare(manifestVersion, installed.version) > 0 -> VersionRelation.Newer
+        VersionComparator.compare(manifestVersion, installed.version) < 0 -> VersionRelation.Older
+        else -> VersionRelation.Newer
+    }
+    return DeploymentState.Installed(
+        installedVersion = installed.version,
+        manifestVersion = if (comparable) manifestVersion else null,
+        relation = relation,
+        origin = installed.origin,
+        originBucket = installed.originBucket,
+        inThisSession = inputs.inThisSession,
+    )
+}
+
+/**
+ * Button label for a state: "Install" / "Update" / "Reinstall", or "" to hide the
+ * button (nothing to deploy; the UI shows Open instead). Pure function.
+ */
+internal fun deploymentLabel(state: DeploymentState): String = when (state) {
+    DeploymentState.NoManifest -> ""
+    DeploymentState.InvalidManifest,
+    DeploymentState.UnresolvedName,
+    DeploymentState.NotInstalled,
+    -> "Install"
+    is DeploymentState.Installed -> when {
+        state.relation == VersionRelation.Newer -> "Update"
+        state.relation == VersionRelation.Same && state.inThisSession -> ""
+        else -> "Reinstall"
+    }
+}
+
+/**
+ * Action behind the button. Installed + same version + this session opens only.
+ * DirectFile installs always uninstall first (the leftover url cannot update).
+ * A bucket install whose bucket matches the save bucket (or with no save bucket at
+ * all: no new bucket exists, so force-updating the installed content is the
+ * least destructive reinstall) uses UpdateForce; anything else uninstalls first.
+ * Pure function.
+ */
+internal fun deploymentAction(state: DeploymentState, saveBucket: String?): DeploymentAction = when (state) {
+    DeploymentState.NoManifest,
+    DeploymentState.InvalidManifest,
+    DeploymentState.UnresolvedName,
+    -> DeploymentAction.None
+    DeploymentState.NotInstalled ->
+        if (saveBucket == null) DeploymentAction.InstallDirect else DeploymentAction.InstallFromBucket
+    is DeploymentState.Installed -> when {
+        state.relation == VersionRelation.Same && state.inThisSession -> DeploymentAction.OpenOnly
+        state.origin == InstallOrigin.DirectFile -> DeploymentAction.UninstallThenInstall
+        state.origin == InstallOrigin.Bucket &&
+            (saveBucket == null || state.originBucket == saveBucket) -> DeploymentAction.UpdateForce
+        else -> DeploymentAction.UninstallThenInstall
+    }
+}
+
+/**
+ * Bucket the deploy plan works from: the installed copy's recorded origin bucket
+ * first, so an update still knows its bucket after the save result was cleared
+ * (assist round, dismissed result card), then the save bucket. Pure function.
+ */
+internal fun deployBucket(state: DeploymentState, saveBucket: String?): String? =
+    (state as? DeploymentState.Installed)?.originBucket ?: saveBucket
+
+/**
+ * Deploy button gate: a parseable manifest, a plan with work left, and nothing in
+ * flight. The `installedForUse` latch is deliberately absent: an install in this
+ * session must not disable a later version or bucket change that still has to be
+ * deployed (and a vanished install must be retryable). Pure function.
+ */
+internal fun deployButtonEnabled(
+    manifestJson: String,
+    action: DeploymentAction,
+    running: Boolean,
+    testing: Boolean,
+    installing: Boolean,
+): Boolean = isScoopManifestJson(manifestJson) &&
+    action != DeploymentAction.None &&
+    !running && !testing && !installing
+
+/** Blank versions and non-digit-leading tags ("nightly") cannot be order-compared. */
+private fun isComparableVersion(version: String): Boolean = version.firstOrNull()?.isDigit() == true
+
+/** Version field of a manifest JSON, or null when missing / blank / not an object. */
+private fun manifestVersionOf(manifestJson: String): String? = try {
+    val obj = kotlinx.serialization.json.Json.parseToJsonElement(manifestJson)
+        as? kotlinx.serialization.json.JsonObject ?: return null
+    (obj["version"] as? kotlinx.serialization.json.JsonPrimitive)
+        ?.content?.takeIf { it.isNotBlank() }
+} catch (_: Exception) {
+    null
+}

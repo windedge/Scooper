@@ -69,6 +69,7 @@ class ScoopClientInstallOutputTest {
         assertEquals(0, result.exitCode)
         assertTrue(result.isSuccess)
         assertNull(result.errorMessage)
+        assertNull(result.skippedMessage, "a real install must not be reported as skipped")
         assertEquals(output.joinToString("\n"), result.output)
     }
 
@@ -98,5 +99,74 @@ class ScoopClientInstallOutputTest {
         assertEquals(2, result.exitCode)
         assertFalse(result.isSuccess)
         assertEquals("ERROR line here", result.errorMessage)
+    }
+
+    // ---------------------------------------------------------------
+    // Silent skips: scoop exits 0 after doing nothing
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `held app output is reported as skipped with held to version reason`() {
+        val output = listOf(
+            "WARN  'pinned-scooper-test' is held to version 1.0.0",
+        )
+
+        val result = client.evaluateInstallOutput(0, output)
+
+        assertEquals(0, result.exitCode, "a held app is not a failure, scoop exits 0")
+        assertTrue(result.isSuccess)
+        assertNull(result.errorMessage)
+        assertTrue(
+            result.skippedMessage!!.contains("held to version"),
+            "skippedMessage must explain the hold, got: ${result.skippedMessage}",
+        )
+    }
+
+    @Test
+    fun `running process skip with ERROR line fails the update with the still running message`() {
+        val output = listOf(
+            "Updating 'blocked-scooper-test' (1.0.0 -> 2.0.0)",
+            "ERROR The following instances of \"blocked-scooper-test\" are still running. Close them and try again.",
+            "Running process detected, skip updating.",
+        )
+
+        val result = client.evaluateInstallOutput(0, output)
+
+        assertEquals(1, result.exitCode, "the ERROR line precedes the skip hint and must fail the update")
+        assertFalse(result.isSuccess)
+        assertTrue(
+            result.errorMessage!!.contains("still running"),
+            "errorMessage must carry the running-process detail, got: ${result.errorMessage}",
+        )
+        assertNull(result.skippedMessage, "an error must not also be reported as a skip")
+    }
+
+    @Test
+    fun `running process skip hint alone is reported as skipped`() {
+        val output = listOf(
+            "Updating 'blocked-scooper-test' (1.0.0 -> 2.0.0)",
+            "Running process detected, skip updating.",
+        )
+
+        val result = client.evaluateInstallOutput(0, output)
+
+        assertEquals(0, result.exitCode)
+        assertNull(result.errorMessage)
+        assertTrue(
+            result.skippedMessage!!.contains("still running"),
+            "skippedMessage must explain the running process, got: ${result.skippedMessage}",
+        )
+    }
+
+    @Test
+    fun `no manifest available ERROR line still fails the update`() {
+        val output = listOf("ERROR No manifest available for 'ghost-scooper-test'.")
+
+        val result = client.evaluateInstallOutput(0, output)
+
+        assertEquals(1, result.exitCode)
+        assertFalse(result.isSuccess)
+        assertTrue(result.errorMessage!!.contains("No manifest available"))
+        assertNull(result.skippedMessage)
     }
 }
