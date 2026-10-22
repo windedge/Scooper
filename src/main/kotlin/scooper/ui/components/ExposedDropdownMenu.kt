@@ -35,8 +35,10 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -93,6 +95,23 @@ internal fun popupPanelWidth(minWidth: Dp, fallbackWidth: Dp, maxWidth: Dp): Dp 
     (if (minWidth <= 0.dp) fallbackWidth else minWidth).coerceAtMost(maxWidth)
 
 /**
+ * Horizontal slack added to the widest item text when sizing the plain
+ * dropdown panel: both side paddings plus a safety margin for the
+ * right-side insets of DropdownMenuContent.
+ */
+internal val DROPDOWN_PANEL_TEXT_RESERVE: Dp = 40.dp
+
+/**
+ * Panel width for the plain ExposedDropdownMenu: never narrower than the
+ * anchor field, never narrower than the longest item text plus the content
+ * reserve, so display names stay on a single line. An unknown longest item
+ * width (empty list) keeps the anchor width.
+ */
+internal fun dropdownPanelWidth(anchorWidth: Dp, longestItemWidth: Dp): Dp =
+    if (longestItemWidth <= 0.dp) anchorWidth
+    else maxOf(anchorWidth, longestItemWidth + DROPDOWN_PANEL_TEXT_RESERVE)
+
+/**
  * Safe wrapper for VerticalScrollbar that protects against Compose Desktop's
  * IntrinsicSize.Max / Unbounded measurement bug (Size out of range).
  */
@@ -139,6 +158,12 @@ fun ExposedDropdownMenu(
     textFill: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // Longest option text drives the panel minWidth so no display name wraps.
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val longestItemWidth = items.maxOfOrNull { item ->
+        with(density) { textMeasurer.measure(AnnotatedString(item), maxLines = 1).size.width.toDp() }
+    } ?: 0.dp
     ExposedDropdownMenuStack(
         textField = {
             BasicTextField(
@@ -171,9 +196,10 @@ fun ExposedDropdownMenu(
             )
         },
         dropdownMenu = { boxWidth, itemHeight ->
+            val panelWidth = dropdownPanelWidth(boxWidth, longestItemWidth)
             Box(
                 Modifier
-                    .width(boxWidth)
+                    .width(panelWidth)
                     .wrapContentSize(Alignment.TopStart)
             ) {
                 DropdownMenu(
@@ -185,7 +211,7 @@ fun ExposedDropdownMenu(
                         DropdownMenuItem(
                             modifier = Modifier
                                 .height(itemHeight)
-                                .width(boxWidth)
+                                .width(panelWidth)
                                 .background(if (hover) colors.primarySubtle else colors.surface)
                                 .onHover { hover = it }
                                 .cursorHand(),
@@ -194,7 +220,12 @@ fun ExposedDropdownMenu(
                                 onItemSelected(item)
                             }
                         ) {
-                            Text(item, color = colors.onSurface)
+                            Text(
+                                item,
+                                color = colors.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -213,8 +244,10 @@ private fun ExposedDropdownMenuStack(
             subcompose(ExposedDropdownMenuSlot.TextField, textField).first().measure(constraints)
 
         val dropdownPlaceable = subcompose(ExposedDropdownMenuSlot.Dropdown) {
+            // Wider panel than the anchor is fine: it only shows in the
+            // open popup, and the anchor layout keeps the field width.
             dropdownMenu(textFieldPlaceable.width.toDp(), textFieldPlaceable.height.toDp())
-        }.first().measure(constraints)
+        }.first().measure(constraints.copy(minWidth = 0, minHeight = 0))
 
         layout(textFieldPlaceable.width, textFieldPlaceable.height) {
             textFieldPlaceable.placeRelative(0, 0)
