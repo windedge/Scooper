@@ -138,9 +138,9 @@ fun PrefRow(
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     } else {
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     }
-    Column(modifier = modifier.then(Modifier.fillMaxWidth().padding(vertical = 16.dp))) {
+    Column(modifier = modifier.then(Modifier.fillMaxWidth().padding(vertical = 12.dp))) {
         Row(
             modifier = rowModifier,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -175,6 +175,57 @@ fun PrefRow(
     }
 }
 
+/**
+ * Stacked row variant: title/subtitle above, control on its own line below,
+ * aligned to the title's left edge (no 32dp indent).
+ */
+@Composable
+fun PrefRowStacked(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    content: (@Composable () -> Unit)? = null,
+) {
+    PrefRowStacked(
+        title = { Text(title) },
+        modifier = modifier,
+        subtitle = subtitle?.let { { Text(it) } },
+        content = content,
+    )
+}
+
+@Composable
+fun PrefRowStacked(
+    title: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: (@Composable () -> Unit)? = null,
+    content: (@Composable () -> Unit)? = null,
+) {
+    val colors = MaterialTheme.colors
+    Column(modifier = modifier.then(Modifier.fillMaxWidth().padding(vertical = 12.dp))) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            ProvideTextStyle(MaterialTheme.typography.subtitle1.copy(fontWeight = FontWeight.Medium)) {
+                title()
+            }
+
+            if (subtitle != null) {
+                Spacer(Modifier.height(4.dp))
+                ProvideTextStyle(MaterialTheme.typography.body2.copy(color = colors.textBody)) {
+                    subtitle()
+                }
+            }
+        }
+        if (content != null) {
+            Spacer(Modifier.height(12.dp))
+            ProvideTextStyle(MaterialTheme.typography.body1) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    content()
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun SettingContainer(
     modifier: Modifier = Modifier,
@@ -183,55 +234,80 @@ fun SettingContainer(
     applyEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         val colors = MaterialTheme.colors
         val scrollState = rememberScrollState()
         Column(
-            modifier = modifier
-                .widthIn(max = 720.dp)
-                .fillMaxSize()
-                .padding(horizontal = 48.dp, vertical = 32.dp)
-                .verticalScroll(scrollState),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.Start,
         ) {
-            content()
+            // Scroll lives on the full-width wrapper so wheel events are
+            // consumed across the whole content area, including the blank
+            // gutters beside the centered 720dp column. The scrollbar is
+            // pinned to the window's right edge in the outer Box below.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState),
+                verticalArrangement = Arrangement.Top,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 720.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 48.dp, vertical = 32.dp),
+                    verticalArrangement = Arrangement.Top,
+                    horizontalAlignment = Alignment.Start,
+                ) {
+                    content()
 
-            if (onApply != null) {
-                Spacer(Modifier.height(24.dp))
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { onDiscard?.invoke() },
-                        enabled = applyEnabled,
-                        modifier = Modifier.height(36.dp).cursorHand(),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, if (applyEnabled) colors.borderDefault else colors.divider),
-                        elevation = null,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            disabledContentColor = colors.textMuted,
-                        )
-                    ) {
-                        Text("Discard", fontWeight = FontWeight.Medium)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Button(
-                        onClick = { onApply() },
-                        enabled = applyEnabled,
-                        modifier = Modifier.height(36.dp).cursorHand(),
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = if (applyEnabled) colors.primary else colors.textMuted
-                        ),
-                        shape = RoundedCornerShape(6.dp),
-                        elevation = null,
-                    ) {
-                        Text("Apply Changes", color = Color.White, fontWeight = FontWeight.Medium)
-                    }
+                    Spacer(Modifier.height(40.dp))
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
+            // Fixed footer, outside the scrollable column.
+            if (onApply != null) {
+                Column(modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().align(Alignment.CenterHorizontally)) {
+                    Divider(color = colors.divider)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        OutlinedButton(
+                            onClick = { onDiscard?.invoke() },
+                            enabled = applyEnabled,
+                            modifier = Modifier.height(36.dp).cursorHand(),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, if (applyEnabled) colors.borderDefault else colors.divider),
+                            elevation = null,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                disabledContentColor = colors.textMuted,
+                            )
+                        ) {
+                            Text("Discard", fontWeight = FontWeight.Medium)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Button(
+                            onClick = { onApply() },
+                            enabled = applyEnabled,
+                            modifier = Modifier.height(36.dp).cursorHand(),
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = if (applyEnabled) colors.primary else colors.textMuted
+                            ),
+                            shape = RoundedCornerShape(6.dp),
+                            elevation = null,
+                        ) {
+                            Text("Apply Changes", color = Color.White, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
         }
 
+        // Scrollbar hugs the window's right edge and spans the full height.
         VerticalScrollbar(
             rememberScrollbarAdapter(scrollState),
             modifier = Modifier.fillMaxHeight().align(Alignment.CenterEnd)

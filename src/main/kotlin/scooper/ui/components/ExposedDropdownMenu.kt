@@ -5,6 +5,9 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -30,11 +33,11 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
@@ -80,6 +83,14 @@ internal fun initialMenuHighlightIndex(selected: String, entries: List<String>):
 /** Keeps the keyboard highlight inside 0 until size-1; an empty list maps to unset. */
 internal fun clampMenuIndex(index: Int, size: Int): Int =
     if (size <= 0) MENU_HIGHLIGHT_UNSET else index.coerceIn(0, size - 1)
+
+/**
+ * Panel width for the popup: use minWidth when positive (a tracked anchor
+ * width or a fixed floor), fall back to fallbackWidth otherwise, and never
+ * exceed maxWidth. Long entries ellipsize instead of stretching the panel.
+ */
+internal fun popupPanelWidth(minWidth: Dp, fallbackWidth: Dp, maxWidth: Dp): Dp =
+    (if (minWidth <= 0.dp) fallbackWidth else minWidth).coerceAtMost(maxWidth)
 
 /**
  * Safe wrapper for VerticalScrollbar that protects against Compose Desktop's
@@ -276,10 +287,9 @@ fun SearchableDropdownMenuPopup(
     onFetch: (() -> Unit)? = null,
     error: String? = null,
     minWidth: Dp = 220.dp,
-    maxWidth: Dp = 360.dp,
+    maxWidth: Dp = 480.dp,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     showCustomQueryOption: Boolean = true,
-    keyboardNavigation: Boolean = false,
 ) {
     if (!expanded) return
 
@@ -297,7 +307,7 @@ fun SearchableDropdownMenuPopup(
     val isCustomQuery = showCustomQueryOption && searchQuery.isNotBlank() &&
         items.none { it.equals(searchQuery.trim(), ignoreCase = true) }
 
-    // Keyboard navigation state (composer only): highlighted row over the
+    // Keyboard navigation state: highlighted row over the
     // selectable entries (custom "use query" row first, then filtered items).
     // The popup leaves composition when collapsed, so the highlight is
     // re-resolved on every open and whenever the query or model list changes:
@@ -325,38 +335,9 @@ fun SearchableDropdownMenuPopup(
         )
     }
 
-    // Measure real text widths instead of estimating from character counts
-    val textMeasurer = rememberTextMeasurer()
-    val captionStyle = typography.caption
-    val calculatedWidth = remember(
-        textMeasurer,
-        captionStyle,
-        items,
-        searchQuery,
-        showCustomQueryOption,
-        minWidth,
-        maxWidth,
-    ) {
-        val selectedStyle = captionStyle.copy(fontWeight = FontWeight.SemiBold)
-
-        val candidates = buildList {
-            add("Search or type model..." to captionStyle)
-            // Selected items render SemiBold, use it as the safe upper bound
-            items.forEach { add(it to selectedStyle) }
-            if (showCustomQueryOption && searchQuery.isNotBlank()) {
-                add("Use \"${searchQuery.trim()}\"" to selectedStyle)
-            }
-            if (items.isNotEmpty()) add(footerText to captionStyle)
-        }
-
-        val maxTextWidth = candidates.maxOfOrNull { (text, style) ->
-            textMeasurer.measure(text, style).size.width
-        } ?: 0
-
-        // Covers row padding, selected check icon, refresh button and scrollbar gutter
-        val horizontalBudget = 44.dp
-        with(density) { maxTextWidth.toDp() + horizontalBudget }.coerceIn(minWidth, maxWidth)
-    }
+    // Panel width uses minWidth (a tracked anchor or a fixed floor); long
+    // model names ellipsize instead of stretching the panel.
+    val calculatedWidth = popupPanelWidth(minWidth, 220.dp, maxWidth)
 
     Popup(
         popupPositionProvider = positionProvider,
@@ -417,7 +398,7 @@ fun SearchableDropdownMenuPopup(
                                         .fillMaxWidth()
                                         .focusRequester(searchFocusRequester)
                                         .onPreviewKeyEvent { event ->
-                                            if (!keyboardNavigation || event.type != KeyEventType.KeyDown) {
+                                            if (event.type != KeyEventType.KeyDown) {
                                                 false
                                             } else when (event.key) {
                                                 Key.DirectionDown -> {
@@ -485,15 +466,23 @@ fun SearchableDropdownMenuPopup(
                     }
 
                     if (onFetch != null) {
-                        val fetchTransition = rememberInfiniteTransition()
-                        val fetchSpinAngle by fetchTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(durationMillis = 800, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart,
-                            ),
-                        )
+                        // Spin only while loading; a live infinite transition
+                        // would recompose the popup on every frame.
+                        val fetchSpinAngle = if (loading) {
+                            val fetchTransition = rememberInfiniteTransition(label = "fetchSpin")
+                            val angle by fetchTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 360f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 800, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart,
+                                ),
+                                label = "fetchSpinAngle",
+                            )
+                            angle
+                        } else {
+                            0f
+                        }
 
                         Box(
                             modifier = Modifier
@@ -506,9 +495,7 @@ fun SearchableDropdownMenuPopup(
                             Icon(
                                 Lucide.RefreshCw,
                                 contentDescription = "Refresh models",
-                                modifier = Modifier.size(14.dp).then(
-                                    if (loading) Modifier.rotate(fetchSpinAngle) else Modifier
-                                ),
+                                modifier = Modifier.size(14.dp).rotate(fetchSpinAngle),
                                 tint = colors.primary,
                             )
                         }
@@ -517,70 +504,17 @@ fun SearchableDropdownMenuPopup(
 
                 Divider(color = colors.divider, modifier = Modifier.padding(vertical = 2.dp))
 
-                // 2. Custom Option
-                if (isCustomQuery) {
-                    var customHover by remember { mutableStateOf(false) }
-                    val customHighlighted = keyboardNavigation && highlightIndex == 0
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(34.dp)
-                            .background(
-                                if (customHighlighted) colors.primarySubtle
-                                else if (customHover) colors.primarySubtle.copy(alpha = 0.6f)
-                                else colors.surface
-                            )
-                            .onHover { customHover = it }
-                            .cursorHand()
-                            .clickable {
-                                onItemSelected(searchQuery.trim())
-                                onDismissRequest()
-                            }
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(
-                            Lucide.Plus,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = colors.primary,
-                        )
-                        Text(
-                            text = "Use \"${searchQuery.trim()}\"",
-                            style = typography.caption.copy(
-                                color = colors.primary,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
-                    Divider(color = colors.divider, modifier = Modifier.padding(vertical = 2.dp))
-                }
-
-                // 3. List with Scrollbar
-                val scrollState = rememberScrollState()
-                if (keyboardNavigation) {
-                    // Keep the highlighted row inside the viewport. Model rows
-                    // have a fixed 32.dp height; the custom "use query" row
-                    // lives above the scroll area and never needs scrolling.
-                    // viewportSize is part of the keys so a freshly opened
-                    // menu also scrolls to the highlighted selected row once
-                    // the first layout pass reports a real viewport height.
-                    val rowHeightPx = with(density) { 32.dp.roundToPx() }
-                    LaunchedEffect(highlightIndex, selectableEntries, scrollState.viewportSize) {
-                        if (scrollState.viewportSize == 0) return@LaunchedEffect
-                        val rowIndex = highlightIndex - (if (isCustomQuery) 1 else 0)
-                        if (rowIndex < 0) return@LaunchedEffect
-                        val top = rowIndex * rowHeightPx
-                        val bottom = top + rowHeightPx
-                        val viewportEnd = scrollState.value + scrollState.viewportSize
-                        when {
-                            top < scrollState.value -> scrollState.animateScrollTo(top)
-                            bottom > viewportEnd -> scrollState.animateScrollTo(bottom - scrollState.viewportSize)
-                        }
+                // 3. List with Scrollbar (virtualized)
+                val listState = rememberLazyListState()
+                // Keep the highlighted row inside the viewport. Model rows
+                // have a fixed 32.dp height; the custom "use query" row
+                // lives above the list and never needs scrolling.
+                LaunchedEffect(highlightIndex, selectableEntries) {
+                    val rowIndex = highlightIndex - (if (isCustomQuery) 1 else 0)
+                    if (rowIndex < 0) return@LaunchedEffect
+                    val visible = listState.layoutInfo.visibleItemsInfo
+                    if (visible.none { it.index == rowIndex }) {
+                        listState.animateScrollToItem(rowIndex)
                     }
                 }
                 Box(
@@ -588,32 +522,51 @@ fun SearchableDropdownMenuPopup(
                         .heightIn(max = 220.dp)
                         .fillMaxWidth(),
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(scrollState)
-                            .padding(end = 8.dp),
-                    ) {
-                        when {
-                            loading && items.isEmpty() -> {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(14.dp),
-                                        strokeWidth = 2.dp,
-                                        color = colors.primary,
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        "Loading models...",
-                                        style = typography.caption.copy(color = colors.textMuted),
-                                    )
+                    when {
+                        loading && items.isEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = colors.primary,
+                                )
+                                Text(
+                                    "Fetching models...",
+                                    style = typography.caption.copy(color = colors.textMuted),
+                                )
+                            }
+                        }
+                        error != null -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    error,
+                                    style = typography.caption.copy(color = MaterialTheme.colors.error),
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (onFetch != null) {
+                                    TextButton(
+                                        onClick = onFetch,
+                                        modifier = Modifier.cursorHand(),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                        colors = ButtonDefaults.textButtonColors(contentColor = colors.primary),
+                                    ) {
+                                        Text("Retry", style = typography.caption)
+                                    }
                                 }
                             }
-                            items.isEmpty() -> {
+                        }
+                        filteredItems.isEmpty() -> {
+                            if (items.isEmpty()) {
                                 Column(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -629,8 +582,7 @@ fun SearchableDropdownMenuPopup(
                                         textAlign = TextAlign.Center,
                                     )
                                 }
-                            }
-                            filteredItems.isEmpty() -> {
+                            } else {
                                 Box(
                                     modifier = Modifier.fillMaxWidth().padding(14.dp),
                                     contentAlignment = Alignment.Center,
@@ -641,64 +593,53 @@ fun SearchableDropdownMenuPopup(
                                     )
                                 }
                             }
-                            else -> {
-                                val customRowOffset = if (isCustomQuery) 1 else 0
-                                filteredItems.forEachIndexed { index, item ->
-                                    var itemHover by remember { mutableStateOf(false) }
-                                    val isSelected = item == selectedItem
-                                    val isHighlighted = keyboardNavigation &&
-                                        highlightIndex == index + customRowOffset
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(32.dp)
-                                            .background(
-                                                if (isSelected || isHighlighted) colors.primarySubtle
-                                                else if (itemHover) colors.primarySubtle.copy(alpha = 0.45f)
-                                                else colors.surface,
-                                            )
-                                            .onHover { itemHover = it }
-                                            .cursorHand()
-                                            .clickable {
-                                                onItemSelected(item)
+                        }
+                        else -> {
+                            val customRowOffset = if (isCustomQuery) 1 else 0
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+                            ) {
+                                if (isCustomQuery) {
+                                    item(key = "custom_query", contentType = "custom") {
+                                        CustomQueryRow(
+                                            query = searchQuery.trim(),
+                                            highlighted = highlightIndex == 0,
+                                            onSelect = {
+                                                onItemSelected(searchQuery.trim())
                                                 onDismissRequest()
-                                            }
-                                            .padding(horizontal = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(
-                                            item,
-                                            style = typography.caption.copy(
-                                                color = if (isSelected || isHighlighted) colors.primary else colors.textTitle,
-                                                fontWeight = if (isSelected || isHighlighted) FontWeight.SemiBold else FontWeight.Normal,
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f, fill = false),
+                                            },
                                         )
-                                        if (isSelected) {
-                                            Spacer(Modifier.width(8.dp))
-                                            Icon(
-                                                Lucide.CircleCheck,
-                                                contentDescription = "Selected",
-                                                modifier = Modifier.size(14.dp),
-                                                tint = colors.primary,
-                                            )
-                                        }
                                     }
+                                }
+                                itemsIndexed(
+                                    filteredItems,
+                                    key = { index, item -> "model:$index:$item" },
+                                    contentType = { _, _ -> "model" },
+                                ) { index, item ->
+                                    ModelRow(
+                                        item = item,
+                                        selected = item == selectedItem,
+                                        highlighted = highlightIndex == index + customRowOffset,
+                                        onSelect = {
+                                            onItemSelected(item)
+                                            onDismissRequest()
+                                        },
+                                    )
                                 }
                             }
                         }
                     }
 
-                    SafeVerticalScrollbar(
-                        adapter = rememberScrollbarAdapter(scrollState),
-                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-                    )
+                    if (filteredItems.isNotEmpty()) {
+                        SafeVerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(listState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                        )
+                    }
                 }
 
-                // 4. Footer
+                // 5. Footer
                 if (items.isNotEmpty()) {
                     Divider(color = colors.divider, modifier = Modifier.padding(vertical = 2.dp))
                     Row(
@@ -717,7 +658,105 @@ fun SearchableDropdownMenuPopup(
 }
 
 /**
- * Model dropdown for Settings with text field + Fetch button + trailing content slot.
+ * The custom "use query" row inside the model menu (fixed 34.dp like before).
+ */
+@Composable
+private fun CustomQueryRow(
+    query: String,
+    highlighted: Boolean,
+    onSelect: () -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    var customHover by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .background(
+                if (highlighted) colors.primarySubtle
+                else if (customHover) colors.primarySubtle.copy(alpha = 0.6f)
+                else colors.surface
+            )
+            .onHover { customHover = it }
+            .cursorHand()
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Lucide.Plus,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = colors.primary,
+        )
+        Text(
+            text = "Use \"$query\"",
+            style = typography.caption.copy(
+                color = colors.primary,
+                fontWeight = FontWeight.SemiBold,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+    }
+}
+
+/**
+ * A model row inside the menu (fixed 32.dp, ellipsized text, check on the
+ * selected entry).
+ */
+@Composable
+private fun ModelRow(
+    item: String,
+    selected: Boolean,
+    highlighted: Boolean,
+    onSelect: () -> Unit,
+) {
+    val colors = MaterialTheme.colors
+    var itemHover by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(32.dp)
+            .background(
+                if (selected || highlighted) colors.primarySubtle
+                else if (itemHover) colors.primarySubtle.copy(alpha = 0.45f)
+                else colors.surface,
+            )
+            .onHover { itemHover = it }
+            .cursorHand()
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            item,
+            style = typography.caption.copy(
+                color = if (selected || highlighted) colors.primary else colors.textTitle,
+                fontWeight = if (selected || highlighted) FontWeight.SemiBold else FontWeight.Normal,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (selected) {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Lucide.CircleCheck,
+                contentDescription = "Selected",
+                modifier = Modifier.size(14.dp),
+                tint = colors.primary,
+            )
+        }
+    }
+}
+
+/**
+ * Model dropdown for Settings with text field + trailing content slot; the
+ * in-panel refresh icon is the only fetch entry.
  */
 @Composable
 fun SearchableModelDropdown(
@@ -742,15 +781,16 @@ fun SearchableModelDropdown(
         else -> colors.inputBorder
     }
 
-    Column(modifier = modifier.widthIn(min = 360.dp).fillMaxWidth(0.92f)) {
+    // The trigger sizes to its content instead of stretching over the whole
+    // settings row, so the trailing Test button stays right next to it.
+    Column(modifier = modifier.widthIn(min = 320.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .weight(1f)
+                    .widthIn(min = 320.dp, max = 480.dp)
                     .height(36.dp)
                     .border(1.dp, borderColor, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
@@ -758,50 +798,50 @@ fun SearchableModelDropdown(
                     .padding(start = 12.dp, end = 4.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.CenterVertically,
+                // The trailing padding reserves the room taken by the arrow.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(end = 28.dp),
+                    contentAlignment = Alignment.CenterStart,
                 ) {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                        if (value.isEmpty()) {
-                            Text(
-                                placeholder,
-                                style = MaterialTheme.typography.body2.copy(color = colors.textPlaceholder),
-                            )
-                        }
-                        BasicTextField(
-                            value = value,
-                            onValueChange = onValueChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.body2.copy(color = colors.textTitle),
-                            interactionSource = interactionSource,
-                            cursorBrush = SolidColor(colors.primary),
+                    if (value.isEmpty()) {
+                        Text(
+                            placeholder,
+                            style = MaterialTheme.typography.body2.copy(color = colors.textPlaceholder),
                         )
                     }
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.body2.copy(color = colors.textTitle),
+                        interactionSource = interactionSource,
+                        cursorBrush = SolidColor(colors.primary),
+                    )
+                }
 
-                    Spacer(Modifier.width(4.dp))
-                    val rotation by animateFloatAsState(if (expanded) 180f else 0f)
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .cursorHand()
-                            .clickable {
-                                expanded = !expanded
-                                if (expanded && models.isEmpty() && !loading) {
-                                    onFetchModels()
-                                }
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Lucide.ChevronDown,
-                            contentDescription = "Dropdown",
-                            modifier = Modifier.size(15.dp).rotate(rotation),
-                            tint = colors.textMuted,
-                        )
-                    }
+                val rotation by animateFloatAsState(if (expanded) 180f else 0f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .cursorHand()
+                        .clickable {
+                            expanded = !expanded
+                            if (expanded && models.isEmpty() && !loading) {
+                                onFetchModels()
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Lucide.ChevronDown,
+                        contentDescription = "Dropdown",
+                        modifier = Modifier.size(15.dp).rotate(rotation),
+                        tint = colors.textMuted,
+                    )
                 }
 
                 SearchableDropdownMenuPopup(
@@ -818,48 +858,11 @@ fun SearchableModelDropdown(
                     loading = loading,
                     onFetch = onFetchModels,
                     error = error,
+                    // The settings trigger is a fixed compact field, so an
+                    // anchor-tracked panel would be visually too wide.
+                    minWidth = 320.dp,
+                    maxWidth = 360.dp,
                     offset = DpOffset(0.dp, 4.dp),
-                )
-            }
-
-            // Fetch Button (with spinning animation)
-            val fetchTransition = rememberInfiniteTransition()
-            val fetchSpinAngle by fetchTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = 360f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 800, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart,
-                ),
-            )
-
-            OutlinedButton(
-                onClick = {
-                    onFetchModels()
-                    expanded = true
-                },
-                enabled = !loading,
-                modifier = Modifier.height(36.dp).cursorHand(),
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, colors.inputBorder),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    backgroundColor = colors.inputBackground,
-                    contentColor = colors.textTitle,
-                ),
-                contentPadding = PaddingValues(horizontal = 10.dp),
-            ) {
-                Icon(
-                    Lucide.RefreshCw,
-                    contentDescription = "Fetch models",
-                    modifier = Modifier.size(14.dp).then(
-                        if (loading) Modifier.rotate(fetchSpinAngle) else Modifier
-                    ),
-                    tint = colors.primary,
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    if (loading) "Fetching..." else "Fetch",
-                    style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
                 )
             }
 
@@ -891,9 +894,11 @@ fun CompactModelSelector(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colors
+    val localDensity = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isHovered by remember { mutableStateOf(false) }
+    var anchorWidth by remember { mutableStateOf(0.dp) }
 
     val displayLabel = if (selectedModel.isNotBlank()) selectedModel else "Select model"
 
@@ -909,6 +914,7 @@ fun CompactModelSelector(
             color = if (isHovered && enabled) colors.primarySubtle.copy(alpha = 0.35f) else colors.inputBackground,
             modifier = Modifier
                 .height(34.dp)
+                .onSizeChanged { anchorWidth = with(localDensity) { it.width.toDp() } }
                 .cursorHand()
                 .onHover { isHovered = it }
                 .clickable(enabled = enabled) {
@@ -962,8 +968,9 @@ fun CompactModelSelector(
             onSearchQueryChange = { searchQuery = it },
             loading = loading,
             onFetch = onFetchModels,
+            minWidth = anchorWidth,
+            maxWidth = 480.dp,
             offset = DpOffset(0.dp, 4.dp),
-            keyboardNavigation = true,
         )
     }
 }

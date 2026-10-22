@@ -457,18 +457,8 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val githubTokenState: TextFieldState = formState.getState("aiGithubToken")
     val aiAutoDownloadState: SwitchState = formState.getState("aiAutoDownload")
 
-    // Do not restore on dispose: auto-save unsaved AI settings when leaving the page
-    val formChangedState = rememberFormChanged(formState, restoreOnDispose = false)
+    val formChangedState = rememberFormChanged(formState)
     val hasChanged by formChangedState.hasChanged
-    val hasChangedRef = formChangedState.hasChanged
-
-    DisposableEffect(Unit) {
-        onDispose {
-            if (hasChangedRef.value && formState.validate()) {
-                settingsViewModel.writeAiConfig()
-            }
-        }
-    }
 
     SettingContainer(
         onApply = {
@@ -486,7 +476,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
         )
 
         SectionCard {
-            PrefRow(
+            PrefRowStacked(
                 title = "Provider",
                 subtitle = "OpenAI-compatible API endpoint.",
             ) {
@@ -500,7 +490,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 )
             }
             Divider(color = colors.divider)
-            AiTextFieldPref(
+            AiTextFieldPrefStacked(
                 title = "API Key",
                 subtitle = "Stored locally. Never written to logs or toast messages.",
                 state = apiKeyState,
@@ -508,85 +498,84 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 isPassword = true,
             )
             Divider(color = colors.divider)
-            AiTextFieldPref(
+            AiTextFieldPrefStacked(
                 title = "Base URL",
-                subtitle = "Required for openai-compatible. Do not append /v1; client adds /v1/chat/completions.",
+                subtitle = "Required for openai-compatible. The client appends /v1/chat/completions.",
                 state = baseUrlState,
                 placeholder = "https://api.openai.com",
             )
             Divider(color = colors.divider)
-            PrefRow(
+            PrefRowStacked(
                 title = "Model",
-                subtitle = "Model id sent to the provider. Fetch from endpoint, type manually, or probe connection.",
-                nestedContent = {
-                    Column(modifier = Modifier.padding(top = 12.dp)) {
-                        SearchableModelDropdown(
-                            value = modelState.value,
-                            onValueChange = { modelState.change(it) },
-                            models = settingsState.modelsState.models,
-                            loading = settingsState.modelsState.loading,
-                            error = settingsState.modelsState.error,
-                            onFetchModels = {
-                                settingsViewModel.fetchModels(
-                                    provider = providerState.value,
-                                    apiKey = apiKeyState.value,
-                                    baseUrl = baseUrlState.value,
-                                )
-                            },
-                            placeholder = "deepseek-chat",
-                            trailingContent = {
-                                OutlinedButton(
-                                    onClick = {
-                                        settingsViewModel.testConnection(
-                                            provider = providerState.value,
-                                            apiKey = apiKeyState.value,
-                                            baseUrl = baseUrlState.value,
-                                            model = modelState.value,
-                                        )
-                                    },
-                                    enabled = !aiTest.testing,
-                                    modifier = Modifier.height(36.dp).cursorHand(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, colors.inputBorder),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        backgroundColor = colors.inputBackground,
-                                        contentColor = colors.textTitle,
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 10.dp),
-                                ) {
-                                    if (aiTest.testing) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(14.dp),
-                                            strokeWidth = 2.dp,
-                                            color = colors.primary,
-                                        )
-                                    } else {
-                                        Icon(
-                                            Lucide.CircleCheck,
-                                            contentDescription = "Test connection",
-                                            modifier = Modifier.size(14.dp),
-                                            tint = colors.primary,
-                                        )
-                                    }
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Test", style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
-                                }
-                            },
-                        )
-
-                        aiTest.result?.let { result ->
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = formatTestResult(result),
-                                style = MaterialTheme.typography.caption,
-                                color = if (result.ok) Emerald500 else Red500,
+                subtitle = "Search fetched models or type an id manually.",
+            ) {
+                Column {
+                    SearchableModelDropdown(
+                        value = modelState.value,
+                        onValueChange = { modelState.change(it) },
+                        models = settingsState.modelsState.models,
+                        loading = settingsState.modelsState.loading,
+                        error = settingsState.modelsState.error,
+                        onFetchModels = {
+                            settingsViewModel.fetchModels(
+                                provider = providerState.value,
+                                apiKey = apiKeyState.value,
+                                baseUrl = baseUrlState.value,
                             )
-                        }
+                        },
+                        placeholder = "deepseek-chat",
+                        trailingContent = {
+                            OutlinedButton(
+                                onClick = {
+                                    settingsViewModel.testConnection(
+                                        provider = providerState.value,
+                                        apiKey = apiKeyState.value,
+                                        baseUrl = baseUrlState.value,
+                                        model = modelState.value,
+                                    )
+                                },
+                                enabled = !aiTest.testing,
+                                modifier = Modifier.height(36.dp).cursorHand(),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, colors.inputBorder),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    backgroundColor = colors.inputBackground,
+                                    contentColor = colors.textTitle,
+                                ),
+                                contentPadding = PaddingValues(horizontal = 10.dp),
+                            ) {
+                                if (aiTest.testing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = colors.primary,
+                                    )
+                                } else {
+                                    Icon(
+                                        Lucide.CircleCheck,
+                                        contentDescription = "Test connection",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = colors.primary,
+                                    )
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                Text("Test", style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                            }
+                        },
+                    )
+
+                    aiTest.result?.let { result ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = formatTestResult(result),
+                            style = MaterialTheme.typography.caption,
+                            color = if (result.ok) Emerald500 else Red500,
+                        )
                     }
-                },
-            )
+                }
+            }
             Divider(color = colors.divider)
-            AiTextFieldPref(
+            AiTextFieldPrefStacked(
                 title = "GitHub Token",
                 subtitle = "Optional. Raises GitHub API rate limits when researching releases.",
                 state = githubTokenState,
@@ -623,27 +612,26 @@ private fun formatTestResult(result: AiConnectionTestResult): String {
 }
 
 @Composable
-private fun AiTextFieldPref(
+private fun AiTextFieldPrefStacked(
     title: String,
     subtitle: String,
     state: TextFieldState,
     placeholder: String,
     isPassword: Boolean = false,
 ) {
-    PrefRow(
+    PrefRowStacked(
         title = title,
         subtitle = subtitle,
-        nestedContent = {
-            Column(modifier = Modifier.padding(top = 12.dp)) {
-                PrefTextField(
-                    value = state.value,
-                    onValueChange = { state.change(it) },
-                    placeholder = placeholder,
-                    isPassword = isPassword,
-                )
-            }
-        },
-    )
+    ) {
+        Column {
+            PrefTextField(
+                value = state.value,
+                onValueChange = { state.change(it) },
+                placeholder = placeholder,
+                isPassword = isPassword,
+            )
+        }
+    }
 }
 
 @Composable
