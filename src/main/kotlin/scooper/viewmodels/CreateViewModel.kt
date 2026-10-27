@@ -1,7 +1,5 @@
 package scooper.viewmodels
 
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import com.scoopai.core.ManifestResult
 import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
@@ -19,14 +17,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.orbitmvi.orbit.Container
 import org.orbitmvi.orbit.ContainerHost
@@ -39,12 +34,11 @@ import scooper.repository.AppsRepository
 import scooper.service.AiErrorAction
 import scooper.service.AiErrorPresentation
 import scooper.service.AiErrorTranslator
-import scooper.service.BucketSaveEnv
+import scooper.service.AiSettingsStore
 import scooper.service.CommandResult
 import scooper.service.GithubUrlParser
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
-import scooper.service.InstalledAppInfo
 import scooper.service.PhaseSummaryFormatter
 import scooper.service.AiImage
 import scooper.service.ScoopAiBridge
@@ -52,7 +46,6 @@ import scooper.service.ScoopService
 import scooper.service.ToolActivityFormatter
 import scooper.service.resolveFailureActions
 import scooper.service.resumableStagesOf
-import scooper.service.parseVerifyInstallResult
 import scooper.service.ScoopClient
 import scooper.util.ImageCodec
 import scooper.util.logger
@@ -476,13 +469,9 @@ data class CreateState(
     val installing: Boolean = false,
     /** True when the saved manifest was installed for real use in this session. */
     val installedForUse: Boolean = false,
-    /** True when the app was already installed system wide before this session.
-     *  Drives the Reinstall label on the Install button (see [installActionLabel]).
-     *  Kept as a shim derived from [deployment] until P1-3 moves the button over. */
-    val systemInstalled: Boolean = false,
     /** Manifest vs installed copy, derived from disk inputs by
-     *  [CreateViewModel.refreshDeploymentState]. The deploy button consumes it from
-     *  P1-3 on; until then it only feeds [systemInstalled]. */
+     *  [CreateViewModel.refreshDeploymentState]. Single source of truth for the
+     *  deploy button consumed by CreateScreen. */
     val deployment: DeploymentState = DeploymentState.NoManifest,
     /** True when the app installed for use in this session has Start Menu shortcuts. */
     val installedShortcuts: Boolean = false,
@@ -555,13 +544,21 @@ data class CreateState(
 
 class CreateViewModel(
     internal val scoopAiBridge: ScoopAiBridge,
-    private val checkpointService: InMemoryAiCheckpointService,
+    /** Settings seam (S5); defaults to the bridge's store for existing callers. */
+    internal val aiSettingsStore: AiSettingsStore? = null,
+    private val checkpointService: InMemoryAiCheckpointService = InMemoryAiCheckpointService(),
     private val scoopClient: ScoopClient,
     private val appsRepository: AppsRepository,
     private val gitHistoryService: GitHistoryService,
     private val scoopService: ScoopService? = null,
 ) : ContainerHost<CreateState, AppSideEffect>, AutoCloseable {
     private val logger by logger()
+
+    /** Settings read/persist seam; falls back to the bridge's own store. */
+    private val aiSettings: AiSettingsStore get() = aiSettingsStore ?: scoopAiBridge.settingsStore
+
+    /** Disk read/derive seam for the deploy button; see [DeploymentMonitor]. */
+    private val deploymentMonitor = DeploymentMonitor(scoopClient)
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var assistAttemptCount = 0
@@ -667,7 +664,7 @@ class CreateViewModel(
         }
 
     fun refreshAiConfig() = intent {
-        val settings = scoopAiBridge.readSettings()
+        val settings = aiSettings.readSettings()
         val missing = settings.missingReason()
         reduce {
             state.copy(
@@ -684,11 +681,11 @@ class CreateViewModel(
     fun onModelChange(model: String) = intent {
         reduce { state.copy(selectedModel = model) }
         // Persist immediately so the choice survives restarts; best-effort.
-        scoopAiBridge.persistModel(model)
+        aiSettings.persistModel(model)
     }
 
     fun onFetchModels() = intent {
-        val settings = scoopAiBridge.readSettings()
+        val settings = aiSettings.readSettings()
         fetchAvailableModels(settings.provider, settings.apiKey, settings.baseUrl)
     }
 
@@ -820,7 +817,10 @@ class CreateViewModel(
             AiErrorAction.RETRY_FROM_ANALYZE,
             AiErrorAction.RETRY_FROM_GENERATE,
             -> {
-                if (state.running) return@intent
+                if (state.running) {
+                    postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+                    return@intent
+                }
                 val url = state.lastUrl.ifBlank { state.inputUrl }
                 if (url.isBlank()) {
                     postToast(AppSideEffect.Toast("Nothing to retry", ToastType.ERROR))
@@ -832,7 +832,10 @@ class CreateViewModel(
                 startGeneration(rawUrlInput = url, noteInput = state.lastNote, resumeFrom = resumeFrom)
             }
             AiErrorAction.RETRY_ANSWER -> {
-                if (state.running) return@intent
+                if (state.running) {
+                    postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+                    return@intent
+                }
                 // Resend the latest question (startAssistInternal no-ops on blank text).
                 lastUserQuestion(state.messages)?.let { startAssistInternal(it) }
             }
@@ -1021,8 +1024,8 @@ class CreateViewModel(
         val saveResult = state.saveResult
         if (state.manifestSaved && saveResult != null) {
             val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
-            val systemInstalled = snapshot.containsKey(saveResult.appName.lowercase())
-            installFromBucketCore(saveResult.appName, saveResult.bucket, force = systemInstalled)
+            val alreadyInstalled = snapshot.containsKey(saveResult.appName.lowercase())
+            installFromBucketCore(saveResult.appName, saveResult.bucket, force = alreadyInstalled)
         } else {
             installFromCurrentManifest(manifestJson)
         }
@@ -1059,7 +1062,7 @@ class CreateViewModel(
         name: String,
         bucket: String,
     ) {
-        val issue = withContext(Dispatchers.IO) { bucketManifestIssue(bucketManifestText(bucket, name)) }
+        val issue = withContext(Dispatchers.IO) { bucketManifestIssue(deploymentMonitor.bucketManifestText(bucket, name)) }
         if (issue != null) {
             postToast(AppSideEffect.Toast("Cannot reinstall $name: $issue", ToastType.ERROR))
             return
@@ -1088,7 +1091,6 @@ class CreateViewModel(
                 state.copy(
                     installedForUse = true,
                     installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
-                    systemInstalled = true,
                 )
             }
             refreshInstalledAppRecord(bucket, name)
@@ -1159,11 +1161,6 @@ class CreateViewModel(
         )
     }
 
-    /** True when an app with this name is already installed locally. */
-    private suspend fun snapshotSystemInstalled(appName: String?): Boolean = appName?.let { name ->
-        withContext(Dispatchers.IO) { scoopClient.installedSnapshot().containsKey(name.lowercase()) }
-    } ?: false
-
     // ---------------------------------------------------------------
     // deployment state
     // ---------------------------------------------------------------
@@ -1185,14 +1182,14 @@ class CreateViewModel(
         // write-back then finds a mismatching epoch and drops itself.
         val epoch = state.deploymentEpoch + 1
         reduce { state.copy(deploymentEpoch = epoch) }
-        val inputs = readDeploymentInputs(
-            appName = deploymentAppName(state.saveResult, state.suggestedAppName, state.directInstallName),
+        val derived = deploymentMonitor.derive(
+            saveResult = state.saveResult,
+            suggestedAppName = state.suggestedAppName,
+            directInstallName = state.directInstallName,
             fallbackManifestJson = state.activeManifestJson,
-            saveBucket = state.saveResult?.bucket,
             inThisSession = state.installedForUse,
         )
         if (state.deploymentEpoch != epoch) return
-        val derived = deriveDeploymentState(inputs)
         // The session latch may only be dropped when the copy it claimed is gone:
         // UninstallThenInstall can uninstall and then fail to install, leaving
         // nothing on disk while the latch still disabled the deploy button.
@@ -1203,59 +1200,7 @@ class CreateViewModel(
                 deployment = derived,
                 installedForUse = if (vanished) false else state.installedForUse,
                 installedShortcuts = if (vanished) false else state.installedShortcuts,
-                // systemInstalled is a shim for the legacy button label: an install
-                // in this session already set it, so refresh only confirms it.
-                systemInstalled = derived is DeploymentState.Installed || state.systemInstalled,
             )
-        }
-    }
-
-    /**
-     * Disk side of [refreshDeploymentStateInIntent]. The bucket copy of the manifest
-     * wins over the session draft because that file is what Scoop will update from;
-     * the draft only stands in when the app was never saved to a bucket.
-     */
-    private suspend fun readDeploymentInputs(
-        appName: String?,
-        fallbackManifestJson: String,
-        saveBucket: String?,
-        inThisSession: Boolean,
-    ): DeploymentInputs = withContext(Dispatchers.IO) {
-        val installedInfo = appName?.let { scoopClient.installedSnapshot()[it.lowercase()] }
-        val record = installedInfo?.let { scoopClient.readInstallRecord(it.appDir.resolve("current").toPath()) }
-        val installed = installedInfo?.let {
-            InstalledRecord(
-                version = it.version,
-                origin = record?.origin ?: InstallOrigin.Unknown,
-                originBucket = record?.bucket,
-            )
-        }
-        val bucketManifest = listOfNotNull(saveBucket, record?.bucket)
-            .distinct()
-            .firstNotNullOfOrNull { bucketManifestText(it, appName) }
-        DeploymentInputs(
-            manifestJson = bucketManifest ?: fallbackManifestJson,
-            appName = appName,
-            saveBucket = saveBucket,
-            installed = installed,
-            inThisSession = inThisSession,
-        )
-    }
-
-    /** Manifest text of [appName] in [bucket], or null when the bucket has no copy. */
-    private fun bucketManifestText(bucket: String, appName: String?): String? {
-        if (appName.isNullOrBlank()) return null
-        val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket).resolve("bucket")
-        val file = listOf(appName, appName.lowercase())
-            .distinct()
-            .map { bucketDir.resolve("$it.json") }
-            .firstOrNull { it.isFile }
-            ?: return null
-        return try {
-            ScoopClient.readManifestText(file)
-        } catch (e: Exception) {
-            logger.warn("Deployment refresh: failed to read $file: ${e.message}")
-            null
         }
     }
 
@@ -1305,7 +1250,7 @@ class CreateViewModel(
         val defaultBucket = refLock?.first
             ?: resolveDefaultSaveBucket(
                 current = state.saveBucket,
-                lastUsed = scoopAiBridge.readLastBucket(),
+                lastUsed = aiSettings.readLastBucket(),
                 buckets = buckets,
             )
         val defaultBucketDir = scoopClient.bucketsBaseDir.resolve(defaultBucket)
@@ -1320,7 +1265,7 @@ class CreateViewModel(
                 saveRefHint = refLockHintText(refLock),
                 saveCommitToGit = resolveDefaultCommitToGit(
                     isGitBucket = isGit,
-                    lastPreference = scoopAiBridge.readCommitPreference(),
+                    lastPreference = aiSettings.readCommitPreference(),
                 ),
                 overwriteConfirmOpen = false,
                 // C2: reopening the dialog clears the previous result card so it does not
@@ -1421,11 +1366,6 @@ class CreateViewModel(
             }
 
             is BucketSaveOutcome.Saved -> {
-                // Recompute from disk with the name actually saved (it may differ
-                // from the suggested one), so the Install button label stays
-                // truthful for an already installed app after a chat fix + save.
-                // Read before reduce: suspend call must stay outside the block.
-                val systemInstalledSnapshot = snapshotSystemInstalled(outcome.appName)
                 reduce {
                     state.copy(
                         saveDialogOpen = false,
@@ -1433,13 +1373,12 @@ class CreateViewModel(
                         suggestedAppName = outcome.appName,
                         manifestSaved = true,
                         saveResult = saveResultOf(outcome),
-                        systemInstalled = systemInstalledSnapshot,
                     )
                 }
                 // The saved file is what the deploy button will compare against.
                 refreshDeploymentStateInIntent()
-                scoopAiBridge.persistLastBucket(bucket)
-                scoopAiBridge.persistCommitPreference(commitToGit)
+                aiSettings.persistLastBucket(bucket)
+                aiSettings.persistCommitPreference(commitToGit)
                 postToast(
                     AppSideEffect.Toast(
                         "Saved ${outcome.appName}.json to bucket/${outcome.bucket}",
@@ -1491,16 +1430,11 @@ class CreateViewModel(
             onWarn = { logger.warn(it) },
         )
         if (effect.manifestSaved) {
-            // Same recompute as performSave: the AI save may use another name,
-            // so the flag must reflect the freshly saved name on disk.
-            // Read before reduce: suspend call must stay outside the block.
-            val systemInstalledSnapshot = snapshotSystemInstalled(effect.saveResult?.appName)
             reduce {
                 state.copy(
                     suggestedAppName = effect.suggestedAppName,
                     manifestSaved = true,
                     saveResult = effect.saveResult,
-                    systemInstalled = systemInstalledSnapshot,
                 )
             }
             refreshDeploymentStateInIntent()
@@ -1540,7 +1474,6 @@ class CreateViewModel(
                 state.copy(
                     installedForUse = effect.installedForUse,
                     installedShortcuts = effect.installedForUse && manifestHasShortcuts(state.activeManifestJson),
-                    systemInstalled = effect.installedForUse || state.systemInstalled,
                 )
             }
             // Also after a failed attempt: it may have changed what is on disk.
@@ -1652,7 +1585,6 @@ class CreateViewModel(
                     state.copy(
                         installedForUse = true,
                         installedShortcuts = manifestHasShortcuts(state.activeManifestJson),
-                        systemInstalled = true,
                         directInstallName = name,
                     )
                 }
@@ -1753,7 +1685,7 @@ class CreateViewModel(
         resumeFrom: AiErrorAction? = null,
         images: List<PendingImage> = emptyList(),
     ) {
-        val missing = scoopAiBridge.readSettings().missingReason()
+        val missing = aiSettings.readSettings().missingReason()
         if (missing != null) {
             reduce {
                 state.copy(
@@ -1786,8 +1718,6 @@ class CreateViewModel(
             else -> "research"
         }
         val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(initialPhase, appGuess, 0)
-        // Read before reduce: suspend call must stay outside the reduce block.
-        val systemInstalledSnapshot = snapshotSystemInstalled(state.saveResult?.appName)
         // Read before reduce clears it: the name this session saved must be
         // excluded from the engine's conflict check during this run.
         val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
@@ -1814,7 +1744,6 @@ class CreateViewModel(
                 installedForUse = false,
                 installedShortcuts = false,
                 directInstallName = null,
-                systemInstalled = systemInstalledSnapshot,
                 error = null,
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -1911,7 +1840,7 @@ class CreateViewModel(
         // text-only and never touches state.manifestJson until a URL generates.
         val currentManifest = state.manifestJson
 
-        val missing = scoopAiBridge.readSettings().missingReason()
+        val missing = aiSettings.readSettings().missingReason()
         if (missing != null) {
             reduce {
                 state.copy(
@@ -1943,8 +1872,6 @@ class CreateViewModel(
         // flagged after the send so later rounds do not re-send the same images.
         val replaySourceId = if (images.isEmpty()) replaySourceIn(state.messages)?.id else null
 
-        // Read before reduce: suspend call must stay outside the reduce block.
-        val systemInstalledSnapshot = snapshotSystemInstalled(state.saveResult?.appName)
         // Read before reduce clears it: the name this session saved must be
         // excluded from the engine's conflict check during this run.
         val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
@@ -1966,7 +1893,6 @@ class CreateViewModel(
                 installedForUse = false,
                 installedShortcuts = false,
                 directInstallName = null,
-                systemInstalled = systemInstalledSnapshot,
                 manifestIssues = emptyList(),
                 manifestExhausted = false,
                 manifestInvalidJson = false,
@@ -2214,7 +2140,6 @@ class CreateViewModel(
                     else -> ToastType.SUCCESS
                 }
 
-                val systemInstalledSnapshot = snapshotSystemInstalled(name)
                 finishWithDeploymentRefresh {
                     reduce {
                         state.finishGeneration(
@@ -2226,7 +2151,6 @@ class CreateViewModel(
                             manifestInvalidJson = invalidJson,
                             manifestIssues = issues,
                             executionExpanded = finishedWithIssues,
-                            systemInstalled = systemInstalledSnapshot,
                         )
                     }
                 }
@@ -2302,9 +2226,8 @@ class CreateViewModel(
      * policy for this round: the state is derived from [CreateState.activeManifestJson]
      * only by an explicit refresh, so a selection made here keeps the current
      * [CreateState.deployment] untouched. Browsing an older revision therefore never
-     * rewrites the deploy state of the session; P1-3 decides whether an install of a
-     * non-latest revision is offered by deriving it from [deploymentAction] against the
-     * selected manifest instead of guessing here.
+     * rewrites the deploy state of the session; the deploy plan re-derives from
+     * [deploymentAction] against the selected manifest when it runs.
      */
     fun onSelectRevision(revisionId: String?) = intent {
         reduce { state.copy(selectedRevisionId = revisionId) }
@@ -2360,7 +2283,6 @@ class CreateViewModel(
         manifestInvalidJson: Boolean = this.manifestInvalidJson,
         manifestIssues: List<String> = this.manifestIssues,
         executionExpanded: Boolean = false,
-        systemInstalled: Boolean = this.systemInstalled,
     ): CreateState {
         // Late-event race defense (proposal 5.1): drain residual buffered activity
         // events BEFORE collapsing so the finalized step list is consistent.
@@ -2415,7 +2337,6 @@ class CreateViewModel(
             manifestSaved = manifestSaved,
             installedForUse = installedForUse,
             installedShortcuts = installedShortcuts,
-            systemInstalled = systemInstalled,
             pendingImages = emptyList(),
         )
     }
@@ -2427,1382 +2348,3 @@ class CreateViewModel(
         supervisorJob.cancel()
     }
 }
-
-/**
- * App name for the direct-install branch: saved name, then the recorded
- * direct-install name, then the suggested one, then the URL tail.
- * Generated manifests carry no top-level name field, so there is no
- * fallback into the manifest itself.
- */
-internal fun resolveDirectInstallAppName(
-    saveResult: SaveResult?,
-    directInstallName: String?,
-    suggestedAppName: String?,
-    lastUrl: String,
-): String? {
-    val fromSave = saveResult?.appName?.trim()?.takeUnless { it.isEmpty() }
-    // The direct-install record outranks the suggestion: it is what was
-    // actually installed, the suggestion may name a different revision.
-    val fromDirectRecord = directInstallName?.trim()?.takeUnless { it.isEmpty() }
-    val fromSuggestion = suggestedAppName?.trim()?.takeUnless { it.isEmpty() }
-    // deriveAppName falls back to "app" for any blank URL, which would
-    // install a garbage-named package; only trust a real URL tail.
-    val fromUrl = if (lastUrl.isBlank()) null else GithubUrlParser.deriveAppName(lastUrl)
-    return fromSave ?: fromDirectRecord ?: fromSuggestion ?: fromUrl?.takeUnless { it.isBlank() }
-}
-
-/**
- * Installed app name for the Open button: the save result first, then the
- * recorded direct-install name, then the suggested one, then the URL tail.
- */
-internal fun resolveOpenAppName(state: CreateState, lastUrl: String): String? =
-    resolveDirectInstallAppName(state.saveResult, state.directInstallName, state.suggestedAppName, lastUrl)
-
-/**
- * Drives CreateState from AI verify_install activity: Started shows loading, then a
- * Completed/Failed hides it; a verified success flips [CreateState.installVerified].
- */
-/** Reply handed to the engine when a tool call lands after its run was cancelled. */
-internal const val STALE_EPOCH_SAVE_REPLY_JSON = "{\"success\":false,\"error\":\"cancelled\"}"
-internal const val STALE_EPOCH_INSTALL_REPLY_JSON = "{\"success\":false,\"mode\":\"local\",\"error\":\"cancelled\"}"
-
-/** True when the activity drives the verify-install busy flag (see [applyInstallVerifyActivity]). */
-internal fun isInstallVerifyActivity(activity: ToolActivity): Boolean =
-    activity.toolName == "verify_install"
-
-internal fun applyInstallVerifyActivity(state: CreateState, activity: ToolActivity): CreateState {
-    if (activity.toolName != "verify_install") return state
-    return when (activity) {
-        is ToolActivity.Started -> state.copy(testing = true)
-        is ToolActivity.Completed -> {
-            val ok = parseVerifyInstallResult(activity.toolResult).success
-            state.copy(
-                testing = false,
-                installVerified = if (ok == true) true else state.installVerified,
-            )
-        }
-        is ToolActivity.Failed -> state.copy(testing = false)
-    }
-}
-
-private val bucketPrettyJson = Json {
-    prettyPrint = true
-    prettyPrintIndent = "    "
-}
-
-/**
- * Builds the `git add && git commit` command for saving a manifest into a Git bucket,
- * for cmd.exe on Windows (Scoop / Git for Windows run from cmd; `&&` is NOT supported by
- * Windows PowerShell 5.1, so this is a single-syntax cmd command).
- *
- * The bucket path is ALWAYS double-quoted: cmd has no backslash escape inside double
- * quotes, so backslashes (e.g. `C:\Users\...`) and `&` inside the quotes stay literal and
- * the `&&` chain survives. The path is kept as-is (forward or back slashes both work in
- * Git for Windows, and normalizing could break UNC). App names are already validated to
- * [A-Za-z0-9._-] by the save dialog, so no escaping is needed inside the double-quoted
- * strings. Uses the `--` separator so a leading-dash app name can never be parsed as an
- * option by git.
- */
-internal fun gitCommitCommand(
-    bucketDirPath: String,
-    appName: String,
-    version: String? = null,
-    isUpdate: Boolean = false,
-): String {
-    // cmd rule for an embedded literal double quote is to double it (`""`); Windows
-    // paths cannot contain `"`, so this is purely defensive.
-    val dir = "\"${bucketDirPath.replace("\"", "\"\"")}\""
-    val commitMsg = GitHistoryService.buildCommitMessage(appName, version, isUpdate)
-    return "git -C $dir add -- bucket/$appName.json && git -C $dir commit -m \"$commitMsg\""
-}
-
-/**
- * Builds the git commit hint for a saved manifest, or null when the bucket is not a Git
- * repository. Discover visibility does not depend on a commit (save already indexes the
- * app via upsertApp), so the hint is purely informational.
- */
-internal fun buildSaveGitHint(
-    isGitBucket: Boolean,
-    bucketDirPath: String,
-    appName: String,
-    version: String? = null,
-    isUpdate: Boolean = false,
-): SaveGitHint? {
-    if (!isGitBucket) return null
-    return SaveGitHint(
-        bucketDir = bucketDirPath,
-        command = gitCommitCommand(bucketDirPath, appName, version, isUpdate),
-    )
-}
-
-/**
- * Classify the save attempt into the SaveResult card.
- *
- * A failed write (`writeOk=false`) is the ONLY fatal failure: the caller shows an error
- * toast and keeps the dialog open, and no card is rendered. Once the file is written
- * (`writeOk=true`), the save is always a success even when the best-effort Discover
- * indexing / git-hint step broke (`indexOk=false`): such a card degrades to
- * indexedOk=false / gitHint=null instead of failing the whole save, so the user is never
- * told the save failed just because indexing hiccuped. `success` stays on the data class
- * for future failure cards; today the UI only renders cards from writeOk=true outcomes.
- */
-/** Maps a written-to-disk save outcome to the SaveResult card; write failures never reach here. */
-internal fun saveResultOf(outcome: BucketSaveOutcome.Saved): SaveResult = classifySaveOutcome(
-    writeOk = true,
-    indexOk = outcome.indexedOk,
-    gitCommitted = outcome.gitCommitted,
-    gitHint = outcome.gitHint,
-    appName = outcome.appName,
-    bucket = outcome.bucket,
-    targetPath = outcome.targetPath,
-    overwritten = outcome.overwritten,
-)
-
-internal fun classifySaveOutcome(
-    writeOk: Boolean,
-    indexOk: Boolean,
-    gitCommitted: Boolean,
-    gitHint: SaveGitHint?,
-    appName: String,
-    bucket: String,
-    targetPath: String,
-    overwritten: Boolean,
-): SaveResult = SaveResult(
-    success = writeOk,
-    appName = appName,
-    bucket = bucket,
-    targetPath = targetPath,
-    overwritten = overwritten,
-    indexedOk = writeOk && indexOk,
-    gitCommitted = writeOk && gitCommitted,
-    gitHint = if (writeOk && !gitCommitted) gitHint else null,
-)
-
-/** App name rule shared by the save dialog and the AI save_to_bucket path. */
-internal val APP_NAME_REGEX = Regex("^[a-zA-Z0-9._-]+$")
-
-/** Outcome of the shared manifest-save core, mapped to UI state / tool JSON by the callers. */
-internal sealed interface BucketSaveOutcome {
-    /** Target file exists and overwrite was not requested. */
-    data class NeedsOverwrite(val targetPath: String) : BucketSaveOutcome
-
-    /** Invalid save path or failed file write; [message] is the raw failure reason. */
-    data class Failed(val message: String) : BucketSaveOutcome
-
-    /** Manifest written; indexing and git commit are best-effort outcome flags. */
-    data class Saved(
-        val bucket: String,
-        val appName: String,
-        val targetPath: String,
-        val overwritten: Boolean,
-        val indexedOk: Boolean,
-        val gitCommitted: Boolean,
-        val gitHint: SaveGitHint?,
-    ) : BucketSaveOutcome
-}
-
-/**
- * Shared core of Save to Bucket, used by both the manual save dialog
- * ([CreateViewModel.performSave]) and the AI `save_to_bucket` tool
- * ([aiSaveToBucket]): resolve the target file, write the manifest, then
- * best-effort index the app and git-commit. UI concerns (overwrite confirm
- * dialog, toasts, CreateState updates) stay with the callers.
- *
- * Collaborators are narrowed to functions so tests can fake them.
- */
-internal suspend fun saveManifestCore(
-    manifestJson: String,
-    bucket: String,
-    appName: String,
-    commitToGit: Boolean,
-    overwrite: Boolean,
-    scoopClient: BucketSaveEnv,
-    indexSaved: suspend (bucket: String, app: App?) -> Boolean,
-    isGitBucket: (File) -> Boolean,
-    commitManifest: (bucketDir: File, appName: String, isUpdate: Boolean, version: String?) -> Result<String>,
-    onWarn: (String) -> Unit = {},
-): BucketSaveOutcome {
-    val baseDir = scoopClient.bucketsBaseDir
-    val target = baseDir.resolve(bucket).resolve("bucket").resolve("$appName.json")
-    val baseCanonical = baseDir.canonicalFile
-    val targetCanonical = target.canonicalFile
-    val basePath = baseCanonical.path
-    val targetPath = targetCanonical.path
-    val underBase = targetPath == basePath ||
-        targetPath.startsWith(basePath + File.separator)
-    if (!underBase) {
-        return BucketSaveOutcome.Failed("Invalid save path")
-    }
-
-    val overwritten = targetCanonical.exists()
-    if (overwritten && !overwrite) {
-        return BucketSaveOutcome.NeedsOverwrite(targetPath)
-    }
-
-    // Writing the manifest file is the ONLY fatal step; the callers surface the
-    // failure (error toast / JSON error) and nothing else runs.
-    try {
-        withContext(Dispatchers.IO) {
-            targetCanonical.parentFile?.mkdirs()
-            targetCanonical.writeText(formatForBucket(manifestJson))
-        }
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        val message = e.message?.takeIf { it.isNotBlank() }
-            ?: e::class.simpleName
-            ?: "Failed to save manifest"
-        return BucketSaveOutcome.Failed(message)
-    }
-
-    // Best-effort: the file is on disk, so indexing / git problems degrade to
-    // outcome flags instead of failing the whole save.
-    var indexedOk = false
-    var gitCommitted = false
-    var gitHint: SaveGitHint? = null
-    try {
-        withContext(Dispatchers.IO) {
-            val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-            val installed = scoopClient.installedSnapshot()
-            val app = scoopClient.buildAppsFromManifestNames(
-                bucketDir,
-                setOf("$appName.json"),
-                Bucket(name = bucket, url = ""),
-                installed,
-            ).firstOrNull()
-            indexedOk = indexSaved(bucket, app)
-            if (!indexedOk) onWarn("Saved manifest could not be indexed: $appName.json")
-
-            // A prior direct install recorded the temp manifest path as install source, which
-            // scoop update cannot resolve once the file is gone; re-point it at the bucket.
-            convergeDirectInstallRecords(bucket, appName, installed, onWarn)
-
-            val isGit = isGitBucket(bucketDir)
-            val manifestVersion = try {
-                (Json.parseToJsonElement(manifestJson) as? JsonObject)?.get("version")?.jsonPrimitive?.content
-            } catch (_: Exception) {
-                null
-            }
-
-            if (commitToGit && isGit) {
-                val commitRes = commitManifest(bucketDir, appName, overwritten, manifestVersion)
-                if (commitRes.isSuccess) {
-                    gitCommitted = true
-                } else {
-                    onWarn("Auto git commit failed for $appName.json: ${commitRes.exceptionOrNull()?.message}")
-                }
-            }
-
-            if (!gitCommitted) {
-                gitHint = buildSaveGitHint(
-                    isGitBucket = isGit,
-                    bucketDirPath = bucketDir.path,
-                    appName = appName,
-                    version = manifestVersion,
-                    isUpdate = overwritten,
-                )
-            }
-        }
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        onWarn("Post-save indexing / git-hint failed; file still saved: ${e.message}")
-    }
-
-    return BucketSaveOutcome.Saved(
-        bucket = bucket,
-        appName = appName,
-        targetPath = targetPath,
-        overwritten = overwritten,
-        indexedOk = indexedOk,
-        gitCommitted = gitCommitted,
-        gitHint = gitHint,
-    )
-}
-
-/**
- * Re-point url-pinned direct-install records for [appName] at [bucket]: scoop re-resolves
- * apps/<name>/current/scoop-install.json on update, so a stale temp-file url breaks
- * `scoop update`. Best-effort: failures only warn.
- */
-private fun convergeDirectInstallRecords(
-    bucket: String,
-    appName: String,
-    installed: Map<String, InstalledAppInfo>,
-    onWarn: (String) -> Unit,
-) {
-    val recordFile = installed[appName.lowercase()]?.appDir?.resolve("current/scoop-install.json") ?: return
-    if (!recordFile.isFile) return
-    try {
-        val record = Json.parseToJsonElement(recordFile.readText()) as? JsonObject ?: return
-        val url = (record["url"] as? JsonPrimitive)?.contentOrNull ?: return
-        if (!url.replace('\\', '/').lowercase().contains("/scooper/direct-install/")) return
-        val converged = JsonObject(record.filterKeys { it != "url" } + ("bucket" to JsonPrimitive(bucket)))
-        recordFile.writeText(converged.toString())
-    } catch (e: Exception) {
-        onWarn("Post-save install-record convergence failed for $appName: ${e.message}")
-    }
-}
-
-/**
- * Backs the engine's `read_manifest_reference` tool (architecture A: the host
- * owns the local bucket lookup): locate buckets/<bucket>/bucket/<name>.json in
- * the local scoop root and embed the manifest's raw JSON as a JSON value. Any
- * failure degrades to a diagnosable success:false reply so the session survives.
- */
-internal fun readManifestRefReply(scoopClient: ScoopClient, bucket: String, name: String): String {
-    val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-    if (!bucketDir.isDirectory) {
-        return readManifestRefFailure("bucket '$bucket' not found")
-    }
-    val manifestFile = bucketDir.resolve("bucket/$name.json")
-    if (!manifestFile.isFile) {
-        return readManifestRefFailure("app '$name' not found in bucket '$bucket'")
-    }
-    return try {
-        val manifest = Json.parseToJsonElement(manifestFile.readText())
-        buildJsonObject {
-            put("success", true)
-            put("bucket", bucket)
-            put("name", name)
-            put("path", manifestFile.absolutePath)
-            put("manifest", manifest)
-        }.toString()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        readManifestRefFailure("failed to read manifest for '$name' in bucket '$bucket': ${e.message}")
-    }
-}
-
-private fun readManifestRefFailure(error: String): String = buildJsonObject {
-    put("success", false)
-    put("error", error)
-}.toString()
-
-/**
- * Builds the @ completion menu index by listing every manifest json directly under
- * buckets/<bucket>/bucket/, the same layout [readManifestRefReply] reads from, so
- * every suggestion is actually loadable by the tool. Best effort: unreadable dirs
- * are skipped; only the directory listing itself failing yields an empty list.
- */
-internal fun scanManifestRefSuggestions(scoopClient: ScoopClient): List<ManifestRefSuggestion> {
-    val suggestions = mutableListOf<ManifestRefSuggestion>()
-    val bucketDirs = try {
-        scoopClient.bucketsBaseDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
-    } catch (_: Exception) {
-        emptyList()
-    }
-    for (bucketDir in bucketDirs) {
-        val entries = try {
-            bucketDir.resolve("bucket").listFiles() ?: continue
-        } catch (_: Exception) {
-            continue
-        }
-        for (entry in entries) {
-            val fileName = entry.name
-            if (!fileName.endsWith(".json") || !entry.isFile) continue
-            suggestions += ManifestRefSuggestion(bucketDir.name, fileName.removeSuffix(".json"))
-        }
-    }
-    return suggestions
-}
-
-/**
- * Builds the needsBucket reply for a save without an explicit bucket: the model
- * must ask the user to pick one (via ask_user) instead of the host silently
- * applying default bucket rules.
- */
-private fun needsBucketResultJson(buckets: List<String>): String = buildJsonObject {
-    put("success", false)
-    put("needsBucket", true)
-    put("buckets", JsonArray(buckets.map { JsonPrimitive(it) }))
-}.toString()
-
-/** Maps a save outcome to the JSON reply the save_to_bucket tool returns to the model. */
-internal fun saveToBucketResultJson(outcome: BucketSaveOutcome): String = when (outcome) {
-    is BucketSaveOutcome.NeedsOverwrite -> buildJsonObject {
-        put("success", false)
-        put("error", "already exists")
-        put("needsOverwrite", true)
-        put("path", outcome.targetPath)
-    }.toString()
-
-    is BucketSaveOutcome.Failed -> buildJsonObject {
-        put("success", false)
-        put("error", AiErrorTranslator.maskSecrets(outcome.message))
-    }.toString()
-
-    is BucketSaveOutcome.Saved -> buildJsonObject {
-        put("success", true)
-        put("path", outcome.targetPath)
-        put("bucket", outcome.bucket)
-        put("name", outcome.appName)
-    }.toString()
-}
-
-/** Result of the AI save_to_bucket path: reply JSON plus the CreateState updates to apply. */
-internal data class AiSaveToBucketResult(
-    val resultJson: String,
-    /** True only when the manifest file was written; drives manifestSaved in CreateState. */
-    val manifestSaved: Boolean,
-    val saveResult: SaveResult?,
-    val suggestedAppName: String?,
-)
-
-private fun aiSaveFailure(message: String) = AiSaveToBucketResult(
-    resultJson = saveToBucketResultJson(BucketSaveOutcome.Failed(message)),
-    manifestSaved = false,
-    saveResult = null,
-    suggestedAppName = null,
-)
-
-/**
- * AI `save_to_bucket` implementation (architecture A: host owns the save):
- * run the shared save core and map the outcome to the JSON reply for the
- * model. A save without an explicit bucket never falls back to default bucket
- * rules; it returns needsBucket so the model asks the user to choose.
- */
-internal suspend fun aiSaveToBucket(
-    manifestJson: String,
-    bucketArg: String?,
-    nameArg: String?,
-    overwrite: Boolean,
-    suggestedAppName: String?,
-    lastBucket: String,
-    commitToGit: Boolean,
-    scoopClient: BucketSaveEnv,
-    indexSaved: suspend (bucket: String, app: App?) -> Boolean,
-    isGitBucket: (File) -> Boolean,
-    commitManifest: (bucketDir: File, appName: String, isUpdate: Boolean, version: String?) -> Result<String>,
-    onWarn: (String) -> Unit = {},
-): AiSaveToBucketResult {
-    if (manifestJson.isBlank()) {
-        return aiSaveFailure("No manifest to save")
-    }
-
-    val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }.sorted()
-
-    val bucket = bucketArg?.trim()?.takeUnless { it.isEmpty() }
-    if (bucket == null) {
-        if (buckets.isEmpty()) {
-            return aiSaveFailure("No Scoop buckets found")
-        }
-        // No silent default: hand the bucket list to the model so it asks the
-        // user to pick one. Nothing is written and no state changes.
-        return AiSaveToBucketResult(
-            resultJson = needsBucketResultJson(buckets),
-            manifestSaved = false,
-            saveResult = null,
-            suggestedAppName = suggestedAppName?.trim()?.takeUnless { it.isEmpty() },
-        )
-    }
-    if (bucket !in buckets) {
-        return aiSaveFailure("Bucket '$bucket' does not exist in the local Scoop installation")
-    }
-
-    val name = nameArg?.trim().takeUnless { it.isNullOrEmpty() }
-        ?: suggestedAppName?.trim().takeUnless { it.isNullOrEmpty() }
-    if (name == null) {
-        return aiSaveFailure("No app name provided and no suggested app name is available")
-    }
-    if (!APP_NAME_REGEX.matches(name)) {
-        return aiSaveFailure("App name may only contain letters, digits, '.', '_' and '-'")
-    }
-
-    val outcome = saveManifestCore(
-        manifestJson = manifestJson,
-        bucket = bucket,
-        appName = name,
-        commitToGit = commitToGit,
-        overwrite = overwrite,
-        scoopClient = scoopClient,
-        indexSaved = indexSaved,
-        isGitBucket = isGitBucket,
-        commitManifest = commitManifest,
-        onWarn = onWarn,
-    )
-
-    return when (outcome) {
-        is BucketSaveOutcome.Saved -> AiSaveToBucketResult(
-            resultJson = saveToBucketResultJson(outcome),
-            manifestSaved = true,
-            saveResult = saveResultOf(outcome),
-            suggestedAppName = outcome.appName,
-        )
-
-        else -> AiSaveToBucketResult(
-            resultJson = saveToBucketResultJson(outcome),
-            manifestSaved = false,
-            saveResult = null,
-            suggestedAppName = null,
-        )
-    }
-}
-
-/** Result of the AI install_app path: reply JSON plus the CreateState updates to apply. */
-internal data class AiInstallAppResult(
-    val resultJson: String,
-    /** True when the app is installed for use after this call; drives installedForUse. */
-    val installedForUse: Boolean,
-    /** True only when this call actually ran the install and it succeeded. */
-    val newlyInstalled: Boolean = false,
-    /** Pre-masked error for the failure toast; null when nothing failed. */
-    val maskedError: String? = null,
-    /** Set when scoop exited 0 but did nothing (held app, running process). */
-    val skippedMessage: String? = null,
-)
-
-/**
- * Shared post-install index refresh: re-read the installed snapshot and the
- * bucket manifest so the index shows the app as INSTALLED. Missing manifest is
- * a no-op; other failures warn without throwing (cancellation rethrown).
- */
-internal suspend fun refreshInstalledAppRecordCore(
-    bucket: String,
-    name: String,
-    scoopClient: BucketSaveEnv,
-    upsertApp: (App) -> Unit,
-    onWarn: (String) -> Unit = {},
-    onInstalled: (suspend (App) -> Unit)? = null,
-) {
-    try {
-        withContext(Dispatchers.IO) {
-            val installed = scoopClient.installedSnapshot()
-            val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-            val app = scoopClient.buildAppsFromManifestNames(bucketDir, setOf("$name.json"), Bucket(name = bucket, url = ""), installed).firstOrNull() ?: return@withContext
-            upsertApp(app)
-            onInstalled?.invoke(app)
-        }
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        onWarn("Post-install index refresh failed for $name: ${e.message}")
-    }
-}
-
-/**
- * AI `install_app` implementation (architecture A: host owns the install):
- * run the real scoop install unless the app is already installed in this
- * session, and map the outcome to the JSON reply for the model. Errors are
- * masked so no secrets reach the model or the UI toast.
- */
-internal suspend fun aiInstallApp(
-    bucket: String,
-    name: String,
-    alreadyInstalled: Boolean,
-    install: suspend (App) -> CommandResult,
-): AiInstallAppResult {
-    if (alreadyInstalled) {
-        return AiInstallAppResult(
-            resultJson = buildJsonObject {
-                put("success", true)
-                put("mode", "bucket")
-                put("message", "already installed in this session")
-            }.toString(),
-            installedForUse = true,
-        )
-    }
-    val result = install(App(name = name, latestVersion = "0", bucket = Bucket(bucket)))
-    val skipped = result.skippedMessage?.takeIf { it.isNotBlank() }
-    if (result.isSuccess && skipped != null) {
-        // Command succeeded but scoop skipped the work: report the skip to the
-        // model and do not claim the app is installed for use.
-        return AiInstallAppResult(
-            resultJson = buildJsonObject {
-                put("success", true)
-                put("mode", "bucket")
-                put("app", name)
-                put("bucket", bucket)
-                put("skipped", skipped)
-            }.toString(),
-            installedForUse = false,
-            skippedMessage = skipped,
-        )
-    }
-    if (result.isSuccess) {
-        return AiInstallAppResult(
-            resultJson = buildJsonObject {
-                put("success", true)
-                put("mode", "bucket")
-                put("app", name)
-                put("bucket", bucket)
-            }.toString(),
-            installedForUse = true,
-            newlyInstalled = true,
-        )
-    }
-    val detail = result.errorMessage?.takeIf { it.isNotBlank() } ?: "exit code ${result.exitCode}"
-    val masked = AiErrorTranslator.maskSecrets(detail)
-    return AiInstallAppResult(
-        resultJson = buildJsonObject {
-            put("success", false)
-            put("mode", "bucket")
-            put("error", masked)
-        }.toString(),
-        installedForUse = false,
-        maskedError = masked,
-    )
-}
-
-/**
- * Why a bucket manifest cannot be installed from, or null when it is usable.
- * Uninstall-then-install pre-checks this: the uninstall would otherwise leave
- * the app gone with nothing to install from.
- */
-internal fun bucketManifestIssue(manifestText: String?): String? {
-    if (manifestText.isNullOrBlank()) return "the bucket has no manifest for this app"
-    val obj = try {
-        Json.parseToJsonElement(manifestText) as? JsonObject
-    } catch (_: Exception) {
-        null
-    } ?: return "the bucket manifest is not valid JSON"
-    if (((obj["version"] as? JsonPrimitive)?.content ?: "").isBlank()) {
-        return "the bucket manifest has no version"
-    }
-    if (obj["url"] == null && obj["architecture"] !is JsonObject) {
-        return "the bucket manifest has no url or architecture"
-    }
-    return null
-}
-
-/**
- * Whether reinstalling [name] must target the global scope: true only when the
- * installed snapshot reports the app as global; missing entries are local.
- */
-internal fun reinstallGlobal(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
-    snapshot[name.lowercase()]?.isGlobal == true
-
-/**
- * Scope for a direct install of [name]: derived from the same snapshot read
- * as [reinstallGlobal] so the install and its uninstall step always agree.
- */
-internal fun directInstallScope(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
-    reinstallGlobal(snapshot, name)
-
-private val trailingWsRegex = Regex("[ \t]+$")
-
-/**
- * Whether [text] is a valid Scoop manifest, using the same bar as the CLI
- * ([com.scoopai.tools.manifest.FileManifestIo.validate]): it must parse with kotlinx
- * Json and the root element must be a [JsonObject]. Blank text counts as invalid.
- */
-internal fun isScoopManifestJson(text: String): Boolean {
-    if (text.isBlank()) return false
-    return try {
-        Json.parseToJsonElement(text) is JsonObject
-    } catch (_: Exception) {
-        false
-    }
-}
-
-/** Classification of a finished generation, splitting assist exhaustion from invalid JSON. */
-data class FinishClassification(
-    /** True when the manifest is not valid Scoop manifest JSON. */
-    val invalidJson: Boolean,
-    /** True when the run ended with issues (assist exhausted and/or invalid JSON). Drives badge/toast. */
-    val finishedWithIssues: Boolean,
-)
-
-internal fun isNameConflictIssue(issue: String): Boolean {
-    val text = issue.lowercase()
-    return text.contains("conflicts with an existing manifest") ||
-        text.contains("conflicts with an existing") ||
-        text.contains("already exists in") ||
-        text.contains("already used")
-}
-
-internal fun isNameConflictOnly(issues: List<String>, invalidJson: Boolean): Boolean {
-    if (invalidJson || issues.isEmpty()) return false
-    return issues.all { isNameConflictIssue(it) }
-}
-
-/**
- * Classify a finished generation result.
- *
- * The exhausted flag alone must NOT disable Save: a valid JSON manifest
- * with unresolved assist issues can still be saved (the UI keeps the button
- * enabled and only [invalidJson] gates it).
- */
-internal fun classifyManifestFinish(manifest: String, exhausted: Boolean): FinishClassification {
-    val invalidJson = !isScoopManifestJson(manifest)
-    return FinishClassification(
-        invalidJson = invalidJson,
-        finishedWithIssues = exhausted || invalidJson,
-    )
-}
-
-/**
- * Normalizes a manifest to Scoop bucket file style: 4-space indent, CRLF, no trailing
- * whitespace, exactly one trailing CRLF. Returns input unchanged when it is not valid JSON.
- */
-internal fun formatForBucket(json: String): String {
-    if (json.isBlank()) return json
-    val pretty = try {
-        val element = bucketPrettyJson.parseToJsonElement(json)
-        bucketPrettyJson.encodeToString(JsonElement.serializer(), element)
-    } catch (_: Exception) {
-        return json
-    }
-    val normalized = pretty.replace("\r\n", "\n")
-        .lines()
-        .joinToString("\n") { it.replace(trailingWsRegex, "") }
-        .replace("\n", "\r\n")
-    return normalized.trimEnd('\r', '\n') + "\r\n"
-}
-
-internal const val DEFAULT_AUTONOMOUS_PROCEED_ANSWER = "Please make your best judgment and proceed autonomously."
-
-private val IGNORED_HISTORY_TEXTS = setOf(
-    "Download confirmed",
-    "Download skipped",
-    "Let AI decide",
-)
-
-/**
- * Whether the composer may accept and send input. A pending questionnaire
- * unlocks the composer even while the engine is running: the send is routed
- * to the questionnaire answer instead of starting a new request.
- */
-internal fun composerSendEnabled(
-    running: Boolean,
-    testing: Boolean,
-    askUserPending: Boolean,
-    installing: Boolean = false,
-): Boolean = askUserPending || (!running && !testing && !installing)
-
-internal fun resolveAskUserBubbleText(response: String, isDownloadPrompt: Boolean): String {
-    if (!isDownloadPrompt) return response
-    return when {
-        response.equals("yes", ignoreCase = true) || response.contains("proceed", ignoreCase = true) -> "Download confirmed"
-        response.equals("no", ignoreCase = true) || response.contains("cancel", ignoreCase = true) || response.contains("skip", ignoreCase = true) -> "Download skipped"
-        else -> response
-    }
-}
-
-private val DOWNLOAD_ASSET_EXTENSIONS = setOf(".zip", ".exe", ".msi", ".7z", ".tar.gz", ".tgz")
-
-/**
- * Whether an option label is itself concrete enough to show as the download detail:
- * it names an asset file (archive/installer extension) or a URL. Generic labels such
- * as "Download and proceed" are not asset-like and fall through to prompt extraction,
- * otherwise the two confirm/skip bubbles would be indistinguishable.
- */
-internal fun looksLikeDownloadAsset(label: String): Boolean =
-    label.contains("http://", ignoreCase = true) ||
-        label.contains("https://", ignoreCase = true) ||
-        DOWNLOAD_ASSET_EXTENSIONS.any { label.contains(it, ignoreCase = true) }
-
-// Total single-line budget for download-confirm detail notes. Internal so the
-// renderer reuses the exact same budget when eliding URL-bearing notes.
-internal const val DOWNLOAD_DETAIL_MAX = 88
-private const val ELLIPSIS = "…"
-
-private val DOWNLOAD_FILE_NAME_QUOTED = Regex(
-    """'([^'\n]*\s*[^'\s\n]*(?:\.(?:zip|exe|msi|7z))[^'\n]*)'""",
-    RegexOption.IGNORE_CASE,
-)
-private val DOWNLOAD_BARE_ASSET = Regex(
-    """[A-Za-z0-9][A-Za-z0-9._~:/?#@!\$&'()*+,;=%-]*(?:\.(?:zip|exe|msi|7z|tar\.gz|tgz))[A-Za-z0-9._~:/?#@!\$&'()*+,;=%-]*""",
-    RegexOption.IGNORE_CASE,
-)
-private val DOWNLOAD_URL = Regex("""https?://[^\s'")<>]+""", RegexOption.IGNORE_CASE)
-// Size in parentheses right after the file name quote, e.g. "(1.2 MB)".
-private val DOWNLOAD_SIZE = Regex("""\(([\d.,]+\s*[KMG]i?B)\)""", RegexOption.IGNORE_CASE)
-
-/**
- * Builds a short single-line note describing what the user confirmed/skipped
- * when answering a download questionnaire. Returns null when the request is
- * not a download prompt or nothing concrete can be extracted. The priority is:
- * 1. the label of the QuestionnaireOption matching the user's answer, but only
- *    when the label itself names an asset (extension or URL); shown verbatim
- *    (budgeted to one line);
- * 2. otherwise the download prompt itself, laid out on one line as the
- *      URL middle-elided by [elideUrlMiddle] to fit the whole line budget;
- *      when no URL is present the file name (plus "(size)" when the prompt
- *      states one) is shown instead;
- *    so generic labels like "Download and proceed" never shadow the real asset;
- * 3. null when no URL and no asset file name can be extracted (and no
- *    matchable asset-like label), so the bubble keeps its main text only.
- * The returned text is the main bubble text companion only; the bubble's main
- * text ("Download confirmed"/"Download skipped") is never changed here.
- */
-internal fun buildDownloadConfirmDetail(request: AskUserRequest?, response: String): String? {
-    if (request == null || !request.isDownloadPrompt) return null
-    val question = request.questions.firstOrNull { q ->
-        q.id == "download_confirm" ||
-            q.prompt.contains("download", ignoreCase = true) ||
-            q.prompt.contains("installer/archive", ignoreCase = true)
-    } ?: request.questions.firstOrNull() ?: return null
-
-    val matchedLabel = question.options.firstOrNull { opt ->
-        response.trim().equals(opt.label, ignoreCase = true) ||
-            response.contains(opt.label, ignoreCase = true)
-    }?.label
-    return if (matchedLabel != null && looksLikeDownloadAsset(matchedLabel)) {
-        // Asset-like option label: show it verbatim as a single line.
-        normalizeDownloadLine(matchedLabel)
-    } else {
-        // Generic (or unmatched) label: rebuild the detail from the prompt so
-        // labels like "Download and proceed" never shadow the real asset.
-        detailFromDownloadPrompt(question.prompt) ?: matchedLabel?.let(::normalizeDownloadLine)
-    }
-}
-
-/**
- * Extracts the download detail from the prompt as a single line: the URL
- * middle-elided to fit [DOWNLOAD_DETAIL_MAX], with the whole budget given to
- * it. When no URL is present it falls back to the file name (plus "(size)"
- * when the prompt states one). Returns null when neither a URL nor an asset
- * file name can be extracted, so the caller keeps the bubble's main text only.
- */
-private fun detailFromDownloadPrompt(prompt: String): String? {
-    val url = DOWNLOAD_URL.find(prompt)?.value?.trim()?.takeIf { it.isNotBlank() }
-    if (url != null) return elideUrlMiddle(url, DOWNLOAD_DETAIL_MAX)
-    val quoted = DOWNLOAD_FILE_NAME_QUOTED.find(prompt)
-    if (quoted != null) {
-        // Trim leftover wrapping quotes: prompts sometimes leak a trailing
-        // quote into the extracted name (e.g. "name.zip'").
-        val fileName = quoted.groupValues[1].trim().trim('\'', '"').trim()
-        val size = sizeAfterQuote(prompt, quoted.range.last + 1)
-        return normalizeDownloadLine(if (size != null) "$fileName ($size)" else fileName)
-    }
-    val bare = DOWNLOAD_BARE_ASSET.find(prompt)?.value
-        ?.trim()
-        ?.trim('\'', '"')
-        ?.trim()
-        ?.takeIf { it.isNotBlank() }
-    if (bare != null) return normalizeDownloadLine(bare)
-    return null
-}
-
-/** Size in "(1.2 MB)" form directly following the closing quote at [from]. */
-private fun sizeAfterQuote(prompt: String, from: Int): String? {
-    val rest = prompt.substring(from)
-    val match = DOWNLOAD_SIZE.find(rest) ?: return null
-    // The parenthesis must directly follow the quote; only whitespace in between.
-    if (rest.substring(0, match.range.first).isNotBlank()) return null
-    return match.groupValues[1].replace(Regex("\\s+"), " ").trim()
-}
-
-/**
- * Elides the middle of an overlong URL, keeping the scheme://host prefix and
- * the last path segment (the file name) intact, separated by "/…/". When the
- * intermediate path allows it, the longest prefix that still fits is kept
- * (e.g. "https://github.com/user/…/v1.0.zip"). Query and fragment are dropped
- * before measuring; if the file name itself cannot fit it is tail truncated
- * with an ellipsis so the result never exceeds [maxLen]. URLs at or under
- * [maxLen] are returned unchanged.
- */
-internal fun elideUrlMiddle(url: String, maxLen: Int): String {
-    if (maxLen <= 0) return ""
-    if (url.length <= maxLen) return url
-    // Query/fragment never survive elision; dropping them may already fit.
-    val clean = url.substringBefore('?').substringBefore('#')
-    if (clean.length <= maxLen) return clean
-    val schemeEnd = clean.indexOf("://")
-    if (schemeEnd < 0) return clean.take(maxLen - 1) + ELLIPSIS
-    val firstSlash = clean.indexOf('/', schemeEnd + 3)
-    val schemeAndHost = if (firstSlash < 0) clean else clean.take(firstSlash)
-    val path = if (firstSlash < 0) "" else clean.substring(firstSlash)
-    val lastSlash = path.lastIndexOf('/')
-    val last = if (lastSlash < 0) "" else path.substring(lastSlash + 1)
-    if (last.isEmpty()) {
-        // No path segments (bare or trailing-slash host): tail truncate.
-        return clean.take(maxLen - 1) + ELLIPSIS
-    }
-    val minResult = "$schemeAndHost/$ELLIPSIS/$last"
-    if (minResult.length > maxLen) {
-        // Host + "/…/" + file name still too wide: tail truncate the name.
-        val nameRoom = maxLen - schemeAndHost.length - 3
-        if (nameRoom >= 2) {
-            return "$schemeAndHost/$ELLIPSIS/" + last.take(nameRoom - 1) + ELLIPSIS
-        }
-        return clean.take(maxLen - 1) + ELLIPSIS
-    }
-    // Greedy: keep the longest intermediate path prefix that still fits.
-    var best = minResult
-    var slash = path.indexOf('/', 1)
-    while (slash in 1 until lastSlash) {
-        val candidate = schemeAndHost + path.substring(0, slash) + "/$ELLIPSIS/$last"
-        if (candidate.length > maxLen) break
-        best = candidate
-        slash = path.indexOf('/', slash + 1)
-    }
-    return best
-}
-
-private fun normalizeDownloadLine(raw: String): String {
-    val collapsed = raw.replace(Regex("\\s+"), " ").trim()
-    // URLs get middle elision so scheme, host and file name stay visible.
-    if (collapsed.startsWith("http", ignoreCase = true)) {
-        return elideUrlMiddle(collapsed, DOWNLOAD_DETAIL_MAX)
-    }
-    return if (collapsed.length > DOWNLOAD_DETAIL_MAX) {
-        collapsed.take(DOWNLOAD_DETAIL_MAX - 1) + ELLIPSIS
-    } else {
-        collapsed
-    }
-}
-
-private const val HISTORY_MAX_ENTRIES = 12
-private const val HISTORY_LINE_MAX = 400
-
-/**
- * How many recent conversation entries [resolveAssistImages] scans backwards when
- * looking for an image to replay. Four entries cover "screenshot turn, AI reply,
- * one more exchange" without reaching arbitrarily far into the session.
- */
-private const val IMAGE_REPLAY_LOOKBACK = 4
-
-/**
- * The most recent user message in the lookback window whose images are still worth
- * replaying, or null. Messages already replayed once are skipped to keep repeated
- * text-only rounds from re-sending the same (expensive) screenshots.
- */
-private fun replaySourceIn(history: List<ChatMessage>): ChatMessage? =
-    history.asReversed()
-        .take(IMAGE_REPLAY_LOOKBACK)
-        .firstOrNull { it.role == ChatRole.User && !it.imagesReplayed && it.images.isNotEmpty() }
-
-/**
- * Images to attach to this assist round. A round with freshly attached images wins;
- * otherwise the images of the most recent not-yet-replayed user message in the
- * lookback window are replayed.
- *
- * Replay is required because the engine deliberately keeps images out of
- * [AssistContext] and the checkpoint, so a text-only follow-up such as "fix the
- * problem above" would otherwise reach the model with no image at all. But each
- * replayed image costs several thousand vision tokens, so a message whose images
- * already went out once ([ChatMessage.imagesReplayed]) is skipped: without the
- * flag, N consecutive text-only rounds would re-send the identical screenshot N
- * times. Once every image-carrying message in the window has been replayed, this
- * returns empty and the follow-up runs text-only (the model still sees the image
- * description markers in the history lines). Cost over context freshness is a
- * deliberate trade-off.
- */
-internal fun resolveAssistImages(
-    fresh: List<PendingImage>,
-    history: List<ChatMessage>,
-): List<PendingImage> {
-    if (fresh.isNotEmpty()) return fresh
-    return replaySourceIn(history)
-        ?.images
-        ?.take(CreateViewModel.MAX_PENDING_IMAGES)
-        .orEmpty()
-}
-
-internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
-    val relevant = messages.filter { msg ->
-        when (msg.role) {
-            ChatRole.User ->
-                msg.text.isNotBlank() &&
-                    msg.text !in IGNORED_HISTORY_TEXTS &&
-                    !msg.text.startsWith("Question:")
-            // Error bubbles fold failure details into actions; they are not conversation context.
-            ChatRole.Agent -> msg.text.isNotBlank() && msg.actions.isEmpty()
-        }
-    }
-    // Tail only: recent turns matter for coreference in assist/refine prompts.
-    return relevant.takeLast(HISTORY_MAX_ENTRIES).map { msg ->
-        val imagePlaceholder = if (msg.role == ChatRole.User && msg.images.isNotEmpty()) {
-            " [${msg.images.size} screenshot${if (msg.images.size > 1) "s" else ""} attached]"
-        } else ""
-        val body = when (msg.role) {
-            ChatRole.User -> {
-                val base = if (!msg.note.isNullOrBlank()) "${msg.text} (Requirements: ${msg.note})" else msg.text
-                base + imagePlaceholder
-            }
-            ChatRole.Agent -> msg.text + imagePlaceholder
-        }
-        val prefix = if (msg.role == ChatRole.User) "User: " else "Assistant: "
-        val line = prefix + body
-        if (line.length <= HISTORY_LINE_MAX) line else line.take(HISTORY_LINE_MAX - 3) + "..."
-    }
-}
-
-/**
- * Scans text for @bucket/app reference tokens: "@" at line start or after
- * whitespace (so email addresses and URL fragments never match), bucket/name
- * chars only, original casing preserved, deduped in order of appearance.
- */
-internal fun extractManifestRefs(text: String): List<Pair<String, String>> {
-    val regex = Regex("@([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)")
-    val seen = LinkedHashSet<Pair<String, String>>()
-    for (match in regex.findAll(text)) {
-        // The @ must sit at line start or after whitespace, so email addresses
-        // (letter before @) and in-URL fragments (slash before @) never match.
-        val start = match.range.first
-        if (start > 0 && !text[start - 1].isWhitespace()) continue
-        seen += match.groupValues[1] to match.groupValues[2]
-    }
-    return seen.toList()
-}
-
-/** Merged @bucket/app references across the conversation; only user bubbles count (AI mentions are not references). */
-internal fun userManifestRefs(messages: List<ChatMessage>): List<Pair<String, String>> =
-    messages.filter { it.role == ChatRole.User }
-        .flatMap { extractManifestRefs(it.text) }
-        .distinct()
-
-/**
- * Incomplete @ token under the caret, or null when no completion applies.
- * The @ must sit at line start or after whitespace and be followed by bucket
- * and name chars with at most one "/" (same shape as [extractManifestRefs]
- * tokens: a reference is always @bucket/app); a fully formed "@bucket/name"
- * followed by whitespace or line end is done and no longer triggers the menu.
- * The returned query is the typed text after the @ and may contain the "/" of
- * a qualified prefix.
- */
-private val REF_TOKEN_REGEX = Regex("[A-Za-z0-9_-]*(/?[A-Za-z0-9_-]*)?")
-
-internal fun activeManifestRefToken(text: String, caret: Int): String? {
-    if (caret <= 0 || caret > text.length) return null
-    val at = text.lastIndexOf('@', caret - 1)
-    if (at < 0) return null
-    if (at > 0 && !text[at - 1].isWhitespace()) return null
-    val token = text.substring(at + 1, caret)
-    if (token.isEmpty()) return null
-    if (!REF_TOKEN_REGEX.matches(token)) return null
-    return token
-}
-
-/** One piece of user bubble text: plain text or a @bucket/app reference chip. */
-sealed class ManifestRefSegment {
-    data class Text(val text: String) : ManifestRefSegment()
-
-    data class Ref(val bucket: String, val name: String) : ManifestRefSegment() {
-        /** Original token text as typed, preserving casing (e.g. "@Main/Golang"). */
-        val raw: String get() = "@$bucket/$name"
-    }
-}
-
-/**
- * Splits bubble text into plain-text and reference segments so the UI can render
- * @bucket/app tokens as chips. Uses the same token rule as [extractManifestRefs]
- * (email/URL fragments stay plain text); unmatched parts stay text.
- */
-internal fun splitManifestRefSegments(text: String): List<ManifestRefSegment> {
-    val regex = Regex("@([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)")
-    val segments = mutableListOf<ManifestRefSegment>()
-    var cursor = 0
-    for (match in regex.findAll(text)) {
-        // Same guard as extractManifestRefs: the @ must sit at line start or after
-        // whitespace, so email addresses and in-URL fragments never match.
-        val start = match.range.first
-        if (start > 0 && !text[start - 1].isWhitespace()) continue
-        if (start > cursor) segments += ManifestRefSegment.Text(text.substring(cursor, start))
-        segments += ManifestRefSegment.Ref(match.groupValues[1], match.groupValues[2])
-        cursor = match.range.last + 1
-    }
-    if (cursor < text.length) segments += ManifestRefSegment.Text(text.substring(cursor))
-    return segments
-}
-
-/** One @bucket/app entry in the completion menu index. */
-data class ManifestRefSuggestion(val bucket: String, val name: String) {
-    /** Token inserted into the input when picked, with trailing space. */
-    val insertion: String get() = "@$bucket/$name "
-}
-
-/** Max rows shown in the @ completion menu. */
-internal const val REF_SUGGESTION_LIMIT = 8
-
-/**
- * Filters the app index for the completion menu: case-insensitive prefix match on
- * name, on bucket, or on the qualified "bucket/name" form; capped at
- * [REF_SUGGESTION_LIMIT]. Pure function.
- */
-internal fun filterRefSuggestions(
-    suggestions: List<ManifestRefSuggestion>,
-    prefix: String,
-): List<ManifestRefSuggestion> {
-    val p = prefix.trim().lowercase()
-    return suggestions.asSequence()
-        .filter { s ->
-            val qualified = "${s.bucket}/${s.name}".lowercase()
-            s.name.lowercase().startsWith(p) || s.bucket.lowercase().startsWith(p) ||
-                (p.contains('/') && qualified.startsWith(p))
-        }
-        .sortedWith(compareBy({ it.name.lowercase() }, { it.bucket.lowercase() }))
-        .take(REF_SUGGESTION_LIMIT)
-        .toList()
-}
-
-/**
- * Replaces the active @ token under the caret with the picked suggestion.
- * [query] is the token text after the @ (as returned by activeManifestRefToken),
- * so the removal span extends one char left to consume the @ itself and the
- * insertion (which already carries its own @) never doubles it.
- * Returns the field unchanged when the token text is no longer at the caret.
- */
-internal fun applyRefSuggestion(
-    field: TextFieldValue,
-    query: String,
-    suggestion: ManifestRefSuggestion,
-): TextFieldValue {
-    val caret = field.selection.min
-    if (caret < query.length + 1) return field
-    val text = field.text
-    val start = caret - query.length - 1
-    if (text.getOrNull(start) != '@') return field
-    if (text.substring(start + 1, caret) != query) return field
-    val insertion = suggestion.insertion
-    val before = text.substring(0, start)
-    val after = text.substring(caret)
-    val newText = before + insertion + after
-    return TextFieldValue(newText, TextRange(before.length + insertion.length))
-}
-
-internal fun isLikelyUrl(text: String): Boolean {
-    val trimmed = text.trim()
-    return trimmed.startsWith("http://", ignoreCase = true) ||
-        trimmed.startsWith("https://", ignoreCase = true) ||
-        trimmed.startsWith("github.com/", ignoreCase = true)
-}
-
-/**
- * Determines whether a send action is an assist request (incremental modification
- * or conversation) or a fresh generation: a GitHub URL generates, everything else
- * assists. Failure-prone inputs (non-GitHub URL prefixes, bare domains) degrade
- * to assist instead of raising an invalid-URL error; empty input assist is a
- * defensive no-op path.
- */
-internal fun isAssistRequest(input: String): Boolean =
-    GithubUrlParser.extract(input.trim()).first == null
-
-internal fun resolveAssistInstruction(
-    inputUrl: String,
-    inputNote: String,
-): String {
-    val rawNote = inputNote.trim()
-    if (rawNote.isNotBlank()) return rawNote
-    val rawUrl = inputUrl.trim()
-    if (!isLikelyUrl(rawUrl) && rawUrl.isNotBlank()) return rawUrl
-    return ""
-}
-
-internal fun computeManifestDiff(oldJson: String, newJson: String): List<String> {
-    if (oldJson.isBlank()) {
-        return if (newJson.isNotBlank()) listOf("Initial manifest") else emptyList()
-    }
-    if (newJson.isBlank() || oldJson == newJson) {
-        return emptyList()
-    }
-
-    val oldObj = try {
-        Json.parseToJsonElement(oldJson) as? JsonObject
-    } catch (_: Exception) {
-        null
-    }
-    val newObj = try {
-        Json.parseToJsonElement(newJson) as? JsonObject
-    } catch (_: Exception) {
-        null
-    }
-
-    if (oldObj == null || newObj == null) {
-        return listOf("Manifest updated")
-    }
-
-    val diffs = mutableListOf<String>()
-    val allKeys = (oldObj.keys + newObj.keys).toSortedSet()
-
-    for (key in allKeys) {
-        val oldVal = oldObj[key]
-        val newVal = newObj[key]
-
-        when {
-            oldVal == null && newVal != null -> diffs.add("+ $key")
-            oldVal != null && newVal == null -> diffs.add("- $key")
-            oldVal != newVal -> {
-                if (key == "version" && oldVal is JsonPrimitive && newVal is JsonPrimitive) {
-                    diffs.add("~ version: ${oldVal.content} → ${newVal.content}")
-                } else {
-                    diffs.add("~ $key")
-                }
-            }
-        }
-    }
-    return diffs
-}
-
-/**
- * True when the current finish should be explained as an assist round: the run was in
- * the assist phase AND a previous manifest revision exists to diff against. Internal
- * repair rounds ("repair") are not user assists and return false. Pure helper for the
- * finished-bubble composition in handleFinished.
- */
-internal fun isAssistScenario(currentPhase: String?, revisions: List<ManifestRevision>): Boolean {
-    if (!currentPhase.equals("assist", ignoreCase = true)) return false
-    return revisions.isNotEmpty()
-}
-
-/**
- * User-facing notice for a finished-with-issues run: assist rounds say "Assist",
- * initial generation says "Generation". Pure function (toast + issues bubble text).
- */
-internal fun finishedWithIssuesNotice(isAssistScenario: Boolean): String =
-    if (isAssistScenario) "Assist finished with issues" else "Generation finished with issues"
-
-/**
- * Bubble text for a user assist that the engine answered directly (no manifest
- * change). Uses the engine explanation when present and non-blank, else a generic
- * English fallback. Pure function.
- */
-internal fun answeredBubbleText(explanation: String?): String =
-    explanation?.trim()?.takeIf { it.isNotEmpty() } ?: "Sorry, I could not produce an answer."
-
-/**
- * Final agent bubble for a successful finish (answered / generated / no-assets).
- * Token usage is attached only when the provider reported a non-zero total, so
- * "0 tokens" footers never render. Pure function (bubble assembly testable).
- */
-internal fun agentReplyMessage(text: String, tokenUsage: TokenUsage?): ChatMessage =
-    ChatMessage(
-        role = ChatRole.Agent,
-        text = text,
-        tokenUsage = tokenUsage?.takeIf { it.totalTokens > 0 },
-    )
-
-/**
- * Text of the newest user bubble in [messages], or null when none exists. Used by
- * the RETRY_ANSWER error action to resend a failed question. Pure function.
- */
-internal fun lastUserQuestion(messages: List<ChatMessage>): String? =
-    messages.lastOrNull { it.role == ChatRole.User }?.text
-
-/**
- * Deterministic assist explanation (proposal 5.4): human-readable English built from
- * the key-level [computeManifestDiff] output, e.g.
- * "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready."
- * Pure function; used when the engine explanation is missing.
- */
-internal fun synthesizeAssistExplanation(diff: List<String>): String {
-    val removed = mutableListOf<String>()
-    val added = mutableListOf<String>()
-    val modified = mutableListOf<String>()
-    var versionChange: String? = null
-    var genericUpdate = false
-
-    for (entry in diff) {
-        when {
-            entry.startsWith("- ") -> removed.add(entry.removePrefix("- "))
-            entry.startsWith("+ ") -> added.add(entry.removePrefix("+ "))
-            entry.startsWith("~ ") -> {
-                val key = entry.removePrefix("~ ")
-                if (key.startsWith("version:")) {
-                    versionChange = "updated version (${key.removePrefix("version:").trim()})"
-                } else {
-                    modified.add(key)
-                }
-            }
-            entry == "Manifest updated" -> genericUpdate = true
-            // "Initial manifest" and unknown entries carry no assist detail
-        }
-    }
-
-    val phrases = buildList {
-        if (removed.isNotEmpty()) add("Removed " + removed.joinToString(", "))
-        if (added.isNotEmpty()) add("added " + added.joinToString(", "))
-        if (modified.isNotEmpty()) add("updated " + modified.joinToString(", "))
-        if (versionChange != null) add(versionChange)
-    }
-    val body = when {
-        phrases.isNotEmpty() -> phrases.joinToString(", ").replaceFirstChar { it.uppercaseChar() }
-        genericUpdate -> "Updated the manifest"
-        else -> "No manifest changes were required"
-    }
-    return "$body. Validated and ready."
-}
-
-/**
- * Deterministic initial-generation explanation (proposal 5.4): describes the manifest's
- * key fields (name, version, url strategy, shortcuts/persist counts), e.g.
- * "Generated manifest for fd 10.2.0 (portable zip). 1 shortcut, 2 persist entries.
- * Validated and ready." Missing fields are omitted robustly; [appName] is the fallback
- * when the manifest has no name field. Pure function.
- */
-internal fun synthesizeGenerateExplanation(manifestJson: String, appName: String?): String {
-    val obj = try {
-        Json.parseToJsonElement(manifestJson) as? JsonObject
-    } catch (_: Exception) {
-        null
-    }
-
-    fun stringField(key: String): String? = obj?.get(key)
-        ?.let { it as? JsonPrimitive }
-        ?.contentOrNull
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-
-    // Architecture-package form: "architecture": {"64bit": {"url": ...}}. Used as
-    // the strategy source when the top-level url is missing; empty when neither
-    // exists (the strategy then degrades to "portable").
-    fun architectureFallbackUrl(): String? = obj?.get("architecture")
-        ?.let { it as? JsonObject }
-        ?.values
-        ?.mapNotNull { arch ->
-            (arch as? JsonObject)?.get("url")
-                ?.let { it as? JsonPrimitive }
-                ?.contentOrNull
-                ?.trim()
-                ?.takeIf { s -> s.isNotEmpty() }
-        }
-        ?.firstOrNull()
-
-    val name = stringField("name")
-        ?: appName?.trim()?.takeIf { it.isNotEmpty() }
-    val version = stringField("version")
-    val url = (stringField("url") ?: architectureFallbackUrl()).orEmpty().lowercase()
-    val strategy = when {
-        url.contains(".zip") -> "portable zip"
-        url.contains(".7z") -> "portable 7z archive"
-        url.contains(".msix") -> "MSIX package"
-        url.contains(".msi") -> "MSI installer"
-        url.contains(".exe") -> "installer"
-        else -> "portable"
-    }
-
-    val shortcuts = (obj?.get("shortcuts") as? JsonArray)?.size ?: 0
-    val persistCount = when (val persist = obj?.get("persist")) {
-        is JsonArray -> persist.size
-        is JsonPrimitive -> if (persist.contentOrNull?.isNotBlank() == true) 1 else 0
-        else -> 0
-    }
-
-    val subject = buildString {
-        append("Generated manifest")
-        if (name != null) append(" for $name")
-        if (version != null) append(" $version")
-        append(" ($strategy)")
-    }
-    val features = mutableListOf<String>()
-    if (shortcuts > 0) features.add(if (shortcuts == 1) "1 shortcut" else "$shortcuts shortcuts")
-    if (persistCount > 0) features.add(if (persistCount == 1) "1 persist entry" else "$persistCount persist entries")
-    val featureText = if (features.isEmpty()) "" else ". " + features.joinToString(", ")
-    return "$subject$featureText. Validated and ready."
-}
-
-/**
- * Compose the finished-bubble text following the proposal 5.3 priority:
- * conflict/issues classification keeps the main text (the explanation, when present,
- * is appended as a trailing paragraph); a normal finish uses the engine explanation,
- * else [fallbackText] (the deterministic synthesis). A blank explanation counts as
- * missing. Pure function.
- */
-internal fun composeFinishedBubbleText(
-    explanation: String?,
-    isConflictOnly: Boolean,
-    finishedWithIssues: Boolean,
-    conflictText: String,
-    issuesText: String,
-    fallbackText: String,
-): String {
-    val trimmed = explanation?.trim()?.takeIf { it.isNotEmpty() }
-    return when {
-        isConflictOnly -> appendExplanationParagraph(conflictText, trimmed)
-        finishedWithIssues -> appendExplanationParagraph(issuesText, trimmed)
-        else -> trimmed ?: fallbackText
-    }
-}
-
-private fun appendExplanationParagraph(base: String, explanation: String?): String =
-    if (explanation == null) base else "$base\n\n$explanation"

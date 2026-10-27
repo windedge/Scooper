@@ -219,6 +219,52 @@ class CreateViewModelExecutionTest {
         )
     }
 
+    @Test
+    fun `attachToolActivity Started after a settled same-text line keeps the live line off`() {
+        // Same-batch tools share the intent text: A Completed fixes "X" into the
+        // step as "\u2714 X", then B Started("X") must not re-light the live line,
+        // otherwise the settled line and a live line with identical text render twice.
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val started = attachToolActivity(
+            active,
+            ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = "{}"),
+            "Repository info fetched",
+        )
+        val completed = attachToolActivity(
+            started,
+            ToolActivity.Completed(toolName = "fetchRepoInfo", toolResult = "ok"),
+            "Repository info fetched",
+        )
+        val again = attachToolActivity(
+            completed,
+            ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = "{next}"),
+            "Repository info fetched",
+        )
+        assertNull(again?.currentActivity, "same-text Started must not duplicate the settled line")
+        assertEquals(listOf("\u2714 Repository info fetched"), again?.steps?.last()?.toolActivities)
+    }
+
+    @Test
+    fun `attachToolActivity Started with different text relights the live line`() {
+        val active = appendPhaseStep(null, "research", "Researching...", nowMs = 1000L)
+        val started = attachToolActivity(
+            active,
+            ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = "{}"),
+            "Repository info fetched",
+        )
+        val completed = attachToolActivity(
+            started,
+            ToolActivity.Completed(toolName = "fetchRepoInfo", toolResult = "ok"),
+            "Repository info fetched",
+        )
+        val again = attachToolActivity(
+            completed,
+            ToolActivity.Started(toolName = "fetchLatestRelease", toolArgs = "{}"),
+            "Latest release fetched",
+        )
+        assertEquals("Latest release fetched", again?.currentActivity)
+    }
+
     // ---------------------------------------------------------------
     // setPhaseSummary: phase output ownership
     // ---------------------------------------------------------------
@@ -643,43 +689,6 @@ class CreateViewModelExecutionTest {
         assertTrue(isFailedExecutionStep(step, messageHasActions = true))
     }
 
-    @Test
-    fun `executionSummaryCapsuleText sums step durations and pluralizes steps`() {
-        val steps = listOf(
-            ExecutionStep(phase = "research", title = "r", durationMs = 1000L),
-            ExecutionStep(phase = "analyze", title = "a", durationMs = 400L),
-            ExecutionStep(phase = "generate", title = "g", durationMs = 2000L),
-        )
-        assertEquals("✓ Completed in 3.4s · 3 steps", executionSummaryCapsuleText(steps))
-    }
-
-    @Test
-    fun `executionSummaryCapsuleText uses singular step for a single entry`() {
-        val steps = listOf(ExecutionStep(phase = "assist", title = "r", durationMs = 850L))
-        assertEquals("✓ Completed in 850ms · 1 step", executionSummaryCapsuleText(steps))
-    }
-
-    @Test
-    fun `executionSummaryCapsuleText renders zero duration for empty steps`() {
-        assertEquals("✓ Completed in 0ms · 0 steps", executionSummaryCapsuleText(emptyList()))
-    }
-
-    @Test
-    fun `executionSummaryCapsuleText with failed true uses cross and Failed wording`() {
-        val steps = listOf(
-            ExecutionStep(phase = "research", title = "r", durationMs = 60_000L),
-            ExecutionStep(phase = "generate", title = "g", durationMs = 19_000L),
-        )
-        assertEquals("✗ Failed in 1m 19s · 2 steps", executionSummaryCapsuleText(steps, failed = true))
-    }
-
-    @Test
-    fun `executionSummaryCapsuleText failed defaults to completed wording`() {
-        val steps = listOf(ExecutionStep(phase = "verify", title = "v", durationMs = 1_200L))
-        assertEquals("✓ Completed in 1.2s · 1 step", executionSummaryCapsuleText(steps))
-        assertEquals("✗ Failed in 1.2s · 1 step", executionSummaryCapsuleText(steps, failed = true))
-    }
-
     // ---------------------------------------------------------------
     // Token usage display: compact count and bubble footer
     // ---------------------------------------------------------------
@@ -874,106 +883,8 @@ class CreateViewModelExecutionTest {
     }
 
     // ---------------------------------------------------------------
-    // Install action bar (three-step wizard final state): installAction*
-    // ---------------------------------------------------------------
-
-    // installActionVisible: the Install button is hidden once the manifest is installed
-
-    @Test
-    fun `installActionVisible shows Install before the install succeeded`() {
-        assertTrue(installActionVisible(installedForUse = false))
-    }
-
-    @Test
-    fun `installActionVisible hides Install once the install succeeded`() {
-        assertFalse(installActionVisible(installedForUse = true))
-    }
-
-    // installActionPrimary: Install is the primary nudge after Save, until installed
-
-    @Test
-    fun `installActionPrimary is true once saved and not yet installed`() {
-        assertTrue(installActionPrimary(manifestSaved = true, installedForUse = false))
-    }
-
-    @Test
-    fun `installActionPrimary is false before the manifest is saved`() {
-        assertFalse(installActionPrimary(manifestSaved = false, installedForUse = false))
-    }
-
-    @Test
-    fun `installActionPrimary is false once installed for use`() {
-        assertFalse(installActionPrimary(manifestSaved = true, installedForUse = true))
-    }
-
-    // installActionEnabled: valid manifest, not installed, and no operation in flight
-
-    @Test
-    fun `installActionEnabled is true for a valid unsaved idle manifest`() {
-        assertTrue(
-            installActionEnabled(
-                manifestJson = """{"version":"1.2.3"}""",
-                installedForUse = false,
-                running = false,
-                testing = false,
-                installing = false,
-            ),
-        )
-    }
-
-    @Test
-    fun `installActionEnabled is false for a blank or invalid manifest`() {
-        assertFalse(
-            installActionEnabled(
-                manifestJson = "   ",
-                installedForUse = false,
-                running = false,
-                testing = false,
-                installing = false,
-            ),
-            "blank manifest must disable the install action",
-        )
-        assertFalse(
-            installActionEnabled(
-                manifestJson = "not json",
-                installedForUse = false,
-                running = false,
-                testing = false,
-                installing = false,
-            ),
-            "invalid manifest JSON must disable the install action",
-        )
-    }
-
-    @Test
-    fun `installActionEnabled is false while any operation is in flight`() {
-        // each in-flight flag disables the action independently
-        for (busy in listOf("running", "testing", "installing")) {
-            var running = false
-            var testing = false
-            var installing = false
-            when (busy) {
-                "running" -> running = true
-                "testing" -> testing = true
-                "installing" -> installing = true
-            }
-            assertFalse(
-                installActionEnabled(manifestJson = """{"version":"1.2.3"}""", installedForUse = false, running = running, testing = testing, installing = installing),
-                "$busy in flight must disable the install action",
-            )
-        }
-    }
-
-    @Test
-    fun `installActionEnabled is false once installed for use`() {
-        assertFalse(
-            installActionEnabled(manifestJson = """{"version":"1.2.3"}""", installedForUse = true, running = false, testing = false, installing = false),
-        )
-    }
-
-    // ---------------------------------------------------------------
     // Open button logic: manifestHasShortcuts / openAppActionVisible /
-    // installActionVisible
+    // deploymentLabel
     // ---------------------------------------------------------------
 
     @Test
@@ -1013,22 +924,6 @@ class CreateViewModelExecutionTest {
         assertFalse(openAppActionVisible(installedForUse = true, manifestShortcutsAvailable = false))
     }
 
-    @Test
-    fun `installActionVisible is the negation of installed for use`() {
-        assertTrue(installActionVisible(installedForUse = false))
-        assertFalse(installActionVisible(installedForUse = true))
-    }
-
-    @Test
-    fun `installActionLabel is Install when the app is not installed system wide`() {
-        assertEquals("Install", installActionLabel(systemInstalled = false))
-    }
-
-    @Test
-    fun `installActionLabel is Reinstall when the app is already installed system wide`() {
-        assertEquals("Reinstall", installActionLabel(systemInstalled = true))
-    }
-
     // ---------------------------------------------------------------
     // newManifestResetsVerification: installedShortcuts is the 4th marker
     // ---------------------------------------------------------------
@@ -1064,64 +959,27 @@ class CreateViewModelExecutionTest {
     }
 
     // ---------------------------------------------------------------
-    // Whole-run tool activity fold: collapsed keeps only the trailing
-    // phase tag line (plus its running state); every activity detail
-    // line, including the last one, hides behind the fold toggle.
+    // Whole-run fold (openchamber style): the summary line alone
+    // represents a collapsed run, so collapsed renders no step block at
+    // all; expanded shows every step untouched.
     // ---------------------------------------------------------------
 
     @Test
-    fun `visibleExecutionSteps collapsed keeps only the last step with empty toolActivities`() {
-        val steps = listOf(
-            ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
-            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c")),
-        )
-        val visible = visibleExecutionSteps(steps, expanded = false)
-        assertEquals(1, visible.size)
-        assertEquals("analyze", visible[0].phase)
-        assertTrue(visible[0].toolActivities.isEmpty())
-    }
-
-    @Test
-    fun `visibleExecutionSteps collapsed keeps the trailing running phase tag and hides its activities`() {
+    fun `visibleExecutionSteps collapsed renders no step block`() {
         val steps = listOf(
             ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
             ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c"), isRunning = true),
         )
-        val visible = visibleExecutionSteps(steps, expanded = false)
-        // Collapsed is just the current phase tag line (TypingDots/liveActivity
-        // render from isRunning/currentActivity outside this function).
-        assertEquals(1, visible.size)
-        assertEquals("analyze", visible[0].phase)
-        assertTrue(visible[0].isRunning)
-        assertTrue(visible[0].toolActivities.isEmpty())
+        assertTrue(visibleExecutionSteps(steps, expanded = false).isEmpty())
     }
 
     @Test
-    fun `visibleExecutionSteps collapsed drops even the finished activity lines of the last step`() {
+    fun `visibleExecutionSteps collapsed drops the last step summary too`() {
         val steps = listOf(
-            ExecutionStep(
-                "analyze",
-                "Analyzing package...",
-                toolActivities = listOf("✔ flat archive", "✔ flat archive arm64"),
-                summary = "Detected strategy 'portable_zip'",
-            ),
-            ExecutionStep("verify", "Validating manifest...", isRunning = true),
-        )
-        val visible = visibleExecutionSteps(steps, expanded = false)
-        assertEquals(listOf("verify"), visible.map { it.phase })
-        assertTrue(visible[0].toolActivities.isEmpty())
-    }
-
-    @Test
-    fun `visibleExecutionSteps collapsed keeps the last finished step summary without its activity lines`() {
-        val steps = listOf(
-            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ a", "✔ b")),
+            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ flat archive")),
             ExecutionStep("verify", "Validating", summary = "Manifest validated"),
         )
-        val visible = visibleExecutionSteps(steps, expanded = false)
-        assertEquals(listOf("verify"), visible.map { it.phase })
-        assertEquals("Manifest validated", visible[0].summary)
-        assertTrue(visible[0].toolActivities.isEmpty())
+        assertTrue(visibleExecutionSteps(steps, expanded = false).isEmpty())
     }
 
     @Test
@@ -1134,63 +992,30 @@ class CreateViewModelExecutionTest {
     }
 
     @Test
-    fun `visibleExecutionSteps collapsed folds a single activity into the toggle as well`() {
-        val steps = listOf(
-            ExecutionStep("research", "Researching", toolActivities = listOf("✔ only")),
-        )
-        val visible = visibleExecutionSteps(steps, expanded = false)
-        assertEquals(1, visible.size)
-        assertEquals("research", visible[0].phase)
-        assertTrue(visible[0].toolActivities.isEmpty())
-    }
-
-    @Test
-    fun `visibleExecutionSteps with no activities keeps the last phase placeholder`() {
-        val steps = listOf(
-            ExecutionStep("research", "Researching", toolActivities = emptyList()),
-            ExecutionStep("analyze", "Analyzing", toolActivities = emptyList()),
-        )
-        val visible = visibleExecutionSteps(steps, expanded = false)
-        assertEquals(1, visible.size)
-        assertEquals("analyze", visible[0].phase)
-        assertTrue(visible[0].toolActivities.isEmpty())
-    }
-
-    @Test
     fun `visibleExecutionSteps collapsed on empty steps returns nothing`() {
         assertTrue(visibleExecutionSteps(emptyList(), expanded = false).isEmpty())
     }
 
     @Test
-    fun `earlierExecutionActivityCount counts every activity line across all phases`() {
-        val steps = listOf(
-            ExecutionStep("research", "Researching", toolActivities = listOf("✔ a", "✔ b")),
-            ExecutionStep("analyze", "Analyzing", toolActivities = listOf("✔ c", "✔ d")),
+    fun `visibleExecutionSteps expanded during a run shows completed tool lines`() {
+        // Regression: expanding the running card must render the finished
+        // steps with their durable tool lines, not only the summary line.
+        val research = appendPhaseStep(null, "research", "Researching repository metadata...", nowMs = 1000L)
+        val started = attachToolActivity(
+            research,
+            ToolActivity.Started(toolName = "fetchRepoInfo", toolArgs = "{}"),
+            "Querying repository info...",
         )
-        assertEquals(4, earlierExecutionActivityCount(steps))
-    }
-
-    @Test
-    fun `earlierExecutionActivityCount counts a single activity line so the toggle shows`() {
-        assertEquals(
-            1,
-            earlierExecutionActivityCount(
-                listOf(ExecutionStep("research", "Researching", toolActivities = listOf("✔ a"))),
-            ),
+        val completed = attachToolActivity(
+            started,
+            ToolActivity.Completed(toolName = "fetchRepoInfo", toolResult = "ok"),
+            "Repository info fetched",
         )
-    }
-
-    @Test
-    fun `earlierExecutionActivityCount with no activities is zero so the toggle stays hidden`() {
-        assertEquals(
-            0,
-            earlierExecutionActivityCount(
-                listOf(
-                    ExecutionStep("research", "Researching", toolActivities = emptyList()),
-                    ExecutionStep("analyze", "Analyzing", toolActivities = emptyList(), isRunning = true),
-                ),
-            ),
-        )
-        assertEquals(0, earlierExecutionActivityCount(emptyList()))
+        val analyze = appendPhaseStep(completed, "analyze", "Analyzing...", nowMs = 4000L)
+        val visible = visibleExecutionSteps(analyze.steps, expanded = true)
+        assertEquals(2, visible.size)
+        assertEquals(listOf("✔ Repository info fetched"), visible[0].toolActivities)
+        assertFalse(visible[0].isRunning)
+        assertTrue(visible[1].isRunning)
     }
 }

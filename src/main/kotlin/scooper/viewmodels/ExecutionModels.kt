@@ -120,8 +120,14 @@ internal class RepairRoundCounter {
  *
  * Completed/Failed events are appended to the step's toolActivities with a check /
  * cross prefix (deduplicated); Started (and any other event) refreshes the live
- * [ActiveExecution.currentActivity] line. Returns null when [active] is null (no run
- * in progress); events arriving outside a run are dropped by the caller.
+ * [ActiveExecution.currentActivity] line - unless the last step already settled a
+ * line with the same text. Tools in one batch share an intent, so the Started of
+ * tool B right after the Completed of tool A carries identical text; re-lighting
+ * the live line then would render the same text twice (settled gray row + live
+ * blue row). The trade-off: during that window the live line disappears and the
+ * summary line falls back to "Working..." (executionSummaryLineText already
+ * handles a null live text). Returns null when [active] is null (no run in
+ * progress); events arriving outside a run are dropped by the caller.
  *
  * Pure function.
  */
@@ -139,7 +145,12 @@ internal fun attachToolActivity(
     val steps = active.steps.toMutableList()
     val last = steps.lastOrNull()
     if (logLine == null || last == null) {
-        // Started event (or no step yet): keep it as the live activity line only.
+        // Started event (or no step yet): keep it as the live activity line only,
+        // but never re-light a line the last step just settled with the same text
+        // (same-batch tools share the intent; see the KDoc trade-off above).
+        val lastSettled = last?.toolActivities?.lastOrNull()
+            ?.removePrefix("✔ ")?.removePrefix("✖ ")
+        if (lastSettled == formattedText) return active
         return active.copy(currentActivity = formattedText)
     }
     steps.removeAt(steps.size - 1)
@@ -156,24 +167,32 @@ internal fun attachToolActivity(
 }
 
 /**
- * Steps a card renders for the given whole-run fold state: collapsed keeps
- * only the trailing step's phase tag line (with its isRunning/TypingDots state);
- * every tool activity detail line, including the last one, hides behind the
- * fold. Expanded shows every step untouched. Pure function.
+ * Steps a card renders for the given whole-run fold state. Collapsed shows
+ * nothing: the summary line alone represents the run, so no trailing phase-tag
+ * placeholder is kept. Expanded shows every step untouched (openchamber style:
+ * the fold covers the whole run, no per-phase or recent-N clipping). Pure
+ * function.
  */
 internal fun visibleExecutionSteps(steps: List<ExecutionStep>, expanded: Boolean): List<ExecutionStep> {
     if (expanded) return steps
-    val last = steps.lastOrNull() ?: return emptyList()
-    return listOf(last.copy(toolActivities = emptyList()))
+    return emptyList()
 }
 
 /**
- * Number of activity lines hidden by the collapsed whole-run fold (every detail
- * line across all phases, since collapsed renders no activity row at all);
- * 0 when there is nothing to fold. Pure function.
+ * Header title of a running execution step. An assist step that has live tool
+ * activity mirrors the currentActivity text instead of the static phase start
+ * title; every other running step (and any phase with no activity in flight)
+ * keeps the step's stored title. Pure function.
  */
-internal fun earlierExecutionActivityCount(steps: List<ExecutionStep>): Int =
-    steps.sumOf { it.toolActivities.size }
+internal fun runningStepTitle(
+    phase: String,
+    currentActivity: String?,
+    fallbackTitle: String,
+): String {
+    val live = currentActivity?.trim()?.takeIf { it.isNotEmpty() }
+    if (!phase.equals("assist", ignoreCase = true) || live == null) return fallbackTitle
+    return live
+}
 
 /**
  * Write a phase-output summary onto the most recent step of [phase]. Unknown phases
@@ -314,20 +333,80 @@ internal fun isFailedExecutionStep(step: ExecutionStep, messageHasActions: Boole
 }
 
 /**
- * Summary capsule text for a collapsed finalized execution card, e.g.
- * "✓ Completed in 3.4s · 3 steps" (total duration = sum of step durations);
- * error bubbles render "✗ Failed in ..." instead so the badge never claims
- * success for a failed run.
- * Token usage is intentionally absent here; it renders only in the bubble
- * footer below the body (see [formatTokenFooter]).
- * Pure function.
+ * Text of the openchamber-style summary line under a finalized agent bubble.
+ * A finished run reads "✓ Worked for 3.4s · 5 tools" (total duration = sum of
+ * step durations; tool count = all activity lines across steps, "no tools" at
+ * zero, singular "1 tool"); a failed run reads "✗ Failed after ...". While the
+ * run is in flight ([running]=true) the line mirrors the live tool activity
+ * text ([currentActivity]), falling back to "Working..." before the first
+ * event; with the detail list expanded ([expanded]=true) it always stays on
+ * the generic "Working..." because the step block below already renders the
+ * same live text. Token usage is intentionally absent; it renders in the
+ * footer below the bubble (see [formatTokenFooter]). Pure function.
  */
-internal fun executionSummaryCapsuleText(steps: List<ExecutionStep>, failed: Boolean = false): String {
+internal fun executionSummaryLineText(
+    steps: List<ExecutionStep>,
+    failed: Boolean = false,
+    running: Boolean = false,
+    expanded: Boolean = false,
+    currentActivity: String? = null,
+): String {
+    if (failed) {
+        val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
+        return "✗ Failed after ${formatStepDuration(totalMs)} · ${toolCountText(steps)}"
+    }
+    if (running) {
+        val live = currentActivity?.trim()?.takeIf { it.isNotEmpty() }
+        return if (expanded || live == null) "Working..." else live
+    }
     val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
-    val noun = if (steps.size == 1) "step" else "steps"
-    val verb = if (failed) "Failed" else "Completed"
-    val mark = if (failed) "✗" else "✓"
-    return "$mark $verb in ${formatStepDuration(totalMs)} · ${steps.size} $noun"
+    return "✓ Worked for ${formatStepDuration(totalMs)} · ${toolCountText(steps)}"
+}
+
+/** Tool-count phrase of the summary line: "no tools" / "1 tool" / "5 tools". */
+private fun toolCountText(steps: List<ExecutionStep>): String {
+    val count = steps.sumOf { it.toolActivities.size }
+    return when (count) {
+        0 -> "no tools"
+        1 -> "1 tool"
+        else -> "$count tools"
+    }
+}
+
+/**
+ * Collapsed single-line preview of a model thought (reasoning text): newlines
+ * collapse to spaces so it always stays on one row, then the text truncates to
+ * [THOUGHT_SUMMARY_MAX_CHARS] characters with an ellipsis. Blank or null input
+ * yields null so no thought row renders. Pure function.
+ */
+internal const val THOUGHT_SUMMARY_MAX_CHARS = 80
+
+internal fun thoughtSummary(text: String?): String? {
+    val flat = text?.replace("\n", " ")?.trim()
+        ?.replace(Regex("\\s+"), " ")
+        ?.takeIf { it.isNotEmpty() } ?: return null
+    return if (flat.length <= THOUGHT_SUMMARY_MAX_CHARS) flat else flat.take(THOUGHT_SUMMARY_MAX_CHARS) + "..."
+}
+
+/**
+ * Accumulated thought text plus whether any text exists. hosts render the row
+ * as "Thought" once text landed, and as "Thinking" while deltas are streaming
+ * in with nothing accumulated yet.
+ */
+internal data class ThoughtLine(
+    val text: String,
+    val hasText: Boolean,
+)
+
+/**
+ * Streaming reducer for model reasoning deltas: appends [delta] to the
+ * accumulated [line] text (null starts a fresh line). Blank deltas are ignored
+ * so whitespace-only chunks never create a ghost row. Pure function.
+ */
+internal fun thoughtLineFromText(line: ThoughtLine?, delta: String?): ThoughtLine {
+    val current = line ?: ThoughtLine(text = "", hasText = false)
+    val addition = delta?.takeIf { it.isNotBlank() } ?: return current
+    return current.copy(text = current.text + addition, hasText = true)
 }
 
 /**
@@ -393,38 +472,6 @@ internal fun newManifestResetsVerification(
     }
 }
 
-/** Install for use is the primary nudge once the manifest is saved and before it is installed.
- *  Superseded by deployment* ([deploymentAction]) for the deploy button. */
-internal fun installActionPrimary(manifestSaved: Boolean, installedForUse: Boolean): Boolean =
-    manifestSaved && !installedForUse
-
-/**
- * Install for use is offered for any valid manifest, saved or not, with
- * nothing in flight. An unsaved manifest installs straight from the local
- * file; the save result is no longer part of the gate.
- * Superseded by deployment* ([deploymentAction]) for the deploy button.
- */
-internal fun installActionEnabled(
-    manifestJson: String,
-    installedForUse: Boolean,
-    running: Boolean,
-    testing: Boolean,
-    installing: Boolean,
-): Boolean = isScoopManifestJson(manifestJson) && !installedForUse && !running && !testing && !installing
-
-/** Install is hidden once the app is installed for use; Open replaces it.
- *  Superseded by deployment* ([deploymentLabel] / [deploymentAction]). */
-internal fun installActionVisible(installedForUse: Boolean): Boolean = !installedForUse
-
-/**
- * Label for the install action. When the app was installed outside this session
- * (system install), a saved manifest needs a reinstall to apply fixes, so the
- * label says Reinstall instead of Install.
- * Superseded by deployment* ([deploymentLabel]) for the deploy button.
- */
-internal fun installActionLabel(systemInstalled: Boolean): String =
-    if (systemInstalled) "Reinstall" else "Install"
-
 /** True when the manifest declares Start Menu shortcuts (top level or any architecture block). */
 internal fun manifestHasShortcuts(manifestJson: String): Boolean {
     if (manifestJson.isBlank()) return false
@@ -459,7 +506,8 @@ typealias InstallOrigin = scooper.data.InstallOrigin
 
 /**
  * Deployment state derived purely from manifest + install record inputs.
- * Consumed by [deploymentLabel] / [deploymentAction]; no UI wiring yet.
+ * Single source of truth for the deploy button ([deploymentLabel] /
+ * [deploymentAction], consumed by CreateScreen).
  */
 sealed interface DeploymentState {
     data object NoManifest : DeploymentState
