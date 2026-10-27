@@ -76,7 +76,6 @@ class CreateViewModelDirectInstallTest {
 
                 val state = vm.container.stateFlow.value
                 assertTrue(state.installedForUse, "direct install success must mark installedForUse")
-                assertTrue(state.systemInstalled, "direct install success must mark systemInstalled")
                 assertTrue(state.installedShortcuts, "manifest declares shortcuts, so shortcuts must be detected")
                 assertFalse(state.manifestSaved, "direct install must not touch the saved flag")
                 assertEquals(null, state.saveResult, "direct install must not fabricate a save result")

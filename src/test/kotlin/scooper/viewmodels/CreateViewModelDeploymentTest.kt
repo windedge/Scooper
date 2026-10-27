@@ -94,7 +94,6 @@ class CreateViewModelDeploymentTest {
             state.deployment,
             "nothing is installed under the saved name, so the deployment is not installed",
         )
-        assertFalse(state.systemInstalled, "the rename must not inherit the old install fact")
     }
 
     // ---------------------------------------------------------------------

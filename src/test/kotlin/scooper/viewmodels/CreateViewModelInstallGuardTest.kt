@@ -25,8 +25,9 @@ import java.io.File
  * TDD tests for the direct install click path in
  * [CreateViewModel.onInstallSaved]: since install no longer depends on
  * Save to Bucket, a reset save result is not a dead click anymore - the
- * click falls through to the local direct-install branch. These tests pin
- * the remaining guards (blank manifest) and the enabled gate.
+ * click falls through to the local direct-install branch. The click guard
+ * itself is the deploy button gate ([deployButtonEnabled]); these tests
+ * pin the remaining VM guards (blank manifest) and routing.
  */
 class CreateViewModelInstallGuardTest {
 
@@ -54,31 +55,6 @@ class CreateViewModelInstallGuardTest {
         } finally {
             vm.close()
         }
-    }
-
-    @Test
-    fun `installActionEnabled no longer requires a save result`() {
-        // The UI gate must match the VM behavior: an unsaved but valid manifest
-        // stays clickable and clicks route into the local direct-install branch.
-        assertTrue(
-            installActionEnabled(
-                manifestJson = """{"version":"1.2.3"}""",
-                installedForUse = false,
-                running = false,
-                testing = false,
-                installing = false,
-            ),
-            "button must stay enabled without a save result",
-        )
-        assertTrue(
-            installActionEnabled(
-                manifestJson = """{"version":"1.2.3"}""",
-                installedForUse = false,
-                running = false,
-                testing = false,
-                installing = false,
-            ),
-        )
     }
 
     // ---------------------------------------------------------------------

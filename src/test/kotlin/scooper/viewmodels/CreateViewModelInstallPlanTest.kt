@@ -344,9 +344,12 @@ class CreateViewModelInstallPlanTest {
             withContext(Dispatchers.Default) {
                 withTimeout(10_000) { vm.onInstallSaved().join() }
             }
-            // postToast runs inside the intent, so joining it already posted; the
-            // fixed drain only covers dispatch latency of the collector.
-            withContext(Dispatchers.Default) { delay(300) }
+            // The plan runs in a child job; joining the intent returns first, so
+            // poll until installing=false (cleared in the child's finally) before
+            // reading the resulting state.
+            withContext(Dispatchers.Default) {
+                withTimeout(10_000) { while (vm.container.stateFlow.value.installing) delay(10) }
+            }
         } finally {
             job.cancel()
         }

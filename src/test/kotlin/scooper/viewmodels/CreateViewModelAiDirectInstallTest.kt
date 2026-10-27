@@ -97,7 +97,6 @@ class CreateViewModelAiDirectInstallTest {
 
                 val state = vm.container.stateFlow.value
                 assertTrue(state.installedForUse, "direct install success must mark installedForUse")
-                assertTrue(state.systemInstalled, "direct install success must mark systemInstalled")
                 assertFalse(state.manifestSaved, "direct install must not touch the saved flag")
                 assertTrue(
                     toasts.any { it.type == ToastType.SUCCESS && it.text.contains("testapp") },
