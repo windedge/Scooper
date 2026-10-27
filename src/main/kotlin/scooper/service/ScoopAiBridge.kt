@@ -7,7 +7,6 @@ import com.scoopai.tools.DefaultScoopAiFactory
 import com.scoopai.tools.DefaultToolRegistryFactory
 import com.scoopai.tools.ScoopAiConfig
 import com.scoopai.tools.config.UsedAppNameScanner
-import com.scoopai.tools.llm.ProviderEndpoints
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,100 +36,43 @@ data class AiImage(val bytes: ByteArray, val mimeType: String) {
  * Bridge from Scooper Settings.AI into scoop-ai [DefaultScoopAiFactory].
  *
  * Owns a dedicated IO [CoroutineScope] (never TaskQueue). Cancel aborts the running Job.
+ *
+ * AI settings reads and config persistence live in [AiSettingsStore]; this
+ * bridge keeps only the engine run lifecycle plus the fetch/test proxies and
+ * delegates the settings seam to the injected store.
  */
 open class ScoopAiBridge(
     private val configRepository: ConfigRepository,
     private val checkpointService: InMemoryAiCheckpointService,
     private val connectionTester: AiConnectionTester = AiConnectionTester(),
     private val modelsFetcher: AiModelsFetcher = AiModelsFetcher(),
+    settingsStore: AiSettingsStore? = null,
 ) : AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var generateJob: Job? = null
 
-    data class AiSettingsSnapshot(
-        val provider: String,
-        val apiKey: String,
-        val baseUrl: String,
-        val model: String,
-        val githubToken: String,
-        val autoDownload: Boolean = false,
-    ) {
-        fun missingReason(): String? {
-            if (!ProviderCatalog.exists(provider)) {
-                return ProviderEndpoints.unsupportedProviderMessage(provider)
-            }
-            if (ProviderCatalog.requiresApiKey(provider) && apiKey.isBlank()) {
-                val envHint = ProviderCatalog.apiKeyEnvHint(provider)
-                val envNames = if (envHint == null) "SCOOP_AI_API_KEY" else "SCOOP_AI_API_KEY or $envHint"
-                return "API key is missing. Fill it in Settings > AI, or set $envNames environment variable."
-            }
-            if (ProviderCatalog.requiresBaseUrl(provider) && baseUrl.isBlank()) {
-                return "Base URL is required for $provider. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable."
-            }
-            return null
-        }
-
-        fun isReady(): Boolean = missingReason() == null
+    /**
+     * Settings seam, built lazily from [configRepository] when no store is
+     * injected (per-tab bridges in tests construct one without a store).
+     */
+    internal val settingsStore: AiSettingsStore by lazy {
+        settingsStore ?: AiSettingsStore(configRepository)
     }
 
     /**
-     * Read AI settings with DB first, then environment variable fallback.
-     * Env vars: SCOOP_AI_API_KEY plus the environment variable of the
-     * resolved provider (DEEPSEEK_API_KEY / OPENAI_API_KEY /
-     * ANTHROPIC_API_KEY / OPENROUTER_API_KEY / OPENAI_COMPATIBLE_API_KEY),
-     * SCOOP_AI_BASE_URL, SCOOP_AI_MODEL, SCOOP_AI_PROVIDER,
-     * SCOOP_AI_GITHUB_TOKEN / GITHUB_TOKEN.
+     * Read AI settings through the settings store (DB first, env fallback).
+     * Kept as a bridge member so existing engine-run callers are untouched.
      */
-    fun readSettings(): AiSettingsSnapshot = readSettings { name -> System.getenv(name) }
+    fun readSettings(): AiSettingsSnapshot = settingsStore.readSettings()
 
     /**
-     * Read AI settings with DB first, then environment variable fallback.
-     * The API key fallback uses the environment variable of the resolved
-     * provider, so every provider reads its own key variable.
+     * Read AI settings with a test seam for the environment lookup, forwarded
+     * to the settings store (kept for the existing fallback-chain tests).
      */
     internal fun readSettings(envLookup: (String) -> String?): AiSettingsSnapshot {
-        val config = configRepository.getConfig()
-        val provider = firstNonBlank(
-            config.aiProvider,
-            envLookup("SCOOP_AI_PROVIDER"),
-            DEFAULT_PROVIDER,
-        )
-        val providerEnvKey = ProviderCatalog.apiKeyEnvHint(provider).orEmpty()
-        return AiSettingsSnapshot(
-            provider = provider,
-            apiKey = firstNonBlank(
-                config.aiApiKey,
-                envLookup("SCOOP_AI_API_KEY"),
-                if (providerEnvKey.isEmpty()) null else envLookup(providerEnvKey),
-            ),
-            baseUrl = normalizeAiBaseUrl(
-                firstNonBlank(
-                    config.aiBaseUrl,
-                    envLookup("SCOOP_AI_BASE_URL"),
-                ),
-                provider,
-            ),
-            model = firstNonBlank(
-                config.aiModel,
-                envLookup("SCOOP_AI_MODEL"),
-            ),
-            githubToken = firstNonBlank(
-                config.aiGithubToken,
-                envLookup("SCOOP_AI_GITHUB_TOKEN"),
-                envLookup("GITHUB_TOKEN"),
-            ),
-            autoDownload = config.aiAutoDownload,
-        )
-    }
-
-    private fun firstNonBlank(vararg values: String?): String {
-        for (value in values) {
-            val trimmed = value?.trim().orEmpty()
-            if (trimmed.isNotEmpty()) return trimmed
-        }
-        return ""
+        return settingsStore.readSettings(envLookup)
     }
 
     fun toScoopAiConfig(settings: AiSettingsSnapshot = readSettings()): ScoopAiConfig {
@@ -138,81 +80,44 @@ open class ScoopAiBridge(
     }
 
     /**
-     * Persist the model chosen in Create back into Settings.AI so it
-     * survives restarts. Failures are logged, never thrown: model
-     * persistence is best-effort and must not break generation.
+     * Persist the model chosen in Create back into Settings.AI. Delegates to
+     * [AiSettingsStore.persistModel]; failures are logged, never thrown.
      */
     fun persistModel(model: String) {
-        try {
-            val current = configRepository.getConfig()
-            configRepository.setConfig(withModel(current, model))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.warn("Failed to persist selected AI model: ${e.message}")
-        }
+        settingsStore.persistModel(model)
     }
 
     /**
-     * Persist the bucket used by the Create save dialog so it can be
-     * preselected next time. Failures are logged, never thrown: last
-     * bucket memory is best-effort and must not break saving.
+     * Persist the bucket used by the Create save dialog. Delegates to
+     * [AiSettingsStore.persistLastBucket]; failures are logged, never thrown.
      */
     fun persistLastBucket(bucket: String) {
-        try {
-            val current = configRepository.getConfig()
-            configRepository.setConfig(withLastBucket(current, bucket))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.warn("Failed to persist last used bucket: ${e.message}")
-        }
+        settingsStore.persistLastBucket(bucket)
     }
 
     /**
-     * Read the last bucket used by the Create save dialog. Best-effort:
-     * returns an empty string when the repository fails.
+     * Read the last bucket used by the Create save dialog. Delegates to
+     * [AiSettingsStore.readLastBucket]; returns "" when the store fails.
      */
     fun readLastBucket(): String {
-        return try {
-            configRepository.getConfig().aiLastBucket
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.warn("Failed to read last used bucket: ${e.message}")
-            ""
-        }
+        return settingsStore.readLastBucket()
     }
 
     /**
-     * Persist the save dialog "commit to git repository" checkbox so it can
-     * be preselected next time. Failures are logged, never thrown:
-     * checkbox memory is best-effort and must not break saving.
+     * Persist the save dialog "commit to git repository" checkbox. Delegates
+     * to [AiSettingsStore.persistCommitPreference]; failures are logged, never
+     * thrown.
      */
     fun persistCommitPreference(commit: Boolean) {
-        try {
-            val current = configRepository.getConfig()
-            configRepository.setConfig(withCommitPreference(current, commit))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.warn("Failed to persist commit-to-git preference: ${e.message}")
-        }
+        settingsStore.persistCommitPreference(commit)
     }
 
     /**
-     * Read the save dialog "commit to git repository" checkbox. Best-effort:
-     * returns true (the dialog default) when the repository fails.
+     * Read the save dialog "commit to git repository" checkbox. Delegates to
+     * [AiSettingsStore.readCommitPreference]; returns true when the store fails.
      */
     fun readCommitPreference(): Boolean {
-        return try {
-            configRepository.getConfig().aiCommitToGit
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.warn("Failed to read commit-to-git preference: ${e.message}")
-            true
-        }
+        return settingsStore.readCommitPreference()
     }
 
     /**
@@ -578,39 +483,22 @@ open class ScoopAiBridge(
     }
 
     companion object {
-        const val DEFAULT_PROVIDER = "openai-compatible"
+        const val DEFAULT_PROVIDER = AiSettingsStore.DEFAULT_PROVIDER
         val SUPPORTED_PROVIDERS: Set<String> = ProviderCatalog.supportedProviderIds.toSet()
 
-        /**
-         * Pure mapping from an [AiSettingsSnapshot] to a [ScoopAiConfig].
-         * Kept as a static function so config mapping stays unit-testable
-         * without constructing a bridge (which needs a DB repository).
-         */
-        /**
-         * Pure copy: replace only [UIConfig.aiModel], leaving every other
-         * field (and any future fields) untouched. Static so it stays
-         * unit-testable without a DB repository.
-         */
+        /** Compatibility alias for [AiSettingsStore.withModel]. */
         internal fun withModel(config: UIConfig, model: String): UIConfig {
-            return config.copy(aiModel = model)
+            return AiSettingsStore.withModel(config, model)
         }
 
-        /**
-         * Pure copy: replace only [UIConfig.aiLastBucket], leaving every
-         * other field (and any future fields) untouched. Static so it stays
-         * unit-testable without a DB repository.
-         */
+        /** Compatibility alias for [AiSettingsStore.withLastBucket]. */
         internal fun withLastBucket(config: UIConfig, bucket: String): UIConfig {
-            return config.copy(aiLastBucket = bucket)
+            return AiSettingsStore.withLastBucket(config, bucket)
         }
 
-        /**
-         * Pure copy: replace only [UIConfig.aiCommitToGit], leaving every
-         * other field (and any future fields) untouched. Static so it stays
-         * unit-testable without a DB repository.
-         */
+        /** Compatibility alias for [AiSettingsStore.withCommitPreference]. */
         internal fun withCommitPreference(config: UIConfig, commit: Boolean): UIConfig {
-            return config.copy(aiCommitToGit = commit)
+            return AiSettingsStore.withCommitPreference(config, commit)
         }
 
         internal fun buildScoopAiConfig(settings: AiSettingsSnapshot): ScoopAiConfig {
@@ -633,22 +521,11 @@ open class ScoopAiBridge(
         }
 
         /**
-         * Strip trailing `/v1` (and `/v1/chat/completions`) so openai-compatible
-         * clients do not produce a double `/v1` path. Empty input stays empty.
-         *
-         * The suffix is only removed for providers that append their own
-         * versioned path; OpenRouter and Ollama keep the URL as typed.
+         * Compatibility alias for [AiSettingsStore.normalizeAiBaseUrl], kept
+         * because the fetch/test proxies normalize the endpoint URL through it.
          */
         fun normalizeAiBaseUrl(baseUrl: String, provider: String = DEFAULT_PROVIDER): String {
-            var url = baseUrl.trim().trimEnd('/')
-            if (url.isEmpty()) return url
-            if (!ProviderCatalog.stripV1Suffix(provider)) return url
-            for (suffix in listOf("/v1/chat/completions", "/v1")) {
-                if (url.endsWith(suffix, ignoreCase = true)) {
-                    return url.dropLast(suffix.length).trimEnd('/')
-                }
-            }
-            return url
+            return AiSettingsStore.normalizeAiBaseUrl(baseUrl, provider)
         }
     }
 }

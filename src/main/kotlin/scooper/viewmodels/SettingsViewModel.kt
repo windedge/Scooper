@@ -16,6 +16,7 @@ import scooper.data.PaginationMode
 import scooper.data.ViewMode
 import scooper.repository.ConfigRepository
 import scooper.service.AiConnectionTestResult
+import scooper.service.AiSettingsStore
 import scooper.service.ProviderCatalog
 import scooper.service.ScoopAiBridge
 import scooper.util.ScoopConfigManager
@@ -43,7 +44,12 @@ data class FetchModelsUiState(
 class SettingsViewModel(
     private val configRepository: ConfigRepository,
     private val scoopAiBridge: ScoopAiBridge,
+    /** Settings seam (S5); defaults to the bridge's store for existing callers. */
+    private val aiSettingsStore: AiSettingsStore? = null,
 ) : ContainerHost<SettingsState, AppSideEffect>, AutoCloseable {
+
+    /** Settings seam; falls back to the bridge's own store. */
+    private val aiSettings: AiSettingsStore get() = aiSettingsStore ?: scoopAiBridge.settingsStore
 
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
@@ -202,7 +208,7 @@ class SettingsViewModel(
         val config = configRepository.getConfig().copy(
             aiProvider = provider,
             aiApiKey = aiFormState.getState<TextFieldState>("aiApiKey").value.trim(),
-            aiBaseUrl = ScoopAiBridge.normalizeAiBaseUrl(
+            aiBaseUrl = AiSettingsStore.normalizeAiBaseUrl(
                 aiFormState.getState<TextFieldState>("aiBaseUrl").value,
                 provider,
             ),

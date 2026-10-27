@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test
 import scooper.data.UIConfig
 import scooper.repository.ConfigRepository
 import scooper.service.AiModelsFetcher
+import scooper.service.AiSettingsSnapshot
 import scooper.service.FetchModelsResult
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ProviderCatalog
@@ -195,7 +196,7 @@ class SettingsViewModelFetchModelsTest {
 
     @Test
     fun `anthropic needs no base url to be ready`() {
-        val snapshot = ScoopAiBridge.AiSettingsSnapshot(
+        val snapshot = AiSettingsSnapshot(
             provider = "anthropic",
             apiKey = "sk-ant-test",
             baseUrl = "",
@@ -208,7 +209,7 @@ class SettingsViewModelFetchModelsTest {
 
     @Test
     fun `openai-compatible still needs a base url to be ready`() {
-        val snapshot = ScoopAiBridge.AiSettingsSnapshot(
+        val snapshot = AiSettingsSnapshot(
             provider = "openai-compatible",
             apiKey = "sk-test",
             baseUrl = "",

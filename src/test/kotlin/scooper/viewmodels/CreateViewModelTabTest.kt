@@ -57,7 +57,7 @@ class CreateViewModelTabTest {
         }
 
         override suspend fun runGenerate(
-            settings: ScoopAiBridge.AiSettingsSnapshot,
+            settings: scooper.service.AiSettingsSnapshot,
             url: String,
             userPrompt: String?,
             resumeData: com.scoopai.core.artifacts.ResumeData?,

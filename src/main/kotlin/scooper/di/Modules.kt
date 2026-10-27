@@ -6,6 +6,7 @@ import scooper.repository.AppsRepository
 import scooper.repository.CleanupRepository
 import scooper.repository.ConfigRepository
 import scooper.service.AiConnectionTester
+import scooper.service.AiSettingsStore
 import scooper.service.GitHistoryService
 import scooper.service.GitHubService
 import scooper.service.InMemoryAiCheckpointService
@@ -34,6 +35,7 @@ val system = module {
     single { CleanupRepository(get()) }
     single { ScoopService(get(), get()) }
     single { AiConnectionTester() }
+    single { AiSettingsStore(get()) }
     // Kept as a singleton for Settings.AI; Create tabs build their own
     // bridges (and checkpoint services) per tab via CreateTabController.
     // Checkpoint service is built inline: no shared singleton definition exists.
@@ -42,7 +44,7 @@ val system = module {
 
 val viewModels = module {
     single { AppsViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
-    single { SettingsViewModel(get(), get()) }
+    single { SettingsViewModel(get(), get(), get()) }
     single { ScoopSearchViewModel(get(), get<ScoopClient>(), get(), get(), get()) }
     single { CleanupViewModel(get()) }
     single {
@@ -53,6 +55,7 @@ val viewModels = module {
             scoopService = get(),
             checkpointFactory = { InMemoryAiCheckpointService() },
             bridgeFactory = { cp -> ScoopAiBridge(get(), cp, get()) },
+            aiSettingsStore = get(),
         )
     }
 }

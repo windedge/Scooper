@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import scooper.repository.AppsRepository
+import scooper.service.AiSettingsStore
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
@@ -64,6 +65,8 @@ class CreateTabController(
     private val checkpointFactory: () -> InMemoryAiCheckpointService,
     /** Wraps a per-tab checkpoint service into the tab's own bridge. */
     private val bridgeFactory: (InMemoryAiCheckpointService) -> ScoopAiBridge,
+    /** App-wide settings seam shared by every tab's viewmodel. */
+    private val aiSettingsStore: AiSettingsStore? = null,
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val mutableUiState = MutableStateFlow(CreateTabUiState())
@@ -168,6 +171,9 @@ class CreateTabController(
         val bridge = bridgeFactory(checkpoint)
         val vm = CreateViewModel(
             scoopAiBridge = bridge,
+            // All tabs share the injected app-wide store; only the bridge (run
+            // slot) and checkpoint are per-tab.
+            aiSettingsStore = aiSettingsStore,
             checkpointService = checkpoint,
             scoopClient = scoopClient,
             appsRepository = appsRepository,

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import scooper.data.UIConfig
 import scooper.repository.ConfigRepository
-import scooper.service.ScoopAiBridge.AiSettingsSnapshot
+import scooper.service.AiSettingsSnapshot
 
 // ---------------------------------------------------------------
 // ScoopAiBridge.buildScoopAiConfig: pure mapping from AiSettingsSnapshot
