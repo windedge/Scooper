@@ -446,8 +446,9 @@ open class ScoopAiBridge(
 
     /**
      * Query remote /models endpoint for available model names.
+     * Open so tests can answer the probe without a network round trip.
      */
-    fun fetchModels(
+    open fun fetchModels(
         provider: String,
         apiKey: String,
         baseUrl: String?,

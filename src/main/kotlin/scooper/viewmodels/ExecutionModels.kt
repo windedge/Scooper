@@ -2,7 +2,6 @@ package scooper.viewmodels
 
 import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
-import kotlinx.coroutines.channels.Channel
 import scooper.util.VersionComparator
 import java.util.Locale
 
@@ -90,29 +89,6 @@ internal fun appendPhaseStep(
     }
     steps.add(ExecutionStep(phase = phase, title = title, isRunning = true))
     return current.copy(steps = steps, currentActivity = null, currentStepStartedAtMs = nowMs)
-}
-
-/**
- * Session-scoped repair round counter. The engine emits `onPhase("repair")` once per
- * internal repair pass, and several passes can run inside one user session; the count
- * labels each with its real round number (1, 2, ...) instead of a stale assist count.
- * [reset] starts a fresh count for a new generate/assist session.
- */
-internal class RepairRoundCounter {
-    private var count = 0
-
-    /** Increments on repair phases only; returns the current attempt number. */
-    fun onPhase(phase: String): Int {
-        if (phase.equals("repair", ignoreCase = true)) {
-            count++
-        }
-        return count
-    }
-
-    /** Reset so the first repair round of a new session shows attempt 1. */
-    fun reset() {
-        count = 0
-    }
 }
 
 /**
@@ -257,18 +233,6 @@ internal fun collapseActiveExecution(
     }
     return messages.toMutableList().apply {
         this[index] = this[index].copy(executionSteps = steps, isExecutionExpanded = expanded)
-    }
-}
-
-/**
- * Drain residual buffered activity events (late-event race defense, proposal 5.1):
- * everything still buffered when the run finishes must not leak into the next run
- * or mutate a finalized state. After this loop the channel is empty.
- */
-internal fun drainActivityEvents(channel: Channel<Pair<ToolActivity, Long>>) {
-    while (true) {
-        val result = channel.tryReceive()
-        if (result.isFailure) break
     }
 }
 

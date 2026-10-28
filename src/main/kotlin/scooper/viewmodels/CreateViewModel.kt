@@ -9,9 +9,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -52,7 +49,6 @@ import scooper.util.logger
 import java.io.File
 import java.io.IOException
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
 
 enum class ChatRole {
     User,
@@ -559,10 +555,20 @@ class CreateViewModel(
 
     /** Disk read/derive seam for the deploy button; see [DeploymentMonitor]. */
     private val deploymentMonitor = DeploymentMonitor(scoopClient)
+
+    /** Save-to-bucket domain seam; see [SaveCoordinator]. */
+    private val saveCoordinator = SaveCoordinator(
+        env = scoopClient,
+        git = gitBucketPort(gitHistoryService),
+        index = ::indexSavedApp,
+        memory = aiSettingsSaveMemory(aiSettings),
+        warn = { message -> logger.warn(message) },
+    )
+    /** Readiness, model and model-list seam shared by both starts; see [AiGate]. */
+    private val aiGate = AiGate(aiSettings, scoopAiBridge)
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var assistAttemptCount = 0
-    private val repairRoundCounter = RepairRoundCounter()
     private var askUserDeferred: CompletableDeferred<String>? = null
 
     /**
@@ -630,11 +636,13 @@ class CreateViewModel(
      */
     private var generationEpoch: Long = 0L
 
-    /** Pairs each activity with the epoch of the run that produced it. */
-    private val activityChannel = Channel<Pair<ToolActivity, Long>>(Channel.UNLIMITED)
+    /** Activity pump and repair-round bookkeeping; see [ExecutionTimeline]. */
+    private val executionTimeline = ExecutionTimeline(
+        formatToolActivity = ToolActivityFormatter::format,
+    )
 
-    /** Guard so the app index is scanned at most once even if several @ tokens appear quickly. */
-    private val manifestRefSuggestionsLoading = AtomicBoolean(false)
+    /** Local bucket index for @ references; see [ReferenceResolver]. */
+    private val referenceResolver = ReferenceResolver(scoopClient)
 
     private val prettyJson = Json {
         prettyPrint = true
@@ -643,10 +651,9 @@ class CreateViewModel(
 
     init {
         coroutineScope.launch {
-            activityChannel.receiveAsFlow().collect { (activity, epoch) ->
-                val text = ToolActivityFormatter.format(activity)
+            executionTimeline.collect { activity, text ->
                 intent {
-                    if (state.running && epochMatches(epoch)) {
+                    if (state.running) {
                         reduce {
                             state.copy(
                                 activeExecution = attachToolActivity(state.activeExecution, activity, text),
@@ -664,57 +671,68 @@ class CreateViewModel(
         }
 
     fun refreshAiConfig() = intent {
-        val settings = aiSettings.readSettings()
-        val missing = settings.missingReason()
+        val readiness = aiGate.readiness()
+        val model = aiGate.currentModel()
         reduce {
             state.copy(
-                aiConfigured = missing == null,
-                configHint = missing,
-                selectedModel = if (state.selectedModel.isBlank()) settings.model else state.selectedModel,
+                aiConfigured = readiness.configured,
+                configHint = readiness.hint,
+                selectedModel = if (state.selectedModel.isBlank()) model else state.selectedModel,
             )
         }
-        if (missing == null && state.availableModels.isEmpty()) {
-            fetchAvailableModels(settings.provider, settings.apiKey, settings.baseUrl)
+        if (readiness.configured && state.availableModels.isEmpty()) {
+            fetchAvailableModels(notifyFailure = false)
         }
     }
 
     fun onModelChange(model: String) = intent {
         reduce { state.copy(selectedModel = model) }
         // Persist immediately so the choice survives restarts; best-effort.
-        aiSettings.persistModel(model)
+        aiGate.persistModel(model)
     }
 
     fun onFetchModels() = intent {
-        val settings = aiSettings.readSettings()
-        fetchAvailableModels(settings.provider, settings.apiKey, settings.baseUrl)
+        fetchAvailableModels(notifyFailure = true)
     }
 
     /**
-     * Lazily scans the local bucket directories once for the @ completion menu.
+     * Lazily fills the @ completion menu from the local bucket directories.
      * Best effort: any failure or empty root just leaves an empty menu, never an error.
      */
     fun ensureManifestRefSuggestions() = intent {
         if (state.manifestRefSuggestions.isNotEmpty()) return@intent
-        if (!manifestRefSuggestionsLoading.compareAndSet(false, true)) return@intent
-        val suggestions = withContext(Dispatchers.IO) { scanManifestRefSuggestions(scoopClient) }
+        val suggestions = referenceResolver.ensureIndex() ?: return@intent
         if (suggestions.isNotEmpty()) {
             reduce { state.copy(manifestRefSuggestions = suggestions) }
         }
     }
 
-    private fun fetchAvailableModels(provider: String, apiKey: String, baseUrl: String?) = intent {
+    /**
+     * Fill the model menu through [AiGate]. A failed probe keeps the previous
+     * list; only an explicit refresh ([notifyFailure]) toasts the reason, the
+     * automatic first fill stays silent.
+     */
+    private fun fetchAvailableModels(notifyFailure: Boolean) = intent {
         reduce { state.copy(fetchingModels = true) }
-        scoopAiBridge.fetchModels(provider, apiKey, baseUrl) { result ->
-            coroutineScope.launch {
-                intent {
-                    reduce {
-                        state.copy(
-                            fetchingModels = false,
-                            availableModels = if (result.ok) result.models else state.availableModels,
-                        )
-                    }
-                }
+        val models = try {
+            aiGate.fetchModels()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            reduce { state.copy(fetchingModels = false) }
+            if (notifyFailure) {
+                val message = e.message?.takeIf { it.isNotBlank() } ?: "Could not fetch the model list"
+                postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(message), ToastType.ERROR))
             }
+            return@intent
+        }
+        reduce {
+            state.copy(
+                fetchingModels = false,
+                // A successful probe owns the list even when empty: keeping the
+                // stale entries would offer models the endpoint no longer has.
+                availableModels = models,
+            )
         }
     }
 
@@ -760,39 +778,39 @@ class CreateViewModel(
     }
 
     fun onSend(input: String? = null, url: String? = null, note: String? = null) = intent {
-        // A pending questionnaire owns the composer: free text is the answer,
-        // not a new request. Blank input is a no-op: the engine is legitimately
-        // running while waiting, so it must not trip the busy guard below.
-        val text = (input ?: note ?: url ?: state.inputUrl).trim()
-        if (state.askUserRequest != null) {
-            if (text.isNotBlank()) {
-                answerAskUserInternal(text)
+        // The decision block lives in planSend: questionnaire answer, busy guard,
+        // blank/no-image no-op, pure-image round, assist vs generate routing.
+        val decision = planSend(
+            input = input,
+            note = note,
+            url = url,
+            composerText = state.inputUrl,
+            askUserPending = state.askUserRequest != null,
+            busy = state.running || state.testing || state.installing,
+            images = state.pendingImages,
+        )
+        when (decision) {
+            SendDecision.Ignored -> return@intent
+
+            is SendDecision.AnswerAskUser -> {
+                answerAskUserInternal(decision.answer)
+                return@intent
             }
-            return@intent
-        }
-        if (state.running || state.testing || state.installing) {
-            postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
-            return@intent
-        }
-        val images = state.pendingImages
-        // Allow sending when either text or images are present.
-        if (text.isBlank() && images.isEmpty()) return@intent
 
-        // Pure-image send (no text): start (or continue) a conversation from the
-        // screenshots. Without a manifest the session simply has nothing to modify
-        // yet, which the engine handles as a text-only answer.
-        if (text.isBlank()) {
-            startAssistInternal(PURE_IMAGE_INSTRUCTION, images = images)
-            return@intent
-        }
+            SendDecision.Busy -> {
+                postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+                return@intent
+            }
 
-        reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
+            is SendDecision.Assist -> {
+                reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
+                startAssistInternal(decision.instruction, images = decision.images)
+            }
 
-        if (isAssistRequest(text)) {
-            startAssistInternal(resolveAssistInstruction(text, text), images = images)
-        } else {
-            val (derivedUrl, derivedNote) = GithubUrlParser.extract(text)
-            startGeneration(rawUrlInput = derivedUrl.orEmpty(), noteInput = derivedNote, images = images)
+            is SendDecision.Generate -> {
+                reduce { state.copy(inputUrl = "", inputNote = "", error = null) }
+                startGeneration(rawUrlInput = decision.url, noteInput = decision.note, images = decision.images)
+            }
         }
     }
 
@@ -887,6 +905,9 @@ class CreateViewModel(
         // through Orbit's serial dispatch channel after this intent, so it
         // would otherwise run after a new generation has set running=true.
         reduce { state.copy(generationEpoch = state.generationEpoch + 1) }
+        // The timeline gate follows the same epoch, so the cancelled run's
+        // buffered activities are dropped by the collector too.
+        executionTimeline.setCurrentEpoch(state.generationEpoch + 1)
         // A real install running in parallel is stopped too: the child job
         // owns its busy flag and clears it in its own finally, so the send
         // guard is never stuck.
@@ -1233,40 +1254,28 @@ class CreateViewModel(
             postToast(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
             return@intent
         }
-        val buckets = scoopClient.bucketNames.filter { it.isNotBlank() }.sorted()
-        if (buckets.isEmpty()) {
+        if (saveCoordinator.bucketOptions().isEmpty()) {
             postToast(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
             return@intent
         }
-        // Reference lock (batch 4): a produced app name matching a referenced
-        // @bucket/app pins that bucket/name as the dialog default (still
-        // editable), overriding the lastBucket memory. No match keeps the
-        // existing resolveDefaultSaveBucket priority.
-        val refLock = referenceSaveDefault(
-            appName = state.suggestedAppName.orEmpty(),
-            refs = userManifestRefs(state.messages),
-            availableBuckets = buckets,
+        // Reference lock, bucket memory and the git checkbox default all live in
+        // SaveCoordinator.openDialog; this intent only mirrors the defaults into state.
+        val defaults = saveCoordinator.openDialog(
+            SaveDialogRequest(
+                suggestedAppName = state.suggestedAppName,
+                refs = userManifestRefs(state.messages),
+                currentBucket = state.saveBucket,
+            ),
         )
-        val defaultBucket = refLock?.first
-            ?: resolveDefaultSaveBucket(
-                current = state.saveBucket,
-                lastUsed = aiSettings.readLastBucket(),
-                buckets = buckets,
-            )
-        val defaultBucketDir = scoopClient.bucketsBaseDir.resolve(defaultBucket)
-        val isGit = gitHistoryService.isGitBucket(defaultBucketDir)
         reduce {
             state.copy(
                 saveDialogOpen = true,
-                saveAppName = refLock?.second ?: state.suggestedAppName.orEmpty(),
-                saveBucket = defaultBucket,
-                bucketOptions = buckets,
-                saveBucketIsGit = isGit,
-                saveRefHint = refLockHintText(refLock),
-                saveCommitToGit = resolveDefaultCommitToGit(
-                    isGitBucket = isGit,
-                    lastPreference = aiSettings.readCommitPreference(),
-                ),
+                saveAppName = defaults.appName,
+                saveBucket = defaults.bucket,
+                bucketOptions = defaults.buckets,
+                saveBucketIsGit = defaults.isGitBucket,
+                saveRefHint = defaults.refHint,
+                saveCommitToGit = defaults.commitToGit,
                 overwriteConfirmOpen = false,
                 // C2: reopening the dialog clears the previous result card so it does not
                 // linger under the new dialog; a re-save starts from a blank result.
@@ -1280,8 +1289,7 @@ class CreateViewModel(
     }
 
     fun onSaveBucketChange(bucket: String) = intent {
-        val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-        val isGit = gitHistoryService.isGitBucket(bucketDir)
+        val isGit = saveCoordinator.isGitBucket(bucket)
         reduce {
             state.copy(
                 saveBucket = bucket,
@@ -1304,18 +1312,19 @@ class CreateViewModel(
     }
 
     fun onConfirmSave() = intent {
-        performSave(allowOverwrite = state.overwriteConfirmOpen)
+        runSave(allowOverwrite = state.overwriteConfirmOpen)
     }
 
     fun onConfirmOverwrite() = intent {
-        performSave(allowOverwrite = true)
+        runSave(allowOverwrite = true)
     }
 
     fun onDismissOverwrite() = intent {
         reduce { state.copy(overwriteConfirmOpen = false) }
     }
 
-    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.performSave(
+    /** Runs a confirmed save through [SaveCoordinator]; only toasts and state live here. */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.runSave(
         allowOverwrite: Boolean,
     ) {
         val manifestJson = state.manifestJson
@@ -1330,55 +1339,48 @@ class CreateViewModel(
             return
         }
 
-        val name = state.saveAppName.trim()
-        if (name.isEmpty() || !APP_NAME_REGEX.matches(name)) {
-            postToast(
+        // Capture the checkbox as the user confirmed it, before any reduce.
+        val commitToGit = state.saveCommitToGit
+        val outcome = saveCoordinator.save(
+            SaveRequest(
+                manifestJson = manifestJson,
+                appName = state.saveAppName,
+                bucket = state.saveBucket,
+                commitToGit = commitToGit,
+                allowOverwrite = allowOverwrite,
+            ),
+        )
+        // Overwrite confirmation stays a dialog flow here; the AI path instead
+        // replies needsOverwrite to the model.
+        when (outcome) {
+            SaveOutcome.InvalidName -> postToast(
                 AppSideEffect.Toast(
                     "App name may only contain letters, digits, '.', '_' and '-'",
                     ToastType.ERROR,
                 ),
             )
-            return
-        }
 
-        val bucket = state.saveBucket.trim()
-        if (bucket.isEmpty() || bucket !in scoopClient.bucketNames) {
-            postToast(AppSideEffect.Toast("Please select a valid bucket", ToastType.ERROR))
-            return
-        }
+            SaveOutcome.InvalidBucket -> postToast(AppSideEffect.Toast("Please select a valid bucket", ToastType.ERROR))
 
-        // Overwrite confirmation stays a dialog flow here; the AI path instead
-        // replies needsOverwrite to the model.
-        // Capture the checkbox as the user confirmed it, before any reduce.
-        val commitToGit = state.saveCommitToGit
-        when (val outcome = saveManifest(
-            manifestJson = manifestJson,
-            bucket = bucket,
-            appName = name,
-            commitToGit = commitToGit,
-            overwrite = allowOverwrite,
-        )) {
-            is BucketSaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
+            is SaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
 
-            is BucketSaveOutcome.Failed -> {
-                logger.error("Save to bucket failed: ${outcome.message}")
-                postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(outcome.message), ToastType.ERROR))
+            is SaveOutcome.Failed -> {
+                logger.error("Save to bucket failed: ${outcome.masked}")
+                postToast(AppSideEffect.Toast(outcome.masked, ToastType.ERROR))
             }
 
-            is BucketSaveOutcome.Saved -> {
+            is SaveOutcome.Saved -> {
                 reduce {
                     state.copy(
                         saveDialogOpen = false,
                         overwriteConfirmOpen = false,
                         suggestedAppName = outcome.appName,
                         manifestSaved = true,
-                        saveResult = saveResultOf(outcome),
+                        saveResult = outcome.saveResult,
                     )
                 }
                 // The saved file is what the deploy button will compare against.
                 refreshDeploymentStateInIntent()
-                aiSettings.persistLastBucket(bucket)
-                aiSettings.persistCommitPreference(commitToGit)
                 postToast(
                     AppSideEffect.Toast(
                         "Saved ${outcome.appName}.json to bucket/${outcome.bucket}",
@@ -1389,45 +1391,21 @@ class CreateViewModel(
         }
     }
 
-    /** saveManifestCore with the host collaborators shared by the dialog and AI paths. */
-    private suspend fun saveManifest(
-        manifestJson: String,
-        bucket: String,
-        appName: String,
-        commitToGit: Boolean,
-        overwrite: Boolean,
-    ): BucketSaveOutcome = saveManifestCore(
-        manifestJson = manifestJson,
-        bucket = bucket,
-        appName = appName,
-        commitToGit = commitToGit,
-        overwrite = overwrite,
-        scoopClient = scoopClient,
-        indexSaved = ::indexSavedApp,
-        isGitBucket = gitHistoryService::isGitBucket,
-        commitManifest = gitHistoryService::commitManifest,
-        onWarn = { logger.warn(it) },
-    )
-
     /** AI save_to_bucket tool backend: run the shared save and reply JSON to the model. */
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.executeSaveToBucket(
         bucket: String?,
         name: String?,
         overwrite: Boolean,
     ): String {
-        val effect = aiSaveToBucket(
-            manifestJson = state.manifestJson,
-            bucketArg = bucket,
-            nameArg = name,
-            overwrite = overwrite,
-            suggestedAppName = state.suggestedAppName,
-            lastBucket = state.saveBucket,
-            commitToGit = state.saveCommitToGit,
-            scoopClient = scoopClient,
-            indexSaved = ::indexSavedApp,
-            isGitBucket = gitHistoryService::isGitBucket,
-            commitManifest = gitHistoryService::commitManifest,
-            onWarn = { logger.warn(it) },
+        val effect = saveCoordinator.saveForTool(
+            ToolSaveRequest(
+                manifestJson = state.manifestJson,
+                bucket = bucket,
+                name = name,
+                overwrite = overwrite,
+                suggestedAppName = state.suggestedAppName,
+                commitToGit = state.saveCommitToGit,
+            ),
         )
         if (effect.manifestSaved) {
             reduce {
@@ -1650,6 +1628,9 @@ class CreateViewModel(
         /** Fixed instruction used when sending images without any text. */
         const val PURE_IMAGE_INSTRUCTION = "Please inspect the attached screenshot(s) and update the manifest accordingly."
 
+        /** Toast/state hint when a generate start carries no usable GitHub url. */
+        internal const val INVALID_URL_HINT = "Please enter a GitHub repository URL (github.com/owner/repo)."
+
         /** Success reply JSON for a direct install (mode local). */
         internal fun directInstallSuccessReply(name: String): String =
             directInstallReplyJson(success = true, name = name)
@@ -1679,67 +1660,67 @@ class CreateViewModel(
         }.toString()
     }
 
+    /**
+     * Shared readiness gate of the generate and assist entries. False means the
+     * view model already reduced the hint into state and toasted it.
+     */
+    private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.requireAiReady(): Boolean {
+        val readiness = aiGate.readiness()
+        if (readiness.configured) return true
+        val hint = readiness.hint.orEmpty()
+        reduce {
+            state.copy(
+                aiConfigured = false,
+                configHint = readiness.hint,
+                error = readiness.hint,
+            )
+        }
+        postToast(AppSideEffect.Toast(hint, ToastType.ERROR))
+        return false
+    }
+
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.startGeneration(
         rawUrlInput: String,
         noteInput: String,
         resumeFrom: AiErrorAction? = null,
         images: List<PendingImage> = emptyList(),
     ) {
-        val missing = aiSettings.readSettings().missingReason()
-        if (missing != null) {
-            reduce {
-                state.copy(
-                    aiConfigured = false,
-                    configHint = missing,
-                    error = missing,
-                )
-            }
-            postToast(AppSideEffect.Toast(missing, ToastType.ERROR))
-            return
-        }
+        if (!requireAiReady()) return
 
-        val (urlFromField, extraFromField) = GithubUrlParser.extract(rawUrlInput)
-        if (urlFromField == null) {
-            val msg = "Please enter a GitHub repository URL (github.com/owner/repo)."
-            reduce { state.copy(error = msg) }
-            postToast(AppSideEffect.Toast(msg, ToastType.ERROR))
-            return
-        }
-
-        val userPrompt = listOfNotNull(
-            extraFromField.ifBlank { null },
-            noteInput.trim().ifBlank { null },
-        ).joinToString(" ").ifBlank { null }
-        val appGuess = GithubUrlParser.deriveAppName(urlFromField)
-
-        val initialPhase = when (resumeFrom) {
-            AiErrorAction.RETRY_FROM_ANALYZE -> "analyze"
-            AiErrorAction.RETRY_FROM_GENERATE -> "generate"
-            else -> "research"
-        }
-        val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(initialPhase, appGuess, 0)
         // Read before reduce clears it: the name this session saved must be
         // excluded from the engine's conflict check during this run.
-        val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
+        val plan = planGenerate(
+            rawUrlInput = rawUrlInput,
+            noteInput = noteInput,
+            savedAppName = state.saveResult?.appName,
+            resumeFrom = resumeFrom,
+            images = images,
+        )
+        if (plan == null) {
+            reduce { state.copy(error = INVALID_URL_HINT) }
+            postToast(AppSideEffect.Toast(INVALID_URL_HINT, ToastType.ERROR))
+            return
+        }
+
         reduce {
             state.copy(
                 messages = state.messages +
-                    ChatMessage(role = ChatRole.User, text = urlFromField, note = userPrompt, images = images),
+                    ChatMessage(role = ChatRole.User, text = plan.url, note = plan.userPrompt, images = plan.images),
                 running = true,
-                currentPhase = initialPhase,
+                currentPhase = plan.initialPhase,
                 assistSession = false,
                 // Transient execution card starts here; engine onPhase/onToolActivity
                 // events aggregate into it until the run finishes.
                 activeExecution = ActiveExecution(
                     steps = listOf(
-                        ExecutionStep(phase = initialPhase, title = startPhaseTitle, isRunning = true),
+                        ExecutionStep(phase = plan.initialPhase, title = plan.phaseTitle, isRunning = true),
                     ),
                     currentStepStartedAtMs = System.currentTimeMillis(),
                 ),
-                lastUrl = urlFromField,
-                lastNote = userPrompt.orEmpty(),
+                lastUrl = plan.url,
+                lastNote = plan.userPrompt.orEmpty(),
                 manifestJson = "",
-                suggestedAppName = appGuess,
+                suggestedAppName = plan.appGuess,
                 saveResult = null,
                 installedForUse = false,
                 installedShortcuts = false,
@@ -1757,7 +1738,7 @@ class CreateViewModel(
         }
 
         assistAttemptCount = 0
-        repairRoundCounter.reset()
+        executionTimeline.resetRounds()
         // Tag this run: the bridge cancels the previous job and Orbit then
         // replays the cancelled run's queued CancellationException callback
         // after the new run has already set running=true, so every async
@@ -1765,13 +1746,14 @@ class CreateViewModel(
         // the state has moved on to a newer run.
         val epoch = state.generationEpoch + 1
         reduce { state.copy(generationEpoch = epoch) }
+        executionTimeline.setCurrentEpoch(epoch)
         val modelToUse = state.selectedModel
         scoopAiBridge.startGenerate(
-            url = urlFromField,
-            userPrompt = userPrompt,
+            url = plan.url,
+            userPrompt = plan.userPrompt,
             resumeFrom = resumeFrom,
             overrideModel = modelToUse,
-            ignoreAppNames = ignoredNames,
+            ignoreAppNames = plan.ignoredNames,
             onPhase = { phase -> handlePhase(epoch, phase) },
             onToolActivity = { act -> routeToolActivity(epoch, act) },
             onPhaseOutput = { phase, out -> handlePhaseOutput(epoch, phase, out) },
@@ -1834,56 +1816,43 @@ class CreateViewModel(
         source: RevisionSource = RevisionSource.ASSIST,
         images: List<PendingImage> = emptyList(),
     ) {
-        val text = instruction.trim()
-        if (text.isBlank()) return
+        // A blank instruction is a defensive no-op, never a toast (onAction can
+        // reach this path with no user question left).
+        if (instruction.isBlank()) return
         // An empty manifest is a pure conversation session: the engine answers
         // text-only and never touches state.manifestJson until a URL generates.
         val currentManifest = state.manifestJson
 
-        val missing = aiSettings.readSettings().missingReason()
-        if (missing != null) {
-            reduce {
-                state.copy(
-                    aiConfigured = false,
-                    configHint = missing,
-                    error = missing,
-                )
-            }
-            postToast(AppSideEffect.Toast(missing, ToastType.ERROR))
-            return
-        }
+        if (!requireAiReady()) return
 
         assistAttemptCount++
-        repairRoundCounter.reset()
-        val startPhaseTitle = PhaseSummaryFormatter.formatPhaseStart(
-            phase = "assist",
-            appName = state.suggestedAppName,
-            attempt = assistAttemptCount,
-        )
-
-        val userHistory = extractUserHistory(state.messages)
-        val userPrompt = displayUserText?.trim().takeUnless { it.isNullOrBlank() } ?: text
-        // A text-only follow-up must still reach the model with the screenshot that
-        // triggered it: replay the most recent user images when this round has none.
-        // Only the freshly attached images are recorded on the new bubble, so a
-        // replayed thumbnail is never rendered as if the user uploaded it again.
-        val imagesToSend = resolveAssistImages(images, state.messages)
-        // History bubble whose images this round replays (text-only rounds only);
-        // flagged after the send so later rounds do not re-send the same images.
-        val replaySourceId = if (images.isEmpty()) replaySourceIn(state.messages)?.id else null
+        executionTimeline.resetRounds()
 
         // Read before reduce clears it: the name this session saved must be
         // excluded from the engine's conflict check during this run.
-        val ignoredNames = ignoredNamesForConflictCheck(state.saveResult?.appName)
+        val plan = planAssist(
+            instruction = instruction,
+            displayUserText = displayUserText,
+            manifestJson = currentManifest,
+            messages = state.messages,
+            images = images,
+            suggestedAppName = state.suggestedAppName,
+            savedAppName = state.saveResult?.appName,
+            attempt = assistAttemptCount,
+        ) ?: return
+
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = userPrompt, images = images),
+                // Only the freshly attached images go on the new bubble: a replayed
+                // thumbnail must not render as if the user uploaded it again.
+                messages = state.messages +
+                    ChatMessage(role = ChatRole.User, text = plan.userPrompt, images = images),
                 running = true,
                 currentPhase = "assist",
                 assistSession = true,
                 activeExecution = ActiveExecution(
                     steps = listOf(
-                        ExecutionStep(phase = "assist", title = startPhaseTitle, isRunning = true),
+                        ExecutionStep(phase = "assist", title = plan.phaseTitle, isRunning = true),
                     ),
                     currentStepStartedAtMs = System.currentTimeMillis(),
                 ),
@@ -1907,15 +1876,16 @@ class CreateViewModel(
         // Same epoch tagging as startGeneration (see the comment there).
         val epoch = state.generationEpoch + 1
         reduce { state.copy(generationEpoch = epoch) }
+        executionTimeline.setCurrentEpoch(epoch)
         val modelToUse = state.selectedModel
         scoopAiBridge.startAssist(
-            currentManifest = currentManifest,
-            instruction = text,
-            history = userHistory,
-            suggestedAppName = state.suggestedAppName,
+            currentManifest = plan.currentManifest,
+            instruction = plan.instruction,
+            history = plan.history,
+            suggestedAppName = plan.suggestedAppName,
             overrideModel = modelToUse,
-            images = imagesToSend.map { AiImage(bytes = it.bytes, mimeType = it.mimeType) },
-            ignoreAppNames = ignoredNames,
+            images = plan.images.map { AiImage(bytes = it.bytes, mimeType = it.mimeType) },
+            ignoreAppNames = plan.ignoredNames,
             onPhase = { phase -> handlePhase(epoch, phase) },
             onToolActivity = { act -> routeToolActivity(epoch, act) },
             onPhaseOutput = { phase, out -> handlePhaseOutput(epoch, phase, out) },
@@ -1929,10 +1899,10 @@ class CreateViewModel(
             // user bubble in the conversation referenced @bucket/app (including
             // this round's message), every round passes the handler so the tool
             // stays registered; with no references at all it stays absent.
-            onReadManifestRef = if (userManifestRefs(state.messages + ChatMessage(role = ChatRole.User, text = userPrompt)).isEmpty()) {
+            onReadManifestRef = if (!plan.hasManifestRefs) {
                 null
             } else {
-                { bucket, name -> readManifestRefReply(scoopClient, bucket, name) }
+                { bucket, name -> referenceResolver.readRef(bucket, name) }
             },
             onInstallApp = { bucket, name ->
                 if (!epochMatches(epoch)) return@startAssist STALE_EPOCH_INSTALL_REPLY_JSON
@@ -1954,7 +1924,7 @@ class CreateViewModel(
             onFinished = { result -> handleFinished(epoch, result) },
         )
 
-        replaySourceId?.let { sourceId ->
+        plan.replaySourceId?.let { sourceId ->
             reduce {
                 state.copy(
                     messages = state.messages.map { msg ->
@@ -1976,7 +1946,7 @@ class CreateViewModel(
      */
     private fun routeToolActivity(epoch: Long, act: ToolActivity) {
         if (!epochMatches(epoch)) return
-        activityChannel.trySend(act to epoch)
+        if (!executionTimeline.offer(epoch, act)) return
         if (isInstallVerifyActivity(act)) handleToolActivity(act)
     }
 
@@ -2001,7 +1971,7 @@ class CreateViewModel(
             phase = phase,
             appName = state.suggestedAppName,
             // Only the repair phase consumes the in-session round counter.
-            attempt = repairRoundCounter.onPhase(phase),
+            attempt = executionTimeline.repairAttempt(phase),
         )
         reduce {
             state.copy(
@@ -2286,7 +2256,7 @@ class CreateViewModel(
     ): CreateState {
         // Late-event race defense (proposal 5.1): drain residual buffered activity
         // events BEFORE collapsing so the finalized step list is consistent.
-        drainActivityEvents(activityChannel)
+        executionTimeline.drain()
         val collapsedMessages = collapseActiveExecution(messages, activeExecution, executionExpanded, System.currentTimeMillis())
 
         val previousManifest = this.revisions.lastOrNull()?.manifestJson.orEmpty()

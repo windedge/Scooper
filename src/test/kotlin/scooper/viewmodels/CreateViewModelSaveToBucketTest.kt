@@ -16,9 +16,9 @@ import java.io.File
 
 /**
  * TDD tests for the AI `save_to_bucket` path: the shared [saveManifestCore]
- * bucket rules, the shared [saveManifestCore] (also used by the manual save
- * dialog) and the [aiSaveToBucket] wrapper that maps the outcome to the JSON
- * reply for the model plus the CreateState updates.
+ * bucket rules (also used by the manual save dialog) and the tool result
+ * assembly ([aiSaveToBucketResult], [needsBucketResultJson]) on top of a
+ * [SaveCoordinator] running against faked ports.
  */
 class CreateViewModelSaveToBucketTest {
 
@@ -72,29 +72,47 @@ class CreateViewModelSaveToBucketTest {
         }
     }
 
-    private fun aiSave(
+    private fun coordinator(env: BucketSaveEnv, deps: SaveDeps): SaveCoordinator =
+        SaveCoordinator(
+            env = env,
+            git = object : GitBucketPort {
+                override fun isGitBucket(dir: File): Boolean = deps.isGitBucket(dir)
+
+                override fun commitManifest(
+                    dir: File,
+                    name: String,
+                    isUpdate: Boolean,
+                    version: String?,
+                ): Result<String> = deps.commitManifest(dir, name, isUpdate, version)
+            },
+            index = deps.indexSaved,
+            memory = object : SaveMemory {
+                override suspend fun readLastBucket(): String? = null
+                override suspend fun persistLastBucket(bucket: String) {}
+                override suspend fun readCommitPreference(): Boolean? = null
+                override suspend fun persistCommitPreference(commit: Boolean) {}
+            },
+            warn = {},
+        )
+
+    private fun saveForTool(
         manifestJson: String = """{"version":"1.2.3","bin":["app.exe"]}""",
-        bucketArg: String? = null,
-        nameArg: String? = null,
+        bucket: String? = null,
+        name: String? = null,
         overwrite: Boolean = false,
         suggestedAppName: String? = "fd",
-        lastBucket: String = "",
-        commitToGit: Boolean = true,
         env: FakeScoopEnv,
         deps: SaveDeps = SaveDeps(),
     ): AiSaveToBucketResult = runBlocking {
-        aiSaveToBucket(
-            manifestJson = manifestJson,
-            bucketArg = bucketArg,
-            nameArg = nameArg,
-            overwrite = overwrite,
-            suggestedAppName = suggestedAppName,
-            lastBucket = lastBucket,
-            commitToGit = commitToGit,
-            scoopClient = env,
-            indexSaved = deps.indexSaved,
-            isGitBucket = deps.isGitBucket,
-            commitManifest = deps.commitManifest,
+        coordinator(env, deps).saveForTool(
+            ToolSaveRequest(
+                manifestJson = manifestJson,
+                bucket = bucket,
+                name = name,
+                overwrite = overwrite,
+                suggestedAppName = suggestedAppName,
+                commitToGit = true,
+            ),
         )
     }
 
@@ -105,7 +123,7 @@ class CreateViewModelSaveToBucketTest {
     }
 
     // ---------------------------------------------------------------------
-    // aiSaveToBucket: success path
+    // saveForTool via coordinator: success path
     // ---------------------------------------------------------------------
 
     @Test
@@ -113,7 +131,7 @@ class CreateViewModelSaveToBucketTest {
         val env = FakeScoopEnv(buckets = listOf("main", "extras"))
         val deps = SaveDeps()
 
-        val result = aiSave(bucketArg = "main", nameArg = "fd", env = env, deps = deps)
+        val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
 
         assertTrue(result.manifestSaved, "a successful save must set manifestSaved")
         assertNotNull(result.saveResult)
@@ -138,7 +156,7 @@ class CreateViewModelSaveToBucketTest {
         val env = FakeScoopEnv(buckets = listOf("main"))
         val deps = SaveDeps()
 
-        val result = aiSave(bucketArg = "main", nameArg = "fd", env = env, deps = deps)
+        val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
 
         assertEquals(listOf("main"), deps.indexedBuckets, "index step must receive the bucket")
         assertEquals(listOf("fd"), deps.indexedApps, "index step must receive the parsed app")
@@ -152,7 +170,7 @@ class CreateViewModelSaveToBucketTest {
     fun `bucket arg with no last bucket still resolves to main`() {
         val env = FakeScoopEnv(buckets = listOf("main", "extras"))
 
-        val result = aiSave(bucketArg = "main", env = env, nameArg = "fd", suggestedAppName = null)
+        val result = saveForTool(bucket = "main", env = env, name = "fd", suggestedAppName = null)
 
         assertTrue(result.manifestSaved, "explicit bucket must save even without a suggested name")
         assertEquals("main", resultJsonField(result.resultJson, "bucket"))
@@ -162,7 +180,7 @@ class CreateViewModelSaveToBucketTest {
     fun `defaults only apply when bucket arg is explicitly given while name falls back to suggestion`() {
         val env = FakeScoopEnv(buckets = listOf("main", "extras"))
 
-        val result = aiSave(bucketArg = "main", suggestedAppName = "ripgrep", env = env)
+        val result = saveForTool(bucket = "main", suggestedAppName = "ripgrep", env = env)
 
         assertTrue(result.manifestSaved, "explicit bucket with suggested name must save")
         assertEquals("main", resultJsonField(result.resultJson, "bucket"))
@@ -174,7 +192,7 @@ class CreateViewModelSaveToBucketTest {
         val env = FakeScoopEnv(buckets = listOf("main"))
         val deps = SaveDeps(commitOk = false)
 
-        val result = aiSave(bucketArg = "main", nameArg = "fd", env = env, deps = deps)
+        val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
 
         assertTrue(result.manifestSaved, "a failed commit must not fail the save (file is on disk)")
         assertNotNull(result.saveResult?.gitHint, "an uncommitted git bucket must produce a git hint")
@@ -182,7 +200,7 @@ class CreateViewModelSaveToBucketTest {
     }
 
     // ---------------------------------------------------------------------
-    // aiSaveToBucket: needs-overwrite path
+    // saveForTool via coordinator: needs-overwrite path
     // ---------------------------------------------------------------------
 
     @Test
@@ -193,7 +211,7 @@ class CreateViewModelSaveToBucketTest {
         existing.parentFile?.mkdirs()
         existing.writeText("""{"version":"0.9"}""")
 
-        val result = aiSave(bucketArg = "main", nameArg = "fd", env = env, deps = deps)
+        val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
 
         assertFalse(result.manifestSaved, "an existing file without overwrite must not save")
         assertNull(result.saveResult)
@@ -212,7 +230,7 @@ class CreateViewModelSaveToBucketTest {
         existing.parentFile?.mkdirs()
         existing.writeText("""{"version":"0.9"}""")
 
-        val result = aiSave(bucketArg = "main", nameArg = "fd", overwrite = true, env = env, deps = deps)
+        val result = saveForTool(bucket = "main", name = "fd", overwrite = true, env = env, deps = deps)
 
         assertTrue(result.manifestSaved, "overwrite=true must save")
         assertEquals("true", resultJsonField(result.resultJson, "success"))
@@ -221,12 +239,12 @@ class CreateViewModelSaveToBucketTest {
     }
 
     // ---------------------------------------------------------------------
-    // aiSaveToBucket: failure paths
+    // saveForTool via coordinator: failure paths
     // ---------------------------------------------------------------------
 
     @Test
     fun `blank manifest fails`() {
-        val result = aiSave(manifestJson = "   ", env = FakeScoopEnv(buckets = listOf("main")))
+        val result = saveForTool(manifestJson = "   ", env = FakeScoopEnv(buckets = listOf("main")))
 
         assertFalse(result.manifestSaved)
         assertEquals("false", resultJsonField(result.resultJson, "success"))
@@ -237,7 +255,7 @@ class CreateViewModelSaveToBucketTest {
     fun `explicit unknown bucket fails with a json error`() {
         val env = FakeScoopEnv(buckets = listOf("main"))
 
-        val result = aiSave(bucketArg = "nope", nameArg = "fd", env = env)
+        val result = saveForTool(bucket = "nope", name = "fd", env = env)
 
         assertFalse(result.manifestSaved)
         assertEquals("false", resultJsonField(result.resultJson, "success"))
@@ -248,7 +266,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `no buckets fails`() {
-        val result = aiSave(bucketArg = "main", env = FakeScoopEnv(buckets = emptyList()))
+        val result = saveForTool(bucket = "main", env = FakeScoopEnv(buckets = emptyList()))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -258,7 +276,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `missing name and suggested app name fails`() {
-        val result = aiSave(nameArg = null, suggestedAppName = null, env = FakeScoopEnv(buckets = listOf("main")))
+        val result = saveForTool(name = null, suggestedAppName = null, env = FakeScoopEnv(buckets = listOf("main")))
 
         assertFalse(result.manifestSaved)
         assertEquals("false", resultJsonField(result.resultJson, "success"))
@@ -266,7 +284,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `invalid app name fails`() {
-        val result = aiSave(bucketArg = "main", nameArg = "bad name!", env = FakeScoopEnv(buckets = listOf("main")))
+        val result = saveForTool(bucket = "main", name = "bad name!", env = FakeScoopEnv(buckets = listOf("main")))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -279,7 +297,7 @@ class CreateViewModelSaveToBucketTest {
         val env = FakeScoopEnv(buckets = listOf("main"))
         val deps = SaveDeps(isGit = false)
 
-        val result = aiSave(bucketArg = "main", nameArg = "fd", env = env, deps = deps)
+        val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
 
         assertTrue(result.manifestSaved)
         assertEquals(0, deps.commitCalls.size, "non-git bucket must not commit")
@@ -287,7 +305,7 @@ class CreateViewModelSaveToBucketTest {
     }
 
     // ---------------------------------------------------------------------
-    // aiSaveToBucket: needsBucket path (no silent default bucket)
+    // saveForTool via coordinator: needsBucket path (no silent default bucket)
     // ---------------------------------------------------------------------
 
     @Test
@@ -295,7 +313,7 @@ class CreateViewModelSaveToBucketTest {
         val env = FakeScoopEnv(buckets = listOf("extras", "main", "games"))
         val deps = SaveDeps()
 
-        val result = aiSave(nameArg = "fd", env = env, deps = deps)
+        val result = saveForTool(name = "fd", env = env, deps = deps)
 
         assertFalse(result.manifestSaved, "a needsBucket reply must not write the manifest")
         assertNull(result.saveResult, "a needsBucket reply must not produce a SaveResult")
@@ -316,7 +334,7 @@ class CreateViewModelSaveToBucketTest {
     fun `blank bucket arg is treated as unspecified and returns needsBucket`() {
         val env = FakeScoopEnv(buckets = listOf("main"))
 
-        val result = aiSave(bucketArg = "   ", nameArg = "fd", env = env)
+        val result = saveForTool(bucket = "   ", name = "fd", env = env)
 
         assertFalse(result.manifestSaved)
         assertEquals("true", resultJsonField(result.resultJson, "needsBucket"))
@@ -325,7 +343,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `unspecified bucket with no buckets available still fails with the no buckets error`() {
-        val result = aiSave(env = FakeScoopEnv(buckets = emptyList()))
+        val result = saveForTool(env = FakeScoopEnv(buckets = emptyList()))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -337,7 +355,7 @@ class CreateViewModelSaveToBucketTest {
     fun `needsBucket reply preserves the suggested app name for the follow-up save`() {
         val env = FakeScoopEnv(buckets = listOf("main"))
 
-        val result = aiSave(nameArg = null, suggestedAppName = "fd", env = env)
+        val result = saveForTool(name = null, suggestedAppName = "fd", env = env)
 
         assertFalse(result.manifestSaved)
         assertEquals("fd", result.suggestedAppName, "suggested name must survive so the retry saves under it")

@@ -419,9 +419,14 @@ fun SearchableDropdownMenuPopup(
                             Spacer(Modifier.width(6.dp))
                             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                                 if (searchQuery.isEmpty()) {
+                                    // Keep the placeholder on one line so a
+                                    // narrow panel ellipsizes instead of wrapping.
                                     Text(
                                         "Search or type model...",
                                         style = typography.caption.copy(color = colors.textPlaceholder),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                                 BasicTextField(

@@ -2,75 +2,10 @@ package scooper.viewmodels
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import scooper.service.ScoopClient
 
-/**
- * Backs the engine's `read_manifest_reference` tool (architecture A: the host
- * owns the local bucket lookup): locate buckets/<bucket>/bucket/<name>.json in
- * the local scoop root and embed the manifest's raw JSON as a JSON value. Any
- * failure degrades to a diagnosable success:false reply so the session survives.
- */
-internal fun readManifestRefReply(scoopClient: ScoopClient, bucket: String, name: String): String {
-    val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-    if (!bucketDir.isDirectory) {
-        return readManifestRefFailure("bucket '$bucket' not found")
-    }
-    val manifestFile = bucketDir.resolve("bucket/$name.json")
-    if (!manifestFile.isFile) {
-        return readManifestRefFailure("app '$name' not found in bucket '$bucket'")
-    }
-    return try {
-        val manifest = Json.parseToJsonElement(manifestFile.readText())
-        buildJsonObject {
-            put("success", true)
-            put("bucket", bucket)
-            put("name", name)
-            put("path", manifestFile.absolutePath)
-            put("manifest", manifest)
-        }.toString()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        readManifestRefFailure("failed to read manifest for '$name' in bucket '$bucket': ${e.message}")
-    }
-}
-
-private fun readManifestRefFailure(error: String): String = buildJsonObject {
-    put("success", false)
-    put("error", error)
-}.toString()
-
-/**
- * Builds the @ completion menu index by listing every manifest json directly under
- * buckets/<bucket>/bucket/, the same layout [readManifestRefReply] reads from, so
- * every suggestion is actually loadable by the tool. Best effort: unreadable dirs
- * are skipped; only the directory listing itself failing yields an empty list.
- */
-internal fun scanManifestRefSuggestions(scoopClient: ScoopClient): List<ManifestRefSuggestion> {
-    val suggestions = mutableListOf<ManifestRefSuggestion>()
-    val bucketDirs = try {
-        scoopClient.bucketsBaseDir.listFiles()?.filter { it.isDirectory } ?: emptyList()
-    } catch (_: Exception) {
-        emptyList()
-    }
-    for (bucketDir in bucketDirs) {
-        val entries = try {
-            bucketDir.resolve("bucket").listFiles() ?: continue
-        } catch (_: Exception) {
-            continue
-        }
-        for (entry in entries) {
-            val fileName = entry.name
-            if (!fileName.endsWith(".json") || !entry.isFile) continue
-            suggestions += ManifestRefSuggestion(bucketDir.name, fileName.removeSuffix(".json"))
-        }
-    }
-    return suggestions
-}
+// Token syntax of @bucket/app references: parsing, chip segments, completion menu
+// filtering and insertion. Pure functions only; the bucket IO lives in
+// ReferenceResolver, and the UI plus CreateTabController call these directly.
 
 /**
  * Scans text for @bucket/app reference tokens: "@" at line start or after
