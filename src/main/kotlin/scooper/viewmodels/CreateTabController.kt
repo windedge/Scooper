@@ -38,6 +38,8 @@ data class CreateTab(
 data class CreateTabUiState(
     val tabs: List<CreateTabInfo> = emptyList(),
     val activeTabId: String? = null,
+    /** True while any tab's LLM generation is running, including background tabs. */
+    val anyRunning: Boolean = false,
 )
 
 data class CreateTabInfo(
@@ -244,6 +246,7 @@ class CreateTabController(
         mutableUiState.value = mutableUiState.value.copy(
             tabs = infos,
             activeTabId = activeId,
+            anyRunning = tabs.any { it.viewModel.container.stateFlow.value.running },
         )
     }
 }

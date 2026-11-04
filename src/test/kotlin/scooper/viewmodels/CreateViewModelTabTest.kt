@@ -548,4 +548,51 @@ class CreateViewModelTabTest {
             assertFalse(bridgeA.cancelled, "tab A engine job must not be cancelled by tab B cancel")
         }
     }
+
+    // ---------------------------------------------------------------
+    // aggregated running flag (bug: the sidebar indicator only observed
+    // the active tab, so a background tab run stopped blinking it)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `anyRunning is true while a background tab run is in flight`() = runBlocking {
+        createController().use { controller ->
+            val tabA = controller.activeTabId()
+            val bridgeA = controller.bridgeFor(tabA) as RecordingBridge
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) { controller.activeViewModel().onSend(url = "github.com/owner/alpha").join() }
+            }
+            awaitPredicate { bridgeA.isRunning }
+
+            controller.createTab()
+            awaitTab(controller) { it.tabs.size == 2 && it.activeTabId != tabA }
+
+            awaitTab(controller) { it.anyRunning }
+            assertTrue(bridgeA.isRunning, "precondition: tab A run must still be in flight")
+        }
+    }
+
+    @Test
+    fun `anyRunning is false when every tab is idle`() = runBlocking {
+        createController().use { controller ->
+            controller.createTab()
+            awaitTab(controller) { it.tabs.size == 2 }
+            assertFalse(controller.uiState.value.anyRunning, "fresh tabs must not blink the indicator")
+
+            val tabA = controller.activeTabId()
+            controller.selectTab(tabA)
+            awaitTab(controller) { it.activeTabId == tabA }
+            val bridgeA = controller.bridgeFor(tabA) as RecordingBridge
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) { controller.activeViewModel().onSend(url = "github.com/owner/alpha").join() }
+            }
+            awaitPredicate { bridgeA.isRunning }
+            assertTrue(controller.uiState.value.anyRunning, "precondition: the active run must blink the indicator")
+
+            bridgeA.finishPendingRun("alpha")
+            awaitPredicate { !bridgeA.isRunning && !isRunning(controller, tabA) }
+            awaitTab(controller) { !it.anyRunning }
+            assertFalse(controller.uiState.value.anyRunning)
+        }
+    }
 }

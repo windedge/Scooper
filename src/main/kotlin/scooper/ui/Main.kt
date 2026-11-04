@@ -275,10 +275,6 @@ fun main() {
                             }
 
                             val appsState by appsViewModel.container.stateFlow.collectAsState()
-                            val activeCreateViewModel = remember(createTabUiState.activeTabId) {
-                                createTabController.activeViewModel()
-                            }
-                            val activeCreateState by activeCreateViewModel.container.stateFlow.collectAsState()
 
                             Column(Modifier.fillMaxSize()) {
                                 CompositionLocalProvider(LocalFocusSearch provides provideFocusSearch) {
@@ -288,7 +284,7 @@ fun main() {
                                         if (!isSettings && !isOutput) {
                                             SidebarNav(
                                                 updateCount = appsState.updateCount,
-                                                createRunning = activeCreateState.running,
+                                                createRunning = createTabUiState.anyRunning,
                                             )
                                         }
                                         Column(Modifier.weight(1f)) {
