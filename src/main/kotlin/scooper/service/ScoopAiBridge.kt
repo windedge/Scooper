@@ -12,7 +12,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import scooper.data.UIConfig
 import scooper.repository.ConfigRepository
 import scooper.util.logger
 import java.util.UUID
@@ -77,47 +76,6 @@ open class ScoopAiBridge(
 
     fun toScoopAiConfig(settings: AiSettingsSnapshot = readSettings()): ScoopAiConfig {
         return buildScoopAiConfig(settings)
-    }
-
-    /**
-     * Persist the model chosen in Create back into Settings.AI. Delegates to
-     * [AiSettingsStore.persistModel]; failures are logged, never thrown.
-     */
-    fun persistModel(model: String) {
-        settingsStore.persistModel(model)
-    }
-
-    /**
-     * Persist the bucket used by the Create save dialog. Delegates to
-     * [AiSettingsStore.persistLastBucket]; failures are logged, never thrown.
-     */
-    fun persistLastBucket(bucket: String) {
-        settingsStore.persistLastBucket(bucket)
-    }
-
-    /**
-     * Read the last bucket used by the Create save dialog. Delegates to
-     * [AiSettingsStore.readLastBucket]; returns "" when the store fails.
-     */
-    fun readLastBucket(): String {
-        return settingsStore.readLastBucket()
-    }
-
-    /**
-     * Persist the save dialog "commit to git repository" checkbox. Delegates
-     * to [AiSettingsStore.persistCommitPreference]; failures are logged, never
-     * thrown.
-     */
-    fun persistCommitPreference(commit: Boolean) {
-        settingsStore.persistCommitPreference(commit)
-    }
-
-    /**
-     * Read the save dialog "commit to git repository" checkbox. Delegates to
-     * [AiSettingsStore.readCommitPreference]; returns true when the store fails.
-     */
-    fun readCommitPreference(): Boolean {
-        return settingsStore.readCommitPreference()
     }
 
     /**
@@ -486,21 +444,6 @@ open class ScoopAiBridge(
     companion object {
         const val DEFAULT_PROVIDER = AiSettingsStore.DEFAULT_PROVIDER
         val SUPPORTED_PROVIDERS: Set<String> = ProviderCatalog.supportedProviderIds.toSet()
-
-        /** Compatibility alias for [AiSettingsStore.withModel]. */
-        internal fun withModel(config: UIConfig, model: String): UIConfig {
-            return AiSettingsStore.withModel(config, model)
-        }
-
-        /** Compatibility alias for [AiSettingsStore.withLastBucket]. */
-        internal fun withLastBucket(config: UIConfig, bucket: String): UIConfig {
-            return AiSettingsStore.withLastBucket(config, bucket)
-        }
-
-        /** Compatibility alias for [AiSettingsStore.withCommitPreference]. */
-        internal fun withCommitPreference(config: UIConfig, commit: Boolean): UIConfig {
-            return AiSettingsStore.withCommitPreference(config, commit)
-        }
 
         internal fun buildScoopAiConfig(settings: AiSettingsSnapshot): ScoopAiConfig {
             return ScoopAiConfig(

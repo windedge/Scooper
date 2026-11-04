@@ -32,8 +32,6 @@ data class AiSettingsSnapshot(
         }
         return null
     }
-
-    fun isReady(): Boolean = missingReason() == null
 }
 
 /**
@@ -187,27 +185,18 @@ class AiSettingsStore(private val configRepository: ConfigRepository) {
 
         /**
          * Pure copy: replace only [UIConfig.aiModel], leaving every other
-         * field (and any future fields) untouched. Static so it stays
-         * unit-testable without a DB repository.
+         * field (and any future fields) untouched.
          */
         internal fun withModel(config: UIConfig, model: String): UIConfig {
             return config.copy(aiModel = model)
         }
 
-        /**
-         * Pure copy: replace only [UIConfig.aiLastBucket], leaving every
-         * other field (and any future fields) untouched. Static so it stays
-         * unit-testable without a DB repository.
-         */
+        /** Pure copy: replace only [UIConfig.aiLastBucket], every other field untouched. */
         internal fun withLastBucket(config: UIConfig, bucket: String): UIConfig {
             return config.copy(aiLastBucket = bucket)
         }
 
-        /**
-         * Pure copy: replace only [UIConfig.aiCommitToGit], leaving every
-         * other field (and any future fields) untouched. Static so it stays
-         * unit-testable without a DB repository.
-         */
+        /** Pure copy: replace only [UIConfig.aiCommitToGit], every other field untouched. */
         internal fun withCommitPreference(config: UIConfig, commit: Boolean): UIConfig {
             return config.copy(aiCommitToGit = commit)
         }

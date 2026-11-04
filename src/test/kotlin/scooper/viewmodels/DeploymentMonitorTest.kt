@@ -267,7 +267,6 @@ class DeploymentMonitorTest {
     )
 
     private fun saveResultOf(appName: String, bucket: String) = SaveResult(
-        success = true,
         appName = appName,
         bucket = bucket,
         targetPath = File(tempDir, "buckets/$bucket/bucket/$appName.json").absolutePath,

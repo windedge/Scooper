@@ -146,17 +146,12 @@ internal class SaveCoordinator(
 
         val bucket = validSaveBucket(request.bucket) ?: return SaveOutcome.InvalidBucket
 
-        val outcome = saveManifestCore(
+        val outcome = runSaveCore(
             manifestJson = request.manifestJson,
             bucket = bucket,
-            appName = name,
+            name = name,
             commitToGit = request.commitToGit,
             overwrite = request.allowOverwrite,
-            scoopClient = env,
-            indexSaved = index,
-            isGitBucket = git::isGitBucket,
-            commitManifest = git::commitManifest,
-            onWarn = warn,
         )
         return when (outcome) {
             is BucketSaveOutcome.NeedsOverwrite -> SaveOutcome.NeedsOverwrite(outcome.targetPath)
@@ -199,20 +194,35 @@ internal class SaveCoordinator(
             return aiSaveFailure("App name may only contain letters, digits, '.', '_' and '-'")
         }
 
-        val outcome = saveManifestCore(
+        val outcome = runSaveCore(
             manifestJson = request.manifestJson,
             bucket = bucket,
-            appName = name,
+            name = name,
             commitToGit = request.commitToGit,
             overwrite = request.overwrite,
-            scoopClient = env,
-            indexSaved = index,
-            isGitBucket = git::isGitBucket,
-            commitManifest = git::commitManifest,
-            onWarn = warn,
         )
         return aiSaveToBucketResult(outcome)
     }
+
+    /** Write the manifest with the ports bound here; the shared call of both save paths. */
+    private suspend fun runSaveCore(
+        manifestJson: String,
+        bucket: String,
+        name: String,
+        commitToGit: Boolean,
+        overwrite: Boolean,
+    ): BucketSaveOutcome = saveManifestCore(
+        manifestJson = manifestJson,
+        bucket = bucket,
+        appName = name,
+        commitToGit = commitToGit,
+        overwrite = overwrite,
+        scoopClient = env,
+        indexSaved = index,
+        isGitBucket = git::isGitBucket,
+        commitManifest = git::commitManifest,
+        onWarn = warn,
+    )
 
     /** Trimmed non-blank name passing [APP_NAME_REGEX]; the shared name rule of both save paths. */
     private fun validSaveName(raw: String?): String? =

@@ -80,7 +80,7 @@ class ScoopAiBridgeConfigMappingTest {
     }
 
     // -------------------------------------------------------------
-    // ScoopAiBridge.withModel: pure config copy used by persistModel
+    // AiSettingsStore.withModel: pure config copy used by persistModel
     // (Create model selection). Only aiModel changes; every other
     // field must stay untouched.
     // -------------------------------------------------------------
@@ -251,14 +251,14 @@ class ScoopAiBridgeConfigMappingTest {
 
     @Test
     fun `withModel replaces only aiModel`() {
-        val updated = ScoopAiBridge.withModel(fullConfig(), "new-model")
+        val updated = AiSettingsStore.withModel(fullConfig(), "new-model")
         assertEquals("new-model", updated.aiModel)
     }
 
     @Test
     fun `withModel keeps every other field untouched`() {
         val base = fullConfig()
-        val updated = ScoopAiBridge.withModel(base, "new-model")
+        val updated = AiSettingsStore.withModel(base, "new-model")
         assertEquals(base.copy(aiModel = "new-model"), updated)
         assertEquals(base.aiApiKey, updated.aiApiKey)
         assertEquals(base.aiBaseUrl, updated.aiBaseUrl)
@@ -270,26 +270,26 @@ class ScoopAiBridgeConfigMappingTest {
 
     @Test
     fun `withModel accepts blank model to clear the selection`() {
-        val updated = ScoopAiBridge.withModel(fullConfig(), "")
+        val updated = AiSettingsStore.withModel(fullConfig(), "")
         assertEquals("", updated.aiModel)
     }
 
     // -------------------------------------------------------------
-    // ScoopAiBridge.withLastBucket: pure config copy used by
+    // AiSettingsStore.withLastBucket: pure config copy used by
     // persistLastBucket (Create save dialog). Only aiLastBucket
     // changes; every other field must stay untouched.
     // -------------------------------------------------------------
 
     @Test
     fun `withLastBucket replaces only aiLastBucket`() {
-        val updated = ScoopAiBridge.withLastBucket(fullConfig(), "extras")
+        val updated = AiSettingsStore.withLastBucket(fullConfig(), "extras")
         assertEquals("extras", updated.aiLastBucket)
     }
 
     @Test
     fun `withLastBucket keeps every other field untouched`() {
         val base = fullConfig()
-        val updated = ScoopAiBridge.withLastBucket(base, "extras")
+        val updated = AiSettingsStore.withLastBucket(base, "extras")
         assertEquals(base.copy(aiLastBucket = "extras"), updated)
         assertEquals(base.aiModel, updated.aiModel)
         assertEquals(base.aiApiKey, updated.aiApiKey)
@@ -305,33 +305,33 @@ class ScoopAiBridgeConfigMappingTest {
 
     @Test
     fun `persistLastBucket then readLastBucket round-trips`() {
-        val bridge = ScoopAiBridge(FakeConfigRepository(), InMemoryAiCheckpointService())
-        bridge.persistLastBucket("games")
-        assertEquals("games", bridge.readLastBucket())
+        val store = AiSettingsStore(FakeConfigRepository())
+        store.persistLastBucket("games")
+        assertEquals("games", store.readLastBucket())
     }
 
     @Test
     fun `persistLastBucket swallows repository failures`() {
-        val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
-        bridge.persistLastBucket("games")
+        val store = AiSettingsStore(ThrowingConfigRepository())
+        store.persistLastBucket("games")
     }
 
     // -------------------------------------------------------------
-    // withCommitPreference: pure config copy used by
+    // AiSettingsStore.withCommitPreference: pure config copy used by
     // persistCommitPreference (Create save dialog checkbox). Only
     // aiCommitToGit changes; every other field must stay untouched.
     // -------------------------------------------------------------
 
     @Test
     fun `withCommitPreference replaces only aiCommitToGit`() {
-        val updated = ScoopAiBridge.withCommitPreference(fullConfig(), false)
+        val updated = AiSettingsStore.withCommitPreference(fullConfig(), false)
         assertFalse(updated.aiCommitToGit)
     }
 
     @Test
     fun `withCommitPreference keeps every other field untouched`() {
         val base = fullConfig()
-        val updated = ScoopAiBridge.withCommitPreference(base, false)
+        val updated = AiSettingsStore.withCommitPreference(base, false)
         assertEquals(base.copy(aiCommitToGit = false), updated)
         assertEquals(base.aiModel, updated.aiModel)
         assertEquals(base.aiApiKey, updated.aiApiKey)
@@ -343,23 +343,23 @@ class ScoopAiBridgeConfigMappingTest {
 
     @Test
     fun `persistCommitPreference then readCommitPreference round-trips`() {
-        val bridge = ScoopAiBridge(FakeConfigRepository(), InMemoryAiCheckpointService())
-        bridge.persistCommitPreference(false)
-        assertFalse(bridge.readCommitPreference())
-        bridge.persistCommitPreference(true)
-        assertTrue(bridge.readCommitPreference())
+        val store = AiSettingsStore(FakeConfigRepository())
+        store.persistCommitPreference(false)
+        assertFalse(store.readCommitPreference())
+        store.persistCommitPreference(true)
+        assertTrue(store.readCommitPreference())
     }
 
     @Test
     fun `readCommitPreference returns true when repository fails`() {
-        val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
-        assertTrue(bridge.readCommitPreference())
+        val store = AiSettingsStore(ThrowingConfigRepository())
+        assertTrue(store.readCommitPreference())
     }
 
     @Test
     fun `persistCommitPreference swallows repository failures`() {
-        val bridge = ScoopAiBridge(ThrowingConfigRepository(), InMemoryAiCheckpointService())
-        bridge.persistCommitPreference(false)
+        val store = AiSettingsStore(ThrowingConfigRepository())
+        store.persistCommitPreference(false)
     }
 
     private class ConfigRepositoryStub(private val config: UIConfig) : ConfigRepository() {

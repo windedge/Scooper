@@ -259,7 +259,6 @@ class CreateViewModelInstallEventTest {
                                 suggestedAppName = "testapp",
                                 manifestSaved = true,
                                 saveResult = SaveResult(
-                                    success = true,
                                     appName = "testapp",
                                     bucket = "main",
                                     targetPath = "C:/bucket/main/testapp.json",

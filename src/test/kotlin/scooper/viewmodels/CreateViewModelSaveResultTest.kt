@@ -132,7 +132,6 @@ class CreateViewModelSaveResultTest {
     fun `classifySaveOutcome with write ok and index ok returns success with hint`() {
         val hint = SaveGitHint(bucketDir = "C:/scoop/buckets/main", command = "git add")
         val r = classifySaveOutcome(
-            writeOk = true,
             indexOk = true,
             gitCommitted = false,
             gitHint = hint,
@@ -141,7 +140,6 @@ class CreateViewModelSaveResultTest {
             targetPath = "p",
             overwritten = false,
         )
-        assertTrue(r.success)
         assertTrue(r.indexedOk)
         assertEquals(false, r.gitCommitted)
         assertEquals(hint, r.gitHint)
@@ -151,7 +149,6 @@ class CreateViewModelSaveResultTest {
     fun `classifySaveOutcome with git committed true sets flag and clears git hint`() {
         val hint = SaveGitHint(bucketDir = "C:/scoop/buckets/main", command = "git add")
         val r = classifySaveOutcome(
-            writeOk = true,
             indexOk = true,
             gitCommitted = true,
             gitHint = hint,
@@ -160,7 +157,6 @@ class CreateViewModelSaveResultTest {
             targetPath = "p",
             overwritten = false,
         )
-        assertTrue(r.success)
         assertTrue(r.indexedOk)
         assertTrue(r.gitCommitted)
         assertNull(r.gitHint)
@@ -171,7 +167,6 @@ class CreateViewModelSaveResultTest {
         // C2: after a successful write an indexing / git-hint exception must NOT fail the
         // save; the card reports indexedOk=false and drops the git hint instead.
         val r = classifySaveOutcome(
-            writeOk = true,
             indexOk = false,
             gitCommitted = false,
             gitHint = null,
@@ -180,27 +175,6 @@ class CreateViewModelSaveResultTest {
             targetPath = "p",
             overwritten = false,
         )
-        assertTrue(r.success)
-        assertEquals(false, r.indexedOk)
-        assertEquals(false, r.gitCommitted)
-        assertNull(r.gitHint)
-    }
-
-    @Test
-    fun `classifySaveOutcome treats write failure as the only fatal failure`() {
-        // A failed write is not a success and never carries indexing state / a hint;
-        // the caller shows an error toast and keeps the dialog open (no card rendered).
-        val r = classifySaveOutcome(
-            writeOk = false,
-            indexOk = true,
-            gitCommitted = true,
-            gitHint = SaveGitHint(bucketDir = "d", command = "g"),
-            appName = "fd",
-            bucket = "main",
-            targetPath = "p",
-            overwritten = false,
-        )
-        assertEquals(false, r.success)
         assertEquals(false, r.indexedOk)
         assertEquals(false, r.gitCommitted)
         assertNull(r.gitHint)
@@ -213,7 +187,6 @@ class CreateViewModelSaveResultTest {
     @Test
     fun `SaveResult defaults - gitHint is null when omitted`() {
         val r = SaveResult(
-            success = true,
             appName = "app",
             bucket = "main",
             targetPath = "C:/scoop/buckets/main/bucket/app.json",
@@ -221,7 +194,6 @@ class CreateViewModelSaveResultTest {
             indexedOk = true,
         )
         assertNull(r.gitHint)
-        assertTrue(r.success)
         assertTrue(r.indexedOk)
     }
 
@@ -229,7 +201,6 @@ class CreateViewModelSaveResultTest {
     fun `SaveResult carries git hint and overwritten flag`() {
         val hint = SaveGitHint(bucketDir = "C:/scoop/buckets/main", command = "git add")
         val r = SaveResult(
-            success = true,
             appName = "app",
             bucket = "main",
             targetPath = "p",

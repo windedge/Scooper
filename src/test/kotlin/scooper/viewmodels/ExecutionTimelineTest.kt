@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import scooper.service.PhaseSummaryFormatter
 
 /**
  * TDD tests for [ExecutionTimeline], the activity pump plus repair-round
@@ -147,5 +148,19 @@ class ExecutionTimelineTest {
         timeline.resetRounds()
 
         assertEquals(1, timeline.repairAttempt("repair"))
+    }
+
+    @Test
+    fun `repairAttempt renders the phase-start label through formatPhaseStart`() {
+        val timeline = timeline()
+
+        assertEquals(
+            "Repairing manifest (attempt 1)...",
+            PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = timeline.repairAttempt("repair")),
+        )
+        assertEquals(
+            "Repairing manifest (attempt 2)...",
+            PhaseSummaryFormatter.formatPhaseStart("repair", "fd", attempt = timeline.repairAttempt("repair")),
+        )
     }
 }

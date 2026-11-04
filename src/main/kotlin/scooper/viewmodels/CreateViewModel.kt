@@ -114,7 +114,6 @@ data class SaveGitHint(
 
 /** Outcome of a successful Save to Bucket, driving the SaveResultPanel result card. */
 data class SaveResult(
-    val success: Boolean,
     val appName: String,
     val bucket: String,
     val targetPath: String,
@@ -1542,7 +1541,7 @@ class CreateViewModel(
             val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
             // Uninstall and install scope must agree, or a global app would be
             // uninstalled from global and reinstalled as local (scope flip).
-            val scope = directInstallScope(snapshot, name)
+            val scope = reinstallGlobal(snapshot, name)
             val result = withContext(Dispatchers.IO) {
                 scoopClient.installFromManifest(
                     app = App(name = name, latestVersion = "0"),

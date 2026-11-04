@@ -23,7 +23,8 @@ internal class ExecutionTimeline(
     /** Unbounded so engine callbacks never block on a busy collector. */
     private val channel = Channel<Pair<ToolActivity, Long>>(Channel.UNLIMITED)
 
-    private val repairRounds = RepairRoundCounter()
+    /** Session-scoped repair round count; reset per generate/assist session. */
+    private var repairRounds = 0
 
     /**
      * Epoch of the live engine run; 0 before the first run and never a valid
@@ -56,10 +57,17 @@ internal class ExecutionTimeline(
     }
 
     /** Repair attempt number of [phase], incremented on repair phases only. */
-    fun repairAttempt(phase: String): Int = repairRounds.onPhase(phase)
+    fun repairAttempt(phase: String): Int {
+        if (phase.equals("repair", ignoreCase = true)) {
+            repairRounds++
+        }
+        return repairRounds
+    }
 
     /** Restart repair numbering so the first round of a new session reads 1. */
-    fun resetRounds() = repairRounds.reset()
+    fun resetRounds() {
+        repairRounds = 0
+    }
 
     /**
      * Drop everything still buffered. Call before a run's transient execution is
@@ -74,29 +82,6 @@ internal class ExecutionTimeline(
     } catch (_: Exception) {
         // Degrade to the bare tool name: a formatter bug must not stall the run.
         activity.toolName
-    }
-}
-
-/**
- * Session-scoped repair round counter. The engine emits `onPhase("repair")` once per
- * internal repair pass, and several passes can run inside one user session; the count
- * labels each with its real round number (1, 2, ...) instead of a stale assist count.
- * [reset] starts a fresh count for a new generate/assist session.
- */
-internal class RepairRoundCounter {
-    private var count = 0
-
-    /** Increments on repair phases only; returns the current attempt number. */
-    fun onPhase(phase: String): Int {
-        if (phase.equals("repair", ignoreCase = true)) {
-            count++
-        }
-        return count
-    }
-
-    /** Reset so the first repair round of a new session shows attempt 1. */
-    fun reset() {
-        count = 0
     }
 }
 

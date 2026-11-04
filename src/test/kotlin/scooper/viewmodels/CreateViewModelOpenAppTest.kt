@@ -102,7 +102,6 @@ class CreateViewModelOpenAppTest {
     fun `resolveOpenAppName prefers the save result over the installed name`() {
         val state = CreateState(
             saveResult = SaveResult(
-                success = true,
                 appName = "saved-name",
                 bucket = "main",
                 targetPath = "C:/bucket/main/saved-name.json",
@@ -239,7 +238,6 @@ class CreateViewModelOpenAppTest {
                                 installedForUse = installed,
                                 saveResult = if (withSaveResult) {
                                     SaveResult(
-                                        success = true,
                                         appName = appName,
                                         bucket = "main",
                                         targetPath = "C:/bucket/main/$appName.json",

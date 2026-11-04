@@ -66,20 +66,8 @@ internal fun buildSaveGitHint(
     )
 }
 
-/**
- * Classify the save attempt into the SaveResult card.
- *
- * A failed write (`writeOk=false`) is the ONLY fatal failure: the caller shows an error
- * toast and keeps the dialog open, and no card is rendered. Once the file is written
- * (`writeOk=true`), the save is always a success even when the best-effort Discover
- * indexing / git-hint step broke (`indexOk=false`): such a card degrades to
- * indexedOk=false / gitHint=null instead of failing the whole save, so the user is never
- * told the save failed just because indexing hiccuped. `success` stays on the data class
- * for future failure cards; today the UI only renders cards from writeOk=true outcomes.
- */
 /** Maps a written-to-disk save outcome to the SaveResult card; write failures never reach here. */
 internal fun saveResultOf(outcome: BucketSaveOutcome.Saved): SaveResult = classifySaveOutcome(
-    writeOk = true,
     indexOk = outcome.indexedOk,
     gitCommitted = outcome.gitCommitted,
     gitHint = outcome.gitHint,
@@ -89,8 +77,12 @@ internal fun saveResultOf(outcome: BucketSaveOutcome.Saved): SaveResult = classi
     overwritten = outcome.overwritten,
 )
 
+/**
+ * Classify a written save into the SaveResult card. Best-effort indexing / git-hint
+ * failures only degrade the card (`indexOk=false`, `gitHint=null`); write failures
+ * are rejected earlier as [BucketSaveOutcome.Failed].
+ */
 internal fun classifySaveOutcome(
-    writeOk: Boolean,
     indexOk: Boolean,
     gitCommitted: Boolean,
     gitHint: SaveGitHint?,
@@ -99,14 +91,13 @@ internal fun classifySaveOutcome(
     targetPath: String,
     overwritten: Boolean,
 ): SaveResult = SaveResult(
-    success = writeOk,
     appName = appName,
     bucket = bucket,
     targetPath = targetPath,
     overwritten = overwritten,
-    indexedOk = writeOk && indexOk,
-    gitCommitted = writeOk && gitCommitted,
-    gitHint = if (writeOk && !gitCommitted) gitHint else null,
+    indexedOk = indexOk,
+    gitCommitted = gitCommitted,
+    gitHint = if (!gitCommitted) gitHint else null,
 )
 
 /** App name rule shared by the save dialog and the AI save_to_bucket path. */

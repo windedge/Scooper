@@ -31,8 +31,8 @@ import scooper.taskqueue.TaskQueue
 import java.io.File
 
 /**
- * Tests for the reinstall scope helpers ([reinstallGlobal] /
- * [directInstallScope]) plus VM wiring that a save or bucket install must
+ * Tests for the reinstall scope helper ([reinstallGlobal]) plus VM wiring that
+ * a save or bucket install must
  * leave [CreateState.deployment] truthful: the save refreshes with the name
  * actually used on disk, a bucket install derives Installed.
  *
@@ -136,44 +136,6 @@ class CreateViewModelInstallScopeTest {
             "otherapp" to installedInfo(isGlobal = true),
         )
         assertFalse(reinstallGlobal(snapshot, "testapp"))
-    }
-
-    // -----------------------------------------------------------------
-    // directInstallScope: install side must match the reinstall side
-    // -----------------------------------------------------------------
-
-    @Test
-    fun `directInstallScope is true only when the snapshot reports global`() {
-        assertTrue(
-            directInstallScope(mapOf("testapp" to installedInfo(isGlobal = true)), "testapp"),
-            "a globally installed app must reinstall global on the install side too",
-        )
-        assertFalse(
-            directInstallScope(mapOf("testapp" to installedInfo(isGlobal = false)), "testapp"),
-            "a locally installed app must reinstall local",
-        )
-        assertFalse(
-            directInstallScope(emptyMap(), "testapp"),
-            "an app missing from the snapshot installs local",
-        )
-    }
-
-    @Test
-    fun `directInstallScope agrees with reinstallGlobal for every snapshot shape`() {
-        val snapshots = listOf(
-            emptyMap(),
-            mapOf("testapp" to installedInfo(isGlobal = true)),
-            mapOf("testapp" to installedInfo(isGlobal = false)),
-            mapOf("TESTAPP" to installedInfo(isGlobal = true)),
-            mapOf("otherapp" to installedInfo(isGlobal = true)),
-        )
-        for (snapshot in snapshots) {
-            assertEquals(
-                reinstallGlobal(snapshot, "testapp"),
-                directInstallScope(snapshot, "testapp"),
-                "uninstall and install scope must agree for snapshot: $snapshot",
-            )
-        }
     }
 
     // ---------------------------------------------------------------------
@@ -334,7 +296,6 @@ class CreateViewModelInstallScopeTest {
                                 suggestedAppName = "testapp",
                                 manifestSaved = true,
                                 saveResult = SaveResult(
-                                    success = true,
                                     appName = "testapp",
                                     bucket = "main",
                                     targetPath = "C:/bucket/main/testapp.json",

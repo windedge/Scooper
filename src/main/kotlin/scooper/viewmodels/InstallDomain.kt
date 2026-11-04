@@ -48,10 +48,6 @@ internal fun resolveDirectInstallAppName(
 internal fun resolveOpenAppName(state: CreateState, lastUrl: String): String? =
     resolveDirectInstallAppName(state.saveResult, state.directInstallName, state.suggestedAppName, lastUrl)
 
-/**
- * Drives CreateState from AI verify_install activity: Started shows loading, then a
- * Completed/Failed hides it; a verified success flips [CreateState.installVerified].
- */
 /** Reply handed to the engine when a tool call lands after its run was cancelled. */
 internal const val STALE_EPOCH_SAVE_REPLY_JSON = "{\"success\":false,\"error\":\"cancelled\"}"
 
@@ -61,6 +57,10 @@ internal const val STALE_EPOCH_INSTALL_REPLY_JSON = "{\"success\":false,\"mode\"
 internal fun isInstallVerifyActivity(activity: ToolActivity): Boolean =
     activity.toolName == "verify_install"
 
+/**
+ * Drives CreateState from AI verify_install activity: Started shows loading, then a
+ * Completed/Failed hides it; a verified success flips [CreateState.installVerified].
+ */
 internal fun applyInstallVerifyActivity(state: CreateState, activity: ToolActivity): CreateState {
     if (activity.toolName != "verify_install") return state
     return when (activity) {
@@ -207,10 +207,3 @@ internal fun bucketManifestIssue(manifestText: String?): String? {
  */
 internal fun reinstallGlobal(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
     snapshot[name.lowercase()]?.isGlobal == true
-
-/**
- * Scope for a direct install of [name]: derived from the same snapshot read
- * as [reinstallGlobal] so the install and its uninstall step always agree.
- */
-internal fun directInstallScope(snapshot: Map<String, InstalledAppInfo>, name: String): Boolean =
-    reinstallGlobal(snapshot, name)
