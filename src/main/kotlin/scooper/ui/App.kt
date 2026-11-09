@@ -143,16 +143,15 @@ fun AppScreen(
 }
 
 /**
- * Modify-with-AI handler for the Discover detail panel: only the Discover
- * page (empty scope) hands off to Create. Other scopes (installed/updates)
- * have no bucketed manifest and get null to hide it. Bucketless (orphan)
- * apps never invoke the callback; the panel also disables the button for them.
+ * Modify-with-AI handler shared by the detail panel across all scopes
+ * (discover/installed/updates): every scope hands off to Create. Bucketless
+ * (orphan) apps never invoke the callback; the panel also disables the
+ * button for them.
  */
 internal fun discoverModifyHandler(
     scope: String,
     onHandoff: (bucket: String, name: String) -> Unit,
 ): ((App) -> Unit)? {
-    if (scope.isNotEmpty()) return null
     return { app ->
         val bucketName = app.bucket?.name
         if (bucketName != null) onHandoff(bucketName, app.name)

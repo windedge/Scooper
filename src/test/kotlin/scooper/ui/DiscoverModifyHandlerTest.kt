@@ -29,9 +29,15 @@ class DiscoverModifyHandlerTest {
     }
 
     @Test
-    fun `installed and updates scopes hide the handler`() {
-        assertNull(discoverModifyHandler(scope = "installed") { _, _ -> })
-        assertNull(discoverModifyHandler(scope = "updates") { _, _ -> })
+    fun `installed and updates scopes expose the handler`() {
+        var installed = ""
+        var updates = ""
+        discoverModifyHandler(scope = "installed") { _, name -> installed = name }!!
+            .invoke(app(Bucket(name = "main", url = null)))
+        discoverModifyHandler(scope = "updates") { _, name -> updates = name }!!
+            .invoke(app(Bucket(name = "extras", url = null)))
+        assertEquals("ripgrep", installed)
+        assertEquals("ripgrep", updates)
     }
 
     @Test
