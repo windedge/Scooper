@@ -40,8 +40,10 @@ import scooper.data.ViewMode
 import scooper.ui.components.IconButton
 import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
+import scooper.util.Strings
 import scooper.util.cursorHand
 import scooper.util.onHover
+import scooper.util.tr
 import scooper.viewmodels.AppsViewModel
 import scooper.ui.theme.*
 
@@ -71,19 +73,21 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     var sortOrder by rememberSaveable { mutableStateOf("desc") }
     var queryText by rememberSaveable { mutableStateOf("") }
 
-    val sortOptions = remember(queryText) {
+    // Strings.current as remember key: tr() results are re-evaluated when the
+    // language changes so the sort dropdown labels stay current.
+    val sortOptions = remember(queryText, Strings.current) {
         if (queryText.isNotBlank()) {
             listOf(
-                "bestmatch" to "Best Match",
-                "updated" to "Recently Updated",
-                "added" to "Recently Added",
-                "name" to "Name"
+                "bestmatch" to tr("Best Match"),
+                "updated" to tr("Recently Updated"),
+                "added" to tr("Recently Added"),
+                "name" to tr("Name")
             )
         } else {
             listOf(
-                "updated" to "Recently Updated",
-                "added" to "Recently Added",
-                "name" to "Name"
+                "updated" to tr("Recently Updated"),
+                "added" to tr("Recently Added"),
+                "name" to tr("Name")
             )
         }
     }
@@ -145,7 +149,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
         ) {
             Icon(
                 Lucide.Search,
-                "Search",
+                tr("Search"),
                 modifier = Modifier.size(16.dp),
                 tint = if (isFocused) colors.primary else colors.textPlaceholder,
             )
@@ -153,7 +157,10 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             Box(modifier = Modifier.weight(1f)) {
                 if (queryText.isEmpty()) {
                     Text(
-                        "Search packages... (supports OR, -exclude)",
+                        tr("Search packages... (supports OR, -exclude)"),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
                         style = typography.subtitle2.copy(
                             color = colors.textPlaceholder,
                         ),
@@ -254,27 +261,27 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                     .background(colors.inputBackground)
                     .padding(3.dp),
             ) {
-                Tooltip("List View", position = TooltipPosition.Top) {
+                Tooltip(tr("List View"), position = TooltipPosition.Top) {
                     IconButton(
                         onClick = { appsViewModel.setViewMode(ViewMode.List) },
                         modifier = Modifier.size(28.dp).cursorHand(),
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            Lucide.List, "List View",
+                            Lucide.List, tr("List View"),
                             modifier = Modifier.size(14.dp),
                             tint = if (viewMode == ViewMode.List) colors.primary else colors.textMuted
                         )
                     }
                 }
-                Tooltip("Grid View", position = TooltipPosition.Top) {
+                Tooltip(tr("Grid View"), position = TooltipPosition.Top) {
                     IconButton(
                         onClick = { appsViewModel.setViewMode(ViewMode.Grid) },
                         modifier = Modifier.size(28.dp).cursorHand(),
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            Lucide.LayoutGrid, "Grid View",
+                            Lucide.LayoutGrid, tr("Grid View"),
                             modifier = Modifier.size(14.dp),
                             tint = if (viewMode == ViewMode.Grid) colors.primary else colors.textMuted
                         )
@@ -290,27 +297,27 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                     .background(colors.inputBackground)
                     .padding(3.dp),
             ) {
-                Tooltip("Waterfall Scroll", position = TooltipPosition.Top) {
+                Tooltip(tr("Waterfall Scroll"), position = TooltipPosition.Top) {
                     IconButton(
                         onClick = { appsViewModel.applyFilters(paginationMode = PaginationMode.Waterfall) },
                         modifier = Modifier.size(28.dp).cursorHand(),
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            Lucide.Scroll, "Waterfall",
+                            Lucide.Scroll, tr("Waterfall"),
                             modifier = Modifier.size(14.dp),
                             tint = if (paginationMode == PaginationMode.Waterfall) colors.primary else colors.textMuted
                         )
                     }
                 }
-                Tooltip("Paginated", position = TooltipPosition.Top) {
+                Tooltip(tr("Paginated"), position = TooltipPosition.Top) {
                     IconButton(
                         onClick = { appsViewModel.applyFilters(paginationMode = PaginationMode.Pagination) },
                         modifier = Modifier.size(28.dp).cursorHand(),
                         rippleRadius = 12.dp,
                     ) {
                         Icon(
-                            Lucide.BookOpen, "Pagination",
+                            Lucide.BookOpen, tr("Pagination"),
                             modifier = Modifier.size(14.dp),
                             tint = if (paginationMode == PaginationMode.Pagination) colors.primary else colors.textMuted
                         )
@@ -349,7 +356,7 @@ private fun InstalledUpdatesToggle(
             modifier = Modifier.fillMaxHeight().clip(RoundedCornerShape(6.dp)).cursorHand().clickable { onScopeChange("installed") }
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp)) {
-                Text("All Installed", style = typography.subtitle2.copy(fontWeight = FontWeight.Medium, color = if (!showOnlyUpdates) colors.textTitle else colors.textMuted))
+                Text(tr("All Installed"), style = typography.subtitle2.copy(fontWeight = FontWeight.Medium, color = if (!showOnlyUpdates) colors.textTitle else colors.textMuted))
             }
         }
         Spacer(Modifier.width(4.dp))
@@ -363,7 +370,7 @@ private fun InstalledUpdatesToggle(
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Updates", style = typography.subtitle2.copy(fontWeight = FontWeight.Medium, color = if (showOnlyUpdates) colors.primaryHover else colors.textMuted))
+                    Text(tr("Updates"), style = typography.subtitle2.copy(fontWeight = FontWeight.Medium, color = if (showOnlyUpdates) colors.primaryHover else colors.textMuted))
                     if (updateCount > 0) {
                         Spacer(Modifier.width(6.dp))
                         Box(
@@ -408,7 +415,7 @@ private fun BucketFilterDropdown(
             Icon(Lucide.ListFilter, "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
-                selectedBucket.ifBlank { "All Buckets" },
+                selectedBucket.ifBlank { tr("All Buckets") },
                 style = typography.subtitle2.copy(color = colors.onSurface),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -453,7 +460,7 @@ private fun BucketFilterDropdown(
                             .onHover { hover = it },
                     ) {
                         Text(
-                            title.ifBlank { "All Buckets" },
+                            title.ifBlank { tr("All Buckets") },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             style = typography.button.copy(
@@ -496,7 +503,7 @@ private fun SortFilterDropdown(
             Icon(Lucide.ArrowUpDown, "", modifier = Modifier.requiredSize(14.dp), tint = colors.textMuted)
             Spacer(Modifier.width(6.dp))
             Text(
-                sortOptions.find { it.first == sortBy }?.second ?: "Sort By",
+                sortOptions.find { it.first == sortBy }?.second ?: tr("Sort By"),
                 style = typography.subtitle2.copy(color = colors.onSurface),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -592,7 +599,7 @@ private fun SortFilterDropdown(
                                 ) {
                                     Icon(
                                         Lucide.ArrowUpDown,
-                                        if (sortOrder == "asc") "Ascending" else "Descending",
+                                        if (sortOrder == "asc") tr("Ascending") else tr("Descending"),
                                         modifier = Modifier.size(16.dp),
                                         tint = colors.primary
                                     )

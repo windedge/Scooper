@@ -25,6 +25,7 @@ import scooper.ui.AppRoute
 import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.onHover
+import scooper.util.tr
 
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -85,7 +86,7 @@ fun PrefTextField(
                     }
                     if (isPassword && value.isNotEmpty()) {
                         Text(
-                            text = if (passwordVisible) "Hide" else "Show",
+                            text = if (passwordVisible) tr("Hide") else tr("Show"),
                             style = MaterialTheme.typography.caption.copy(color = colors.textMuted, fontWeight = FontWeight.Medium),
                             modifier = Modifier.cursorHand().clickable { passwordVisible = !passwordVisible }.padding(start = 4.dp),
                         )
@@ -287,7 +288,7 @@ fun SettingContainer(
                                 disabledContentColor = colors.textMuted,
                             )
                         ) {
-                            Text("Discard", fontWeight = FontWeight.Medium)
+                            Text(tr("Discard"), fontWeight = FontWeight.Medium)
                         }
                         Spacer(Modifier.width(12.dp))
                         Button(
@@ -300,7 +301,7 @@ fun SettingContainer(
                             shape = RoundedCornerShape(6.dp),
                             elevation = null,
                         ) {
-                            Text("Apply Changes", color = Color.White, fontWeight = FontWeight.Medium)
+                            Text(tr("Apply Changes"), color = Color.White, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -348,7 +349,7 @@ fun NavBar(
                 ) {
                     Icon(Lucide.ArrowLeft, "", modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Back", style = MaterialTheme.typography.button)
+                    Text(tr("Back"), style = MaterialTheme.typography.button)
                 }
             }
         }
@@ -357,7 +358,7 @@ fun NavBar(
 
         // Section label
         Text(
-            "SETTINGS",
+            tr("SETTINGS"),
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
             style = MaterialTheme.typography.overline.copy(
                 fontWeight = FontWeight.Bold,
@@ -373,7 +374,7 @@ fun NavBar(
                     Spacer(Modifier.height(8.dp))
                 }
                 SettingsNavItem(
-                    route.menuText,
+                    route.displayName(),
                     selected = activeRoute == route,
                     onClick = { onClick(route) }
                 )

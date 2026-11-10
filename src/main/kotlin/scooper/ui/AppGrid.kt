@@ -26,6 +26,8 @@ import scooper.ui.icons.*
 import scooper.data.PaginationMode
 import scooper.ui.components.ActionButton
 import scooper.ui.theme.*
+import scooper.util.formatDate
+import scooper.util.tr
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse
@@ -176,7 +178,7 @@ fun AppGridCard(
 
             // Description (2 lines)
             Text(
-                app.description ?: "No description available.",
+                app.description ?: tr("No description available."),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = DescStyle,
@@ -204,7 +206,7 @@ fun AppGridCard(
                         Text(app.version ?: "", style = CurrentVersionStyle)
                     }
                     Spacer(Modifier.height(2.dp))
-                    Text(app.updateAt?.format(DateFormatter) ?: "", style = DateStyle)
+                    Text(app.updateAt?.let { formatDate(it) } ?: "", style = DateStyle)
                 }
 
                 ActionButton(app, installing, waiting, onInstall, onUpdate, onDownload, onUninstall, onOpen, onCancel, onInstallVersion)

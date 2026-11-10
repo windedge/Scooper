@@ -28,14 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import scooper.service.GitHubRelease
 import scooper.ui.theme.*
+import scooper.util.tr
 import scooper.util.cursorHand
+import scooper.util.formatDate
 import scooper.util.safeBrowse
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-private val ReleaseDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
 @Composable
 fun DetailMetadataRow(label: String, content: @Composable () -> Unit) {
@@ -61,8 +60,8 @@ fun DetailMetadataRow(label: String, content: @Composable () -> Unit) {
 @Composable
 fun ReleaseNoteCard(release: GitHubRelease) {
     val colors = MaterialTheme.colors
-    val tag = release.tag_name.ifBlank { release.name ?: "Unknown" }
-    val date = release.published_at?.let { parseIsoDate(it) }?.format(ReleaseDateFormatter)
+    val tag = release.tag_name.ifBlank { release.name ?: tr("Unknown") }
+    val date = release.published_at?.let { parseIsoDate(it) }?.let { formatDate(it) }
 
     Column(
         modifier = Modifier.fillMaxWidth()
@@ -101,7 +100,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
             Spacer(Modifier.weight(1f))
             if (release.prerelease) {
                 Text(
-                    "pre-release",
+                    tr("pre-release"),
                     style = typography.overline.copy(color = colors.warningDefault),
                 )
             }
@@ -110,7 +109,7 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 Tooltip(release.html_url, position = TooltipPosition.Top) {
                     Icon(
                         Lucide.ExternalLink,
-                        "View on GitHub",
+                        tr("View on GitHub"),
                         modifier = Modifier.size(12.dp).cursorHand().clickable { safeBrowse(release.html_url) },
                         tint = colors.textMuted,
                     )
@@ -153,12 +152,12 @@ fun ReleaseNoteCard(release: GitHubRelease) {
                 ) {
                     val clipboardManager = LocalClipboardManager.current
                     Link(
-                        text = if (expanded) "Show less" else "Show more",
+                        text = if (expanded) tr("Show less") else tr("Show more"),
                         painter = null,
                         onClicked = { expanded = !expanded },
                     )
                     Text(
-                        "Copy",
+                        tr("Copy"),
                         style = typography.caption.copy(color = colors.primary),
                         modifier = Modifier.cursorHand().clickable {
                             clipboardManager.setText(AnnotatedString(fullBody))

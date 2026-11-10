@@ -10,20 +10,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import scooper.ui.components.rememberPainterResource
-import scooper.ui.icons.*
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import scooper.data.PaginationMode
 import scooper.data.Theme
 import scooper.data.UIConfig
 import scooper.data.ViewMode
 import scooper.ui.components.*
+import scooper.ui.icons.*
 import scooper.util.*
 import scooper.service.AiConnectionTestResult
 import scooper.ui.components.SectionCard
+import scooper.util.tr
 import scooper.ui.theme.*
 import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
@@ -150,6 +155,16 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
 
     val formChangedState = rememberFormChanged(formState)
     val hasChanged by formChangedState.hasChanged
+
+    // Localized dropdown labels: ChoiceState.choices in the ViewModel stores
+    // raw msgids, so re-run tr() here; tr() reads Strings.current (a Compose
+    // state), so the labels follow locale switches automatically.
+    val proxyTypeChoices = mapOf(
+        "default" to tr("Default"),
+        "none" to tr("None"),
+        "custom" to tr("Custom"),
+    )
+
     LaunchedEffect(proxyTypeState.value) {
         proxyState.value = when (proxyTypeState.value) {
             "default" -> ""
@@ -166,28 +181,37 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
     }, onDiscard = {
         formChangedState.discard()
     }, applyEnabled = hasChanged) {
-        SettingsTitle("General Settings", "Manage core configuration for Scoop.")
+        SettingsTitle(tr("General Settings"), tr("Manage core configuration for Scoop."))
 
         SectionCard {
             PrefRow(
-                "Proxy",
-                subtitle = "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication.",
+                tr("Proxy"),
+                subtitle = tr("By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."),
                 nestedContent = {
                     if (proxyTypeState.value == "custom") {
                         Column(modifier = Modifier.padding(top = 12.dp)) {
                             PrefTextField(
                                 value = proxyState.value,
                                 onValueChange = { proxyState.change(it) },
-                                label = "Proxy Address:",
-                                placeholder = "[username:password@]host:port",
+                                label = tr("Proxy Address:"),
+                                placeholder = tr("[username:password@]host:port"),
                                 isError = proxyState.hasError,
-                                errorMessage = proxyState.errorMessage
+                                // errorMessage holds a raw msgid (see SettingsViewModel
+                                // scoopFormState comment); translate it at render time so
+                                // the message follows locale switches. The literal
+                                // comparison keeps the msgid extractable by gettext
+                                // (tr(proxyState.errorMessage) alone would not).
+                                errorMessage = if (proxyState.errorMessage == "Invalid proxy address.") {
+                                    tr("Invalid proxy address.")
+                                } else {
+                                    tr(proxyState.errorMessage)
+                                }
                             )
                         }
                     }
                 }
             ) {
-                val choices = proxyTypeState.choices
+                val choices = proxyTypeChoices
                 ExposedDropdownMenu(
                     choices.values.toList(),
                     selected = choices[proxyTypeState.value]!!,
@@ -197,8 +221,8 @@ fun GeneralSettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             Divider(color = colors.divider)
             PrefRow(
-                title = "Enable Aria2",
-                subtitle = "Aria2c will be used for downloading of artifacts to speed up transfers.",
+                title = tr("Enable Aria2"),
+                subtitle = tr("Aria2c will be used for downloading of artifacts to speed up transfers."),
                 modifier = Modifier.cursorHand(),
                 onClick = { ariaState.update(!ariaState.value) }
             ) {
@@ -229,6 +253,19 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val periodicRefreshState: SwitchState = formState.getState("periodicRefreshEnabled")
     val intervalState: ChoiceState = formState.getState("autoRefreshIntervalMinutes")
 
+    // Localized dropdown labels: ChoiceState.choices in the ViewModel stores
+    // raw msgids, so re-run tr()/displayName() here; both read Strings.current
+    // (a Compose state), so the labels follow locale switches automatically.
+    val themeChoices = Theme.entries.associate { it.name to it.displayName() }
+    val viewModeChoices = ViewMode.entries.associate { it.name to it.displayName() }
+    val paginationModeChoices = PaginationMode.entries.associate { it.name to it.displayName() }
+    val intervalChoices = mapOf(
+        "30" to tr("{{n}} min", "n" to "30"),
+        "60" to tr("{{n}} hour", "n" to "1"),
+        "120" to tr("{{n}} hours", "n" to "2"),
+        "240" to tr("{{n}} hours", "n" to "4"),
+    )
+
     LaunchedEffect(themeState.value) {
         val theme = Theme.valueOf(themeState.value)
         settingsViewModel.switchTheme(theme)
@@ -249,11 +286,25 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     val formChangedState = rememberFormChanged(formState)
     val formChanged by formChangedState.hasChanged
 
-    // Font size scale — managed separately from form_builder
     val settingsState by settingsViewModel.container.stateFlow.collectAsState()
+
+    // Font size scale — managed separately from form_builder
     var fontSizeScale by remember { mutableStateOf(settingsState.uiConfig.fontSizeScale) }
     LaunchedEffect(fontSizeScale) {
         settingsViewModel.switchFontSizeScale(fontSizeScale)
+    }
+
+    // Installed font families for the "Interface Font" dropdown, filtered by the
+    // active UI language (CJK locales keep only families that render that
+    // language's glyphs, non-CJK locales get the full family list); enumerated
+    // off the UI thread because it walks the whole system font manager. Keyed on
+    // the locale tag so switching language and re-entering the screen re-enumerates.
+    val localeTag = Strings.current.locale.toLanguageTag()
+    var fontFamilies by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(localeTag) {
+        withContext(Dispatchers.Default) {
+            fontFamilies = listInstalledFontFamilies(localeTag)
+        }
     }
 
     SettingContainer(onApply = {
@@ -264,7 +315,7 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
     }, onDiscard = {
         formChangedState.discard()
     }, applyEnabled = formChanged) {
-        SettingsTitle("UI Settings", "Customize the application appearance.")
+        SettingsTitle(tr("UI Settings"), tr("Customize the application appearance."))
 
         SectionCard {
             // Auto Refresh section
@@ -287,8 +338,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 }
             }
             PrefRow(
-                title = "Auto Refresh",
-                subtitle = "When enabled, Scooper will automatically run \"scoop update\" to check for updates.",
+                title = tr("Auto Refresh"),
+                subtitle = tr("When enabled, Scooper will automatically run \"scoop update\" to check for updates."),
                 modifier = Modifier.cursorHand(),
                 onClick = onMasterToggle,
             ) {
@@ -302,8 +353,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             if (autoRefreshExpanded) {
                 Column(modifier = Modifier.padding(start = 16.dp)) {
                     PrefRow(
-                        title = "Refresh on Startup",
-                        subtitle = "Run \"scoop update\" once after startup.",
+                        title = tr("Refresh on Startup"),
+                        subtitle = tr("Run \"scoop update\" once after startup."),
                         modifier = Modifier.cursorHand(),
                         onClick = { refreshOnStartupState.update(!refreshOnStartupState.value) },
                     ) {
@@ -316,8 +367,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     }
                     Divider(color = colors.divider)
                     PrefRow(
-                        title = "Periodic Refresh",
-                        subtitle = "Periodically run \"scoop update\" at a fixed interval.",
+                        title = tr("Periodic Refresh"),
+                        subtitle = tr("Periodically run \"scoop update\" at a fixed interval."),
                         modifier = Modifier.cursorHand(),
                         onClick = { periodicRefreshState.update(!periodicRefreshState.value) },
                     ) {
@@ -331,10 +382,10 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                     if (periodicRefreshState.value) {
                         Divider(color = colors.divider)
                         PrefRow(
-                            title = "Interval",
-                            subtitle = "How often to check for updates.",
+                            title = tr("Interval"),
+                            subtitle = tr("How often to check for updates."),
                         ) {
-                            val choices = intervalState.choices
+                            val choices = intervalChoices
                             ExposedDropdownMenu(
                                 choices.values.toList(),
                                 selected = choices[intervalState.value]!!,
@@ -347,43 +398,70 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
 
             Divider(color = colors.divider)
-            PrefRow(title = "Switch Theme") {
-                val choices = themeState.choices
-                ExposedDropdownMenu(
-                    choices.values.toList(),
-                    selected = choices[themeState.value]!!,
-                    onItemSelected = { label ->
-                        themeState.value = choices.filterValues { it == label }.keys.first()
-                    })
-            }
-            Divider(color = colors.divider)
-            PrefRow(title = "Default View Mode",
-                subtitle = "Choose how packages are displayed in the list.",
+            PrefRow(title = tr("Language"),
+                subtitle = tr("Choose the display language."),
             ) {
-                val choices = viewModeState.choices
+                val locales = scooper.util.supportedLocales
+                val currentLocaleTag = settingsState.uiConfig.locale
+                val selectedLocale = locales.find { it.locale.toLanguageTag() == currentLocaleTag } ?: locales.first()
+                val selectables = locales.map { it.locale.getDisplayName(it.locale) }
+                val selectedLocaleValue = selectedLocale.locale.getDisplayName(selectedLocale.locale)
                 ExposedDropdownMenu(
-                    choices.values.toList(),
-                    selected = choices[viewModeState.value]!!,
+                    selectables,
+                    selected = selectedLocaleValue,
                     onItemSelected = { label ->
-                        viewModeState.value = choices.filterValues { it == label }.keys.first()
-                    })
-            }
-            Divider(color = colors.divider)
-            PrefRow(title = "Default Pagination Mode",
-                subtitle = "Choose how packages are paginated.",
-            ) {
-                val choices = paginationModeState.choices
-                ExposedDropdownMenu(
-                    choices.values.toList(),
-                    selected = choices[paginationModeState.value]!!,
-                    onItemSelected = { label ->
-                        paginationModeState.value = choices.filterValues { it == label }.keys.first()
+                        val locale = locales.first { it.locale.getDisplayName(it.locale) == label }
+                        settingsViewModel.switchLocale(locale.locale.toLanguageTag())
                     })
             }
             Divider(color = colors.divider)
             PrefRow(
-                title = "Font Size",
-                subtitle = "Adjust the application font size. Changes take effect immediately.",
+                title = tr("Interface Font"),
+                subtitle = tr("Choose the font used to render the interface. Changes take effect immediately."),
+            ) {
+                val defaultFontLabel = tr("Default")
+                val currentFontFamily = settingsState.uiConfig.fontFamily
+                val fontItems = listOf(defaultFontLabel) + fontFamilies
+                // Widen the menu so the longest font name fits on a single line:
+                // measured text width + DropdownMenuItem horizontal padding +
+                // scrollbar reserve + a small buffer.
+                val textMeasurer = rememberTextMeasurer()
+                val itemTextStyle = MaterialTheme.typography.subtitle1
+                val density = LocalDensity.current
+                val fontMenuMinWidth = remember(fontItems, itemTextStyle, textMeasurer, density) {
+                    with(density) {
+                        fontItems.maxOf { textMeasurer.measure(it, itemTextStyle).size.width }.toDp() +
+                                32.dp + 12.dp + 4.dp
+                    }
+                }
+                // +1 accounts for the leading "Default" entry; 0 when not found.
+                val selectedFontIndex = fontFamilies.indexOf(currentFontFamily) + 1
+                ExposedDropdownMenu(
+                    items = fontItems,
+                    selected = currentFontFamily.ifBlank { defaultFontLabel },
+                    onItemSelected = { label ->
+                        settingsViewModel.switchFontFamily(if (label == defaultFontLabel) "" else label)
+                    },
+                    itemContent = { label ->
+                        Text(
+                            label,
+                            color = colors.onSurface,
+                            fontFamily = if (label == defaultFontLabel) null else fontFamilyForPreview(label),
+                            softWrap = false,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    menuMinWidth = fontMenuMinWidth,
+                    showScrollbar = true,
+                    selectedIndex = selectedFontIndex,
+                    searchable = true,
+                )
+            }
+            Divider(color = colors.divider)
+            PrefRow(
+                title = tr("Font Size"),
+                subtitle = tr("Adjust the application font size. Changes take effect immediately."),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -405,9 +483,43 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 }
             }
             Divider(color = colors.divider)
+            PrefRow(title = tr("Switch Theme")) {
+                val choices = themeChoices
+                ExposedDropdownMenu(
+                    choices.values.toList(),
+                    selected = choices[themeState.value]!!,
+                    onItemSelected = { label ->
+                        themeState.value = choices.filterValues { it == label }.keys.first()
+                    })
+            }
+            Divider(color = colors.divider)
+            PrefRow(title = tr("Default View Mode"),
+                subtitle = tr("Choose how packages are displayed in the list."),
+            ) {
+                val choices = viewModeChoices
+                ExposedDropdownMenu(
+                    choices.values.toList(),
+                    selected = choices[viewModeState.value]!!,
+                    onItemSelected = { label ->
+                        viewModeState.value = choices.filterValues { it == label }.keys.first()
+                    })
+            }
+            Divider(color = colors.divider)
+            PrefRow(title = tr("Default Pagination Mode"),
+                subtitle = tr("Choose how packages are paginated."),
+            ) {
+                val choices = paginationModeChoices
+                ExposedDropdownMenu(
+                    choices.values.toList(),
+                    selected = choices[paginationModeState.value]!!,
+                    onItemSelected = { label ->
+                        paginationModeState.value = choices.filterValues { it == label }.keys.first()
+                    })
+            }
+            Divider(color = colors.divider)
             PrefRow(
-                title = "System Tray Icon",
-                subtitle = "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting.",
+                title = tr("System Tray Icon"),
+                subtitle = tr("Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."),
                 modifier = Modifier.cursorHand(),
                 onClick = { showTrayIconState.update(!showTrayIconState.value) }
             ) {
@@ -423,8 +535,8 @@ fun UISettings(settingsViewModel: SettingsViewModel = koinInject()) {
             val showFpsState = LocalShowFps.current
             val showFps by showFpsState
             PrefRow(
-                title = "Show FPS",
-                subtitle = "Display frame rate in the status bar. This setting is not persisted.",
+                title = tr("Show FPS"),
+                subtitle = tr("Display frame rate in the status bar. This setting is not persisted."),
                 modifier = Modifier.cursorHand(),
                 onClick = { showFpsState.value = !showFpsState.value }
             ) {
@@ -649,7 +761,7 @@ private fun AiTextFieldPrefStacked(
 fun AboutSection() {
     val colors = MaterialTheme.colors
     SettingContainer {
-        SettingsTitle("About", "Information about this application.")
+        SettingsTitle(tr("About"), tr("Information about this application."))
 
         SectionCard {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
@@ -667,14 +779,14 @@ fun AboutSection() {
             }
             Divider(color = colors.divider)
             PrefRow(title = {
-                Text("Version: ${BuildConfig.APP_VERSION}", color = Slate700)
+                Text(tr("Version: {{version}}", "version" to BuildConfig.APP_VERSION), color = Slate700)
             }) {
                 val url = "https://github.com/windedge/Scooper"
                 TextButton(
                     onClick = { safeBrowse(url) },
                     modifier = Modifier.cursorHand()
                 ) {
-                    Text("GitHub", color = colors.primary, fontWeight = FontWeight.Medium)
+                    Text(tr("GitHub"), color = colors.primary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(4.dp))
                     Icon(Lucide.Github, "github", modifier = Modifier.size(16.dp), tint = colors.primary)
                 }

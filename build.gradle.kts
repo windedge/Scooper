@@ -9,12 +9,12 @@ plugins {
     alias(libs.plugins.compose)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.serialization)
-    // alias(libs.plugins.gettext)
+    alias(libs.plugins.gettext)
     alias(libs.plugins.buildconfig)
 }
 
 group = "Scooper"
-version = "1.2.4"
+version = "1.2.5"
 
 repositories {
     mavenLocal()
@@ -53,6 +53,8 @@ dependencies {
 
     implementation(libs.scoop.ai.tools)
     implementation(libs.flatlaf)
+    implementation(libs.gettext)
+    implementation(libs.kotlinx.io.core)
 
     // test
     testImplementation(libs.junit.jupiter)
@@ -65,8 +67,7 @@ compose.desktop {
         mainClass = "scooper.ui.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
-            modules("java.instrument", "java.sql", "jdk.unsupported", "jdk.accessibility", "java.net.http")
-            // includeAllModules = true
+            modules("java.instrument", "java.sql", "jdk.unsupported", "jdk.accessibility", "java.net.http", "jdk.localedata")
             packageName = group.toString()
             packageVersion = version.toString()
             vendor = "xujl"
@@ -161,6 +162,11 @@ tasks.matching { it.name == "createReleaseDistributable" }.configureEach {
 }
 
 fun String.quoted() = "\"$this\""
+gettext {
+    potFile.set(File(projectDir, "src/main/resources/lang/messages.pot"))
+    keywords.set(listOf("tr", "trn:1,2", "trc:1c,2"))
+}
+
 buildConfig {
     packageName("scooper.util")
     useKotlinOutput()

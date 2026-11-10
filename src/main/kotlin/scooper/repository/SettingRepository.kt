@@ -21,6 +21,8 @@ open class ConfigRepository {
                     viewMode = this[Configs.viewMode],
                     paginationMode = this[Configs.paginationMode],
                     pageSize = this[Configs.pageSize],
+                    locale = this[Configs.locale].ifBlank { scooper.util.getDefaultLocale().toLanguageTag() },
+                    fontFamily = this[Configs.fontFamily],
                     windowX = this[Configs.windowX],
                     windowY = this[Configs.windowY],
                     windowWidth = this[Configs.windowWidth],
@@ -66,6 +68,8 @@ open class ConfigRepository {
                 it[aiAutoDownload] = config.aiAutoDownload
                 it[aiLastBucket] = config.aiLastBucket
                 it[aiCommitToGit] = config.aiCommitToGit
+                it[locale] = config.locale
+                it[fontFamily] = config.fontFamily
             }
         }
     }

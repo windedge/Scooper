@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import scooper.ui.theme.*
+import scooper.util.tr
 import scooper.util.cursorHand
 
 @Composable
@@ -44,13 +45,13 @@ fun SegmentedControl(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SegmentedTab(
-                text = "All Installed",
+                text = tr("All Installed"),
                 selected = selected == 0,
                 onClick = { onSelected(0) },
             )
             Spacer(Modifier.width(2.dp))
             SegmentedTab(
-                text = "Updates",
+                text = tr("Updates"),
                 badge = if (onUpdateCount > 0) onUpdateCount else null,
                 activeColor = colors.primaryHover,
                 selected = selected == 1,

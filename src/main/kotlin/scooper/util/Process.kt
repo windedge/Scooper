@@ -35,8 +35,9 @@ internal fun scoopTestEnv(): Map<String, String>? {
 }
 
 /**
- * 同步执行命令（阻塞调用线程）。仅在无法使用协程上下文时使用。
- * 优先使用 [executeSuspend] 版本。
+ * Execute a command synchronously (blocks the calling thread).
+ * Use only when coroutine context is unavailable.
+ * Prefer [executeSuspend] when possible.
  */
 fun execute(
     commandArgs: List<String>,
@@ -60,7 +61,7 @@ fun execute(
 }
 
 /**
- * 挂起函数版本，在协程上下文中执行命令，不阻塞线程。
+ * Suspend version that executes a command in coroutine context without blocking.
  */
 suspend fun executeSuspend(
     commandArgs: List<String>,

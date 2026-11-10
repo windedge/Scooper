@@ -81,13 +81,42 @@ class SettingsViewModel(
         reduce { state.copy(uiConfig = state.uiConfig.copy(showTrayIcon = enabled)) }
     }
 
+    /**
+     * Switch the interface language immediately: update the state and write
+     * through to the database (same pattern as switchFontFamily), so the
+     * choice survives restart without the Apply flow. Not part of
+     * uiFormState on purpose; writeUIConfig re-reads the live value from the
+     * state flow, so Apply never rolls the language back.
+     */
+    fun switchLocale(localeTag: String) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(locale = localeTag)) }
+        configRepository.setConfig(configRepository.getConfig().copy(locale = localeTag))
+    }
+
+    /**
+     * Switch the user-selected interface font family immediately: update the
+     * state and write through to the database (same pattern as
+     * AppsViewModel.setViewMode), so the choice survives restart without the
+     * Apply flow. Not part of uiFormState/writeUIConfig on purpose.
+     */
+    fun switchFontFamily(name: String) = intent {
+        reduce { state.copy(uiConfig = state.uiConfig.copy(fontFamily = name)) }
+        configRepository.setConfig(configRepository.getConfig().copy(fontFamily = name))
+    }
+
+    // ChoiceState.choices values are raw English msgids, NOT the output of
+    // tr(...): labels are produced at render time (Settings.kt) by re-running
+    // tr()/displayName(), so they follow locale switches and are never frozen
+    // by the locale active when this ViewModel is constructed. Keys are stable
+    // identifiers, so ChoiceState validators and the dropdown reverse lookup
+    // (filter by label) keep working.
     val scoopFormState = FormState(
         fields = listOf(
             ChoiceState(
                 "proxyType", initial = "default", validators = listOf(Validators.ValidChoice()), choices = mapOf(
                     "default" to "Default",
                     "none" to "None",
-                    "custom" to "Custom"
+                    "custom" to "Custom",
                 )
             ),
             TextFieldState(
@@ -96,6 +125,9 @@ class SettingsViewModel(
                     transformProxy(it)
                 },
                 validators = listOf(
+                    // Store the raw msgid (translation happens at the display
+                    // layer in Settings.kt via tr(proxyState.errorMessage)), so
+                    // the message is not frozen at ViewModel construction.
                     Validators.Custom("Invalid proxy address.") {
                         validateProxy(it as String)
                     },
@@ -111,15 +143,25 @@ class SettingsViewModel(
             SwitchState("periodicRefreshEnabled"),
             ChoiceState(
                 "autoRefreshIntervalMinutes", initial = "120", validators = listOf(), choices = mapOf(
-                    "30" to "30 min",
-                    "60" to "1 hour",
-                    "120" to "2 hours",
-                    "240" to "4 hours",
+                    "30" to "{{n}} min",
+                    "60" to "{{n}} hour",
+                    "120" to "{{n}} hours",
+                    "240" to "{{n}} hours",
                 )
             ),
-            ChoiceState("theme", validators = listOf(), choices = Theme.values().associate { it.name to it.name }),
-            ChoiceState("viewMode", validators = listOf(), choices = ViewMode.values().associate { it.name to it.name }),
-            ChoiceState("paginationMode", validators = listOf(), choices = PaginationMode.values().associate { it.name to it.name }),
+            ChoiceState("theme", validators = listOf(), choices = mapOf(
+                "Auto" to "Auto",
+                "Light" to "Light",
+                "Dark" to "Dark",
+            )),
+            ChoiceState("viewMode", validators = listOf(), choices = mapOf(
+                "List" to "List",
+                "Grid" to "Grid",
+            )),
+            ChoiceState("paginationMode", validators = listOf(), choices = mapOf(
+                "Waterfall" to "Waterfall",
+                "Pagination" to "Pagination",
+            )),
             SwitchState("showTrayIcon"),
         )
     )
@@ -174,6 +216,7 @@ class SettingsViewModel(
             viewMode = formConfig.viewMode,
             paginationMode = formConfig.paginationMode,
             fontSizeScale = fontSizeScale ?: currentConfig.fontSizeScale,
+            locale = container.stateFlow.value.uiConfig.locale,
             showTrayIcon = formConfig.showTrayIcon,
         )
         configRepository.setConfig(config)

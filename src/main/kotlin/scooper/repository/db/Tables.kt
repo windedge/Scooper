@@ -60,4 +60,6 @@ object Configs : IntIdTable(name = "configs") {
     val aiAutoDownload = bool("ai_auto_download").default(false)
     val aiLastBucket = varchar("ai_last_bucket", 256).default("")
     val aiCommitToGit = bool("ai_commit_to_git").default(true)
+    val locale = varchar("locale", 20).default("")
+    val fontFamily = varchar("font_family", 100).default("")
 }

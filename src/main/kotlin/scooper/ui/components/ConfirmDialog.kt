@@ -22,6 +22,7 @@ import androidx.compose.ui.window.DialogState
 import androidx.compose.ui.window.DialogWindow
 import scooper.ui.theme.*
 import scooper.util.cursorHand
+import scooper.util.tr
 
 @Composable
 fun ConfirmDialog(
@@ -55,7 +56,7 @@ fun ConfirmDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onCancel, modifier = Modifier.cursorHand()) {
-                        Text(cancelText ?: "Cancel", color = colors.textBody)
+                        Text(cancelText ?: tr("Cancel"), color = colors.textBody)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
@@ -67,7 +68,7 @@ fun ConfirmDialog(
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.cursorHand()
                     ) {
-                        Text(confirmText ?: "OK", color = Color.White)
+                        Text(confirmText ?: tr("OK"), color = Color.White)
                     }
                 }
             }

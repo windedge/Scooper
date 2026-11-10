@@ -7,21 +7,42 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import scooper.util.Translatable
 import scooper.util.navigation.core.BackStack
+import scooper.util.tr
 import scooper.viewmodels.AppsViewModel
 
 /** All global shortcut definitions. */
-enum class ShortcutAction(val label: String, val keys: String) {
-    FocusSearch("Focus Search", "Ctrl+F"),
-    RefreshScoop("Refresh Scoop", "Ctrl+R / F5"),
-    ReloadApps("Reload Local Apps", "Ctrl+Shift+R"),
-    NavDiscover("Navigate to Discover", "Ctrl+1"),
-    NavInstalled("Navigate to Installed", "Ctrl+2"),
-    NavBuckets("Navigate to Buckets", "Ctrl+3"),
-    NavCleanup("Navigate to Cleanup", "Ctrl+4"),
-    NavCreate("Navigate to Create", "Ctrl+5"),
-    OpenSettings("Open Settings", "Ctrl+,"),
-    OpenOutput("View Logs / Output", "Ctrl+L / Ctrl+`"),
+enum class ShortcutAction(val keys: String) : Translatable {
+    FocusSearch("Ctrl+F"),
+    RefreshScoop("Ctrl+R / F5"),
+    ReloadApps("Ctrl+Shift+R"),
+    NavDiscover("Ctrl+1"),
+    NavInstalled("Ctrl+2"),
+    NavBuckets("Ctrl+3"),
+    NavCleanup("Ctrl+4"),
+    NavCreate("Ctrl+5"),
+    OpenSettings("Ctrl+,"),
+    OpenOutput("Ctrl+L / Ctrl+`"),
+
+    /**
+     * Translated display label. Evaluated at render time so it follows
+     * language switches instead of freezing at enum-construction time.
+     */
+    ;
+
+    override fun displayName(): String = when (this) {
+        FocusSearch -> tr("Focus Search")
+        RefreshScoop -> tr("Refresh Scoop")
+        ReloadApps -> tr("Reload Local Apps")
+        NavDiscover -> tr("Navigate to Discover")
+        NavInstalled -> tr("Navigate to Installed")
+        NavBuckets -> tr("Navigate to Buckets")
+        NavCleanup -> tr("Navigate to Cleanup")
+        NavCreate -> tr("Navigate to Create")
+        OpenSettings -> tr("Open Settings")
+        OpenOutput -> tr("View Logs / Output")
+    }
 }
 
 /**

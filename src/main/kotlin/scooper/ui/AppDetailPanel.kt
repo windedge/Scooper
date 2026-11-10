@@ -45,21 +45,26 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.ui.components.SelectableContainer
 import scooper.ui.theme.*
+import scooper.util.Translatable
+import scooper.util.formatDate
+import scooper.util.tr
+import scooper.util.trc
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.safeBrowse
 import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 
-private enum class ContentTab(val label: String) {
-    Changelog("Changelog"),
-    Manifest("Manifest"),
+private enum class ContentTab : Translatable {
+    Changelog,
+    Manifest;
+
+    override fun displayName(): String = when (this) {
+        Changelog -> tr("Changelog")
+        Manifest -> tr("Manifest")
+    }
 }
 
 @Composable
@@ -231,7 +236,7 @@ private fun DetailHeader(app: App, onClose: () -> Unit, onModifyWithAi: ((App) -
                 .clickable { onClose() },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Lucide.X, "Close", modifier = Modifier.size(16.dp), tint = colors.textMuted)
+            Icon(Lucide.X, tr("Close"), modifier = Modifier.size(16.dp), tint = colors.textMuted)
         }
     }
 }
@@ -281,7 +286,7 @@ private fun ContentTabSection(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            tab.label,
+                            tab.displayName(),
                             style = typography.body2.copy(
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                 color = textColor,
@@ -297,17 +302,17 @@ private fun ContentTabSection(
                     Tooltip(releasesPageUrl, position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Github,
-                            "View releases on GitHub",
+                            tr("View releases on GitHub"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable { safeBrowse(releasesPageUrl) },
                             tint = colors.textMuted,
                         )
                     }
                 }
                 if (selectedTab == ContentTab.Manifest && manifestContent != null) {
-                    Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
+                    Tooltip(tr("Copy to clipboard"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Copy,
-                            "Copy",
+                            tr("Copy"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
                                 Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
@@ -316,10 +321,10 @@ private fun ContentTabSection(
                         )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Tooltip("Open in editor", position = TooltipPosition.Top) {
+                    Tooltip(tr("Open in editor"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.ExternalLink,
-                            "Open",
+                            tr("Open"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
                                 if (file != null && file.exists()) {
@@ -359,7 +364,7 @@ private fun ContentTabSection(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "Manifest",
+                        tr("Manifest"),
                         style = typography.body2.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = colors.primary,
@@ -368,10 +373,10 @@ private fun ContentTabSection(
                 }
                 Spacer(Modifier.weight(1f))
                 if (manifestContent != null) {
-                    Tooltip("Copy to clipboard", position = TooltipPosition.Top) {
+                    Tooltip(tr("Copy to clipboard"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.Copy,
-                            "Copy",
+                            tr("Copy"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val selection = StringSelection(manifestContent)
                                 Toolkit.getDefaultToolkit().systemClipboard.setContents(selection, null)
@@ -380,10 +385,10 @@ private fun ContentTabSection(
                         )
                     }
                     Spacer(Modifier.width(12.dp))
-                    Tooltip("Open in editor", position = TooltipPosition.Top) {
+                    Tooltip(tr("Open in editor"), position = TooltipPosition.Top) {
                         Icon(
                             Lucide.ExternalLink,
-                            "Open",
+                            tr("Open"),
                             modifier = Modifier.size(14.dp).cursorHand().clickable {
                                 val file = scoopClient.getManifestFile(app)
                                 if (file != null && file.exists()) {
@@ -418,7 +423,7 @@ private fun ChangelogContent(
     when {
         !isGitHub -> {
             Text(
-                "Not a GitHub repository.",
+                tr("Not a GitHub repository."),
                 style = typography.body2.copy(color = colors.textMuted),
             )
         }
@@ -438,7 +443,7 @@ private fun ChangelogContent(
         }
         releases.isNullOrEmpty() -> {
             Text(
-                "No releases found.",
+                tr("No releases found."),
                 style = typography.body2.copy(color = colors.textMuted),
             )
         }
@@ -462,7 +467,7 @@ private fun ManifestContent(
     val colors = MaterialTheme.colors
     if (content == null) {
         Text(
-            "Manifest not found.",
+            tr("Manifest not found."),
             style = typography.body2.copy(color = colors.textMuted),
         )
         return
@@ -515,7 +520,7 @@ private fun MetadataSection(app: App) {
         }
 
         // Version info
-        DetailMetadataRow("Version") {
+        DetailMetadataRow(tr("Version")) {
             if (app.updatable) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(app.version ?: "", style = OldVersionStyle)
@@ -540,12 +545,12 @@ private fun MetadataSection(app: App) {
         }
 
         // Status
-        DetailMetadataRow("Status") {
+        DetailMetadataRow(tr("Status")) {
             val statusText = when {
-                app.status == AppStatus.INSTALLED -> "Installed"
-                app.status == AppStatus.FAILED -> "Failed"
-                app.updatable -> "Update Available"
-                else -> "Not Installed"
+                app.status == AppStatus.INSTALLED -> trc("status", "Installed")
+                app.status == AppStatus.FAILED -> tr("Failed")
+                app.updatable -> tr("Update Available")
+                else -> tr("Not Installed")
             }
             val statusColor = when {
                 app.status == AppStatus.INSTALLED && !app.updatable -> colors.updateDefault
@@ -564,7 +569,7 @@ private fun MetadataSection(app: App) {
 
         // Homepage
         if (!app.homepage.isNullOrBlank()) {
-            DetailMetadataRow("Homepage") {
+            DetailMetadataRow(tr("Homepage")) {
                 Link(
                     text = app.homepage!!,
                     onClicked = { safeBrowse(app.homepage) },
@@ -574,7 +579,7 @@ private fun MetadataSection(app: App) {
 
         // License
         if (!app.license.isNullOrBlank()) {
-            DetailMetadataRow("License") {
+            DetailMetadataRow(tr("License")) {
                 Text(
                     app.license!!,
                     style = typography.body2.copy(color = colors.textBody),
@@ -584,17 +589,17 @@ private fun MetadataSection(app: App) {
 
         // Dates
         app.createAt?.let {
-            DetailMetadataRow("Added") {
+            DetailMetadataRow(tr("Added")) {
                 Text(
-                    it.format(DateFormatter),
+                    formatDate(it),
                     style = typography.body2.copy(color = colors.textBody),
                 )
             }
         }
         app.updateAt?.let {
-            DetailMetadataRow("Updated") {
+            DetailMetadataRow(tr("Updated")) {
                 Text(
-                    it.format(DateFormatter),
+                    formatDate(it),
                     style = typography.body2.copy(color = colors.textBody),
                 )
             }

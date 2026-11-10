@@ -35,6 +35,8 @@ import scooper.util.bringToFront
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.util.navigation.Router
+import scooper.util.ProvideI18n
+import scooper.util.Strings
 import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.AppsViewModel
 import scooper.viewmodels.CleanupViewModel
@@ -57,6 +59,7 @@ import androidx.compose.ui.geometry.Size
 import scooper.util.TrayManager
 import scooper.util.RetryingAwtClipboard
 import scooper.util.installCrashGuards
+import scooper.util.tr
 import javax.swing.ImageIcon
 
 val LocalShowFps = compositionLocalOf { mutableStateOf(false) }
@@ -212,16 +215,7 @@ fun main() {
             val settings by settingsViewModel.container.stateFlow.collectAsState()
             val uiConfig = settings.uiConfig
             val theme = uiConfig.theme.toSystemTheme()
-
-            // Sync show-tray-icon setting from ViewModel state
-            // If the setting is disabled while the window is hidden, show the window
-            LaunchedEffect(uiConfig.showTrayIcon) {
-                showTrayIcon = uiConfig.showTrayIcon
-                if (!uiConfig.showTrayIcon) {
-                    windowVisible = true
-                    bringToFront = true
-                }
-            }
+            val currentLocale = name.kropp.kotlinx.gettext.Locale.forLanguageTag(uiConfig.locale)
 
             // Auto-refresh: delegate to ViewModel
             LaunchedEffect(settings.uiConfig.periodicRefreshEnabled, settings.uiConfig.autoRefreshIntervalMinutes) {
@@ -257,7 +251,13 @@ fun main() {
             // Snackbar overlay toggling is dev-only; flip this flag to surface an FPS overlay.
             val showFpsState = remember { mutableStateOf(false) }
 
-            ScooperTheme(currentTheme = theme, fontSizeScale = uiConfig.fontSizeScale) {
+            ProvideI18n(currentLocale) {
+            ScooperTheme(
+                currentTheme = theme,
+                fontSizeScale = uiConfig.fontSizeScale,
+                localeTag = Strings.current.locale.toLanguageTag(),
+                userFontFamilyName = uiConfig.fontFamily,
+            ) {
                 CompositionLocalProvider(LocalShowFps provides showFpsState) {
                     // Snackbar overlay sits above Router so it survives route changes.
                     Box(Modifier.fillMaxSize()) {
@@ -343,13 +343,14 @@ fun main() {
                             }
                         } // Router
 
-                        // Snackbar overlay — outside Router so it is not recreated on route change.
+                        // Snackbar overlay - outside Router so it is not recreated on route change.
                         Box(Modifier.fillMaxWidth().align(Alignment.BottomCenter).padding(bottom = 48.dp)) {
                             SnackbarHost(snackbarHostState)
                         }
                     } // Box
                 } // CompositionLocalProvider LocalShowFps
-            }
+            } // ScooperTheme
+            } // ProvideI18n
         } // CompositionLocalProvider LocalClipboard
     }
 
@@ -394,7 +395,13 @@ private fun SystemTrayIcon(
             onExit = onExit
         )
     }
-    
+
+    // Rebuild the tray popup labels whenever the UI language changes.
+    // Reading Strings.current here subscribes this composable to locale switches.
+    LaunchedEffect(Strings.current) {
+        trayManager.refreshMenu()
+    }
+
     DisposableEffect(trayManager) {
         trayManager.install()
         onDispose { trayManager.remove() }
@@ -461,7 +468,7 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
                 Spacer(Modifier.height(20.dp))
 
                 Text(
-                    "Scooper",
+                    tr("Scooper"),
                     style = typography().h5,
                     color = Slate900
                 )
@@ -469,7 +476,7 @@ fun SplashScreen(onClose: () -> Unit, progress: Float = 0f) {
                 Spacer(Modifier.height(4.dp))
 
                 Text(
-                    "Scoop Package Manager GUI",
+                    tr("Scoop Package Manager GUI"),
                     style = typography().caption,
                     color = Slate400
                 )
