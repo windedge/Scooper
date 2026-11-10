@@ -6,11 +6,31 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - main
+  pull_request:
 
 permissions:
   contents: write
 
 jobs:
+  windows_test:
+    name: Windows Test
+    runs-on: windows-latest
+    if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v3.10.0
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Run tests
+        uses: gradle/gradle-build-action@v2.4.0
+        with:
+          arguments: "test --no-daemon"
+
   windows_build:
     name: Windows Release
     runs-on: windows-latest
