@@ -59,6 +59,7 @@ import scooper.ui.theme.*
 import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.tr
+import scooper.util.trn
 
 /** Every whitespace-separated token must appear in the item (case-insensitive, order free). */
 internal fun filterByTokens(items: List<String>, query: String): List<String> {
@@ -539,8 +540,15 @@ fun SearchableDropdownMenuPopup(
         searchFocusRequester.requestFocus()
     }
     val filteredItems = remember(items, searchQuery) { filterByTokens(items, searchQuery) }
-    val footerText = if (searchQuery.isBlank()) "${items.size} models available"
-    else "${filteredItems.size} of ${items.size} models"
+    val footerText = if (searchQuery.isBlank()) {
+        trn("{{count}} model available", "{{count}} models available", items.size, "count" to "${items.size}")
+    } else {
+        tr(
+            "{{shown}} of {{total}} models",
+            "shown" to "${filteredItems.size}",
+            "total" to "${items.size}",
+        )
+    }
 
     val isCustomQuery = showCustomQueryOption && searchQuery.isNotBlank() &&
         items.none { it.equals(searchQuery.trim(), ignoreCase = true) }
@@ -617,7 +625,7 @@ fun SearchableDropdownMenuPopup(
                         ) {
                             Icon(
                                 Lucide.Search,
-                                contentDescription = "Search",
+                                contentDescription = tr("Search"),
                                 modifier = Modifier.size(13.dp),
                                 tint = colors.textMuted,
                             )
@@ -627,7 +635,7 @@ fun SearchableDropdownMenuPopup(
                                     // Keep the placeholder on one line so a
                                     // narrow panel ellipsizes instead of wrapping.
                                     Text(
-                                        "Search or type model...",
+                                        tr("Search or type model..."),
                                         style = typography.caption.copy(color = colors.textPlaceholder),
                                         maxLines = 1,
                                         softWrap = false,
@@ -699,7 +707,7 @@ fun SearchableDropdownMenuPopup(
                                 ) {
                                     Icon(
                                         Lucide.X,
-                                        contentDescription = "Clear",
+                                        contentDescription = tr("Clear"),
                                         modifier = Modifier.size(12.dp),
                                         tint = colors.textMuted,
                                     )
@@ -737,7 +745,7 @@ fun SearchableDropdownMenuPopup(
                         ) {
                             Icon(
                                 Lucide.RefreshCw,
-                                contentDescription = "Refresh models",
+                                contentDescription = tr("Refresh models"),
                                 modifier = Modifier.size(14.dp).rotate(fetchSpinAngle),
                                 tint = colors.primary,
                             )
@@ -778,7 +786,7 @@ fun SearchableDropdownMenuPopup(
                                     color = colors.primary,
                                 )
                                 Text(
-                                    "Fetching models...",
+                                    tr("Fetching models..."),
                                     style = typography.caption.copy(color = colors.textMuted),
                                 )
                             }
@@ -803,7 +811,7 @@ fun SearchableDropdownMenuPopup(
                                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                         colors = ButtonDefaults.textButtonColors(contentColor = colors.primary),
                                     ) {
-                                        Text("Retry", style = typography.caption)
+                                        Text(tr("Retry"), style = typography.caption)
                                     }
                                 }
                             }
@@ -816,11 +824,11 @@ fun SearchableDropdownMenuPopup(
                                     verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
                                     Text(
-                                        "No remote models found",
+                                        tr("No remote models found"),
                                         style = typography.caption.copy(color = colors.textTitle, fontWeight = FontWeight.Medium),
                                     )
                                     Text(
-                                        "Configure Base URL in Settings > AI, or type above.",
+                                        tr("Configure Base URL in Settings > AI, or type above."),
                                         style = typography.caption.copy(color = colors.textMuted),
                                         textAlign = TextAlign.Center,
                                     )
@@ -831,7 +839,7 @@ fun SearchableDropdownMenuPopup(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     Text(
-                                        "No matching models in list",
+                                        tr("No matching models in list"),
                                         style = typography.caption.copy(color = colors.textMuted),
                                     )
                                 }
@@ -934,7 +942,7 @@ private fun CustomQueryRow(
             tint = colors.primary,
         )
         Text(
-            text = "Use \"$query\"",
+            text = tr("Use \"{{query}}\"", "query" to query),
             style = typography.caption.copy(
                 color = colors.primary,
                 fontWeight = FontWeight.SemiBold,
@@ -989,7 +997,7 @@ private fun ModelRow(
             Spacer(Modifier.width(8.dp))
             Icon(
                 Lucide.CircleCheck,
-                contentDescription = "Selected",
+                contentDescription = tr("Selected"),
                 modifier = Modifier.size(14.dp),
                 tint = colors.primary,
             )
@@ -1081,7 +1089,7 @@ fun SearchableModelDropdown(
                 ) {
                     Icon(
                         Lucide.ChevronDown,
-                        contentDescription = "Dropdown",
+                        contentDescription = tr("Dropdown"),
                         modifier = Modifier.size(15.dp).rotate(rotation),
                         tint = colors.textMuted,
                     )
@@ -1143,7 +1151,7 @@ fun CompactModelSelector(
     var isHovered by remember { mutableStateOf(false) }
     var anchorWidth by remember { mutableStateOf(0.dp) }
 
-    val displayLabel = if (selectedModel.isNotBlank()) selectedModel else "Select model"
+    val displayLabel = if (selectedModel.isNotBlank()) selectedModel else tr("Select model")
 
     Box(modifier = modifier) {
         Surface(
@@ -1191,7 +1199,7 @@ fun CompactModelSelector(
                 val rotation by animateFloatAsState(if (expanded) 180f else 0f)
                 Icon(
                     Lucide.ChevronDown,
-                    contentDescription = "Select model",
+                    contentDescription = tr("Select model"),
                     modifier = Modifier.size(13.dp).rotate(rotation),
                     tint = colors.textMuted,
                 )

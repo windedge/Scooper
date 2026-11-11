@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -18,28 +19,29 @@ import scooper.repository.ConfigRepository
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
-import scooper.service.ScoopClient
-import scooper.service.ScoopLogStream
+import scooper.service.ScoopTempRoot
 import scooper.service.createInMemoryAppsRepository
-import scooper.taskqueue.TaskQueue
 import java.io.File
 
 /**
- * Create deploy plan (P1-3b): [CreateViewModel.onInstallSaved] executes the
- * plan derived by [deploymentAction] instead of the saved/installed flags, and
- * refuses to run a plan that changed after the click.
+ * Create deploy plan: [CreateViewModel.onInstallSaved] executes the plan derived
+ * by [deploymentAction] instead of the saved/installed flags, and refuses to run
+ * a plan that changed after the click.
  *
- * The VM runs against a real [ScoopClient] rooted at a temp dir; a shim scoop
- * records the argv of every command, so the tests assert which commands ran and
- * in what order instead of only the resulting state.
+ * The VM runs against a real ScoopClient rooted at a temp dir; a shim scoop
+ * records the argv of every command, so the tests assert which commands ran
+ * instead of only the resulting state.
  */
 class CreateViewModelInstallPlanTest {
 
     @org.junit.jupiter.api.io.TempDir
     lateinit var tempDir: File
 
-    /** Junctions created for this test; they must be unlinked before temp cleanup. */
-    private val junctions = mutableListOf<File>()
+    /** Junctions must be unlinked before temp cleanup: JUnit recurses into them. */
+    private val root by lazy { ScoopTempRoot(tempDir) }
+
+    @AfterEach
+    fun removeJunctions() = root.removeJunctions()
 
     // ---------------------------------------------------------------------
     // Plan dispatch
@@ -47,8 +49,8 @@ class CreateViewModelInstallPlanTest {
 
     @Test
     fun `installed newer same bucket updates instead of installing`(): Unit = withVm { vm, commands ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         presetState(vm, saveResult = saveResultOf("testapp", "main"))
         awaitRefresh(vm)
 
@@ -70,9 +72,9 @@ class CreateViewModelInstallPlanTest {
 
     @Test
     fun `installed in another bucket uninstalls before installing from the save bucket`(): Unit = withVm { vm, commands ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("extras", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
-        writeBucketManifest("main", "testapp", """{"version":"1.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("extras", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.writeManifestJson("main", "testapp", """{"version":"1.0"}""")
         presetState(vm, saveResult = saveResultOf("testapp", "extras"))
         awaitRefresh(vm)
 
@@ -93,8 +95,8 @@ class CreateViewModelInstallPlanTest {
     fun `missing bucket manifest blocks the reinstall without uninstalling`(): Unit = withVm { vm, commands ->
         // Installed from main, saved into extras, but extras has no manifest copy:
         // the uninstall would leave the app gone with nothing to install from.
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
         presetState(vm, saveResult = saveResultOf("testapp", "extras"))
         awaitRefresh(vm)
 
@@ -114,7 +116,7 @@ class CreateViewModelInstallPlanTest {
     @Test
     fun `a plan that changed after the click is aborted`(): Unit = withVm { vm, commands ->
         // The button claimed UpdateForce, but nothing is installed on disk anymore.
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         presetState(
             vm,
             saveResult = saveResultOf("testapp", "main"),
@@ -142,8 +144,8 @@ class CreateViewModelInstallPlanTest {
     fun `a skipped update warns and keeps installedForUse false`(): Unit = withVm(
         shimOutput = listOf("WARN  'testapp' is held to version 1.0"),
     ) { vm, commands ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         presetState(vm, saveResult = saveResultOf("testapp", "main"))
         awaitRefresh(vm)
 
@@ -166,8 +168,8 @@ class CreateViewModelInstallPlanTest {
     fun `an update still targets the origin bucket after the save result was cleared`(): Unit = withVm { vm, commands ->
         // The assist round and the dismissed result card clear the save result; the
         // installed copy's recorded bucket is what the update must still use.
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         presetState(vm, saveResult = null)
         awaitRefresh(vm)
 
@@ -191,9 +193,9 @@ class CreateViewModelInstallPlanTest {
     fun `uninstall then install keeps the global scope of the installed copy`(): Unit = withVm { vm, commands ->
         // A global app updated from another bucket used to be uninstalled from the
         // global root and reinstalled into the local one, flipping its scope.
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main", global = true)
-        writeBucketManifest("main", "testapp", """{"version":"1.0"}""")
-        writeBucketManifest("extras", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main", global = true)
+        root.writeManifestJson("main", "testapp", """{"version":"1.0"}""")
+        root.writeManifestJson("extras", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         presetState(vm, saveResult = saveResultOf("testapp", "extras"))
         awaitRefresh(vm)
 
@@ -222,9 +224,9 @@ class CreateViewModelInstallPlanTest {
         // The app was installed in this session, the reinstall uninstalled it and
         // then the install failed: nothing is on disk, so the latch must drop or
         // the button stays disabled with the app already gone.
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.0"}""")
-        writeBucketManifest("extras", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.0"}""")
+        root.writeManifestJson("extras", "testapp", """{"version":"1.2.0","architecture":{"64bit":{"bin":["app.exe"]}}}""")
         presetState(vm, saveResult = saveResultOf("testapp", "extras"), installedForUse = true)
         awaitRefresh(vm)
 
@@ -263,7 +265,7 @@ class CreateViewModelInstallPlanTest {
     // Helpers
     // ---------------------------------------------------------------------
 
-    /** VM lifecycle, shim and junction cleanup around one test. */
+    /** VM lifecycle and shim around one test; junctions are unlinked by [removeJunctions]. */
     private fun withVm(
         shimOutput: List<String> = emptyList(),
         failOn: String? = null,
@@ -278,7 +280,6 @@ class CreateViewModelInstallPlanTest {
                 block(vm) { readCommands(log) }
             } finally {
                 vm.close()
-                removeJunctions()
             }
         }
     }
@@ -344,10 +345,13 @@ class CreateViewModelInstallPlanTest {
             withContext(Dispatchers.Default) {
                 withTimeout(10_000) { vm.onInstallSaved().join() }
             }
-            // The plan runs in a child job; joining the intent returns first, so
-            // poll until installing=false (cleared in the child's finally) before
+            // The plan runs in a child job and joining the intent returns first, so wait
+            // for the installing=true edge, then poll until installing=false before
             // reading the resulting state.
             withContext(Dispatchers.Default) {
+                runCatching {
+                    withTimeout(2_000) { while (!vm.container.stateFlow.value.installing) delay(10) }
+                }
                 withTimeout(10_000) { while (vm.container.stateFlow.value.installing) delay(10) }
             }
         } finally {
@@ -363,15 +367,6 @@ class CreateViewModelInstallPlanTest {
         }
     }
 
-    private fun removeJunctions() {
-        for (junction in junctions) {
-            if (!junction.exists()) continue
-            // rmdir unlinks a junction only; it never touches the target dir.
-            ProcessBuilder("cmd", "/c", "rmdir", junction.absolutePath).start().waitFor()
-        }
-        junctions.clear()
-    }
-
     private fun saveResultOf(appName: String, bucket: String) = SaveResult(
         appName = appName,
         bucket = bucket,
@@ -380,48 +375,8 @@ class CreateViewModelInstallPlanTest {
         indexedOk = true,
     )
 
-    /**
-     * Simulate an installed app: a version dir plus a `current` junction pointing at
-     * it, because installedSnapshot resolves the version from the link target name.
-     * [global] places it in the fake global root instead of the local one.
-     */
-    private fun markInstalled(name: String, version: String, recordBucket: String?, global: Boolean = false) {
-        val appsRoot = if (global) File(tempDir, "global/apps") else File(tempDir, "apps")
-        val versionDir = File(appsRoot, "$name/$version").apply { mkdirs() }
-        if (recordBucket != null) {
-            File(versionDir, "scoop-install.json").writeText("""{"bucket":"$recordBucket"}""")
-        }
-        createJunction(File(appsRoot, "$name/current"), versionDir)
-    }
-
-    private fun createJunction(link: File, target: File) {
-        link.parentFile?.mkdirs()
-        val process = ProcessBuilder(
-            "cmd",
-            "/c",
-            "mklink",
-            "/J",
-            link.absolutePath,
-            target.absolutePath,
-        ).redirectErrorStream(true).start()
-        process.inputStream.readBytes()
-        val exit = process.waitFor()
-        require(exit == 0) { "could not create junction $link (exit $exit)" }
-        junctions += link
-    }
-
-    private fun writeBucketManifest(bucket: String, name: String, json: String) {
-        val dir = File(tempDir, "buckets/$bucket/bucket").apply { mkdirs() }
-        File(dir, "$name.json").writeText(json)
-    }
-
     private fun createVm(): CreateViewModel {
-        val scoopClient = ScoopClient(
-            logStream = ScoopLogStream(),
-            taskQueue = TaskQueue(),
-            rootDirOverride = tempDir,
-            globalRootDirOverride = File(tempDir, "global"),
-        )
+        val scoopClient = root.client(globalRoot = true)
         return CreateViewModel(
             scoopAiBridge = ScoopAiBridge(
                 configRepository = FakeConfigRepository(),

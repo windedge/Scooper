@@ -12,187 +12,177 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 "X-Generator: Scooper\n"
 "X-Poedit-SourceCharset: UTF-8\n"
 "X-Poedit-KeywordsList: tr;trn:1,2;trc:1c,2\n"
 
-#: src\main\kotlin\scooper\ui\App.kt:149
-#: src\main\kotlin\scooper\ui\App.kt:153
+#: src\main\kotlin\scooper\ui\App.kt:171
+#: src\main\kotlin\scooper\ui\App.kt:175
 msgid "No Results"
 msgstr "Нет результатов"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:280
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:344
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:314
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:378
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:639
 msgid "Copy to clipboard"
 msgstr "Копировать в буфер обмена"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:283
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:347
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:317
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:381
 #: src\main\kotlin\scooper\ui\Output.kt:63
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:445
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:461
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:642
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:162
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:160
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:548
 msgid "Copy"
 msgstr "Копировать"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:68
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:335
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:66
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:369
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:63
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:616
 msgid "Manifest"
 msgstr "Манифест"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:394
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:428
 msgid "Not a GitHub repository."
 msgstr "Это не репозиторий GitHub."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:414
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:448
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:711
 msgid "No releases found."
 msgstr "Релизы не найдены."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:438
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:472
 msgid "Manifest not found."
 msgstr "Манифест не найден."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:491
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:525
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:492
 msgid "Version"
 msgstr "Версия"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:550
 msgid "Status"
 msgstr "Статус"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:516
-msgctxt "status"
-msgid "Installed"
-msgstr "Установлено"
-
-#: src\main\kotlin\scooper\ui\Sidebar.kt:71
-#: src\main\kotlin\scooper\ui\Sidebar.kt:176
-#: src\main\kotlin\scooper\ui\Sidebar.kt:185
-msgctxt "navigation"
-msgid "Installed"
-msgstr "Установлено"
-
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:519
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:553
 msgid "Failed"
 msgstr "Сбой"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:520
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:554
 msgid "Update Available"
 msgstr "Доступно обновление"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:521
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:555
 msgid "Not Installed"
 msgstr "Не установлено"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:540
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:574
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:501
 msgid "Homepage"
 msgstr "Домашняя страница"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:550
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:584
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:513
 msgid "License"
 msgstr "Лицензия"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:560
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:594
 msgid "Added"
 msgstr "Добавлено"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:568
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:548
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:602
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:549
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:522
 msgid "Updated"
 msgstr "Обновлено"
 
-#: src\main\kotlin\scooper\ui\AppCard.kt:191
-#: src\main\kotlin\scooper\ui\AppGrid.kt:180
+#: src\main\kotlin\scooper\ui\AppCard.kt:190
+#: src\main\kotlin\scooper\ui\AppGrid.kt:181
 msgid "No description available."
 msgstr "Описание недоступно."
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:64
+#: src\main\kotlin\scooper\ui\Bucket.kt:67
 msgid "Configured Buckets"
 msgstr "Настроенные репозитории"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:71
+#: src\main\kotlin\scooper\ui\Bucket.kt:74
 msgid "Manage repositories where Scoop looks for packages."
 msgstr "Управляйте репозиториями, в которых Scoop ищет пакеты."
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:120
+#: src\main\kotlin\scooper\ui\Bucket.kt:123
 msgid "KNOWN BUCKETS"
 msgstr "ИЗВЕСТНЫЕ РЕПОЗИТОРИИ"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:144
+#: src\main\kotlin\scooper\ui\Bucket.kt:147
 #, java-format
 msgid "Are you sure you want to delete '{{name}}'?"
 msgstr "Удалить '{{name}}'?"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:145
+#: src\main\kotlin\scooper\ui\Bucket.kt:148
 msgid "Delete Bucket"
 msgstr "Удалить репозиторий"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:146
-#: src\main\kotlin\scooper\ui\Cleanup.kt:404
+#: src\main\kotlin\scooper\ui\Bucket.kt:149
+#: src\main\kotlin\scooper\ui\Cleanup.kt:406
 msgid "Delete"
 msgstr "Удалить"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:90
-#: src\main\kotlin\scooper\ui\Bucket.kt:157
+#: src\main\kotlin\scooper\ui\Bucket.kt:93
+#: src\main\kotlin\scooper\ui\Bucket.kt:160
 msgid "Add Bucket"
 msgstr "Добавить репозиторий"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:163
+#: src\main\kotlin\scooper\ui\Bucket.kt:166
 msgid "Repository URL is required"
 msgstr "Требуется URL репозитория"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:164
+#: src\main\kotlin\scooper\ui\Bucket.kt:167
 msgid "URL must start with http:// or https://"
 msgstr "URL должен начинаться с http:// или https://"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:178
+#: src\main\kotlin\scooper\ui\Bucket.kt:181
 msgid "Add"
 msgstr "Добавить"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:187
+#: src\main\kotlin\scooper\ui\Bucket.kt:190
 msgid "Add a custom Scoop bucket by name and repository URL."
 msgstr "Добавьте пользовательский репозиторий Scoop по имени и URL репозитория."
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:194
+#: src\main\kotlin\scooper\ui\Bucket.kt:197
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:355
 msgid "Bucket Name"
 msgstr "Имя репозитория"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:205
+#: src\main\kotlin\scooper\ui\Bucket.kt:208
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:368
 msgid "e.g. extras"
 msgstr "например, extras"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:211
+#: src\main\kotlin\scooper\ui\Bucket.kt:214
 msgid "Name is required"
 msgstr "Требуется имя"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:211
+#: src\main\kotlin\scooper\ui\Bucket.kt:214
 msgid "Used as the local bucket alias in Scoop."
 msgstr "Используется как локальный псевдоним репозитория в Scoop."
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:219
+#: src\main\kotlin\scooper\ui\Bucket.kt:222
 msgid "Repository URL"
 msgstr "URL репозитория"
 
-#: src\main\kotlin\scooper\ui\Bucket.kt:230
+#: src\main\kotlin\scooper\ui\Bucket.kt:233
 msgid "https://github.com/..."
 msgstr "https://github.com/..."
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:66
-#: src\main\kotlin\scooper\ui\Sidebar.kt:75
-#: src\main\kotlin\scooper\ui\Sidebar.kt:207
-#: src\main\kotlin\scooper\ui\Sidebar.kt:214
+#: src\main\kotlin\scooper\ui\Sidebar.kt:84
+#: src\main\kotlin\scooper\ui\Sidebar.kt:216
+#: src\main\kotlin\scooper\ui\Sidebar.kt:223
 msgid "Cleanup"
 msgstr "Очистка"
 
@@ -205,74 +195,76 @@ msgid "Download Cache"
 msgstr "Кэш загрузок"
 
 #: src\main\kotlin\scooper\ui\Cleanup.kt:94
-#: src\main\kotlin\scooper\ui\Cleanup.kt:101
-#: src\main\kotlin\scooper\ui\Cleanup.kt:147
-#: src\main\kotlin\scooper\ui\Cleanup.kt:154
-#: src\main\kotlin\scooper\ui\Cleanup.kt:237
+#: src\main\kotlin\scooper\ui\Cleanup.kt:102
+#: src\main\kotlin\scooper\ui\Cleanup.kt:148
+#: src\main\kotlin\scooper\ui\Cleanup.kt:156
+#: src\main\kotlin\scooper\ui\Cleanup.kt:239
 msgid "Rescan"
 msgstr "Повторное сканирование"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:117
-#: src\main\kotlin\scooper\ui\Cleanup.kt:303
+#: src\main\kotlin\scooper\ui\Cleanup.kt:118
+#: src\main\kotlin\scooper\ui\Cleanup.kt:305
 #, java-format
 msgid "Total Size: {{size}}"
 msgstr "Общий размер: {{size}}"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:140
+#: src\main\kotlin\scooper\ui\Cleanup.kt:141
 msgid "Old Versions"
 msgstr "Старые версии"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:220
-#: src\main\kotlin\scooper\ui\Cleanup.kt:224
+#: src\main\kotlin\scooper\ui\Cleanup.kt:222
+#: src\main\kotlin\scooper\ui\Cleanup.kt:226
 msgid "Clear Cache"
 msgstr "Очистить кэш"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:247
+#: src\main\kotlin\scooper\ui\Cleanup.kt:249
 msgid "Open Directory"
 msgstr "Открыть папку"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:288
+#: src\main\kotlin\scooper\ui\Cleanup.kt:290
 msgid "Great, old versions have been cleaned up."
 msgstr "Старые версии очищены."
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:346
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
+#: src\main\kotlin\scooper\ui\Cleanup.kt:348
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:155
+#: src\main\kotlin\scooper\ui\create\CreateExecution.kt:201
 msgid "Show less"
 msgstr "Показать меньше"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:346
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:157
+#: src\main\kotlin\scooper\ui\Cleanup.kt:348
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:155
+#: src\main\kotlin\scooper\ui\create\CreateExecution.kt:201
 msgid "Show more"
 msgstr "Показать больше"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:383
+#: src\main\kotlin\scooper\ui\Cleanup.kt:385
 #, java-format
 msgid "{{count}} old versions"
 msgstr "Старые версии: {{count}}"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:392
+#: src\main\kotlin\scooper\ui\Cleanup.kt:394
 msgid "*global*"
 msgstr "*глобальный*"
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:196
+#: src\main\kotlin\scooper\ui\Cleanup.kt:198
 msgid "Cleaning..."
 msgstr "Очистка..."
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:204
+#: src\main\kotlin\scooper\ui\Cleanup.kt:206
 msgid "Scanning..."
 msgstr "Сканирование..."
 
-#: src\main\kotlin\scooper\ui\Cleanup.kt:317
+#: src\main\kotlin\scooper\ui\Cleanup.kt:319
 msgid "Clean All"
 msgstr "Очистить все"
 
-#: src\main\kotlin\scooper\ui\Main.kt:412
-#: src\main\kotlin\scooper\ui\Sidebar.kt:144
-#: src\main\kotlin\scooper\ui\Sidebar.kt:151
+#: src\main\kotlin\scooper\ui\Main.kt:471
+#: src\main\kotlin\scooper\ui\Sidebar.kt:153
+#: src\main\kotlin\scooper\ui\Sidebar.kt:160
 msgid "Scooper"
 msgstr "Scooper"
 
-#: src\main\kotlin\scooper\ui\Main.kt:420
+#: src\main\kotlin\scooper\ui\Main.kt:479
 msgid "Scoop Package Manager GUI"
 msgstr "Графический интерфейс менеджера пакетов Scoop"
 
@@ -319,9 +311,9 @@ msgstr "Изменить порядок задачи"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:82
 #: src\main\kotlin\scooper\ui\Navigation.kt:84
-#: src\main\kotlin\scooper\ui\Sidebar.kt:76
-#: src\main\kotlin\scooper\ui\Sidebar.kt:229
-#: src\main\kotlin\scooper\ui\Sidebar.kt:236
+#: src\main\kotlin\scooper\ui\Sidebar.kt:85
+#: src\main\kotlin\scooper\ui\Sidebar.kt:247
+#: src\main\kotlin\scooper\ui\Sidebar.kt:254
 msgid "Settings"
 msgstr "Настройки"
 
@@ -332,13 +324,14 @@ msgstr "Просмотр журналов"
 
 #: src\main\kotlin\scooper\ui\Navigation.kt:102
 #: src\main\kotlin\scooper\ui\Navigation.kt:104
-#: src\main\kotlin\scooper\ui\Route.kt:20
-#: src\main\kotlin\scooper\ui\Settings.kt:544
+#: src\main\kotlin\scooper\ui\Route.kt:23
+#: src\main\kotlin\scooper\ui\Settings.kt:792
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:33
 msgid "About"
 msgstr "О программе"
 
 #: src\main\kotlin\scooper\ui\Output.kt:70
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:710
 msgid "Clear"
 msgstr "Очистить"
 
@@ -363,214 +356,213 @@ msgstr "Недавно добавленные"
 msgid "Name"
 msgstr "Имя"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:222
-#: src\main\kotlin\scooper\ui\Search.kt:151
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:223
+#: src\main\kotlin\scooper\ui\Search.kt:152
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:326
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:334
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:628
 msgid "Search"
 msgstr "Поиск"
 
-#: src\main\kotlin\scooper\ui\Search.kt:159
-msgid "Search packages... (supports OR, -exclude)"
-msgstr "Поиск пакетов... (поддерживаются OR и -exclude)"
-
-#: src\main\kotlin\scooper\ui\Search.kt:260
-#: src\main\kotlin\scooper\ui\Search.kt:267
+#: src\main\kotlin\scooper\ui\Search.kt:264
+#: src\main\kotlin\scooper\ui\Search.kt:271
 msgid "List View"
 msgstr "В виде списка"
 
-#: src\main\kotlin\scooper\ui\Search.kt:273
-#: src\main\kotlin\scooper\ui\Search.kt:280
+#: src\main\kotlin\scooper\ui\Search.kt:277
+#: src\main\kotlin\scooper\ui\Search.kt:284
 msgid "Grid View"
 msgstr "В виде сетки"
 
-#: src\main\kotlin\scooper\ui\Search.kt:296
+#: src\main\kotlin\scooper\ui\Search.kt:300
 msgid "Waterfall Scroll"
 msgstr "Ленточная прокрутка"
 
 #: src\main\kotlin\scooper\data\Config.kt:54
-#: src\main\kotlin\scooper\ui\Search.kt:303
+#: src\main\kotlin\scooper\ui\Search.kt:307
 #: src\main\kotlin\scooper\ui\Settings.kt:271
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:126
 msgid "Waterfall"
 msgstr "Лента"
 
-#: src\main\kotlin\scooper\ui\Search.kt:309
+#: src\main\kotlin\scooper\ui\Search.kt:313
 msgid "Paginated"
 msgstr "Постранично"
 
 #: src\main\kotlin\scooper\data\Config.kt:55
-#: src\main\kotlin\scooper\ui\Search.kt:316
+#: src\main\kotlin\scooper\ui\Search.kt:320
 #: src\main\kotlin\scooper\ui\Settings.kt:272
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:127
 msgid "Pagination"
 msgstr "Пагинация"
 
-#: src\main\kotlin\scooper\ui\Search.kt:355
+#: src\main\kotlin\scooper\ui\Search.kt:359
 #: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:48
 msgid "All Installed"
 msgstr "Все установленные"
 
-#: src\main\kotlin\scooper\ui\Search.kt:369
+#: src\main\kotlin\scooper\ui\Search.kt:373
 #: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:54
 msgid "Updates"
 msgstr "Обновления"
 
-#: src\main\kotlin\scooper\ui\Search.kt:414
-#: src\main\kotlin\scooper\ui\Search.kt:459
+#: src\main\kotlin\scooper\ui\Search.kt:418
+#: src\main\kotlin\scooper\ui\Search.kt:463
 msgid "All Buckets"
 msgstr "Все репозитории"
 
-#: src\main\kotlin\scooper\ui\Search.kt:598
+#: src\main\kotlin\scooper\ui\Search.kt:602
 msgid "Ascending"
 msgstr "По возрастанию"
 
-#: src\main\kotlin\scooper\ui\Search.kt:598
+#: src\main\kotlin\scooper\ui\Search.kt:602
 msgid "Descending"
 msgstr "По убыванию"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:177
+#: src\main\kotlin\scooper\ui\Settings.kt:186
 msgid "General Settings"
 msgstr "Общие настройки"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:177
+#: src\main\kotlin\scooper\ui\Settings.kt:186
 msgid "Manage core configuration for Scoop."
 msgstr "Управление основной конфигурацией Scoop."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:181
+#: src\main\kotlin\scooper\ui\Settings.kt:190
 msgid "Proxy"
 msgstr "Прокси"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:182
+#: src\main\kotlin\scooper\ui\Settings.kt:191
 msgid "By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication."
 msgstr "По умолчанию Scoop использует настройки прокси из свойств обозревателя, но с анонимной аутентификацией."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:189
+#: src\main\kotlin\scooper\ui\Settings.kt:198
 msgid "Proxy Address:"
 msgstr "Адрес прокси:"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:217
+#: src\main\kotlin\scooper\ui\Settings.kt:226
 msgid "Enable Aria2"
 msgstr "Включить Aria2"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:218
+#: src\main\kotlin\scooper\ui\Settings.kt:227
 msgid "Aria2c will be used for downloading of artifacts to speed up transfers."
 msgstr "Aria2c будет использоваться для скачивания файлов для ускорения передачи данных."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:307
+#: src\main\kotlin\scooper\ui\Settings.kt:320
 msgid "UI Settings"
 msgstr "Настройки интерфейса"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:307
+#: src\main\kotlin\scooper\ui\Settings.kt:320
 msgid "Customize the application appearance."
 msgstr "Настройте внешний вид приложения."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:330
+#: src\main\kotlin\scooper\ui\Settings.kt:343
 msgid "Auto Refresh"
 msgstr "Автообновление"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:331
+#: src\main\kotlin\scooper\ui\Settings.kt:344
 msgid "When enabled, Scooper will automatically run \"scoop update\" to check for updates."
 msgstr "При включении Scooper автоматически запускает \"scoop update\" для проверки обновлений."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:345
+#: src\main\kotlin\scooper\ui\Settings.kt:358
 msgid "Refresh on Startup"
 msgstr "Обновлять при запуске"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:346
+#: src\main\kotlin\scooper\ui\Settings.kt:359
 msgid "Run \"scoop update\" once after startup."
 msgstr "Запустить \"scoop update\" один раз после запуска."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:359
+#: src\main\kotlin\scooper\ui\Settings.kt:372
 msgid "Periodic Refresh"
 msgstr "Периодическое обновление"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:360
+#: src\main\kotlin\scooper\ui\Settings.kt:373
 msgid "Periodically run \"scoop update\" at a fixed interval."
 msgstr "Периодически запускать \"scoop update\" через заданный интервал."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:374
+#: src\main\kotlin\scooper\ui\Settings.kt:387
 msgid "Interval"
 msgstr "Интервал"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:375
+#: src\main\kotlin\scooper\ui\Settings.kt:388
 msgid "How often to check for updates."
 msgstr "Как часто проверять обновления."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:390
+#: src\main\kotlin\scooper\ui\Settings.kt:403
 msgid "Language"
 msgstr "Язык"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:391
+#: src\main\kotlin\scooper\ui\Settings.kt:404
 msgid "Choose the display language."
 msgstr "Выберите язык интерфейса."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:472
+#: src\main\kotlin\scooper\ui\Settings.kt:488
 msgid "Switch Theme"
 msgstr "Сменить тему"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:482
+#: src\main\kotlin\scooper\ui\Settings.kt:498
 msgid "Default View Mode"
 msgstr "Режим просмотра по умолчанию"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:483
+#: src\main\kotlin\scooper\ui\Settings.kt:499
 msgid "Choose how packages are displayed in the list."
 msgstr "Выберите, как пакеты отображаются в списке."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:494
+#: src\main\kotlin\scooper\ui\Settings.kt:510
 msgid "Default Pagination Mode"
 msgstr "Режим пагинации по умолчанию"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:495
+#: src\main\kotlin\scooper\ui\Settings.kt:511
 msgid "Choose how packages are paginated."
 msgstr "Выберите, как пакеты разбиваются на страницы."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:449
+#: src\main\kotlin\scooper\ui\Settings.kt:465
 msgid "Font Size"
 msgstr "Размер шрифта"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:450
+#: src\main\kotlin\scooper\ui\Settings.kt:466
 msgid "Adjust the application font size. Changes take effect immediately."
 msgstr "Настройте размер шрифта приложения. Изменения вступают в силу сразу."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:544
+#: src\main\kotlin\scooper\ui\Settings.kt:792
 msgid "Information about this application."
 msgstr "Информация об этом приложении."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:569
+#: src\main\kotlin\scooper\ui\Settings.kt:817
 msgid "GitHub"
 msgstr "GitHub"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:562
+#: src\main\kotlin\scooper\ui\Settings.kt:810
 #, java-format
 msgid "Version: {{version}}"
 msgstr "Версия: {{version}}"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:69
-#: src\main\kotlin\scooper\ui\Sidebar.kt:164
-#: src\main\kotlin\scooper\ui\Sidebar.kt:171
+#: src\main\kotlin\scooper\ui\Sidebar.kt:78
+#: src\main\kotlin\scooper\ui\Sidebar.kt:173
+#: src\main\kotlin\scooper\ui\Sidebar.kt:180
 msgid "Discover"
 msgstr "Обзор"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:74
-#: src\main\kotlin\scooper\ui\Sidebar.kt:192
-#: src\main\kotlin\scooper\ui\Sidebar.kt:199
+#: src\main\kotlin\scooper\ui\Sidebar.kt:83
+#: src\main\kotlin\scooper\ui\Sidebar.kt:201
+#: src\main\kotlin\scooper\ui\Sidebar.kt:208
 msgid "Buckets"
 msgstr "Репозитории"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:162
+#: src\main\kotlin\scooper\ui\Sidebar.kt:171
 msgid "LIBRARY"
 msgstr "БИБЛИОТЕКА"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:190
+#: src\main\kotlin\scooper\ui\Sidebar.kt:199
 msgid "SOURCES"
 msgstr "ИСТОЧНИКИ"
 
-#: src\main\kotlin\scooper\ui\Sidebar.kt:205
+#: src\main\kotlin\scooper\ui\Sidebar.kt:214
 msgid "TOOLS"
 msgstr "ИНСТРУМЕНТЫ"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:89
-#: src\main\kotlin\scooper\ui\Sidebar.kt:218
-#: src\main\kotlin\scooper\ui\Sidebar.kt:222
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:90
+#: src\main\kotlin\scooper\ui\Sidebar.kt:227
+#: src\main\kotlin\scooper\ui\Sidebar.kt:231
 msgid "Search Online"
 msgstr "Поиск в интернете"
 
@@ -582,49 +574,52 @@ msgstr "Показать журнал консоли"
 msgid "Console"
 msgstr "Консоль"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:56
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:54
 #, java-format
 msgid "Select Version — {{name}}"
 msgstr "Выбор версии — {{name}}"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:61
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:59
 #, java-format
 msgid "{{count}} version(s) available"
 msgstr "Доступные версии: {{count}}"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:91
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:89
 msgid "No versions available"
 msgstr "Нет доступных версий"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:164
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:162
 msgid "(installed)"
 msgstr "(установлено)"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:185
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:183
 msgid "Git"
 msgstr "Git"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:300
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:306
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:332
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:217
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:215
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:201
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:577
 msgid "Install"
 msgstr "Установить"
 
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:224
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:222
 msgid "Global"
 msgstr "Глобально"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:207
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:241
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:254
-#: src\main\kotlin\scooper\ui\VersionPicker.kt:125
+#: src\main\kotlin\scooper\ui\VersionPicker.kt:123
 msgid "Close"
 msgstr "Закрыть"
 
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:333
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:68
 #: src\main\kotlin\scooper\ui\components\ConfirmDialog.kt:59
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:666
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:363
 msgid "Cancel"
 msgstr "Отмена"
 
@@ -633,13 +628,15 @@ msgid "Waiting"
 msgstr "Ожидание"
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:94
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:579
 msgid "Update"
 msgstr "Обновить"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:295
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:359
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:329
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:393
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:657
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:130
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:589
 msgid "Open"
 msgstr "Открыть"
 
@@ -676,19 +673,19 @@ msgstr "ОК"
 msgid "Rows per page:"
 msgstr "Строк на странице:"
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:268
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:361
 msgid "SETTINGS"
 msgstr "НАСТРОЙКИ"
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:198
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:291
 msgid "Discard"
 msgstr "Отклонить"
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:211
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:304
 msgid "Apply Changes"
 msgstr "Применить изменения"
 
-#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:259
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:352
 msgid "Back"
 msgstr "Назад"
 
@@ -696,8 +693,8 @@ msgstr "Назад"
 msgid "Invalid server response"
 msgstr "Недопустимый ответ сервера"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:292
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:356
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:326
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:390
 msgid "Open in editor"
 msgstr "Открыть в редакторе"
 
@@ -711,48 +708,48 @@ msgstr "Лучшее совпадение"
 msgid "Newest"
 msgstr "Самые новые"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:141
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:142
 #, java-format
 msgid "No results found for \"{{query}}\""
 msgstr "Ничего не найдено для \"{{query}}\""
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:265
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:266
 msgid "Official buckets"
 msgstr "Официальные репозитории"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:265
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:266
 msgid "All buckets"
 msgstr "Все репозитории"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:282
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:283
 msgid "Search options"
 msgstr "Параметры поиска"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:299
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:300
 msgid "Sorting"
 msgstr "Сортировка"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:323
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:324
 msgid "Filtering"
 msgstr "Фильтрация"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:328
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:329
 msgid "Official buckets only"
 msgstr "Только официальные репозитории"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:333
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:334
 msgid "Distinct manifests only"
 msgstr "Только уникальные манифесты"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:341
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:342
 msgid "Option"
 msgstr "Параметр"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:346
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:347
 msgid "Show bucket name"
 msgstr "Показывать имя репозитория"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:408
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:409
 #, java-format
 msgid "Found {{count}} result for \"{{query}}\""
 msgid_plural "Found {{count}} results for \"{{query}}\""
@@ -760,7 +757,7 @@ msgstr[0] "Найден {{count}} результат для \"{{query}}\""
 msgstr[1] "Найдено {{count}} результата для \"{{query}}\""
 msgstr[2] "Найдено {{count}} результатов для \"{{query}}\""
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:414
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:415
 #, java-format
 msgid "Found {{count}} result"
 msgid_plural "Found {{count}} results"
@@ -768,12 +765,12 @@ msgstr[0] "Найден {{count}} результат"
 msgstr[1] "Найдено {{count}} результата"
 msgstr[2] "Найдено {{count}} результатов"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:625
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:626
 msgid "Updated today"
 msgstr "Обновлено сегодня"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:626
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:627
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:628
 #, java-format
 msgid "Updated {{n}} day ago"
 msgid_plural "Updated {{n}} days ago"
@@ -781,7 +778,7 @@ msgstr[0] "Обновлено {{n}} день назад"
 msgstr[1] "Обновлено {{n}} дня назад"
 msgstr[2] "Обновлено {{n}} дней назад"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:630
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:631
 #, java-format
 msgid "Updated {{n}} month ago"
 msgid_plural "Updated {{n}} months ago"
@@ -789,7 +786,7 @@ msgstr[0] "Обновлено {{n}} месяц назад"
 msgstr[1] "Обновлено {{n}} месяца назад"
 msgstr[2] "Обновлено {{n}} месяцев назад"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:634
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:635
 #, java-format
 msgid "Updated {{n}} year ago"
 msgid_plural "Updated {{n}} years ago"
@@ -797,47 +794,47 @@ msgstr[0] "Обновлено {{n}} год назад"
 msgstr[1] "Обновлено {{n}} года назад"
 msgstr[2] "Обновлено {{n}} лет назад"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:677
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:678
 msgid "Search packages curated by"
 msgstr "Источники пакетов, поддерживаемые "
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:686
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:687
 msgid "· Supported search syntax:"
 msgstr "· Поддерживаемый синтаксис поиска:"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:691
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:692
 msgid "Search name and description"
 msgstr "Поиск по имени и описанию"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:692
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:693
 msgid "Both terms required"
 msgstr "Требуются оба термина"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:693
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:694
 msgid "Either term"
 msgstr "Любой из терминов"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:694
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:695
 msgid "Exclude term"
 msgstr "Исключить термин"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:695
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:696
 msgid "Exact phrase"
 msgstr "Точная фраза"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:696
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:697
 msgid "Limit to bucket"
 msgstr "Ограничить репозиторием"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:697
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:698
 msgid "List all in bucket"
 msgstr "Показать все в репозитории"
 
-#: src\main\kotlin\scooper\ui\ScoopSearch.kt:215
+#: src\main\kotlin\scooper\ui\ScoopSearch.kt:216
 msgid "Search packages..."
 msgstr "Поиск пакетов..."
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:67
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:65
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:62
 msgid "Changelog"
 msgstr "Журнал изменений"
@@ -877,7 +874,7 @@ msgstr "Имя репозитория, используемое локально
 msgid "Commands"
 msgstr "Команды"
 
-#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:273
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:307
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:586
 msgid "View releases on GitHub"
 msgstr "Просмотреть релизы на GitHub"
@@ -923,36 +920,35 @@ msgstr[0] "{{n}} год назад"
 msgstr[1] "{{n}} года назад"
 msgstr[2] "{{n}} лет назад"
 
-#: src\main\kotlin\scooper\ui\Search.kt:502
+#: src\main\kotlin\scooper\ui\Search.kt:506
 msgid "Sort By"
 msgstr "Сортировать по"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:190
+#: src\main\kotlin\scooper\ui\Settings.kt:199
 msgid "[username:password@]host:port"
 msgstr "[имя_пользователя:пароль@]хост:порт"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:507
+#: src\main\kotlin\scooper\ui\Settings.kt:523
 msgid "System Tray Icon"
 msgstr "Значок в системном трее"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:508
+#: src\main\kotlin\scooper\ui\Settings.kt:524
 msgid "Keep a tray icon in the taskbar. Closing the window hides it to tray instead of exiting."
 msgstr "Держите значок в системном трее. При закрытии окна приложение сворачивается в трей вместо выхода."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:524
+#: src\main\kotlin\scooper\ui\Settings.kt:540
 msgid "Show FPS"
 msgstr "Показывать FPS"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:525
+#: src\main\kotlin\scooper\ui\Settings.kt:541
 msgid "Display frame rate in the status bar. This setting is not persisted."
 msgstr "Отображать частоту кадров в строке состояния. Этот параметр не сохраняется."
 
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:114
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:112
 msgid "View on GitHub"
 msgstr "Просмотреть на GitHub"
 
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:91
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:245
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:223
 msgid "Dropdown Arrow"
 msgstr "Стрелка раскрывающегося списка"
 
@@ -960,12 +956,12 @@ msgstr "Стрелка раскрывающегося списка"
 msgid "Open Link"
 msgstr "Открыть ссылку"
 
-#: src\main\kotlin\scooper\ui\Route.kt:18
+#: src\main\kotlin\scooper\ui\Route.kt:20
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:31
 msgid "General"
 msgstr "Общие"
 
-#: src\main\kotlin\scooper\ui\Route.kt:19
+#: src\main\kotlin\scooper\ui\Route.kt:21
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:32
 msgid "UI"
 msgstr "Интерфейс"
@@ -1024,49 +1020,49 @@ msgstr "Не удалось подключиться к серверу поис�
 msgid "Search failed. Please try again."
 msgstr "Поиск не удался. Попробуйте ещё раз."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:156
-#: src\main\kotlin\scooper\ui\Settings.kt:409
+#: src\main\kotlin\scooper\ui\Settings.kt:165
+#: src\main\kotlin\scooper\ui\Settings.kt:424
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:84
 msgid "Default"
 msgstr "По умолчанию"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:157
+#: src\main\kotlin\scooper\ui\Settings.kt:166
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:85
 msgid "None"
 msgstr "Нет"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:158
+#: src\main\kotlin\scooper\ui\Settings.kt:167
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:86
 msgid "Custom"
 msgstr "Пользовательский"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:198
+#: src\main\kotlin\scooper\ui\Settings.kt:207
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:101
 msgid "Invalid proxy address."
 msgstr "Недопустимый адрес прокси."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:406
+#: src\main\kotlin\scooper\ui\Settings.kt:421
 msgid "Interface Font"
 msgstr "Шрифт интерфейса"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:407
+#: src\main\kotlin\scooper\ui\Settings.kt:422
 msgid "Choose the font used to render the interface. Changes take effect immediately."
 msgstr "Выберите шрифт для интерфейса. Изменения вступают в силу сразу."
 
-#: src\main\kotlin\scooper\ui\Settings.kt:256
+#: src\main\kotlin\scooper\ui\Settings.kt:265
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:110
 #, java-format
 msgid "{{n}} min"
 msgstr "{{n}} мин"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:257
+#: src\main\kotlin\scooper\ui\Settings.kt:266
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:111
 #, java-format
 msgid "{{n}} hour"
 msgstr "{{n}} ч"
 
-#: src\main\kotlin\scooper\ui\Settings.kt:258
-#: src\main\kotlin\scooper\ui\Settings.kt:259
+#: src\main\kotlin\scooper\ui\Settings.kt:267
+#: src\main\kotlin\scooper\ui\Settings.kt:268
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:112
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:113
 #, java-format
@@ -1119,97 +1115,98 @@ msgstr "Далее"
 msgid "Last"
 msgstr "Последняя"
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:22
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:24
 #, java-format
 msgid "{{name}} has been installed."
 msgstr "{{name}} установлен."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:23
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:25
 #, java-format
 msgid "Failed to install {{name}}."
 msgstr "Не удалось установить {{name}}."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:25
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:27
 #, java-format
 msgid "{{name}} has been uninstalled."
 msgstr "{{name}} удалён."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:26
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:28
 #, java-format
 msgid "Failed to uninstall {{name}}."
 msgstr "Не удалось удалить {{name}}."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:28
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:30
 #, java-format
 msgid "{{name}} has been updated."
 msgstr "{{name}} обновлён."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:29
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:31
 #, java-format
 msgid "Failed to update {{name}}."
 msgstr "Не удалось обновить {{name}}."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:31
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:33
 #, java-format
 msgid "{{name}} has been downloaded."
 msgstr "{{name}} скачан."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:32
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:34
 #, java-format
 msgid "Failed to download {{name}}."
 msgstr "Не удалось скачать {{name}}."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:34
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:36
 #, java-format
 msgid "{{name}} has been removed."
 msgstr "{{name}} удалён."
 
-#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:35
+#: src\main\kotlin\scooper\viewmodels\SideEffect.kt:37
 #, java-format
 msgid "Failed to remove bucket {{name}}."
 msgstr "Не удалось удалить репозиторий {{name}}."
 
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:65
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:63
 msgid "Unknown"
 msgstr "Неизвестно"
 
-#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:105
+#: src\main\kotlin\scooper\ui\components\DetailComponents.kt:103
 msgid "pre-release"
 msgstr "пре-релиз"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:33
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:35
 msgid "Focus Search"
 msgstr "Фокус на поиске"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:34
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:36
 msgid "Refresh Scoop"
 msgstr "Обновить Scoop"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:35
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:37
 msgid "Reload Local Apps"
 msgstr "Перезагрузить локальные приложения"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:36
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:38
 msgid "Navigate to Discover"
 msgstr "Перейти к Обзору"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:37
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:39
 msgid "Navigate to Installed"
 msgstr "Перейти к установленным"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:38
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:40
 msgid "Navigate to Buckets"
 msgstr "Перейти к репозиториям"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:39
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:41
 msgid "Navigate to Cleanup"
 msgstr "Перейти к очистке"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:40
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:43
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:818
 msgid "Open Settings"
 msgstr "Открыть настройки"
 
-#: src\main\kotlin\scooper\ui\Shortcuts.kt:41
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:44
 msgid "View Logs / Output"
 msgstr "Просмотр журналов / вывода"
 
@@ -1217,6 +1214,791 @@ msgstr "Просмотр журналов / вывода"
 msgid "Go Back"
 msgstr "Назад"
 
-#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:254
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:379
 msgid "No matches found."
 msgstr "Ничего не найдено."
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:552
+msgctxt "status"
+msgid "Installed"
+msgstr "Установлено"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:79
+#: src\main\kotlin\scooper\ui\Sidebar.kt:184
+#: src\main\kotlin\scooper\ui\Sidebar.kt:193
+msgctxt "navigation"
+msgid "Installed"
+msgstr "Установлено"
+
+#: src\main\kotlin\scooper\ui\Search.kt:160
+msgid "Search packages... (supports OR, -exclude)"
+msgstr "Поиск пакетов... (поддерживаются OR и -exclude)"
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:218
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:223
+msgid "Chat with AI"
+msgstr "Чат с ИИ"
+
+#: src\main\kotlin\scooper\ui\Route.kt:22
+msgid "AI"
+msgstr "ИИ"
+
+#: src\main\kotlin\scooper\ui\Shortcuts.kt:42
+msgid "Navigate to Create"
+msgstr "Перейти к созданию"
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:89
+msgid "Hide"
+msgstr "Скрыть"
+
+#: src\main\kotlin\scooper\ui\components\SettingComponents.kt:89
+msgid "Show"
+msgstr "Показать"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:458
+msgid "No manifest to fix"
+msgstr "Нет манифеста для исправления"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:459
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:829
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:867
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:882
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:988
+msgid "Another operation is running"
+msgstr "Выполняется другая операция"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1150
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1176
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1493
+#, java-format
+msgid "Installed {{name}}"
+msgstr "{{name}} установлен"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1527
+#, java-format
+msgid "Installed {{name}} without saving it to a bucket"
+msgstr "{{name}} установлен без сохранения в репозитории"
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:324
+#, java-format
+msgid "Failed after {{time}}"
+msgstr "Сбой через {{time}}"
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:328
+msgid "Working..."
+msgstr "Выполняется..."
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:331
+#, java-format
+msgid "Worked for {{time}}"
+msgstr "Завершено за {{time}}"
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
+msgid "no tools"
+msgstr "нет инструментов"
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:581
+msgid "Reinstall"
+msgstr "Переустановить"
+
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:104
+msgid "API key is empty. Fill it in Settings > AI."
+msgstr "API-ключ пуст. Укажите его в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:114
+#, java-format
+msgid "Base URL is required for provider '{{provider}}'. Fill it in Settings > AI."
+msgstr "Для провайдера '{{provider}}' требуется Base URL. Укажите её в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:217
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:242
+#, java-format
+msgid "Endpoint reachable; {{count}} model(s) listed."
+msgstr "Эндпоинт доступен; моделей в списке: {{count}}."
+
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:268
+msgid "No models listing; chat completions reachable."
+msgstr "Списка моделей нет; chat completions доступен."
+
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:314
+msgid "No models listing; messages endpoint reachable."
+msgstr "Списка моделей нет; endpoint messages доступен."
+
+#: src\main\kotlin\scooper\service\AiConnectionTester.kt:356
+msgid "No models listing; chat endpoint reachable."
+msgstr "Списка моделей нет; endpoint chat доступен."
+
+#: src\main\kotlin\scooper\service\AiSettingsStore.kt:29
+#, java-format
+msgid "API key is missing. Fill it in Settings > AI, or set {{env}} environment variable."
+msgstr "Отсутствует API-ключ. Укажите его в Настройки > AI или задайте переменную окружения {{env}}."
+
+#: src\main\kotlin\scooper\service\AiSettingsStore.kt:35
+#, java-format
+msgid "Base URL is required for {{provider}}. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable."
+msgstr "Для {{provider}} требуется Base URL. Укажите её в Настройки > AI или задайте переменную окружения SCOOP_AI_BASE_URL."
+
+#: src\main\kotlin\scooper\ui\Settings.kt:594
+msgid "AI Settings"
+msgstr "Настройки ИИ"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:595
+msgid "Configure the LLM used by Create to generate Scoop manifests."
+msgstr "Настройка LLM, используемого для генерации манифестов Scoop."
+
+#: src\main\kotlin\scooper\ui\Settings.kt:600
+msgid "Provider"
+msgstr "Провайдер"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:616
+msgid "API Key"
+msgstr "API-ключ"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:626
+msgid "Base URL"
+msgstr "Base URL"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:634
+msgid "Model"
+msgstr "Модель"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:681
+msgid "Test connection"
+msgstr "Проверить соединение"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:687
+msgctxt "settings"
+msgid "Test"
+msgstr "Проверить"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:704
+msgid "GitHub Token"
+msgstr "Токен GitHub"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:705
+msgid "Optional. Raises GitHub API rate limits when researching releases."
+msgstr "Необязательно. Повышает лимиты GitHub API при изучении релизов."
+
+#: src\main\kotlin\scooper\ui\Settings.kt:712
+msgid "Download packages without asking"
+msgstr "Скачивать пакеты без подтверждения"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:713
+msgid "Skip the download confirmation prompt during generation."
+msgstr "Пропускает запрос подтверждения скачивания во время генерации."
+
+#: src\main\kotlin\scooper\ui\Settings.kt:743
+msgid "chat completions reachable"
+msgstr "chat completions доступен"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:744
+#, java-format
+msgid "{{count}} model, current model available"
+msgid_plural "{{count}} models, current model available"
+msgstr[0] "{{count}} модель, текущая модель доступна"
+msgstr[1] "{{count}} модели, текущая модель доступна"
+msgstr[2] "{{count}} моделей, текущая модель доступна"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:750
+#, java-format
+msgid "{{count}} model, current model NOT in list"
+msgid_plural "{{count}} models, current model NOT in list"
+msgstr[0] "{{count}} модель, текущей модели нет в списке"
+msgstr[1] "{{count}} модели, текущей модели нет в списке"
+msgstr[2] "{{count}} моделей, текущей модели нет в списке"
+
+#: src\main\kotlin\scooper\ui\Settings.kt:757
+#, java-format
+msgid "OK - {{models}}, {{ms}}ms, {{endpoint}}"
+msgstr "OK - {{models}}, {{ms}} мс, {{endpoint}}"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:544
+#, java-format
+msgid "{{count}} model available"
+msgid_plural "{{count}} models available"
+msgstr[0] "{{count}} модель доступна"
+msgstr[1] "{{count}} модели доступны"
+msgstr[2] "{{count}} моделей доступно"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:546
+#, java-format
+msgid "{{shown}} of {{total}} models"
+msgstr "{{shown}} из {{total}} моделей"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:638
+msgid "Search or type model..."
+msgstr "Найти или ввести модель..."
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:748
+msgid "Refresh models"
+msgstr "Обновить модели"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:789
+msgid "Fetching models..."
+msgstr "Получение моделей..."
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:827
+msgid "No remote models found"
+msgstr "Удалённые модели не найдены"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:831
+msgid "Configure Base URL in Settings > AI, or type above."
+msgstr "Настройте Base URL в Настройки > AI или введите выше."
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:842
+msgid "No matching models in list"
+msgstr "В списке нет подходящих моделей"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:945
+#, java-format
+msgid "Use \"{{query}}\""
+msgstr "Использовать \"{{query}}\""
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:1000
+msgid "Selected"
+msgstr "Выбрано"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:1092
+msgid "Dropdown"
+msgstr "Выпадающий список"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:1154
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:1202
+msgid "Select model"
+msgstr "Выбрать модель"
+
+#: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:814
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:822
+msgid "Retry"
+msgstr "Повторить"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:485
+msgid "AI is not configured. Configure it in Settings > AI, or set SCOOP_AI_API_KEY / SCOOP_AI_BASE_URL environment variables."
+msgstr "ИИ не настроен. Настройте его в Настройки > AI или задайте переменные окружения SCOOP_AI_API_KEY / SCOOP_AI_BASE_URL."
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:494
+msgid "Go to AI Settings"
+msgstr "Перейти к настройкам ИИ"
+
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:46
+msgid "LLM provider used to generate Scoop manifests."
+msgstr "LLM-провайдер, используемый для генерации манифестов Scoop."
+
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:48
+msgid "Stored locally. Never written to logs or toast messages."
+msgstr "Хранится локально. Никогда не попадает в журналы и уведомления."
+
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:50
+#, java-format
+msgid "Stored locally. Leave empty to fall back to the {{env}} environment variable."
+msgstr "Хранится локально. Оставьте пустым, чтобы использовать переменную окружения {{env}}."
+
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:52
+msgid "Required for openai-compatible. The client appends /v1/chat/completions."
+msgstr "Требуется для openai-compatible. Клиент добавляет /v1/chat/completions."
+
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:59
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:65
+msgid "Search fetched models or type an id manually."
+msgstr "Найдите среди полученных моделей или введите id вручную."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:261
+msgid "Model capability issue"
+msgstr "Проблема с возможностями модели"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:284
+msgid "The model does not support function calling (tool_calls). Please switch to a tool-capable model (e.g. deepseek-chat, gpt-4o, claude) in Settings > AI."
+msgstr "Модель не поддерживает вызовы функций (tool_calls). Переключитесь на модель с поддержкой инструментов (например deepseek-chat, gpt-4o, claude) в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:262
+msgid "Model does not accept images"
+msgstr "Модель не принимает изображения"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:287
+msgid "The current model cannot process image input. Switch to a multimodal model (e.g. gpt-4o, claude, gemini) in Settings > AI, or send the request without images."
+msgstr "Текущая модель не может обрабатывать изображения. Переключитесь на мультимодальную модель (например gpt-4o, claude, gemini) в Настройки > AI или отправьте запрос без изображений."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:263
+msgid "Authentication failed"
+msgstr "Ошибка аутентификации"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:290
+msgid "Your API key may be invalid or expired. Check it in Settings > AI."
+msgstr "Возможно, API-ключ недействителен или истёк. Проверьте его в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:264
+msgid "Model not found"
+msgstr "Модель не найдена"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:291
+msgid "The configured model was not found on this provider. Check the model name in Settings > AI."
+msgstr "Настроенная модель не найдена у этого провайдера. Проверьте имя модели в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:265
+msgid "Resource not found (404)"
+msgstr "Ресурс не найден (404)"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:292
+msgid "The server returned 404. Check your base URL in Settings > AI."
+msgstr "Сервер вернул 404. Проверьте Base URL в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:266
+msgid "Bad request (400)"
+msgstr "Неверный запрос (400)"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:293
+msgid "The AI endpoint returned 400 Bad Request. Check your model and parameters in Settings > AI."
+msgstr "ИИ-эндпоинт вернул 400 Bad Request. Проверьте модель и параметры в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:267
+msgid "Rate limit exceeded"
+msgstr "Превышен лимит запросов"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:294
+msgid "The provider rate-limited the request. Wait a moment and retry, or switch to another model."
+msgstr "Провайдер ограничил частоту запросов. Подождите немного и повторите либо смените модель."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:268
+msgid "Server error"
+msgstr "Ошибка сервера"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:295
+msgid "The provider returned a temporary server error. This is usually transient; retry later."
+msgstr "Провайдер вернул временную ошибку сервера. Обычно это кратковременно; повторите позже."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:269
+msgid "Cannot resolve host"
+msgstr "Не удаётся разрешить хост"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:296
+msgid "The AI endpoint host could not be resolved. Check your network connection and the base URL in Settings > AI."
+msgstr "Не удалось разрешить хост ИИ-эндпоинта. Проверьте сетевое подключение и Base URL в Настройки > AI."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:270
+msgid "Request timed out"
+msgstr "Превышено время ожидания"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:297
+msgid "The request timed out. Check your network connection and retry."
+msgstr "Время ожидания запроса истекло. Проверьте сетевое подключение и повторите."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:271
+msgid "Connection refused"
+msgstr "Соединение отклонено"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:298
+msgid "The connection to the AI endpoint was refused. Check that the server is running and the base URL is correct in Settings > AI."
+msgstr "Соединение с ИИ-эндпоинтом отклонено. Убедитесь, что сервер запущен, а Base URL в Настройки > AI указана верно."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:272
+msgid "Configuration error"
+msgstr "Ошибка конфигурации"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:299
+msgid "Check your AI configuration in Settings > AI (base URL / model / provider)."
+msgstr "Проверьте настройки ИИ в Настройки > AI (Base URL / модель / провайдер)."
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:273
+msgid "Generation failed"
+msgstr "Сбой генерации"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:300
+msgid "An unexpected error occurred during generation."
+msgstr "Во время генерации произошла непредвиденная ошибка."
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:78
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:361
+msgid "Type something."
+msgstr "Введите сообщение."
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:131
+msgid "Download Confirmation"
+msgstr "Подтверждение скачивания"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:131
+msgid "AI Questionnaire"
+msgstr "ИИ-опрос"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:151
+#, java-format
+msgid "Q{{index}}"
+msgstr "Вопрос {{index}}"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:213
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:417
+msgid "Submit"
+msgstr "Отправить"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:232
+msgid "Ready to submit answers:"
+msgstr "Ответы готовы к отправке:"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:250
+msgid "Not selected (Auto)"
+msgstr "Не выбрано (авто)"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:426
+msgid "Write a custom answer or instruction"
+msgstr "Напишите свой ответ или инструкцию"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:394
+msgid "Type your response here..."
+msgstr "Введите ответ здесь..."
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:458
+msgid "No options provided. Type your answer in the composer below."
+msgstr "Варианты не заданы. Введите ответ в поле ввода ниже."
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:751
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:756
+msgid "Details"
+msgstr "Подробности"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:756
+msgid "Hide details"
+msgstr "Скрыть подробности"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:819
+msgid "Restart"
+msgstr "Перезапустить"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:820
+msgid "Retry from analyze"
+msgstr "Повторить с этапа analyze"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:821
+msgid "Retry from generate"
+msgstr "Повторить с этапа generate"
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:281
+msgid "Submit All"
+msgstr "Отправить всё"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:224
+msgid "Select image"
+msgstr "Выбрать изображение"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:228
+msgid "Image files (PNG, JPEG)"
+msgstr "Файлы изображений (PNG, JPEG)"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:252
+msgid "Attach image (paste also works: Ctrl+V)"
+msgstr "Прикрепить изображение (можно вставить: Ctrl+V)"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:264
+msgid "Attach image"
+msgstr "Прикрепить изображение"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:592
+msgid "Type your answer..."
+msgstr "Введите ответ..."
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:594
+msgid "Ask AI to modify this manifest (e.g. remove notes, add shortcuts)..."
+msgstr "Попросите ИИ изменить этот манифест (например убрать заметки, добавить ярлыки)..."
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:595
+msgid "Ask anything, paste a GitHub URL, or reference @bucket/app"
+msgstr "Спросите о чём угодно, вставьте ссылку GitHub или укажите @bucket/app"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:691
+msgid "Send"
+msgstr "Отправить"
+
+#: src\main\kotlin\scooper\ui\create\CreateExecution.kt:280
+msgid "Toggle execution details"
+msgstr "Показать/скрыть детали выполнения"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:171
+msgid "Manifest Preview"
+msgstr "Предпросмотр манифеста"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:185
+msgid "Updating"
+msgstr "Обновление"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:186
+msgid "Installing"
+msgstr "Установка"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:187
+msgid "Notice"
+msgstr "Примечание"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:188
+msgid "Issues"
+msgstr "Проблемы"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:189
+msgid "Ready"
+msgstr "Готово"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:205
+#, java-format
+msgid "suggested: {{name}}"
+msgstr "предложено: {{name}}"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:228
+msgid "Revisions:"
+msgstr "Ревизии:"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:276
+msgid "View Code"
+msgstr "Показать код"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:276
+msgid "View Diff"
+msgstr "Показать diff"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:446
+msgid "Notice: Name conflict detected:"
+msgstr "Примечание: обнаружен конфликт имён:"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:448
+msgid "Generation finished with issues:"
+msgstr "Генерация завершена с проблемами:"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:483
+msgid "Manifest is valid JSON; choose a different name when saving to a bucket."
+msgstr "Манифест является корректным JSON; при сохранении в репозиторий выберите другое имя."
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:485
+msgid "Manifest is valid JSON; you may still test / install it."
+msgstr "Манифест является корректным JSON; его всё ещё можно протестировать / установить."
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:558
+msgid "Save to Bucket"
+msgstr "Сохранить в репозиторий"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:597
+msgid "Revert to this version"
+msgstr "Вернуться к этой версии"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:673
+#, java-format
+msgid "Saved {{app}}.json to bucket \"{{bucket}}\" (overwritten)"
+msgstr "{{app}}.json сохранён в репозиторий \"{{bucket}}\" (перезаписан)"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:679
+#, java-format
+msgid "Saved {{app}}.json to bucket \"{{bucket}}\""
+msgstr "{{app}}.json сохранён в репозиторий \"{{bucket}}\""
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:713
+msgid "Indexed for Discover and committed to Git. The app is searchable now."
+msgstr "Проиндексировано для Обзора и закоммичено в Git. Приложение теперь доступно в поиске."
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:715
+msgid "Indexed for Discover. The app is searchable now."
+msgstr "Проиндексировано для Обзора. Приложение теперь доступно в поиске."
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:717
+msgid "Committed to Git, but Discover indexing failed."
+msgstr "Закоммичено в Git, но индексация для Обзора не удалась."
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:719
+msgid "File saved, but Discover indexing failed. The app may not appear in search until reindex."
+msgstr "Файл сохранён, но индексация для Обзора не удалась. Приложение может не появиться в поиске до переиндексации."
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:751
+msgid "This bucket is a Git repository. Commit to keep the change in history:"
+msgstr "Этот репозиторий является Git-репозиторием. Сделайте коммит, чтобы сохранить изменение в истории:"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:767
+msgid "Open in Discover"
+msgstr "Открыть в Обзоре"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:774
+msgid "Done"
+msgstr "Готово"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:209
+msgid "File exists. Overwrite?"
+msgstr "Файл существует. Перезаписать?"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:210
+msgid "Overwrite Manifest"
+msgstr "Перезаписать манифест"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:211
+msgid "Overwrite"
+msgstr "Перезаписать"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:251
+msgid "App name"
+msgstr "Имя приложения"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:261
+msgid "e.g. ripgrep"
+msgstr "напр. ripgrep"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:275
+msgid "Letters, digits, '.', '_' and '-' only."
+msgstr "Только буквы, цифры, '.', '_' и '-'."
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:289
+msgid "Bucket"
+msgstr "Репозиторий"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:307
+msgid "No buckets available"
+msgstr "Нет доступных репозиториев"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:334
+msgid "Commit to Git repository"
+msgstr "Сделать коммит в Git-репозиторий"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:342
+msgid "Selected bucket is not a Git repository"
+msgstr "Выбранный репозиторий не является Git-репозиторием"
+
+#: src\main\kotlin\scooper\ui\Sidebar.kt:235
+#: src\main\kotlin\scooper\ui\Sidebar.kt:240
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:394
+msgid "Create"
+msgstr "Создать"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:403
+msgid "Generate Scoop manifest with AI from a GitHub URL"
+msgstr "Сгенерируйте манифест Scoop с помощью ИИ по ссылке GitHub"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:578
+msgid "Create a Scoop manifest with AI"
+msgstr "Создайте манифест Scoop с помощью ИИ"
+
+#: src\main\kotlin\scooper\ui\AppDetailPanel.kt:203
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:580
+#, java-format
+msgid "Chat about {{ref}}"
+msgstr "Обсудить {{ref}} с ИИ"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:373
+msgid "Save"
+msgstr "Сохранить"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:427
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:433
+msgid "New Session"
+msgstr "Новый сеанс"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:205
+#, java-format
+msgid "Updated existing manifest at {{bucket}}/{{app}}"
+msgstr "Существующий манифест обновлён в {{bucket}}/{{app}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:872
+msgid "Nothing to retry"
+msgstr "Повторять нечего"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:956
+msgid "Cancelled"
+msgstr "Отменено"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:960
+msgid "Manifest copied to clipboard"
+msgstr "Манифест скопирован в буфер обмена"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1028
+msgid "Save the manifest to a bucket first"
+msgstr "Сначала сохраните манифест в репозиторий"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1286
+msgid "No Scoop buckets found"
+msgstr "Репозитории Scoop не найдены"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1386
+msgid "App name may only contain letters, digits, '.', '_' and '-'"
+msgstr "Имя приложения может содержать только буквы, цифры, '.', '_' и '-'"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2276
+#, java-format
+msgid "Reverted to revision #{{n}}"
+msgstr "Возвращено к ревизии #{{n}}"
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:395
+#, java-format
+msgid "{{input}} in · {{output}} out tokens"
+msgstr "вход {{input}} · выход {{output}} tokens"
+
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:64
+#, java-format
+msgid "Defaults to {{model}}."
+msgstr "По умолчанию {{model}}."
+
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:670
+msgid "Sent image"
+msgstr "Отправленное изображение"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:125
+msgid "Attached image"
+msgstr "Прикреплённое изображение"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:141
+msgid "Remove image"
+msgstr "Убрать изображение"
+
+#: src\main\kotlin\scooper\ui\create\CreateComposer.kt:178
+msgid "Image preview"
+msgstr "Предпросмотр изображения"
+
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:703
+msgid "Dismiss"
+msgstr "Закрыть"
+
+#: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:148
+msgid "Close tab"
+msgstr "Закрыть вкладку"
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:340
+#, java-format
+msgid "{{count}} tool"
+msgid_plural "{{count}} tools"
+msgstr[0] "1 инструмент"
+msgstr[1] "{{count}} инструмента"
+msgstr[2] "{{count}} инструментов"
+
+#: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197
+#, java-format
+msgid "Pre-filled from @{{bucket}}/{{name}} reference"
+msgstr "Предзаполнено из справочника @{{bucket}}/{{name}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:920
+msgid "Let AI decide"
+msgstr "Пусть ИИ решает"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:993
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1515
+msgid "No manifest to install"
+msgstr "Нет manifest для установки"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1012
+msgid "Deployment state changed, review the button and retry"
+msgstr "Состояние развёртывания изменилось, проверьте кнопку и повторите"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1116
+#, java-format
+msgid "Cannot reinstall {{name}}: {{issue}}"
+msgstr "Не удалось переустановить {{name}}: {{issue}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1266
+msgid "Cannot determine the installed app name; cannot open it"
+msgstr "Не удалось определить имя установленного приложения; открыть нельзя"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1282
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1360
+msgid "No manifest to save"
+msgstr "Нет manifest для сохранения"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1391
+msgid "Please select a valid bucket"
+msgstr "Выберите корректный bucket"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2077
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2083
+msgid "No Windows assets found"
+msgstr "Ресурсы Windows не найдены"
+
+#: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:107
+msgid "New Chat"
+msgstr "Новый чат"

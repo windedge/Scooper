@@ -11,7 +11,7 @@ import kotlinx.coroutines.runBlocking
 import scooper.data.App
 import scooper.data.Bucket
 import scooper.service.BucketSaveEnv
-import scooper.service.InstalledAppInfo
+import scooper.service.FakeBucketSaveEnv
 import java.io.File
 
 /**
@@ -28,26 +28,6 @@ class CreateViewModelSaveToBucketTest {
     // ---------------------------------------------------------------------
     // Fakes
     // ---------------------------------------------------------------------
-
-    /** Fake scoop environment backed by a temp dir layout: baseDir/<bucket>/bucket/<name>.json. */
-    private inner class FakeScoopEnv(
-        buckets: List<String>,
-    ) : BucketSaveEnv {
-        val buckets: List<String> = buckets
-        override val bucketsBaseDir: File get() = tempDir
-        override val bucketNames: List<String> get() = buckets
-        override fun installedSnapshot(): Map<String, InstalledAppInfo> = emptyMap()
-        override fun buildAppsFromManifestNames(
-            bucketDir: File,
-            manifestNames: Set<String>,
-            bucket: Bucket,
-            installed: Map<String, InstalledAppInfo>,
-        ): List<App> = manifestNames.mapNotNull { fileName ->
-            val file = bucketDir.resolve("bucket/$fileName")
-            if (!file.exists()) return@mapNotNull null
-            App(name = fileName.removeSuffix(".json"), latestVersion = "1.2.3", bucket = Bucket(bucket.name))
-        }
-    }
 
     /** Records of the injected index/git collaborators. */
     private inner class SaveDeps(
@@ -101,7 +81,7 @@ class CreateViewModelSaveToBucketTest {
         name: String? = null,
         overwrite: Boolean = false,
         suggestedAppName: String? = "fd",
-        env: FakeScoopEnv,
+        env: BucketSaveEnv,
         deps: SaveDeps = SaveDeps(),
     ): AiSaveToBucketResult = runBlocking {
         coordinator(env, deps).saveForTool(
@@ -128,7 +108,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `successful save writes the manifest, reports path and sets manifestSaved`() {
-        val env = FakeScoopEnv(buckets = listOf("main", "extras"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main", "extras"))
         val deps = SaveDeps()
 
         val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
@@ -153,7 +133,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `successful save indexes the app and commits with the manifest version`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
         val deps = SaveDeps()
 
         val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
@@ -168,7 +148,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `bucket arg with no last bucket still resolves to main`() {
-        val env = FakeScoopEnv(buckets = listOf("main", "extras"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main", "extras"))
 
         val result = saveForTool(bucket = "main", env = env, name = "fd", suggestedAppName = null)
 
@@ -178,7 +158,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `defaults only apply when bucket arg is explicitly given while name falls back to suggestion`() {
-        val env = FakeScoopEnv(buckets = listOf("main", "extras"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main", "extras"))
 
         val result = saveForTool(bucket = "main", suggestedAppName = "ripgrep", env = env)
 
@@ -189,7 +169,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `git commit failure still saves and produces a git hint`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
         val deps = SaveDeps(commitOk = false)
 
         val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
@@ -205,7 +185,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `existing target without overwrite returns needsOverwrite and does not save`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
         val deps = SaveDeps()
         val existing = tempDir.resolve("main").resolve("bucket").resolve("fd.json")
         existing.parentFile?.mkdirs()
@@ -224,7 +204,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `existing target with overwrite true replaces the file`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
         val deps = SaveDeps()
         val existing = tempDir.resolve("main").resolve("bucket").resolve("fd.json")
         existing.parentFile?.mkdirs()
@@ -244,7 +224,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `blank manifest fails`() {
-        val result = saveForTool(manifestJson = "   ", env = FakeScoopEnv(buckets = listOf("main")))
+        val result = saveForTool(manifestJson = "   ", env = FakeBucketSaveEnv(tempDir, listOf("main")))
 
         assertFalse(result.manifestSaved)
         assertEquals("false", resultJsonField(result.resultJson, "success"))
@@ -253,7 +233,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `explicit unknown bucket fails with a json error`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
 
         val result = saveForTool(bucket = "nope", name = "fd", env = env)
 
@@ -266,7 +246,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `no buckets fails`() {
-        val result = saveForTool(bucket = "main", env = FakeScoopEnv(buckets = emptyList()))
+        val result = saveForTool(bucket = "main", env = FakeBucketSaveEnv(tempDir, emptyList()))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -276,7 +256,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `missing name and suggested app name fails`() {
-        val result = saveForTool(name = null, suggestedAppName = null, env = FakeScoopEnv(buckets = listOf("main")))
+        val result = saveForTool(name = null, suggestedAppName = null, env = FakeBucketSaveEnv(tempDir, listOf("main")))
 
         assertFalse(result.manifestSaved)
         assertEquals("false", resultJsonField(result.resultJson, "success"))
@@ -284,7 +264,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `invalid app name fails`() {
-        val result = saveForTool(bucket = "main", name = "bad name!", env = FakeScoopEnv(buckets = listOf("main")))
+        val result = saveForTool(bucket = "main", name = "bad name!", env = FakeBucketSaveEnv(tempDir, listOf("main")))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -294,7 +274,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `non git bucket saves without commit and without hint`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
         val deps = SaveDeps(isGit = false)
 
         val result = saveForTool(bucket = "main", name = "fd", env = env, deps = deps)
@@ -310,7 +290,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `unspecified bucket returns needsBucket with sorted buckets and does not save`() {
-        val env = FakeScoopEnv(buckets = listOf("extras", "main", "games"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("extras", "main", "games"))
         val deps = SaveDeps()
 
         val result = saveForTool(name = "fd", env = env, deps = deps)
@@ -332,7 +312,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `blank bucket arg is treated as unspecified and returns needsBucket`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
 
         val result = saveForTool(bucket = "   ", name = "fd", env = env)
 
@@ -343,7 +323,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `unspecified bucket with no buckets available still fails with the no buckets error`() {
-        val result = saveForTool(env = FakeScoopEnv(buckets = emptyList()))
+        val result = saveForTool(env = FakeBucketSaveEnv(tempDir, emptyList()))
 
         assertFalse(result.manifestSaved)
         val error = resultJsonField(result.resultJson, "error")
@@ -353,7 +333,7 @@ class CreateViewModelSaveToBucketTest {
 
     @Test
     fun `needsBucket reply preserves the suggested app name for the follow-up save`() {
-        val env = FakeScoopEnv(buckets = listOf("main"))
+        val env = FakeBucketSaveEnv(tempDir, listOf("main"))
 
         val result = saveForTool(name = null, suggestedAppName = "fd", env = env)
 

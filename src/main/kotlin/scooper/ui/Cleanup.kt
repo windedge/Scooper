@@ -94,13 +94,14 @@ fun CleanupScreen(
                     Tooltip(tr("Rescan")) {
                         IconButton(
                             onClick = { cleanupViewModel.computeCacheSize() },
-                            modifier = Modifier.cursorLink(),
+                            modifier = Modifier.cursorLink().size(42.dp).clip(RoundedCornerShape(8.dp)),
+                            rippleRadius = 20.dp
                         ) {
                             Icon(
                                 Lucide.RefreshCw,
                                 contentDescription = tr("Rescan"),
                                 tint = colors.primary,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(20.dp),
                             )
                         }
                     }
@@ -147,13 +148,14 @@ fun CleanupScreen(
                         Tooltip(tr("Rescan")) {
                             IconButton(
                                 onClick = { cleanupViewModel.computeOldVersions() },
-                                modifier = Modifier.cursorLink(),
+                                modifier = Modifier.cursorLink().size(42.dp).clip(RoundedCornerShape(8.dp)),
+                                rippleRadius = 20.dp
                             ) {
                                 Icon(
                                     Lucide.RefreshCw,
                                     contentDescription = tr("Rescan"),
                                     tint = colors.primary,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                         }

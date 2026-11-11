@@ -232,12 +232,12 @@ fun SidebarNav(
         }
         Spacer(Modifier.height(8.dp))
         SidebarNavItem(
-            label = "Create",
+            label = tr("Create"),
             selected = currentRoute is AppRoute.Create,
             statusDot = createRunning,
             onClick = { navigator.popupAllAndPush(AppRoute.Create) },
         ) {
-            Icon(Lucide.Plus, "Create", modifier = Modifier.size(18.dp))
+            Icon(Lucide.Plus, tr("Create"), modifier = Modifier.size(18.dp))
         }
 
         Spacer(Modifier.weight(1f))

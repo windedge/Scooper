@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -21,10 +22,8 @@ import scooper.service.AiErrorAction
 import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.ScoopAiBridge
-import scooper.service.ScoopClient
-import scooper.service.ScoopLogStream
+import scooper.service.ScoopTempRoot
 import scooper.service.createInMemoryAppsRepository
-import scooper.taskqueue.TaskQueue
 import java.io.File
 
 /**
@@ -32,19 +31,21 @@ import java.io.File
  * refreshes [CreateState.deployment] from disk, so the state cannot drift away
  * from the installed copy while the session continues.
  *
- * The VM runs against a real [ScoopClient] rooted at a temp dir with fake
+ * The VM runs against a real ScoopClient rooted at a temp dir with fake
  * repositories, following the CreateViewModelSystemInstalledTest pattern. An
- * installed app is simulated with `apps/<name>/1.0` plus a `current` junction,
- * because [ScoopClient.installedSnapshot] reads the version off the resolved
- * target name.
+ * installed app is simulated with a junction, because the install snapshot
+ * reads the version off the resolved target name.
  */
 class CreateViewModelDeploymentTest {
 
     @org.junit.jupiter.api.io.TempDir
     lateinit var tempDir: File
 
-    /** Junctions created for this test; they must be unlinked before temp cleanup. */
-    private val junctions = mutableListOf<File>()
+    /** Junctions must be unlinked before temp cleanup: JUnit recurses into them. */
+    private val root by lazy { ScoopTempRoot(tempDir) }
+
+    @AfterEach
+    fun removeJunctions() = root.removeJunctions()
 
     // ---------------------------------------------------------------------
     // Save wiring
@@ -52,7 +53,7 @@ class CreateViewModelDeploymentTest {
 
     @Test
     fun `save success derives an installed deployment with the bucket origin`(): Unit = withVm { vm ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
         File(tempDir, "buckets/main/bucket").mkdirs()
         presetState(vm, saveDialogOpen = true)
 
@@ -79,7 +80,7 @@ class CreateViewModelDeploymentTest {
     @Test
     fun `renamed save derives the deployment for the new name`(): Unit = withVm { vm ->
         // testapp is installed, but the save goes out as testapp2.
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
         File(tempDir, "buckets/main/bucket").mkdirs()
         presetState(vm, saveDialogOpen = true, saveAppName = "testapp2")
 
@@ -104,7 +105,7 @@ class CreateViewModelDeploymentTest {
     fun `executeInstallApp success derives an installed deployment`(): Unit = withVm { vm ->
         // The shim fakes scoop by materialising the app dir it would create.
         withInstallingShim {
-            writeBucketManifest("main", "testapp", """{"version":"1.2.0","bin":["app.exe"]}""")
+            root.writeManifestJson("main", "testapp", """{"version":"1.2.0","bin":["app.exe"]}""")
             presetState(vm)
 
             withContext(Dispatchers.Default) {
@@ -155,8 +156,8 @@ class CreateViewModelDeploymentTest {
 
     @Test
     fun `a live install keeps the session install latch`(): Unit = withVm { vm ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
         presetState(vm, installedForUse = true)
         awaitRefresh(vm)
 
@@ -177,8 +178,8 @@ class CreateViewModelDeploymentTest {
             ),
         ),
     ) { vm ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
         presetState(vm, saveResult = saveResultOf("testapp", "main"))
 
         vm.onSend("https://github.com/owner/testapp")
@@ -202,8 +203,8 @@ class CreateViewModelDeploymentTest {
     fun `failed round keeps the installed deployment`(): Unit = withVm(
         bridge = StubFinishedBridge(finished = Result.failure(RuntimeException("boom"))),
     ) { vm ->
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
         presetState(vm, saveResult = saveResultOf("testapp", "main"))
 
         vm.onSend("https://github.com/owner/testapp")
@@ -249,7 +250,7 @@ class CreateViewModelDeploymentTest {
         }
     }
 
-    /** VM lifecycle plus junction cleanup: JUnit recurses into junctions when deleting. */
+    /** VM lifecycle: the view model must be closed before the junctions are unlinked. */
     private fun withVm(
         bridge: ScoopAiBridge? = null,
         block: suspend (CreateViewModel) -> Unit,
@@ -259,17 +260,7 @@ class CreateViewModelDeploymentTest {
             block(vm)
         } finally {
             vm.close()
-            removeJunctions()
         }
-    }
-
-    private fun removeJunctions() {
-        for (junction in junctions) {
-            if (!junction.exists()) continue
-            // rmdir unlinks a junction only; it never touches the target dir.
-            ProcessBuilder("cmd", "/c", "rmdir", junction.absolutePath).start().waitFor()
-        }
-        junctions.clear()
     }
 
     private fun saveResultOf(appName: String, bucket: String) = SaveResult(
@@ -281,60 +272,26 @@ class CreateViewModelDeploymentTest {
     )
 
     /**
-     * Simulate an installed app: a version dir plus a `current` junction pointing at
-     * it, because installedSnapshot resolves the version from the link target name.
-     * Junctions (unlike symlinks) need no elevation on Windows.
-     */
-    private fun markInstalled(name: String, version: String, recordBucket: String?) {
-        val versionDir = File(tempDir, "apps/$name/$version").apply { mkdirs() }
-        if (recordBucket != null) {
-            File(versionDir, "scoop-install.json").writeText("""{"bucket":"$recordBucket"}""")
-        }
-        createJunction(File(tempDir, "apps/$name/current"), versionDir)
-    }
-
-    private fun createJunction(link: File, target: File) {
-        link.parentFile?.mkdirs()
-        val process = ProcessBuilder(
-            "cmd",
-            "/c",
-            "mklink",
-            "/J",
-            link.absolutePath,
-            target.absolutePath,
-        ).redirectErrorStream(true).start()
-        process.inputStream.readBytes()
-        val exit = process.waitFor()
-        require(exit == 0) { "could not create junction $link (exit $exit)" }
-        junctions += link
-    }
-
-    private fun writeBucketManifest(bucket: String, name: String, json: String) {
-        val dir = File(tempDir, "buckets/$bucket/bucket").apply { mkdirs() }
-        File(dir, "$name.json").writeText(json)
-    }
-
-    /**
      * Stub scoop command that materialises the install it pretends to run, so the
      * post-install refresh sees the app on disk. Guarded so repeated scoop calls
      * (pre-download, install) stay exit 0.
      */
     private suspend fun <T> withInstallingShim(block: suspend () -> T): T {
-        val root = tempDir.absolutePath.replace("/", "\\")
+        val rootPath = tempDir.absolutePath.replace("/", "\\")
         val dir = File(System.getProperty("java.io.tmpdir"), "scooper-shim-${System.nanoTime()}").apply { mkdirs() }
         val cmd = dir.resolve("scoop.cmd").apply {
             writeText(
                 "@echo off\r\n" +
-                    "if not exist \"$root\\apps\\testapp\\current\" (\r\n" +
-                    "  mkdir \"$root\\apps\\testapp\\1.0\"\r\n" +
-                    "  mklink /J \"$root\\apps\\testapp\\current\" \"$root\\apps\\testapp\\1.0\"\r\n" +
-                    "  echo {\"bucket\":\"main\"}> \"$root\\apps\\testapp\\1.0\\scoop-install.json\"\r\n" +
+                    "if not exist \"$rootPath\\apps\\testapp\\current\" (\r\n" +
+                    "  mkdir \"$rootPath\\apps\\testapp\\1.0\"\r\n" +
+                    "  mklink /J \"$rootPath\\apps\\testapp\\current\" \"$rootPath\\apps\\testapp\\1.0\"\r\n" +
+                    "  echo {\"bucket\":\"main\"}> \"$rootPath\\apps\\testapp\\1.0\\scoop-install.json\"\r\n" +
                     ")\r\n" +
                     "exit /b 0\r\n",
             )
             deleteOnExit()
         }
-        junctions += File(tempDir, "apps/testapp/current")
+        root.trackJunction(File(tempDir, "apps/testapp/current"))
         System.setProperty(scooper.util.TEST_SCOOP_SHIM_ENV, cmd.absolutePath)
         return try {
             block()
@@ -385,11 +342,7 @@ class CreateViewModelDeploymentTest {
     }
 
     private fun createVm(bridge: ScoopAiBridge? = null): CreateViewModel {
-        val scoopClient = ScoopClient(
-            logStream = ScoopLogStream(),
-            taskQueue = TaskQueue(),
-            rootDirOverride = tempDir,
-        )
+        val scoopClient = root.client()
         return CreateViewModel(
             scoopAiBridge = bridge ?: ScoopAiBridge(
                 configRepository = FakeConfigRepository(),

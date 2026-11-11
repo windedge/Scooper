@@ -105,6 +105,9 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    // Pin the test JVM locale so tr() assertions on English msgids stay stable.
+    systemProperty("user.language", "en")
+    systemProperty("user.country", "US")
 }
 
 // Strip non-Windows native libraries from sqlite-jdbc to save ~10MB in release

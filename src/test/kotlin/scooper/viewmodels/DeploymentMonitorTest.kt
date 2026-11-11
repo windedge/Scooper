@@ -4,9 +4,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import scooper.service.ScoopClient
-import scooper.service.ScoopLogStream
-import scooper.taskqueue.TaskQueue
+import org.junit.jupiter.api.AfterEach
+import scooper.service.ScoopTempRoot
 import java.io.File
 
 /**
@@ -22,17 +21,10 @@ class DeploymentMonitorTest {
     lateinit var tempDir: File
 
     /** Junctions created for this test; they must be unlinked before temp cleanup. */
-    private val junctions = mutableListOf<File>()
+    private val root by lazy { ScoopTempRoot(tempDir) }
 
-    @org.junit.jupiter.api.AfterEach
-    fun removeJunctions() {
-        for (junction in junctions) {
-            if (!junction.exists()) continue
-            // rmdir unlinks a junction only; it never touches the target dir.
-            ProcessBuilder("cmd", "/c", "rmdir", junction.absolutePath).start().waitFor()
-        }
-        junctions.clear()
-    }
+    @AfterEach
+    fun removeJunctions() = root.removeJunctions()
 
     // ---------------------------------------------------------------------
     // Not installed / unresolvable
@@ -66,7 +58,7 @@ class DeploymentMonitorTest {
 
     @Test
     fun `no manifest anywhere yields no manifest`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
 
         val state = monitor().derive(
             saveResult = null,
@@ -85,8 +77,8 @@ class DeploymentMonitorTest {
 
     @Test
     fun `an installed older copy against a newer bucket manifest derives update`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "main"),
@@ -107,8 +99,8 @@ class DeploymentMonitorTest {
 
     @Test
     fun `the same installed and bucket version with an in-session install opens only`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.2.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.2.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "main"),
@@ -125,8 +117,8 @@ class DeploymentMonitorTest {
 
     @Test
     fun `an installed newer copy than the bucket manifest derives reinstall`() = runBlocking {
-        markInstalled(name = "testapp", version = "2.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "2.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "main"),
@@ -146,8 +138,8 @@ class DeploymentMonitorTest {
 
     @Test
     fun `a direct-file install record yields the direct origin`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = null, recordJson = """{"url":"file:///C:/tmp/testapp.json"}""")
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = null, recordJson = """{"url":"file:///C:/tmp/testapp.json"}""")
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "main"),
@@ -164,8 +156,8 @@ class DeploymentMonitorTest {
 
     @Test
     fun `a missing install record keeps an unknown origin`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = null)
-        writeBucketManifest("main", "testapp", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = null)
+        root.writeManifestJson("main", "testapp", """{"version":"1.2.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "main"),
@@ -186,8 +178,8 @@ class DeploymentMonitorTest {
     @Test
     fun `a renamed save derives the deployment under the saved name`() = runBlocking {
         // testapp is installed, but the save went out as testapp2.
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp2", """{"version":"1.2.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp2", """{"version":"1.2.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp2", "main"),
@@ -202,7 +194,7 @@ class DeploymentMonitorTest {
 
     @Test
     fun `without a bucket copy the draft manifest stands in`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "main"),
@@ -219,7 +211,7 @@ class DeploymentMonitorTest {
 
     @Test
     fun `a direct install name resolves when no save or suggestion exists`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = null)
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = null)
 
         val state = monitor().derive(
             saveResult = null,
@@ -239,9 +231,9 @@ class DeploymentMonitorTest {
 
     @Test
     fun `the save bucket wins over the record bucket when both have copies`() = runBlocking {
-        markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
-        writeBucketManifest("main", "testapp", """{"version":"1.5.0"}""")
-        writeBucketManifest("extras", "testapp", """{"version":"3.0"}""")
+        root.markInstalled(name = "testapp", version = "1.0", recordBucket = "main")
+        root.writeManifestJson("main", "testapp", """{"version":"1.5.0"}""")
+        root.writeManifestJson("extras", "testapp", """{"version":"3.0"}""")
 
         val state = monitor().derive(
             saveResult = saveResultOf("testapp", "extras"),
@@ -258,13 +250,7 @@ class DeploymentMonitorTest {
     // Helpers
     // ---------------------------------------------------------------------
 
-    private fun monitor(): DeploymentMonitor = DeploymentMonitor(
-        ScoopClient(
-            logStream = ScoopLogStream(),
-            taskQueue = TaskQueue(),
-            rootDirOverride = tempDir,
-        ),
-    )
+    private fun monitor(): DeploymentMonitor = DeploymentMonitor(root.client())
 
     private fun saveResultOf(appName: String, bucket: String) = SaveResult(
         appName = appName,
@@ -273,38 +259,4 @@ class DeploymentMonitorTest {
         overwritten = false,
         indexedOk = true,
     )
-
-    /**
-     * Simulate an installed app: a version dir plus a `current` junction pointing at
-     * it, because installedSnapshot resolves the version from the link target name.
-     * Junctions (unlike symlinks) need no elevation on Windows.
-     */
-    private fun markInstalled(name: String, version: String, recordBucket: String?, recordJson: String? = recordBucket?.let { """{"bucket":"$it"}""" }) {
-        val versionDir = File(tempDir, "apps/$name/$version").apply { mkdirs() }
-        if (recordJson != null) {
-            File(versionDir, "scoop-install.json").writeText(recordJson)
-        }
-        createJunction(File(tempDir, "apps/$name/current"), versionDir)
-    }
-
-    private fun createJunction(link: File, target: File) {
-        link.parentFile?.mkdirs()
-        val process = ProcessBuilder(
-            "cmd",
-            "/c",
-            "mklink",
-            "/J",
-            link.absolutePath,
-            target.absolutePath,
-        ).redirectErrorStream(true).start()
-        process.inputStream.readBytes()
-        val exit = process.waitFor()
-        require(exit == 0) { "could not create junction $link (exit $exit)" }
-        junctions += link
-    }
-
-    private fun writeBucketManifest(bucket: String, name: String, json: String) {
-        val dir = File(tempDir, "buckets/$bucket/bucket").apply { mkdirs() }
-        File(dir, "$name.json").writeText(json)
-    }
 }

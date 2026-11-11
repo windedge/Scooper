@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import scooper.service.BucketSaveEnv
-import scooper.service.InstalledAppInfo
+import scooper.service.FakeBucketSaveEnv
 import java.io.File
 
 /**
@@ -24,21 +24,7 @@ class SaveCommitToGitChainTest {
     @TempDir
     lateinit var tempDir: File
 
-    private fun envWith(buckets: List<String>): BucketSaveEnv = object : BucketSaveEnv {
-        override val bucketsBaseDir: File get() = tempDir
-        override val bucketNames: List<String> get() = buckets
-        override fun installedSnapshot() = emptyMap<String, InstalledAppInfo>()
-        override fun buildAppsFromManifestNames(
-            bucketDir: File,
-            manifestNames: Set<String>,
-            bucket: scooper.data.Bucket,
-            installed: Map<String, InstalledAppInfo>,
-        ): List<scooper.data.App> = manifestNames.mapNotNull { fileName ->
-            val file = bucketDir.resolve("bucket/$fileName")
-            if (!file.exists()) null
-            else scooper.data.App(name = fileName.removeSuffix(".json"), latestVersion = "1.2.3", bucket = bucket)
-        }
-    }
+    private fun envWith(buckets: List<String>): BucketSaveEnv = FakeBucketSaveEnv(tempDir, buckets)
 
     private class RecordingDeps(isGit: Boolean) {
         val commitCalls = mutableListOf<String>()

@@ -9,9 +9,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import scooper.data.App
-import scooper.data.Bucket
 import scooper.service.BucketSaveEnv
-import scooper.service.InstalledAppInfo
+import scooper.service.FakeBucketSaveEnv
 import java.io.File
 
 /**
@@ -28,23 +27,6 @@ class SaveCoordinatorTest {
     // ---------------------------------------------------------------------
     // Fakes
     // ---------------------------------------------------------------------
-
-    /** Temp-dir Scoop layout: baseDir/<bucket>/bucket/<name>.json. */
-    private inner class FakeEnv(private val buckets: List<String>) : BucketSaveEnv {
-        override val bucketsBaseDir: File get() = tempDir
-        override val bucketNames: List<String> get() = buckets
-        override fun installedSnapshot(): Map<String, InstalledAppInfo> = emptyMap()
-        override fun buildAppsFromManifestNames(
-            bucketDir: File,
-            manifestNames: Set<String>,
-            bucket: Bucket,
-            installed: Map<String, InstalledAppInfo>,
-        ): List<App> = manifestNames.mapNotNull { fileName ->
-            val file = bucketDir.resolve("bucket/$fileName")
-            if (!file.exists()) return@mapNotNull null
-            App(name = fileName.removeSuffix(".json"), latestVersion = "1.2.3", bucket = Bucket(bucket.name))
-        }
-    }
 
     private class FakeGit(
         private val isGit: Boolean = true,
@@ -124,7 +106,7 @@ class SaveCoordinatorTest {
     @Test
     fun `current bucket wins over the remembered last bucket`() = runBlocking {
         val defaults = coordinator(
-            env = FakeEnv(listOf("main", "extras")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main", "extras")),
             memory = FakeMemory(lastBucket = "extras"),
         ).openDialog(dialog(currentBucket = "main"))
 
@@ -138,7 +120,7 @@ class SaveCoordinatorTest {
         val memory = FakeMemory(lastBucket = "extras")
 
         val defaults = coordinator(
-            env = FakeEnv(listOf("main", "extras")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main", "extras")),
             memory = memory,
         ).openDialog(dialog(currentBucket = ""))
 
@@ -151,9 +133,9 @@ class SaveCoordinatorTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `reference lock pins the bucket and name and produces the hint line`() = runBlocking {
+    fun `reference lock pins the bucket and name and produces the raw lock`() = runBlocking {
         val defaults = coordinator(
-            env = FakeEnv(listOf("main", "extras")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main", "extras")),
             memory = FakeMemory(lastBucket = "main"),
         ).openDialog(
             dialog(
@@ -165,14 +147,14 @@ class SaveCoordinatorTest {
 
         assertEquals("extras", defaults.bucket, "the reference bucket overrides the memory")
         assertEquals("fd", defaults.appName)
-        assertEquals("Pre-filled from @extras/fd reference", defaults.refHint)
+        assertEquals("extras" to "fd", defaults.refLock)
     }
 
     @Test
     fun `no reference lock clears the hint line`() = runBlocking {
-        val defaults = coordinator(env = FakeEnv(listOf("main"))).openDialog(dialog(refs = listOf("main" to "other")))
+        val defaults = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main"))).openDialog(dialog(refs = listOf("main" to "other")))
 
-        assertNull(defaults.refHint, "a name mismatch must not fabricate a hint")
+        assertNull(defaults.refLock, "a name mismatch must not fabricate a lock")
     }
 
     // ---------------------------------------------------------------------
@@ -181,9 +163,9 @@ class SaveCoordinatorTest {
 
     @Test
     fun `git bucket pre-checks the box only when the preference was checked`() = runBlocking {
-        val checked = coordinator(env = FakeEnv(listOf("main")), memory = FakeMemory(commitPreference = true))
+        val checked = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main")), memory = FakeMemory(commitPreference = true))
             .openDialog(dialog())
-        val unchecked = coordinator(env = FakeEnv(listOf("main")), memory = FakeMemory(commitPreference = false))
+        val unchecked = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main")), memory = FakeMemory(commitPreference = false))
             .openDialog(dialog())
 
         assertTrue(checked.commitToGit)
@@ -194,7 +176,7 @@ class SaveCoordinatorTest {
     @Test
     fun `non git bucket never pre-checks the box`() = runBlocking {
         val defaults = coordinator(
-            env = FakeEnv(listOf("main")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main")),
             git = FakeGit(isGit = false),
             memory = FakeMemory(commitPreference = true),
         ).openDialog(dialog())
@@ -209,7 +191,7 @@ class SaveCoordinatorTest {
 
     @Test
     fun `invalid app name is rejected without writing`() = runBlocking {
-        val outcome = coordinator(env = FakeEnv(listOf("main"))).save(request(appName = "bad name!"))
+        val outcome = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main"))).save(request(appName = "bad name!"))
 
         assertEquals(SaveOutcome.InvalidName, outcome)
         assertFalse(tempDir.resolve("main").exists(), "nothing may be created for an invalid name")
@@ -217,7 +199,7 @@ class SaveCoordinatorTest {
 
     @Test
     fun `unknown bucket is rejected without writing`() = runBlocking {
-        val outcome = coordinator(env = FakeEnv(listOf("main"))).save(request(bucket = "nope"))
+        val outcome = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main"))).save(request(bucket = "nope"))
 
         assertEquals(SaveOutcome.InvalidBucket, outcome)
         assertFalse(tempDir.resolve("nope").exists())
@@ -233,7 +215,7 @@ class SaveCoordinatorTest {
         existing.parentFile.mkdirs()
         existing.writeText("""{"version":"0.9"}""")
 
-        val outcome = coordinator(env = FakeEnv(listOf("main"))).save(request())
+        val outcome = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main"))).save(request())
 
         assertTrue(outcome is SaveOutcome.NeedsOverwrite)
         assertEquals("""{"version":"0.9"}""", existing.readText(), "the existing file must stay untouched")
@@ -244,7 +226,7 @@ class SaveCoordinatorTest {
         // A regular file where the bucket directory belongs makes the write fail.
         tempDir.resolve("main").writeText("not a directory")
 
-        val outcome = coordinator(env = FakeEnv(listOf("main"))).save(request())
+        val outcome = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main"))).save(request())
 
         assertTrue(outcome is SaveOutcome.Failed)
         assertTrue((outcome as SaveOutcome.Failed).masked.isNotBlank(), "the failure reason must be surfaced")
@@ -260,7 +242,7 @@ class SaveCoordinatorTest {
         val index = FakeIndex(ok = false)
 
         val outcome = coordinator(
-            env = FakeEnv(listOf("main")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main")),
             git = FakeGit(isGit = false),
             index = index.index,
             warnings = warnings,
@@ -277,7 +259,7 @@ class SaveCoordinatorTest {
         val warnings = mutableListOf<String>()
 
         val outcome = coordinator(
-            env = FakeEnv(listOf("main")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main")),
             git = FakeGit(isGit = true, commitOk = false),
             warnings = warnings,
         ).save(request(commitToGit = true))
@@ -297,7 +279,7 @@ class SaveCoordinatorTest {
         val memory = FakeMemory(commitPreference = true)
 
         val outcome = coordinator(
-            env = FakeEnv(listOf("main", "extras")),
+            env = FakeBucketSaveEnv(tempDir, listOf("main", "extras")),
             memory = memory,
         ).save(request(bucket = "extras", commitToGit = false))
         val saved = outcome as SaveOutcome.Saved
@@ -313,7 +295,7 @@ class SaveCoordinatorTest {
         val memory = FakeMemory()
         tempDir.resolve("main").writeText("not a directory")
 
-        val outcome = coordinator(env = FakeEnv(listOf("main")), memory = memory).save(request())
+        val outcome = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main")), memory = memory).save(request())
 
         assertTrue(outcome is SaveOutcome.Failed)
         assertTrue(memory.persistedBuckets.isEmpty())
@@ -328,7 +310,7 @@ class SaveCoordinatorTest {
     fun `tool save without a bucket returns needsBucket and writes nothing`() = runBlocking {
         val git = FakeGit()
 
-        val result = coordinator(env = FakeEnv(listOf("extras", "main")), git = git).saveForTool(
+        val result = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("extras", "main")), git = git).saveForTool(
             ToolSaveRequest(
                 manifestJson = """{"version":"1.2.3"}""",
                 bucket = null,
@@ -350,7 +332,7 @@ class SaveCoordinatorTest {
     fun `tool save with an explicit bucket writes the manifest`() = runBlocking {
         val git = FakeGit()
 
-        val result = coordinator(env = FakeEnv(listOf("main")), git = git).saveForTool(
+        val result = coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main")), git = git).saveForTool(
             ToolSaveRequest(
                 manifestJson = """{"version":"1.2.3"}""",
                 bucket = "main",
@@ -377,7 +359,7 @@ class SaveCoordinatorTest {
 
         var thrown: Throwable? = null
         try {
-            coordinator(env = FakeEnv(listOf("main")), index = cancelling).save(request())
+            coordinator(env = FakeBucketSaveEnv(tempDir, listOf("main")), index = cancelling).save(request())
         } catch (e: Throwable) {
             thrown = e
         }

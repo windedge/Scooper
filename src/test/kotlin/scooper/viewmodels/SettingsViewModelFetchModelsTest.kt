@@ -155,12 +155,12 @@ class SettingsViewModelFetchModelsTest {
     }
 
     @Test
-    fun `model placeholder shows the default model of the provider`() {
-        assertEquals(
-            ProviderCatalog.defaultModelId("anthropic"),
-            AiProviderForm.hints("anthropic").modelPlaceholder,
-        )
-        assertTrue(AiProviderForm.hints("anthropic").modelSubtitle.contains("Defaults to"))
+    fun `model subtitle joins the default sentence and the hint sentence`() {
+        val subtitle = AiProviderForm.hints("anthropic").modelSubtitle
+        assertTrue(subtitle.startsWith("Defaults to"))
+        // Two independent msgids joined with a space; no nested tr() placeholder.
+        assertFalse(subtitle.contains("{{hint}}"))
+        assertTrue(subtitle.contains("Search fetched models or type an id manually."))
     }
 
     @Test
