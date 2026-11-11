@@ -10,6 +10,7 @@ import java.time.LocalDateTime
 import scooper.data.App
 import scooper.data.AppStatus
 import scooper.data.Bucket
+import scooper.data.InstallOrigin
 import scooper.repository.db.AppEntity
 import scooper.repository.db.Apps
 import scooper.repository.db.BucketEntity
@@ -303,6 +304,33 @@ class AppsRepository(
                 entity.delete()
             }
         }
+
+        // Cross-bucket duplicates: legacy rows can carry the wrong bucket; re-attribute
+        // installed rows to the origin bucket so Updates compares within one bucket.
+        val installedNamesLower = installedNames.map { it.lowercase() }.toSet()
+        val duplicates = scoopClient.duplicateManifestNames(installedNamesLower)
+        if (duplicates.isEmpty()) return
+        for (name in duplicates) {
+            val info = installed.entries.firstOrNull { it.value.name.lowercase() == name }?.value ?: continue
+            val record = scoopClient.readInstallRecord(info.appDir.resolve("current").toPath())
+            if (record.origin != InstallOrigin.Bucket || record.bucket.isNullOrBlank()) continue
+            val origin = record.bucket
+            val rows = AppEntity.find { Apps.name eq info.name }.toList()
+            val installedRow = rows.firstOrNull { it.status == AppStatus.INSTALLED } ?: continue
+            if (installedRow.bucket?.name == origin) continue
+            val originRow = rows.firstOrNull { it.bucket?.name == origin }
+            if (originRow != null) {
+                val swapFrom = installedRow
+                originRow.status = AppStatus.INSTALLED
+                originRow.version = info.version
+                originRow.global = info.isGlobal
+                swapFrom.status = AppStatus.UNINSTALL
+                swapFrom.version = originRow.latestVersion
+                swapFrom.global = false
+            } else {
+                installedRow.bucket = BucketEntity.find { Buckets.name eq origin }.firstOrNull()
+            }
+        }
     }
 
     /**
@@ -327,6 +355,17 @@ class AppsRepository(
                 } else {
                     val existing = rows.maxBy { it.id.value }
                     rows.filter { it.id != existing.id }.forEach { it.delete() }
+                    // A manifest change in another bucket must not steal the installed row
+                    // of a cross-bucket duplicate name (it would report a bogus update).
+                    val installedIn = installedOriginBucket(app.name)
+                    if (existing.bucket != null &&
+                        installedIn != null &&
+                        installedIn != bkt?.name &&
+                        existing.status == AppStatus.INSTALLED &&
+                        app.status == AppStatus.UNINSTALL
+                    ) {
+                        continue
+                    }
                     val updatedApp = if (preserveUpdateAt) {
                         app.copy(createAt = existing.createAt, updateAt = existing.updateAt)
                     } else {
@@ -448,6 +487,13 @@ class AppsRepository(
             AppEntity.new { update(app, bkt) }
         }
     } }
+
+    /** Bucket the app is currently attributed as installed in (DB status), or null. */
+    internal fun installedOriginBucket(appName: String): String? = transaction {
+        AppEntity.find {
+            (Apps.name eq appName) and (Apps.status eq AppStatus.INSTALLED.name.lowercase())
+        }.firstOrNull()?.bucket?.name
+    }
 
     private fun AppEntity.update(
         app: App,

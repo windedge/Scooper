@@ -190,6 +190,7 @@ internal suspend fun saveManifestCore(
                 setOf("$appName.json"),
                 Bucket(name = bucket, url = ""),
                 installed,
+                assumeOrigin = true,
             ).firstOrNull()
             indexedOk = indexSaved(bucket, app)
             if (!indexedOk) onWarn("Saved manifest could not be indexed: $appName.json")

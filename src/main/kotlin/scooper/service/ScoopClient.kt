@@ -169,16 +169,48 @@ class ScoopClient(
 
     /** Build the full app list from all bucket manifests, then deduplicate. */
     fun buildAllApps(installed: Map<String, InstalledAppInfo>): List<App> {
+        // Only cross-bucket duplicate names need the install record, so the
+        // per-app file read stays proportional to the rare cases.
+        val originBuckets = resolveOriginBuckets(installed)
         val allApps = bucketDirs.flatMap { bucketDir ->
             val bucket = Bucket(name = bucketDir.name, url = "")
             bucketDir.resolve("bucket").listFiles()
                 ?.filter { it.isFile && it.extension == "json" && !it.name.startsWith(".") }
-                ?.mapNotNull { file -> buildAppFromManifest(file, bucket, installed) }
+                ?.mapNotNull { file -> buildAppFromManifest(file, bucket, installed, originBuckets, assumeOrigin = false) }
                 ?: emptyList()
         }
-        val deduped = deduplicateApps(allApps)
+        val deduped = deduplicateApps(allApps, originBuckets)
         val knownNames = deduped.map { it.name.lowercase() }.toSet()
         return deduped + findOrphanInstalledApps(knownNames, installed)
+    }
+
+    /** Origin bucket per installed app whose manifest name exists in more than one
+     *  bucket, from the install record; unique names never get a record read. A name
+     *  with no usable record maps to no entry, keeping dedup alphabetical-first. */
+    private fun resolveOriginBuckets(installed: Map<String, InstalledAppInfo>): Map<String, String> {
+        val duplicates = duplicateManifestNames()
+        if (duplicates.isEmpty()) return emptyMap()
+        val result = mutableMapOf<String, String>()
+        for (key in duplicates) {
+            val info = installed[key] ?: continue
+            val record = readInstallRecord(info.appDir.resolve("current").toPath())
+            if (record.origin == InstallOrigin.Bucket && !record.bucket.isNullOrBlank()) {
+                result[key] = record.bucket
+            }
+        }
+        return result
+    }
+
+    /** Lowercase manifest names existing in more than one bucket; sole owner of this
+     *  fact so origin resolution and the install-state guard cannot drift. */
+    fun duplicateManifestNames(installedLower: Set<String>? = null): Set<String> {
+        val names = bucketDirs.flatMap { bucketDirManifestNames(it) }
+            .map { it.removeSuffix(".json").lowercase() }
+        return names.groupBy { it }
+            .filterValues { it.size > 1 }
+            .keys
+            .filter { installedLower == null || it in installedLower }
+            .toSet()
     }
 
     /** Shortcut: snapshot first, then build all. */
@@ -248,33 +280,48 @@ class ScoopClient(
         return buildAppFromJson(json, name, version, false, null)
     }
 
-    /** Deduplicate apps by name, keeping the first match per Scoop's behavior.
-     *  Installed apps take priority; otherwise the first bucket in order wins. */
-    private fun deduplicateApps(apps: List<App>): List<App> {
-        val result = LinkedHashMap<String, App>()
-        // First pass: prefer installed apps (use their bucket's manifest)
-        for (app in apps) {
-            if (app.installed) {
-                result.putIfAbsent(app.name, app)
-            }
+    /** Deduplicate apps by name. The install-record origin bucket wins, then
+     *  installed rows, otherwise the first bucket in order (Scoop's behavior). */
+    private fun deduplicateApps(
+        apps: List<App>,
+        originBuckets: Map<String, String>,
+    ): List<App> {
+        fun rank(app: App): Int = when {
+            originBuckets[app.name.lowercase()] == app.bucket?.name -> 0
+            app.installed -> 1
+            else -> 2
         }
-        // Second pass: fill remaining with first bucket match
+        val result = LinkedHashMap<String, App>()
         for (app in apps) {
-            result.putIfAbsent(app.name, app)
+            result.merge(app.name, app) { incumbent, candidate ->
+                if (rank(candidate) < rank(incumbent)) candidate else incumbent
+            }
         }
         return result.values.toList()
     }
 
-    /** Build apps only from the specified manifest file names in a single bucket. */
     override fun buildAppsFromManifestNames(
         bucketDir: File,
         manifestNames: Set<String>,
         bucket: Bucket,
         installed: Map<String, InstalledAppInfo>,
-    ): List<App> = manifestNames.mapNotNull { fileName ->
-        val file = bucketDir.resolve("bucket/$fileName")
-        if (!file.exists()) return@mapNotNull null
-        buildAppFromManifest(file, bucket, installed)
+    ): List<App> = buildAppsFromManifestNames(bucketDir, manifestNames, bucket, installed, assumeOrigin = false)
+
+    /** Build apps only from [manifestNames]; [assumeOrigin] (save / post-install path)
+     *  skips install-record strictness, otherwise the origin still decides the row. */
+    override fun buildAppsFromManifestNames(
+        bucketDir: File,
+        manifestNames: Set<String>,
+        bucket: Bucket,
+        installed: Map<String, InstalledAppInfo>,
+        assumeOrigin: Boolean,
+    ): List<App> {
+        val originBuckets = if (assumeOrigin) emptyMap() else resolveOriginBuckets(installed)
+        return manifestNames.mapNotNull { fileName ->
+            val file = bucketDir.resolve("bucket/$fileName")
+            if (!file.exists()) return@mapNotNull null
+            buildAppFromManifest(file, bucket, installed, originBuckets, assumeOrigin)
+        }
     }
 
     private fun tryParseManifest(file: File): JsonObject? {
@@ -303,10 +350,14 @@ class ScoopClient(
         }
     }
 
+    /** Build one App from a manifest file. When the app is installed in another bucket
+     *  (origin differs), the row stays UNINSTALL so Updates never mixes versions. */
     private fun buildAppFromManifest(
         file: File,
         bucket: Bucket,
         installed: Map<String, InstalledAppInfo>,
+        originBuckets: Map<String, String>,
+        assumeOrigin: Boolean,
     ): App? {
         val json = tryParseManifest(file) ?: return null
 
@@ -316,13 +367,21 @@ class ScoopClient(
 
         val name = file.nameWithoutExtension
         val info = installed[name.lowercase()]
+        val originBucket = originBuckets[name.lowercase()]
 
-        if (info != null) {
+        if (info != null && (assumeOrigin || originBucket == null || originBucket == bucket.name)) {
             return buildAppFromJson(json, name, info.version, info.isGlobal, bucket)
                 .copy(createAt = createAt, updateAt = updateAt)
         }
-        return buildAppFromJson(json, name, json.getString("version"), false, bucket)
+        val uninstalled = buildAppFromJson(json, name, json.getString("version"), false, bucket)
             .copy(createAt = createAt, updateAt = updateAt, status = AppStatus.UNINSTALL)
+        return if (info != null) {
+            // The other bucket's row must not carry the installed version, or
+            // Updates compares versions across buckets.
+            uninstalled.copy(version = uninstalled.latestVersion)
+        } else {
+            uninstalled
+        }
     }
 
     fun computeCacheSize(): Long {

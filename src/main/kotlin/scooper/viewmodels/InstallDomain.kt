@@ -106,7 +106,7 @@ internal suspend fun refreshInstalledAppRecordCore(
         withContext(Dispatchers.IO) {
             val installed = scoopClient.installedSnapshot()
             val bucketDir = scoopClient.bucketsBaseDir.resolve(bucket)
-            val app = scoopClient.buildAppsFromManifestNames(bucketDir, setOf("$name.json"), Bucket(name = bucket, url = ""), installed).firstOrNull() ?: return@withContext
+            val app = scoopClient.buildAppsFromManifestNames(bucketDir, setOf("$name.json"), Bucket(name = bucket, url = ""), installed, assumeOrigin = true).firstOrNull() ?: return@withContext
             upsertApp(app)
             onInstalled?.invoke(app)
         }
