@@ -3,6 +3,8 @@ package scooper.viewmodels
 import com.scoopai.core.TokenUsage
 import com.scoopai.core.ToolActivity
 import scooper.util.VersionComparator
+import scooper.util.tr
+import scooper.util.trn
 import java.util.Locale
 
 /**
@@ -298,9 +300,9 @@ internal fun isFailedExecutionStep(step: ExecutionStep, messageHasActions: Boole
 
 /**
  * Text of the openchamber-style summary line under a finalized agent bubble.
- * A finished run reads "✓ Worked for 3.4s · 5 tools" (total duration = sum of
- * step durations; tool count = all activity lines across steps, "no tools" at
- * zero, singular "1 tool"); a failed run reads "✗ Failed after ...". While the
+ * A finished run reads "✓ Worked for 3.4s · 5 tools"; a failed run reads
+ * "✗ Failed after ...". Both phrases are tr()-wrapped here; the callers compose
+ * inside Composables, so the line follows locale switches. While the
  * run is in flight ([running]=true) the line mirrors the live tool activity
  * text ([currentActivity]), falling back to "Working..." before the first
  * event; with the detail list expanded ([expanded]=true) it always stays on
@@ -317,23 +319,23 @@ internal fun executionSummaryLineText(
 ): String {
     if (failed) {
         val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
-        return "✗ Failed after ${formatStepDuration(totalMs)} · ${toolCountText(steps)}"
+        return "✗ ${tr("Failed after {{time}}", "time" to formatStepDuration(totalMs))} · ${toolCountText(steps)}"
     }
     if (running) {
         val live = currentActivity?.trim()?.takeIf { it.isNotEmpty() }
-        return if (expanded || live == null) "Working..." else live
+        return if (expanded || live == null) tr("Working...") else live
     }
     val totalMs = steps.fold(0L) { acc, step -> acc + step.durationMs.coerceAtLeast(0L) }
-    return "✓ Worked for ${formatStepDuration(totalMs)} · ${toolCountText(steps)}"
+    return "✓ ${tr("Worked for {{time}}", "time" to formatStepDuration(totalMs))} · ${toolCountText(steps)}"
 }
 
 /** Tool-count phrase of the summary line: "no tools" / "1 tool" / "5 tools". */
 private fun toolCountText(steps: List<ExecutionStep>): String {
     val count = steps.sumOf { it.toolActivities.size }
     return when (count) {
-        0 -> "no tools"
-        1 -> "1 tool"
-        else -> "$count tools"
+        0 -> tr("no tools")
+        // trn already selects the singular/plural form; no branch per count.
+        else -> trn("{{count}} tool", "{{count}} tools", count, "count" to "$count")
     }
 }
 
@@ -388,9 +390,11 @@ internal fun formatTokenCount(total: Long): String = when {
  */
 internal fun formatTokenFooter(usage: TokenUsage?): String? {
     if (usage == null || usage.totalTokens <= 0L) return null
-    val input = formatTokenCount(usage.totalInputTokens)
-    val output = formatTokenCount(usage.totalOutputTokens)
-    return "$input in · $output out tokens"
+    return tr(
+        "{{input}} in · {{output}} out tokens",
+        "input" to formatTokenCount(usage.totalInputTokens),
+        "output" to formatTokenCount(usage.totalOutputTokens),
+    )
 }
 
 /**
@@ -559,18 +563,19 @@ internal fun deriveDeploymentState(inputs: DeploymentInputs): DeploymentState {
 
 /**
  * Button label for a state: "Install" / "Update" / "Reinstall", or "" to hide the
- * button (nothing to deploy; the UI shows Open instead). Pure function.
+ * button (nothing to deploy; the UI shows Open instead). Labels are tr()-wrapped
+ * at source for the gettext extractor; callers compose inside Composables.
  */
 internal fun deploymentLabel(state: DeploymentState): String = when (state) {
     DeploymentState.NoManifest -> ""
     DeploymentState.InvalidManifest,
     DeploymentState.UnresolvedName,
     DeploymentState.NotInstalled,
-    -> "Install"
+    -> tr("Install")
     is DeploymentState.Installed -> when {
-        state.relation == VersionRelation.Newer -> "Update"
+        state.relation == VersionRelation.Newer -> tr("Update")
         state.relation == VersionRelation.Same && state.inThisSession -> ""
-        else -> "Reinstall"
+        else -> tr("Reinstall")
     }
 }
 

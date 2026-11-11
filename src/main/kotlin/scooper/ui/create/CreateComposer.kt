@@ -82,6 +82,7 @@ import scooper.ui.components.Tooltip
 import scooper.ui.components.TooltipPosition
 import scooper.util.ImageCodec
 import scooper.util.cursorHand
+import scooper.util.tr
 import scooper.viewmodels.CreateState
 import scooper.viewmodels.CreateViewModel.Companion.MAX_PENDING_IMAGES
 import scooper.viewmodels.ManifestRefSuggestion
@@ -121,7 +122,7 @@ private fun PendingImageThumb(
     Box(modifier = Modifier.size(60.dp)) {
         Image(
             bitmap = bitmap,
-            contentDescription = "Attached image",
+            contentDescription = tr("Attached image"),
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
@@ -137,7 +138,7 @@ private fun PendingImageThumb(
         ) {
             Icon(
                 Lucide.X,
-                contentDescription = "Remove image",
+                contentDescription = tr("Remove image"),
                 tint = colors.textMuted,
                 modifier = Modifier.padding(3.dp).clickable { onRemove(image.id) },
             )
@@ -174,7 +175,7 @@ internal fun ImagePreviewDialog(
             bitmap?.let {
                 Image(
                     bitmap = it,
-                    contentDescription = "Image preview",
+                    contentDescription = tr("Image preview"),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize(0.85f)
@@ -220,11 +221,11 @@ private fun pickImages(onAttach: (List<PendingImage>) -> Unit) {
         // FlatLaf SystemFileChooser shows the native Windows IFileDialog with a
         // reliable extension filter and multi-select, unlike Swing/AWT choosers.
         val chooser = com.formdev.flatlaf.util.SystemFileChooser()
-        chooser.dialogTitle = "Select image"
+        chooser.dialogTitle = tr("Select image")
         chooser.isMultiSelectionEnabled = true
         chooser.fileSelectionMode = com.formdev.flatlaf.util.SystemFileChooser.FILES_ONLY
         chooser.fileFilter = com.formdev.flatlaf.util.SystemFileChooser.FileNameExtensionFilter(
-            "Image files (PNG, JPEG)",
+            tr("Image files (PNG, JPEG)"),
             "png", "jpg", "jpeg",
         )
         val chosen = if (chooser.showOpenDialog(null) == com.formdev.flatlaf.util.SystemFileChooser.APPROVE_OPTION) {
@@ -248,7 +249,7 @@ private fun pickImages(onAttach: (List<PendingImage>) -> Unit) {
 @Composable
 private fun InlineAttachButton(enabled: Boolean, onAttachImages: (List<PendingImage>) -> Unit) {
     val colors = MaterialTheme.colors
-    Tooltip("Attach image (paste also works: Ctrl+V)", position = TooltipPosition.Top) {
+    Tooltip(tr("Attach image (paste also works: Ctrl+V)"), position = TooltipPosition.Top) {
         Box(
             modifier = Modifier
                 .size(30.dp)
@@ -260,7 +261,7 @@ private fun InlineAttachButton(enabled: Boolean, onAttachImages: (List<PendingIm
         ) {
             Icon(
                 Lucide.Plus,
-                contentDescription = "Attach image",
+                contentDescription = tr("Attach image"),
                 modifier = Modifier.size(18.dp),
                 tint = if (enabled) colors.textMuted else colors.divider,
             )
@@ -588,10 +589,10 @@ internal fun Composer(
                     ) {
                         if (fieldValue.text.isEmpty()) {
                             val placeholderText = when {
-                                state.askUserRequest != null -> "Type your answer..."
+                                state.askUserRequest != null -> tr("Type your answer...")
                                 state.manifestJson.isNotBlank() ->
-                                    "Ask AI to modify this manifest (e.g. remove notes, add shortcuts)..."
-                                else -> "Ask anything, paste a GitHub URL, or reference @bucket/app"
+                                    tr("Ask AI to modify this manifest (e.g. remove notes, add shortcuts)...")
+                                else -> tr("Ask anything, paste a GitHub URL, or reference @bucket/app")
                             }
                             Text(
                                 placeholderText,
@@ -662,7 +663,7 @@ internal fun Composer(
                         )
                         Spacer(Modifier.size(4.dp))
                         Text(
-                            "Cancel",
+                            tr("Cancel"),
                             style = typography.button.copy(
                                 fontWeight = FontWeight.Medium,
                                 color = colors.dangerDefault,
@@ -687,7 +688,7 @@ internal fun Composer(
                         )
                         Spacer(Modifier.size(4.dp))
                         Text(
-                            "Send",
+                            tr("Send"),
                             style = typography.button.copy(
                                 fontWeight = FontWeight.Medium,
                                 color = Color.White,

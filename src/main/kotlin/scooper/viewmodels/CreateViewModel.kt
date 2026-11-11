@@ -29,7 +29,10 @@ import scooper.data.AppStatus
 import scooper.data.Bucket
 import scooper.repository.AppsRepository
 import scooper.service.AiErrorAction
+import scooper.service.AiErrorCategory
 import scooper.service.AiErrorPresentation
+import scooper.service.aiErrorDetailText
+import scooper.service.aiErrorTitle
 import scooper.service.AiErrorTranslator
 import scooper.service.AiSettingsStore
 import scooper.service.CommandResult
@@ -38,6 +41,7 @@ import scooper.service.GitHistoryService
 import scooper.service.InMemoryAiCheckpointService
 import scooper.service.PhaseSummaryFormatter
 import scooper.service.AiImage
+import scooper.util.LocalizedText
 import scooper.service.ScoopAiBridge
 import scooper.service.ScoopService
 import scooper.service.ToolActivityFormatter
@@ -46,6 +50,7 @@ import scooper.service.resumableStagesOf
 import scooper.service.ScoopClient
 import scooper.util.ImageCodec
 import scooper.util.logger
+import scooper.util.tr
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -94,6 +99,9 @@ data class ChatMessage(
     val isExecutionExpanded: Boolean = false,
     /** Suggested recovery actions for an error bubble; empty for non-error messages. */
     val actions: List<AiErrorAction> = emptyList(),
+    /** Structured error copy; displayText/displayNote re-translate at render time. */
+    val errorCategory: AiErrorCategory? = null,
+    val errorDetail: LocalizedText? = null,
     /** Detailed technical log/stack for error bubbles (collapsible). */
     val technicalDetails: String? = null,
     /** Cumulative token usage of the run that produced this reply; null when unreported. */
@@ -104,6 +112,14 @@ data class ChatMessage(
      *  later round; prevents re-sending the same images on every text-only follow-up. */
     val imagesReplayed: Boolean = false,
 )
+
+/** Structured error copy re-translated at render time (Settings.kt rule). */
+fun ChatMessage.displayText(): String = errorCategory?.let(::aiErrorTitle) ?: text
+
+fun ChatMessage.displayNote(): String? = errorDetail?.let { detail ->
+    val category = errorCategory ?: AiErrorCategory.UNKNOWN
+    AiErrorTranslator.maskSecrets(aiErrorDetailText(category, detail))
+} ?: note
 
 
 /** Git commit hint shown on the SaveResultPanel when the bucket is a Git repository. */
@@ -171,9 +187,11 @@ internal fun referenceSaveDefault(
     }
 }
 
-/** Dialog hint line explaining a reference-locked default; null without a lock. */
-internal fun refLockHintText(lock: Pair<String, String>?): String? =
-    lock?.let { (bucket, name) -> "Pre-filled from @$bucket/$name reference" }
+/**
+ * Reference-locked save dialog default; the hint line is translated at render
+ * time from the raw lock (Settings.kt rule).
+ */
+internal typealias RefLock = Pair<String, String>
 
 /**
  * SaveResultPanel hint for an in-place overwrite: set by saveManifestCore when
@@ -181,7 +199,15 @@ internal fun refLockHintText(lock: Pair<String, String>?): String? =
  * degrades to a fresh save without a hint. Null for a fresh save.
  */
 internal fun saveUpdatedHintText(result: SaveResult): String? =
-    if (result.overwritten) "Updated existing manifest at ${result.bucket}/${result.appName}" else null
+    if (result.overwritten) {
+        tr(
+            "Updated existing manifest at {{bucket}}/{{app}}",
+            "bucket" to result.bucket,
+            "app" to result.appName,
+        )
+    } else {
+        null
+    }
 
 data class QuestionnaireOption(
     val label: String,
@@ -427,8 +453,8 @@ internal fun applyActionChipBlockToast(
     running: Boolean,
     testing: Boolean,
 ): Pair<String, ToastType>? = when {
-    manifestJson.isBlank() -> "No manifest to fix" to ToastType.ERROR
-    running || testing -> "Another operation is running" to ToastType.INFO
+    manifestJson.isBlank() -> tr("No manifest to fix") to ToastType.ERROR
+    running || testing -> tr("Another operation is running") to ToastType.INFO
     else -> null
 }
 
@@ -445,7 +471,8 @@ data class CreateState(
     val suggestedAppName: String? = null,
     val error: String? = null,
     val aiConfigured: Boolean = true,
-    val configHint: String? = null,
+    /** Structured unconfigured-banner copy; translated at render time. */
+    val configHint: LocalizedText? = null,
     val saveDialogOpen: Boolean = false,
     val saveAppName: String = "",
     val saveBucket: String = "",
@@ -453,7 +480,7 @@ data class CreateState(
     val saveCommitToGit: Boolean = true,
     val saveBucketIsGit: Boolean = true,
     /** Non-null when the dialog defaults were locked from a @bucket/app reference. */
-    val saveRefHint: String? = null,
+    val saveRefLock: RefLock? = null,
     val overwriteConfirmOpen: Boolean = false,
     val saveResult: SaveResult? = null,
     /** True when a real install test passed (AI verify_install). */
@@ -675,7 +702,7 @@ class CreateViewModel(
         reduce {
             state.copy(
                 aiConfigured = readiness.configured,
-                configHint = readiness.hint,
+                configHint = readiness.reason,
                 selectedModel = if (state.selectedModel.isBlank()) model else state.selectedModel,
             )
         }
@@ -797,7 +824,7 @@ class CreateViewModel(
             }
 
             SendDecision.Busy -> {
-                postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+                postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
                 return@intent
             }
 
@@ -835,12 +862,12 @@ class CreateViewModel(
             AiErrorAction.RETRY_FROM_GENERATE,
             -> {
                 if (state.running) {
-                    postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+                    postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
                     return@intent
                 }
                 val url = state.lastUrl.ifBlank { state.inputUrl }
                 if (url.isBlank()) {
-                    postToast(AppSideEffect.Toast("Nothing to retry", ToastType.ERROR))
+                    postToast(AppSideEffect.Toast(tr("Nothing to retry"), ToastType.ERROR))
                     return@intent
                 }
                 // Resume only when the checkpoint covers the requested stage (RETRY_FULL
@@ -850,7 +877,7 @@ class CreateViewModel(
             }
             AiErrorAction.RETRY_ANSWER -> {
                 if (state.running) {
-                    postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+                    postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
                     return@intent
                 }
                 // Resend the latest question (startAssistInternal no-ops on blank text).
@@ -888,7 +915,7 @@ class CreateViewModel(
         val downloadDetail = buildDownloadConfirmDetail(state.askUserRequest, DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = "Let AI decide", note = downloadDetail, noteSingleLine = true),
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = tr("Let AI decide"), note = downloadDetail, noteSingleLine = true),
                 askUserRequest = null,
             )
         }
@@ -924,11 +951,11 @@ class CreateViewModel(
         // A cancelled round may have installed or saved before the cancel, and it
         // drops the run's plan inputs, so re-derive the deployment from disk.
         refreshDeploymentStateInIntent()
-        postToast(AppSideEffect.Toast("Cancelled", ToastType.INFO))
+        postToast(AppSideEffect.Toast(tr("Cancelled"), ToastType.INFO))
     }
 
     fun onCopyDone() = intent {
-        postToast(AppSideEffect.Toast("Manifest copied to clipboard", ToastType.SUCCESS))
+        postToast(AppSideEffect.Toast(tr("Manifest copied to clipboard"), ToastType.SUCCESS))
     }
 
     fun onDismissSaveResult() = intent {
@@ -956,12 +983,12 @@ class CreateViewModel(
      *  uninstall-then-install, or open only. */
     fun onInstallSaved() = intent {
         if (state.running || state.testing || state.installing) {
-            postToast(AppSideEffect.Toast("Another operation is running", ToastType.INFO))
+            postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
             return@intent
         }
         val manifestJson = state.activeManifestJson
         if (manifestJson.isBlank()) {
-            postToast(AppSideEffect.Toast("No manifest to install", ToastType.INFO))
+            postToast(AppSideEffect.Toast(tr("No manifest to install"), ToastType.INFO))
             return@intent
         }
         // The plan the user saw when clicking. A never-derived state (NoManifest)
@@ -980,7 +1007,7 @@ class CreateViewModel(
                     // installed, uninstalled or saved): never run the stale plan.
                     postToast(
                         AppSideEffect.Toast(
-                            "Deployment state changed, review the button and retry",
+                            tr("Deployment state changed, review the button and retry"),
                             ToastType.WARNING,
                         ),
                     )
@@ -996,7 +1023,7 @@ class CreateViewModel(
                             installFromBucketCore(saveResult.appName, saveResult.bucket, force = false)
                         } else {
                             // Never a silent no-op: without a bucket the plan cannot run.
-                            postToast(AppSideEffect.Toast("Save the manifest to a bucket first", ToastType.ERROR))
+                            postToast(AppSideEffect.Toast(tr("Save the manifest to a bucket first"), ToastType.ERROR))
                         }
                     DeploymentAction.UpdateForce -> {
                         // The installed copy records where it came from, so a cleared
@@ -1084,7 +1111,7 @@ class CreateViewModel(
     ) {
         val issue = withContext(Dispatchers.IO) { bucketManifestIssue(deploymentMonitor.bucketManifestText(bucket, name)) }
         if (issue != null) {
-            postToast(AppSideEffect.Toast("Cannot reinstall $name: $issue", ToastType.ERROR))
+            postToast(AppSideEffect.Toast(tr("Cannot reinstall {{name}}: {{issue}}", "name" to name, "issue" to issue), ToastType.ERROR))
             return
         }
         val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
@@ -1118,7 +1145,7 @@ class CreateViewModel(
         refreshDeploymentStateInIntent()
         when {
             skipped != null -> postToast(AppSideEffect.Toast(skipped, ToastType.WARNING))
-            result.isSuccess -> postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+            result.isSuccess -> postToast(AppSideEffect.Toast(tr("Installed {{name}}", "name" to name), ToastType.SUCCESS))
             else -> {
                 val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                     ?: "exit code ${result.exitCode}"
@@ -1144,7 +1171,7 @@ class CreateViewModel(
             )
             return
         }
-        directInstallCore(manifestJson, name, successToast = "Installed $name")
+        directInstallCore(manifestJson, name, successToast = tr("Installed {{name}}", "name" to name))
     }
 
 
@@ -1234,7 +1261,7 @@ class CreateViewModel(
         if (name == null || !APP_NAME_REGEX.matches(name)) {
             postToast(
                 AppSideEffect.Toast(
-                    "Cannot determine the installed app name; cannot open it",
+                    tr("Cannot determine the installed app name; cannot open it"),
                     ToastType.ERROR,
                 ),
             )
@@ -1250,11 +1277,11 @@ class CreateViewModel(
 
     fun onSave() = intent {
         if (state.manifestJson.isBlank()) {
-            postToast(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
+            postToast(AppSideEffect.Toast(tr("No manifest to save"), ToastType.ERROR))
             return@intent
         }
         if (saveCoordinator.bucketOptions().isEmpty()) {
-            postToast(AppSideEffect.Toast("No Scoop buckets found", ToastType.ERROR))
+            postToast(AppSideEffect.Toast(tr("No Scoop buckets found"), ToastType.ERROR))
             return@intent
         }
         // Reference lock, bucket memory and the git checkbox default all live in
@@ -1273,7 +1300,7 @@ class CreateViewModel(
                 saveBucket = defaults.bucket,
                 bucketOptions = defaults.buckets,
                 saveBucketIsGit = defaults.isGitBucket,
-                saveRefHint = defaults.refHint,
+                saveRefLock = defaults.refLock,
                 saveCommitToGit = defaults.commitToGit,
                 overwriteConfirmOpen = false,
                 // C2: reopening the dialog clears the previous result card so it does not
@@ -1328,7 +1355,7 @@ class CreateViewModel(
     ) {
         val manifestJson = state.manifestJson
         if (manifestJson.isBlank()) {
-            postToast(AppSideEffect.Toast("No manifest to save", ToastType.ERROR))
+            postToast(AppSideEffect.Toast(tr("No manifest to save"), ToastType.ERROR))
             reduce {
                 state.copy(
                     saveDialogOpen = false,
@@ -1354,12 +1381,12 @@ class CreateViewModel(
         when (outcome) {
             SaveOutcome.InvalidName -> postToast(
                 AppSideEffect.Toast(
-                    "App name may only contain letters, digits, '.', '_' and '-'",
+                    tr("App name may only contain letters, digits, '.', '_' and '-'"),
                     ToastType.ERROR,
                 ),
             )
 
-            SaveOutcome.InvalidBucket -> postToast(AppSideEffect.Toast("Please select a valid bucket", ToastType.ERROR))
+            SaveOutcome.InvalidBucket -> postToast(AppSideEffect.Toast(tr("Please select a valid bucket"), ToastType.ERROR))
 
             is SaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
 
@@ -1461,7 +1488,7 @@ class CreateViewModel(
                     postToast(AppSideEffect.Toast(effect.skippedMessage, ToastType.WARNING))
                 effect.newlyInstalled -> {
                     refreshInstalledAppRecord(bucket, name)
-                    postToast(AppSideEffect.Toast("Installed $name", ToastType.SUCCESS))
+                    postToast(AppSideEffect.Toast(tr("Installed {{name}}", "name" to name), ToastType.SUCCESS))
                 }
                 effect.maskedError != null -> postToast(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
             }
@@ -1483,7 +1510,7 @@ class CreateViewModel(
         val manifestJson = state.activeManifestJson
         if (manifestJson.isBlank()) {
             val reply = directInstallFailureReply(name, "no manifest to install")
-            postToast(AppSideEffect.Toast("No manifest to install", ToastType.ERROR))
+            postToast(AppSideEffect.Toast(tr("No manifest to install"), ToastType.ERROR))
             return reply
         }
         if (!APP_NAME_REGEX.matches(name)) {
@@ -1495,7 +1522,7 @@ class CreateViewModel(
         val outcome = directInstallCore(
             manifestJson = manifestJson,
             name = name,
-            successToast = "Installed $name without saving it to a bucket",
+            successToast = tr("Installed {{name}} without saving it to a bucket", "name" to name),
         )
         if (outcome.isSuccess) {
             reduce {
@@ -1521,7 +1548,7 @@ class CreateViewModel(
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.directInstallCore(
         manifestJson: String,
         name: String,
-        successToast: String = "Installed $name",
+        successToast: String,
     ): DirectInstallOutcome {
         val directDir = File(System.getenv("LOCALAPPDATA") ?: System.getProperty("java.io.tmpdir"), "scooper/direct-install")
         val manifestFile = directDir.resolve("$name.json")
@@ -1666,15 +1693,14 @@ class CreateViewModel(
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.requireAiReady(): Boolean {
         val readiness = aiGate.readiness()
         if (readiness.configured) return true
-        val hint = readiness.hint.orEmpty()
         reduce {
             state.copy(
                 aiConfigured = false,
-                configHint = readiness.hint,
-                error = readiness.hint,
+                configHint = readiness.reason,
+                error = readiness.reason?.render(),
             )
         }
-        postToast(AppSideEffect.Toast(hint, ToastType.ERROR))
+        postToast(AppSideEffect.Toast(readiness.reason?.render().orEmpty(), ToastType.ERROR))
         return false
     }
 
@@ -2046,13 +2072,13 @@ class CreateViewModel(
                         reduce {
                             state.finishGeneration(
                                 messages = state.messages + agentReplyMessage(noAssetsText, manifestResult.tokenUsage),
-                                error = "No Windows assets found",
+                                error = tr("No Windows assets found"),
                                 suggestedAppName = name,
                                 executionExpanded = true,
                             )
                         }
                     }
-                    postToast(AppSideEffect.Toast("No Windows assets found", ToastType.ERROR))
+                    postToast(AppSideEffect.Toast(tr("No Windows assets found"), ToastType.ERROR))
                     return@fold
                 }
 
@@ -2141,7 +2167,7 @@ class CreateViewModel(
 
                 val presentation = AiErrorTranslator.translate(error)
                 logger.error("Create generate failed: ${error.message}")
-                val safe = AiErrorTranslator.maskSecrets(presentation.detail)
+                val safe = AiErrorTranslator.maskSecrets(aiErrorDetailText(presentation.category, presentation.detail))
                 // Refresh available resume stages from the checkpoint and hide
                 // resume buttons whose stage has no checkpoint data.
                 val resumableStages = resumableStagesOf(checkpointService.snapshot())
@@ -2177,13 +2203,17 @@ class CreateViewModel(
         }
     }
 
-    private fun agentError(presentation: AiErrorPresentation): ChatMessage = ChatMessage(
-        role = ChatRole.Agent,
-        text = presentation.title,
-        note = AiErrorTranslator.maskSecrets(presentation.detail),
-        technicalDetails = presentation.technicalDetails?.let(AiErrorTranslator::maskSecrets),
-        actions = presentation.actions,
-    )
+    private fun agentError(presentation: AiErrorPresentation): ChatMessage {
+        // Structured fields only: a translated snapshot would go stale on a language switch.
+        return ChatMessage(
+            role = ChatRole.Agent,
+            text = "",
+            technicalDetails = presentation.technicalDetails?.let(AiErrorTranslator::maskSecrets),
+            actions = presentation.actions,
+            errorCategory = presentation.category,
+            errorDetail = presentation.detail,
+        )
+    }
 
     private fun agentMessage(text: String) = ChatMessage(
         role = ChatRole.Agent,
@@ -2239,7 +2269,7 @@ class CreateViewModel(
                 manifestSaved = false,
             )
         }
-        postToast(AppSideEffect.Toast("Reverted to revision #${target.revisionNumber}", ToastType.INFO))
+        postToast(AppSideEffect.Toast(tr("Reverted to revision #{{n}}", "n" to target.revisionNumber.toString()), ToastType.INFO))
     }
 
     private fun CreateState.finishGeneration(

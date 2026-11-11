@@ -4,6 +4,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import scooper.service.AiSettingsSnapshot
 import scooper.service.AiSettingsStore
 import scooper.service.ScoopAiBridge
+import scooper.util.LocalizedText
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -32,16 +33,17 @@ internal class AiGate(
      */
     private val snapshot: () -> AiSettingsSnapshot = settings::readSettings,
 ) {
-    /** Outcome of the readiness check; [hint] is user facing text or null when ready. */
-    data class Readiness(val configured: Boolean, val hint: String?)
+    /** Outcome of the readiness check; [reason] is structured copy that banners render
+     *  at composition time so a language switch re-translates it. */
+    data class Readiness(val configured: Boolean, val reason: LocalizedText?)
 
     /**
-     * Configured check shared by both start entries. A missing hint means the
-     * engine can run; otherwise [Readiness.hint] explains what to fix.
+     * Configured check shared by both start entries. A missing reason means the
+     * engine can run; otherwise [Readiness.reason] explains what to fix.
      */
     fun readiness(): Readiness {
-        val hint = snapshot().missingReason()
-        return Readiness(configured = hint == null, hint = hint)
+        val reason = snapshot().missingReason()
+        return Readiness(configured = reason == null, reason = reason)
     }
 
     /** Model persisted in Settings.AI (env fallback included); blank when unset. */

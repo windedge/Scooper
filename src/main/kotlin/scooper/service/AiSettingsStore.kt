@@ -3,6 +3,7 @@ package scooper.service
 import com.scoopai.tools.llm.ProviderEndpoints
 import scooper.data.UIConfig
 import scooper.repository.ConfigRepository
+import scooper.util.LocalizedText
 import scooper.util.logger
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -18,17 +19,24 @@ data class AiSettingsSnapshot(
     val githubToken: String,
     val autoDownload: Boolean = false,
 ) {
-    fun missingReason(): String? {
+    /** Why the AI settings are not ready, rendered at composition time. */
+    fun missingReason(): LocalizedText? {
         if (!ProviderCatalog.exists(provider)) {
-            return ProviderEndpoints.unsupportedProviderMessage(provider)
+            return LocalizedText(raw = ProviderEndpoints.unsupportedProviderMessage(provider))
         }
         if (ProviderCatalog.requiresApiKey(provider) && apiKey.isBlank()) {
             val envHint = ProviderCatalog.apiKeyEnvHint(provider)
             val envNames = if (envHint == null) "SCOOP_AI_API_KEY" else "SCOOP_AI_API_KEY or $envHint"
-            return "API key is missing. Fill it in Settings > AI, or set $envNames environment variable."
+            return LocalizedText(
+                msgid = "API key is missing. Fill it in Settings > AI, or set {{env}} environment variable.",
+                args = listOf("env" to envNames),
+            )
         }
         if (ProviderCatalog.requiresBaseUrl(provider) && baseUrl.isBlank()) {
-            return "Base URL is required for $provider. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable."
+            return LocalizedText(
+                msgid = "Base URL is required for {{provider}}. Fill it in Settings > AI, or set SCOOP_AI_BASE_URL environment variable.",
+                args = listOf("provider" to provider),
+            )
         }
         return null
     }
@@ -150,9 +158,9 @@ class AiSettingsStore(private val configRepository: ConfigRepository) {
     }
 
     /**
-     * Persist the save dialog "commit to git repository" checkbox so it can
-     * be preselected next time. Failures are logged, never thrown:
-     * checkbox memory is best-effort and must not break saving.
+     * Persist the save dialog "commit to git repository" checkbox so it can be
+     * preselected next time. Failures are logged, never thrown:
+     * checkbox memory is best-effort and must not break generation.
      */
     fun persistCommitPreference(commit: Boolean) {
         try {
@@ -175,7 +183,7 @@ class AiSettingsStore(private val configRepository: ConfigRepository) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            logger.warn("Failed to read commit-to-git preference: ${e.message}")
+            logger.warn("Failed to read commit preference: ${e.message}")
             true
         }
     }

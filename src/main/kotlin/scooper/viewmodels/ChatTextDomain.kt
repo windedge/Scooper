@@ -119,8 +119,8 @@ internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
                 msg.text.isNotBlank() &&
                     msg.text !in IGNORED_HISTORY_TEXTS &&
                     !msg.text.startsWith("Question:")
-            // Error bubbles fold failure details into actions; they are not conversation context.
-            ChatRole.Agent -> msg.text.isNotBlank() && msg.actions.isEmpty()
+            // Error bubbles carry no conversation text (agentError leaves it blank) and are not context.
+            ChatRole.Agent -> msg.text.isNotBlank() && msg.errorCategory == null
         }
     }
     // Tail only: recent turns matter for coreference in assist/refine prompts.

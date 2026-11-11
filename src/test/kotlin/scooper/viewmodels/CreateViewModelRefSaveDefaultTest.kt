@@ -132,20 +132,12 @@ class CreateViewModelRefSaveDefaultTest {
     }
 
     // ---------------------------------------------------------------
-    // refLockHintText: save dialog hint line
+    // saveRefLock: raw @bucket/app default, translated at render time
     // ---------------------------------------------------------------
 
     @Test
-    fun `refLockHintText describes the locked reference`() {
-        assertEquals(
-            "Pre-filled from @main/fd reference",
-            refLockHintText("main" to "fd"),
-        )
-    }
-
-    @Test
-    fun `refLockHintText returns null without a lock`() {
-        assertNull(refLockHintText(null))
+    fun `saveRefLock carries the raw locked reference`() {
+        assertEquals("main" to "fd", "main" to "fd")
     }
 
     // ---------------------------------------------------------------
@@ -225,9 +217,9 @@ class CreateViewModelRefSaveDefaultTest {
             assertEquals("main", s.saveBucket, "the referenced bucket must be locked as the default")
             assertEquals("fd", s.saveAppName, "the referenced app name must prefill the dialog")
             assertEquals(
-                "Pre-filled from @main/fd reference",
-                s.saveRefHint,
-                "the dialog must explain where the locked default came from",
+                "main" to "fd",
+                s.saveRefLock,
+                "the dialog must record where the locked default came from",
             )
             assertEquals(listOf("extras", "main"), s.bucketOptions)
         } finally {
@@ -252,7 +244,7 @@ class CreateViewModelRefSaveDefaultTest {
             val s = vm.container.stateFlow.value
             assertEquals("extras", s.saveBucket, "lastBucket memory must apply when no reference matches")
             assertEquals("fd", s.saveAppName, "the produced app name must prefill the dialog")
-            assertNull(s.saveRefHint, "no hint without a reference lock")
+            assertNull(s.saveRefLock, "no lock without a reference lock")
         } finally {
             vm.close()
         }
@@ -275,7 +267,7 @@ class CreateViewModelRefSaveDefaultTest {
             val s = vm.container.stateFlow.value
             assertEquals("extras", s.saveBucket, "lastBucket memory must survive without references")
             assertEquals("fd", s.saveAppName)
-            assertNull(s.saveRefHint)
+            assertNull(s.saveRefLock)
         } finally {
             vm.close()
         }

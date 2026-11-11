@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import scooper.service.AiErrorAction
+import scooper.service.AiErrorCategory
 
 /**
  * Unit tests for [isAssistRequest] pure function and assist routing logic.
@@ -155,13 +156,14 @@ class CreateViewModelAssistTest {
     }
 
     @Test
-    fun `extractUserHistory excludes agent error bubbles that carry actions`() {
+    fun `extractUserHistory excludes agent error bubbles that carry a category`() {
         val messages = listOf(
             ChatMessage(role = ChatRole.User, text = "remove notes"),
             ChatMessage(
                 role = ChatRole.Agent,
-                text = "Assist failed: upstream timeout",
+                text = "",
                 actions = listOf(AiErrorAction.RETRY_FULL),
+                errorCategory = AiErrorCategory.TIMEOUT,
             ),
             ChatMessage(role = ChatRole.User, text = "try again"),
         )

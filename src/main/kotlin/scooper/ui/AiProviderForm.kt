@@ -1,6 +1,7 @@
 package scooper.ui
 
 import scooper.service.ProviderCatalog
+import scooper.util.tr
 
 /**
  * Presentation hints of the AI settings form for one provider.
@@ -23,22 +24,16 @@ data class AiProviderFormHints(
  * Pure derivation of the AI settings form from the engine provider table.
  *
  * The show/hide rules live here instead of inside the composable so they
- * can be tested without a Compose runtime.
+ * can be tested without a Compose runtime. Subtitles are tr()-wrapped at source so
+ * the gettext extractor picks up the msgids; with no .po entry tr() is an identity
+ * passthrough, keeping raw-msgid assertions in tests valid.
  */
 object AiProviderForm {
 
     const val DEFAULT_MODEL_PLACEHOLDER = "model-id"
 
-    private const val PROVIDER_SUBTITLE = "LLM provider used to generate Scoop manifests."
-
-    private const val API_KEY_SUBTITLE = "Stored locally. Never written to logs or toast messages."
-
-    private const val BASE_URL_SUBTITLE = "Required for openai-compatible. The client appends /v1/chat/completions."
-
     /** Legacy placeholder of the base URL field, kept for openai-compatible. */
     private const val LEGACY_BASE_URL_PLACEHOLDER = "https://api.openai.com"
-
-    private const val MODEL_HINT = "Search fetched models or type an id manually."
 
     fun hints(provider: String): AiProviderFormHints {
         val envKey = ProviderCatalog.apiKeyEnvHint(provider)
@@ -46,22 +41,27 @@ object AiProviderForm {
         return AiProviderFormHints(
             showApiKey = ProviderCatalog.requiresApiKey(provider),
             showBaseUrl = ProviderCatalog.requiresBaseUrl(provider),
-            providerSubtitle = PROVIDER_SUBTITLE,
+            providerSubtitle = tr("LLM provider used to generate Scoop manifests."),
             apiKeySubtitle = if (envKey == null) {
-                API_KEY_SUBTITLE
+                tr("Stored locally. Never written to logs or toast messages.")
             } else {
-                "Stored locally. Leave empty to fall back to the $envKey environment variable."
+                tr("Stored locally. Leave empty to fall back to the {{env}} environment variable.", "env" to envKey)
             },
-            baseUrlSubtitle = BASE_URL_SUBTITLE,
+            baseUrlSubtitle = tr("Required for openai-compatible. The client appends /v1/chat/completions."),
             baseUrlPlaceholder = if (ProviderCatalog.requiresBaseUrl(provider)) {
                 LEGACY_BASE_URL_PLACEHOLDER
             } else {
                 ProviderCatalog.baseUrlPlaceholder(provider)
             },
             modelSubtitle = if (defaultModel == null) {
-                MODEL_HINT
+                tr("Search fetched models or type an id manually.")
             } else {
-                "Defaults to $defaultModel. $MODEL_HINT"
+                // Two independent msgids joined at the render site so each
+                // sentence translates with its own word order.
+                listOf(
+                    tr("Defaults to {{model}}.", "model" to defaultModel),
+                    tr("Search fetched models or type an id manually."),
+                ).joinToString(" ")
             },
             modelPlaceholder = defaultModel ?: DEFAULT_MODEL_PLACEHOLDER,
         )

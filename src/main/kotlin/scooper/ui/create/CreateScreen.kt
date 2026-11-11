@@ -69,7 +69,9 @@ import scooper.ui.components.DialogTextField
 import scooper.ui.components.ExposedDropdownMenu
 import scooper.util.cursorHand
 import scooper.util.cursorLink
+import scooper.util.tr
 import scooper.service.AiErrorAction
+import scooper.util.LocalizedText
 import scooper.util.navigation.LocalBackStack
 import scooper.util.navigation.core.BackStack
 import scooper.viewmodels.CreateState
@@ -190,7 +192,10 @@ fun CreateScreen(
             bucketOptions = state.bucketOptions,
             commitToGit = state.saveCommitToGit,
             isGitBucket = state.saveBucketIsGit,
-            refHint = state.saveRefHint,
+            refHint = state.saveRefLock?.let { (bucket, name) ->
+                // Translate the raw lock at render time (Settings.kt rule).
+                tr("Pre-filled from @{{bucket}}/{{name}} reference", "bucket" to bucket, "name" to name)
+            },
             onAppNameChange = viewModel::onSaveAppNameChange,
             onBucketChange = viewModel::onSaveBucketChange,
             onCommitToGitChange = viewModel::onSaveCommitToGitChange,
@@ -201,9 +206,9 @@ fun CreateScreen(
 
     if (state.overwriteConfirmOpen) {
         ConfirmDialog(
-            text = "File exists. Overwrite?",
-            title = "Overwrite Manifest",
-            confirmText = "Overwrite",
+            text = tr("File exists. Overwrite?"),
+            title = tr("Overwrite Manifest"),
+            confirmText = tr("Overwrite"),
             onConfirm = viewModel::onConfirmOverwrite,
             onCancel = viewModel::onDismissOverwrite,
         )
@@ -243,7 +248,7 @@ private fun SaveToBucketDialog(
                 Box(Modifier.padding(24.dp)) {
                     Column(Modifier.fillMaxWidth()) {
                         Text(
-                            "App name",
+                            tr("App name"),
                             style = typography.caption.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.textTitle,
@@ -253,7 +258,7 @@ private fun SaveToBucketDialog(
                         DialogTextField(
                             value = appName,
                             onValueChange = onAppNameChange,
-                            placeholder = "e.g. ripgrep",
+                            placeholder = tr("e.g. ripgrep"),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .onPreviewKeyEvent { event ->
@@ -267,7 +272,7 @@ private fun SaveToBucketDialog(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Letters, digits, '.', '_' and '-' only.",
+                            tr("Letters, digits, '.', '_' and '-' only."),
                             style = typography.caption.copy(color = colors.textMuted),
                         )
                         if (refHint != null) {
@@ -281,7 +286,7 @@ private fun SaveToBucketDialog(
                         Spacer(Modifier.height(16.dp))
 
                         Text(
-                            "Bucket",
+                            tr("Bucket"),
                             style = typography.caption.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.textTitle,
@@ -299,7 +304,7 @@ private fun SaveToBucketDialog(
                             )
                         } else {
                             Text(
-                                "No buckets available",
+                                tr("No buckets available"),
                                 style = typography.caption.copy(color = colors.dangerDefault),
                             )
                         }
@@ -326,7 +331,7 @@ private fun SaveToBucketDialog(
                             Spacer(Modifier.width(6.dp))
                             Column {
                                 Text(
-                                    "Commit to Git repository",
+                                    tr("Commit to Git repository"),
                                     style = typography.caption.copy(
                                         fontWeight = FontWeight.Medium,
                                         color = if (isGitBucket) colors.textTitle else colors.textMuted,
@@ -334,7 +339,7 @@ private fun SaveToBucketDialog(
                                 )
                                 if (!isGitBucket) {
                                     Text(
-                                        "Selected bucket is not a Git repository",
+                                        tr("Selected bucket is not a Git repository"),
                                         style = typography.caption.copy(
                                             color = colors.textMuted,
                                             fontSize = typography.caption.fontSize * 0.9f,
@@ -355,7 +360,7 @@ private fun SaveToBucketDialog(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = onCancel, modifier = Modifier.cursorHand()) {
-                        Text("Cancel", color = colors.textBody)
+                        Text(tr("Cancel"), color = colors.textBody)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(
@@ -365,7 +370,7 @@ private fun SaveToBucketDialog(
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.cursorHand(),
                     ) {
-                        Text("Save", color = Color.White)
+                        Text(tr("Save"), color = Color.White)
                     }
                 }
             }
@@ -386,7 +391,7 @@ private fun CreateTopBar(
     ) {
         Row(Modifier.weight(1f)) {
             Text(
-                "Create",
+                tr("Create"),
                 style = typography.h5.copy(
                     fontWeight = FontWeight.Bold,
                     color = colors.textTitle,
@@ -395,7 +400,7 @@ private fun CreateTopBar(
             )
             Spacer(Modifier.width(14.dp))
             Text(
-                "Generate Scoop manifest with AI from a GitHub URL",
+                tr("Generate Scoop manifest with AI from a GitHub URL"),
                 style = typography.body2.copy(color = colors.textBody),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -419,13 +424,13 @@ private fun CreateTopBar(
             ) {
                 Icon(
                     Lucide.Plus,
-                    contentDescription = "New Session",
+                    contentDescription = tr("New Session"),
                     modifier = Modifier.size(15.dp),
                     tint = colors.textBody,
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "New Session",
+                    tr("New Session"),
                     style = typography.caption.copy(
                         fontWeight = FontWeight.Medium,
                         color = colors.textBody,
@@ -442,6 +447,8 @@ private fun CreateTopBar(
             ) {
                 Icon(
                     Lucide.Settings,
+                    // "Settings.AI" is the route id (AppRoute.Settings.AI), not
+                    // display copy; keep it untranslated.
                     contentDescription = "Settings.AI",
                     modifier = Modifier.size(16.dp),
                     tint = colors.textBody,
@@ -452,7 +459,7 @@ private fun CreateTopBar(
 }
 @Composable
 private fun AiConfigBanner(
-    configHint: String?,
+    configHint: LocalizedText?,
     onOpenAiSettings: () -> Unit,
 ) {
     val bg = colors.dangerBg
@@ -473,7 +480,9 @@ private fun AiConfigBanner(
         Text("!", style = typography.caption.copy(fontWeight = FontWeight.Bold, color = textColor))
         Column(Modifier.weight(1f)) {
             Text(
-                configHint ?: "AI is not configured. Configure it in Settings > AI, or set SCOOP_AI_API_KEY / SCOOP_AI_BASE_URL environment variables.",
+                // Structured copy translates here so the banner follows locale switches.
+                configHint?.render()
+                    ?: tr("AI is not configured. Configure it in Settings > AI, or set SCOOP_AI_API_KEY / SCOOP_AI_BASE_URL environment variables."),
                 style = typography.caption.copy(color = textColor, lineHeight = typography.caption.fontSize * 1.45f),
             )
             TextButton(
@@ -482,7 +491,7 @@ private fun AiConfigBanner(
                 modifier = Modifier.cursorLink().height(28.dp),
             ) {
                 Text(
-                    "Go to AI Settings",
+                    tr("Go to AI Settings"),
                     style = typography.caption.copy(fontWeight = FontWeight.Bold, color = textColor),
                 )
             }
@@ -566,9 +575,9 @@ private fun EmptyWorkspace(
             Spacer(Modifier.width(10.dp))
             Text(
                 if (refToken == null) {
-                    "Create a Scoop manifest with AI"
+                    tr("Create a Scoop manifest with AI")
                 } else {
-                    "Chat about $refToken"
+                    tr("Chat about {{ref}}", "ref" to refToken)
                 },
                 style = typography.h6.copy(
                     fontWeight = FontWeight.SemiBold,

@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import scooper.ui.components.SelectableContainer
 import scooper.util.cursorHand
 import scooper.util.onHover
+import scooper.util.tr
 import scooper.viewmodels.DiffLineType
 import scooper.viewmodels.ManifestRevision
 import scooper.viewmodels.ReviewActionChip
@@ -167,7 +168,7 @@ internal fun ManifestPreviewCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Manifest Preview",
+                        tr("Manifest Preview"),
                         style = typography.subtitle1.copy(
                             fontWeight = FontWeight.Medium,
                             color = colors.textTitle,
@@ -181,11 +182,11 @@ internal fun ManifestPreviewCard(
                         else -> colors.updateDefault
                     }
                     val statusText = when {
-                        running -> "Updating"
-                        testing -> "Installing"
-                        hasNameConflictOnly -> "Notice"
-                        exhausted || invalidJson -> "Issues"
-                        else -> "Ready"
+                        running -> tr("Updating")
+                        testing -> tr("Installing")
+                        hasNameConflictOnly -> tr("Notice")
+                        exhausted || invalidJson -> tr("Issues")
+                        else -> tr("Ready")
                     }
                     Text(
                         statusText,
@@ -201,7 +202,7 @@ internal fun ManifestPreviewCard(
                     )
                 }
                 Text(
-                    "suggested: $appName",
+                    tr("suggested: {{name}}", "name" to appName),
                     style = typography.caption.copy(color = colors.textMuted),
                     modifier = Modifier.padding(start = 12.dp),
                 )
@@ -224,7 +225,7 @@ internal fun ManifestPreviewCard(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "Revisions:",
+                                tr("Revisions:"),
                                 style = typography.caption.copy(
                                     fontWeight = FontWeight.Medium,
                                     color = colors.textMuted,
@@ -272,7 +273,7 @@ internal fun ManifestPreviewCard(
                                         .clickable { showDiff = !showDiff },
                                 ) {
                                     Text(
-                                        if (showDiff) "View Code" else "View Diff",
+                                        if (showDiff) tr("View Code") else tr("View Diff"),
                                         style = typography.caption.copy(
                                             color = if (showDiff) colors.primary else colors.textTitle,
                                             fontSize = 12.sp,
@@ -441,7 +442,11 @@ internal fun ManifestPreviewCard(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        if (hasNameConflictOnly) "Notice: Name conflict detected:" else "Generation finished with issues:",
+                        if (hasNameConflictOnly) {
+                            tr("Notice: Name conflict detected:")
+                        } else {
+                            tr("Generation finished with issues:")
+                        },
                         style = typography.caption.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = colors.warningDefault,
@@ -475,9 +480,9 @@ internal fun ManifestPreviewCard(
                     if (!invalidJson) {
                         Text(
                             if (hasNameConflictOnly) {
-                                "Manifest is valid JSON; choose a different name when saving to a bucket."
+                                tr("Manifest is valid JSON; choose a different name when saving to a bucket.")
                             } else {
-                                "Manifest is valid JSON; you may still test / install it."
+                                tr("Manifest is valid JSON; you may still test / install it.")
                             },
                             style = typography.caption.copy(color = colors.textMuted),
                             modifier = Modifier.padding(top = 4.dp),
@@ -540,7 +545,7 @@ internal fun ManifestPreviewCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 SmallActionButton(
-                    label = "Copy",
+                    label = tr("Copy"),
                     onClick = {
                         clipboard.setText(AnnotatedString(manifestJson))
                         onCopyDone()
@@ -550,7 +555,7 @@ internal fun ManifestPreviewCard(
                 // After an AI verify_install passed, Save to Bucket becomes the
                 // primary action; once the manifest is saved the button is plain.
                 SmallActionButton(
-                    label = "Save to Bucket",
+                    label = tr("Save to Bucket"),
                     onClick = onSave,
                     enabled = enabled && !testing && !invalidJson,
                     primary = saveToBucketPrimary(testSucceeded, manifestSaved),
@@ -581,7 +586,7 @@ internal fun ManifestPreviewCard(
                 }
                 if (openAppActionVisible(installedForUse, manifestHasShortcuts(manifestJson))) {
                     SmallActionButton(
-                        label = "Open",
+                        label = tr("Open"),
                         onClick = onOpenApp,
                         enabled = true,
                         primary = false,
@@ -589,7 +594,7 @@ internal fun ManifestPreviewCard(
                 }
                 if (selectedRevisionId != null && selectedRevisionId != revisions.lastOrNull()?.id && onRevertToRevision != null) {
                     SmallActionButton(
-                        label = "Revert to this version",
+                        label = tr("Revert to this version"),
                         onClick = { onRevertToRevision(selectedRevisionId) },
                         enabled = enabled && !testing,
                     )
@@ -664,8 +669,19 @@ internal fun SaveResultPanel(
                 )
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Saved ${result.appName}.json to bucket \"${result.bucket}\"" +
-                            if (result.overwritten) " (overwritten)" else "",
+                        if (result.overwritten) {
+                            tr(
+                                "Saved {{app}}.json to bucket \"{{bucket}}\" (overwritten)",
+                                "app" to result.appName,
+                                "bucket" to result.bucket,
+                            )
+                        } else {
+                            tr(
+                                "Saved {{app}}.json to bucket \"{{bucket}}\"",
+                                "app" to result.appName,
+                                "bucket" to result.bucket,
+                            )
+                        },
                         style = typography.body2.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = colors.textTitle,
@@ -684,7 +700,7 @@ internal fun SaveResultPanel(
                 ) {
                     Icon(
                         Lucide.X,
-                        contentDescription = "Dismiss",
+                        contentDescription = tr("Dismiss"),
                         modifier = Modifier.size(16.dp),
                         tint = colors.textMuted,
                     )
@@ -694,13 +710,13 @@ internal fun SaveResultPanel(
             Spacer(Modifier.height(8.dp))
             val statusNote = when {
                 result.indexedOk && result.gitCommitted ->
-                    "Indexed for Discover and committed to Git. The app is searchable now."
+                    tr("Indexed for Discover and committed to Git. The app is searchable now.")
                 result.indexedOk && !result.gitCommitted ->
-                    "Indexed for Discover. The app is searchable now."
+                    tr("Indexed for Discover. The app is searchable now.")
                 !result.indexedOk && result.gitCommitted ->
-                    "Committed to Git, but Discover indexing failed."
+                    tr("Committed to Git, but Discover indexing failed.")
                 else ->
-                    "File saved, but Discover indexing failed. The app may not appear in search until reindex."
+                    tr("File saved, but Discover indexing failed. The app may not appear in search until reindex.")
             }
             Text(
                 statusNote,
@@ -732,7 +748,7 @@ internal fun SaveResultPanel(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(
-                        "This bucket is a Git repository. Commit to keep the change in history:",
+                        tr("This bucket is a Git repository. Commit to keep the change in history:"),
                         style = typography.caption.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = colors.warningDefault,
@@ -748,14 +764,14 @@ internal fun SaveResultPanel(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SmallActionButton(
-                    label = "Open in Discover",
+                    label = tr("Open in Discover"),
                     onClick = onGoToDiscover,
                     // Indexing failed, so there is nothing searchable to jump to yet.
                     enabled = result.indexedOk,
                     primary = true,
                 )
                 SmallActionButton(
-                    label = "Done",
+                    label = tr("Done"),
                     onClick = onDismiss,
                     enabled = true,
                 )

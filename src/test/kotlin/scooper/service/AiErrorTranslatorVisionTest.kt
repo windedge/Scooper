@@ -3,6 +3,7 @@ package scooper.service
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -24,7 +25,7 @@ class AiErrorTranslatorVisionTest {
 
         val p = AiErrorTranslator.translate(e)
 
-        assertTrue(p.detail.contains("multimodal model") || p.detail.contains("multimodal"))
+        assertEquals(AiErrorCategory.VISION, p.category)
         assertTrue(p.actions.contains(AiErrorAction.OPEN_SETTINGS))
         assertFalse(p.actions.contains(AiErrorAction.RETRY_FULL))
         assertFalse(p.actions.contains(AiErrorAction.RETRY_FROM_ANALYZE))
@@ -36,7 +37,7 @@ class AiErrorTranslatorVisionTest {
         val message = "Status code: 400. Body: {\"error\":{\"message\":\"vision is not enabled for this model\"}}"
         val p = AiErrorTranslator.translate(IllegalStateException(message))
 
-        assertTrue(p.detail.contains("multimodal"))
+        assertNull(p.detail.raw, "the vision hint is a category template, not verbatim engine text")
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 }

@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import scooper.viewmodels.ActiveExecution
 import scooper.util.cursorHand
 import scooper.util.onHover
+import scooper.util.tr
 import scooper.viewmodels.ExecutionStep
 import scooper.viewmodels.executionSummaryLineText
 import scooper.viewmodels.runningStepTitle
@@ -197,7 +198,7 @@ internal fun CollapsibleAgentBody(text: String) {
     if (overflowing) {
         androidx.compose.foundation.text.selection.DisableSelection {
             Text(
-                if (expanded) "Show less" else "Show more",
+                if (expanded) tr("Show less") else tr("Show more"),
                 style = typography.caption.copy(
                     color = colors.primary,
                     fontWeight = FontWeight.Medium,
@@ -276,7 +277,7 @@ internal fun ExecutionSummaryLine(
         }
         Icon(
             if (expanded) Lucide.ChevronUp else Lucide.ChevronDown,
-            contentDescription = "Toggle execution details",
+            contentDescription = tr("Toggle execution details"),
             modifier = Modifier.size(12.dp),
             tint = colors.textMuted,
         )

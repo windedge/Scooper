@@ -30,4 +30,14 @@ interface BucketSaveEnv : BucketIndexEnv {
         bucket: Bucket,
         installed: Map<String, InstalledAppInfo>,
     ): List<App>
+
+    /** Just-written / just-installed variant: [assumeOrigin] skips cross-bucket strictness.
+     *  A default method because Kotlin overrides cannot inherit default arguments. */
+    fun buildAppsFromManifestNames(
+        bucketDir: File,
+        manifestNames: Set<String>,
+        bucket: Bucket,
+        installed: Map<String, InstalledAppInfo>,
+        assumeOrigin: Boolean,
+    ): List<App> = buildAppsFromManifestNames(bucketDir, manifestNames, bucket, installed)
 }

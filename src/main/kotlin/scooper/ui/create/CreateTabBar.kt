@@ -42,6 +42,8 @@ import scooper.ui.theme.borderDefault
 import scooper.ui.theme.textMuted
 import scooper.ui.theme.textBody
 import scooper.util.cursorHand
+import scooper.util.tr
+import scooper.viewmodels.CreateTab
 import scooper.viewmodels.CreateTabInfo
 
 /**
@@ -99,10 +101,13 @@ fun CreateTabBar(
         ) {
             tabs.forEach { tab ->
                 val isActive = tab.tabId == activeTabId
+                // The default title is stored as the English sentinel in VM state;
+                // translate at render time instead of freezing a locale in the value.
+                val title = if (tab.title == CreateTab.DEFAULT_TAB_TITLE) tr("New Chat") else tab.title
                 // Full-title tooltip only when the label actually overflows and
                 // gets ellipsized; a fully visible title needs no tooltip.
-                var titleTruncated by remember(tab.tabId, tab.title) { mutableStateOf(false) }
-                Tooltip(tab.title, position = TooltipPosition.Bottom, enabled = titleTruncated) {
+                var titleTruncated by remember(tab.tabId, title) { mutableStateOf(false) }
+                Tooltip(title, position = TooltipPosition.Bottom, enabled = titleTruncated) {
                     Surface(
                         color = if (isActive) colors.primarySubtle else colors.inputBackground,
                         shape = RoundedCornerShape(6.dp),
@@ -128,7 +133,7 @@ fun CreateTabBar(
                         Layout(
                             content = {
                                 Text(
-                                    tab.title,
+                                    title,
                                     style = typography.caption.copy(
                                         fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                                         color = if (isActive) colors.primary else colors.textBody,
@@ -139,7 +144,7 @@ fun CreateTabBar(
                                 )
                                 Icon(
                                     Lucide.X,
-                                    contentDescription = "Close tab",
+                                    contentDescription = tr("Close tab"),
                                     modifier = Modifier
                                         .size(13.dp)
                                         .clickable { onClose(tab.tabId) },

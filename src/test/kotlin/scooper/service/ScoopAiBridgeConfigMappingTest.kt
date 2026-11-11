@@ -62,7 +62,7 @@ class ScoopAiBridgeConfigMappingTest {
         val without = snapshot(autoDownload = false, apiKey = "")
         val with = snapshot(autoDownload = true, apiKey = "")
         assertEquals(without.missingReason(), with.missingReason())
-        assertTrue(with.missingReason()!!.contains("API key"))
+        assertNotNull(with.missingReason()!!.msgid)
     }
 
     // -------------------------------------------------------------
@@ -115,16 +115,16 @@ class ScoopAiBridgeConfigMappingTest {
     fun `missingReason reports an unsupported provider`() {
         val reason = providerSnapshot(provider = "unknown").missingReason()
         assertNotNull(reason)
-        assertTrue(reason!!.contains("Unsupported provider: unknown"), reason)
-        assertTrue(reason.contains("openai-compatible"), reason)
+        assertEquals("Unsupported provider: unknown. Supported: deepseek, openai, anthropic, ollama, openrouter, openai-compatible", reason!!.raw)
+        assertNull(reason.msgid)
     }
 
     @Test
     fun `missingReason names the provider environment variable for the api key`() {
         val reason = providerSnapshot(provider = "deepseek", apiKey = "").missingReason()
         assertNotNull(reason)
-        assertTrue(reason!!.contains("API key"), reason)
-        assertTrue(reason.contains("DEEPSEEK_API_KEY"), reason)
+        assertTrue(reason!!.msgid!!.contains("API key is missing"), reason.msgid)
+        assertEquals("SCOOP_AI_API_KEY or DEEPSEEK_API_KEY", reason.args.single().second)
     }
 
     @Test
@@ -141,7 +141,8 @@ class ScoopAiBridgeConfigMappingTest {
     fun `missingReason still requires a base url for openai-compatible`() {
         val reason = providerSnapshot(provider = "openai-compatible", baseUrl = "").missingReason()
         assertNotNull(reason)
-        assertTrue(reason!!.contains("Base URL"), reason)
+        assertTrue(reason!!.msgid!!.contains("Base URL is required"), reason.msgid)
+        assertEquals("openai-compatible", reason.args.single().second)
     }
 
     @Test

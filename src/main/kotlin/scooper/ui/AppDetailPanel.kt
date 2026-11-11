@@ -198,7 +198,9 @@ private fun DetailHeader(app: App, onClose: () -> Unit, onModifyWithAi: ((App) -
         val bucketName = app.bucket?.name
         if (onModifyWithAi != null && bucketName != null) {
             Tooltip(
-                "Chat about @${bucketName}/${app.name} with AI",
+                // @ lives in the parameter (ref = "@bucket/app"), matching the
+                // CreateScreen header, so translators handle one shared msgid.
+                tr("Chat about {{ref}}", "ref" to "@$bucketName/${app.name}"),
                 position = TooltipPosition.Top,
             ) {
                 OutlinedButton(
@@ -213,12 +215,12 @@ private fun DetailHeader(app: App, onClose: () -> Unit, onModifyWithAi: ((App) -
                 ) {
                     Icon(
                         Lucide.MessageSquarePlus,
-                        "Chat with AI",
+                        tr("Chat with AI"),
                         modifier = Modifier.size(14.dp),
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "Chat with AI",
+                        tr("Chat with AI"),
                         style = typography.caption.copy(fontWeight = FontWeight.Medium),
                         maxLines = 1,
                     )

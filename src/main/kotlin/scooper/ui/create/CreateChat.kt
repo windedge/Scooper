@@ -58,9 +58,12 @@ import scooper.viewmodels.AskUserRequest
 import scooper.viewmodels.QuestionnaireOption
 import scooper.util.cursorHand
 import scooper.util.onHover
+import scooper.util.tr
 import scooper.service.AiErrorAction
 import scooper.viewmodels.ChatMessage
 import scooper.viewmodels.ChatRole
+import scooper.viewmodels.displayNote
+import scooper.viewmodels.displayText
 import scooper.viewmodels.ManifestRefSegment
 import scooper.viewmodels.splitManifestRefSegments
 import scooper.viewmodels.PendingImage
@@ -71,6 +74,8 @@ import scooper.viewmodels.elideUrlMiddle
 import scooper.viewmodels.isFailedExecutionStep
 import scooper.ui.icons.*
 import scooper.ui.theme.*
+/** Shared write-in option label: rendered via tr() at each use site so locale switches are picked up. */
+private fun otherOptionLabel(): String = tr("Type something.")
 
 
 @Composable
@@ -123,7 +128,7 @@ internal fun AskUserBubble(
                         tint = colors.primary,
                     )
                     Text(
-                        if (isDownloadPrompt) "Download Confirmation" else "AI Questionnaire",
+                        if (isDownloadPrompt) tr("Download Confirmation") else tr("AI Questionnaire"),
                         style = typography.subtitle2.copy(
                             fontWeight = FontWeight.Bold,
                             color = colors.textTitle,
@@ -143,7 +148,7 @@ internal fun AskUserBubble(
                         questions.forEachIndexed { index, q ->
                             val isActive = currentTab == index
                             val isAnswered = answers.containsKey(q.id)
-                            val label = q.label ?: "Q${index + 1}"
+                            val label = q.label ?: tr("Q{{index}}", "index" to "${index + 1}")
 
                             Surface(
                                 color = if (isActive) colors.surface else Color.Transparent,
@@ -205,7 +210,7 @@ internal fun AskUserBubble(
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    "Submit",
+                                    tr("Submit"),
                                     style = typography.caption.copy(
                                         fontWeight = if (isSubmitTab) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSubmitTab) colors.primary else colors.textMuted,
@@ -224,7 +229,7 @@ internal fun AskUserBubble(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            "Ready to submit answers:",
+                            tr("Ready to submit answers:"),
                             style = typography.caption.copy(fontWeight = FontWeight.SemiBold, color = colors.textTitle),
                         )
                         questions.forEach { q ->
@@ -242,7 +247,7 @@ internal fun AskUserBubble(
                                     style = typography.caption.copy(color = colors.textBody),
                                 )
                                 Text(
-                                    ans ?: "Not selected (Auto)",
+                                    ans ?: tr("Not selected (Auto)"),
                                     style = typography.caption.copy(
                                         fontWeight = FontWeight.SemiBold,
                                         color = if (ans != null) colors.primary else colors.textMuted,
@@ -273,7 +278,7 @@ internal fun AskUserBubble(
                             ) {
                                 Icon(Lucide.CircleCheck, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Submit All", style = typography.caption.copy(fontWeight = FontWeight.SemiBold))
+                                Text(tr("Submit All"), style = typography.caption.copy(fontWeight = FontWeight.SemiBold))
                             }
                         }
                     }
@@ -294,14 +299,15 @@ internal fun AskUserBubble(
                     var inputMode by remember(currentQuestion.id) { mutableStateOf(false) }
                     var customInput by remember(currentQuestion.id) { mutableStateOf("") }
 
+                    // tr() output must not be cached here or the labels would not follow
+                    // locale switches; the "other" entry resolves at the render sites below.
                     val allOptions = remember(currentQuestion) {
                         val list = currentQuestion.options.toMutableList()
                         if (currentQuestion.allowOther) {
                             list.add(
                                 QuestionnaireOption(
-                                    label = "Type something.",
+                                    label = "",
                                     value = "__other__",
-                                    description = "Write a custom answer or instruction",
                                 )
                             )
                         }
@@ -350,7 +356,7 @@ internal fun AskUserBubble(
                                                     )
                                                 }
                                                 Text(
-                                                    "Type something.",
+                                                    tr("Type something."),
                                                     style = typography.caption.copy(
                                                         fontWeight = FontWeight.Bold,
                                                         color = colors.primary,
@@ -383,7 +389,7 @@ internal fun AskUserBubble(
                                                     DialogTextField(
                                                         value = customInput,
                                                         onValueChange = { customInput = it },
-                                                        placeholder = "Type your response here...",
+                                                        placeholder = tr("Type your response here..."),
                                                         modifier = Modifier
                                                             .weight(1f)
                                                             .onPreviewKeyEvent { event ->
@@ -406,7 +412,7 @@ internal fun AskUserBubble(
                                                         contentColor = Color.White,
                                                     ),
                                                 ) {
-                                                    Text("Submit", style = typography.caption.copy(fontWeight = FontWeight.SemiBold))
+                                                    Text(tr("Submit"), style = typography.caption.copy(fontWeight = FontWeight.SemiBold))
                                                 }
                                             }
                                         }
@@ -414,8 +420,8 @@ internal fun AskUserBubble(
                                 } else {
                                     OptionCard(
                                         index = optIndex + 1,
-                                        label = opt.label,
-                                        description = opt.description,
+                                        label = if (isOther) otherOptionLabel() else opt.label,
+                                        description = if (isOther) tr("Write a custom answer or instruction") else opt.description,
                                         selected = isSelected,
                                         onClick = {
                                             if (isOther) {
@@ -447,7 +453,7 @@ internal fun AskUserBubble(
                         // No options and no write-in: the composer below is
                         // the only way to answer, so point the user at it.
                         Text(
-                            "No options provided. Type your answer in the composer below.",
+                            tr("No options provided. Type your answer in the composer below."),
                             style = typography.caption.copy(color = colors.textMuted),
                         )
                     }
@@ -551,7 +557,12 @@ internal fun ChatBubble(
     onToggleExecutionExpanded: (String) -> Unit = {},
 ) {
     val isUser = message.role == ChatRole.User
-    val isErrorBubble = message.actions.isNotEmpty()
+    // Single error-bubble marker for render and history: only agentError() sets it.
+    val isErrorBubble = message.errorCategory != null
+    // Structured error copy re-translates here so a language switch re-renders
+    // stored bubbles (Settings.kt rule); plain bubbles keep their raw text.
+    val displayText = if (isErrorBubble) message.displayText() else message.text
+    val displayNote = if (isErrorBubble) message.displayNote() else message.note
     // Token usage renders in the meta row below the bubble; user and error
     // bubbles have no token footer.
     val tokenFooter =
@@ -655,7 +666,7 @@ internal fun ChatBubble(
                                     rememberImageBitmap(image)?.let { bitmap ->
                                         Image(
                                             bitmap = bitmap,
-                                            contentDescription = "Sent image",
+                                            contentDescription = tr("Sent image"),
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier
                                                 .height(120.dp)
@@ -698,13 +709,13 @@ internal fun ChatBubble(
                                 }
                             }
                         } else {
-                            BubbleBodyText(message.text, isUser)
+                            BubbleBodyText(displayText, isUser)
                         }
                         // Token footer moved out of the bubble: it renders as
                         // its own meta line below the bubble (see the chat Column
                         // in ChatBubble). The note and technical details keep their
                         // place inside the body column.
-                        message.note?.takeIf { it.isNotBlank() }?.let { rawNote ->
+                        displayNote?.takeIf { it.isNotBlank() }?.let { rawNote ->
                             Text(
                                 // Single-line notes must never be visually tail-clipped. Elide any
                                 // URL middle before rendering; idempotent when already elided.
@@ -736,12 +747,12 @@ internal fun ChatBubble(
                                 ) {
                                     Icon(
                                         if (detailsExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
-                                        contentDescription = "Details",
+                                        contentDescription = tr("Details"),
                                         modifier = Modifier.size(12.dp),
                                         tint = colors.textMuted,
                                     )
                                     Text(
-                                        if (detailsExpanded) "Hide details" else "Details",
+                                        if (detailsExpanded) tr("Hide details") else tr("Details"),
                                         style = typography.caption.copy(
                                             color = colors.textMuted,
                                             fontSize = typography.caption.fontSize * 0.9f,
@@ -803,11 +814,11 @@ internal fun ChatBubble(
     }
 }
 private fun actionLabel(action: AiErrorAction): String = when (action) {
-    AiErrorAction.OPEN_SETTINGS -> "Open Settings"
-    AiErrorAction.RETRY_FULL -> "Restart"
-    AiErrorAction.RETRY_FROM_ANALYZE -> "Retry from analyze"
-    AiErrorAction.RETRY_FROM_GENERATE -> "Retry from generate"
-    AiErrorAction.RETRY_ANSWER -> "Retry"
+    AiErrorAction.OPEN_SETTINGS -> tr("Open Settings")
+    AiErrorAction.RETRY_FULL -> tr("Restart")
+    AiErrorAction.RETRY_FROM_ANALYZE -> tr("Retry from analyze")
+    AiErrorAction.RETRY_FROM_GENERATE -> tr("Retry from generate")
+    AiErrorAction.RETRY_ANSWER -> tr("Retry")
 }
 @Composable
 private fun PhaseTag(phase: String, modifier: Modifier = Modifier) {

@@ -14,6 +14,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.add
+import scooper.util.LocalizedText
 import java.net.ConnectException
 import java.net.URI
 import java.net.UnknownHostException
@@ -24,11 +25,12 @@ import java.net.http.HttpTimeoutException
 import java.time.Duration
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Result of a one-shot AI endpoint connectivity test (Settings.AI "Test Connection"). */
+/** Result of a one-shot AI endpoint connectivity test (Settings.AI "Test Connection").
+ *  [detail] stores msgid/args or verbatim output; rendering translates (Settings.kt rule). */
 data class AiConnectionTestResult(
     val ok: Boolean,
     val category: AiErrorCategory,
-    val detail: String,
+    val detail: LocalizedText = LocalizedText(),
     val latencyMs: Long,
     val testedEndpoint: String,
     val modelCount: Int? = null,
@@ -91,7 +93,7 @@ class AiConnectionTester(
         if (endpoint == null) {
             return@withContext fail(
                 category = AiErrorCategory.CONFIG,
-                detail = ProviderEndpoints.unsupportedProviderMessage(provider),
+                detail = LocalizedText(raw = ProviderEndpoints.unsupportedProviderMessage(provider)),
                 endpoint = "",
                 start = start,
             )
@@ -100,7 +102,7 @@ class AiConnectionTester(
         if (endpoint.requiresApiKey && apiKey.isBlank()) {
             return@withContext fail(
                 category = AiErrorCategory.CONFIG,
-                detail = "API key is empty. Fill it in Settings > AI.",
+                detail = LocalizedText(msgid = "API key is empty. Fill it in Settings > AI."),
                 endpoint = "",
                 start = start,
             )
@@ -110,7 +112,10 @@ class AiConnectionTester(
         if (base == null) {
             return@withContext fail(
                 category = AiErrorCategory.CONFIG,
-                detail = "Base URL is required for provider '$provider'. Fill it in Settings > AI.",
+                detail = LocalizedText(
+                    msgid = "Base URL is required for provider '{{provider}}'. Fill it in Settings > AI.",
+                    args = listOf("provider" to provider),
+                ),
                 endpoint = "",
                 start = start,
             )
@@ -144,11 +149,11 @@ class AiConnectionTester(
         // Branch order matters: 5xx wins over the 404/405 fallback below.
         return when (modelsRes.statusCode()) {
             200 -> modelsOk(modelsRes, model, start, modelsUrl)
-            401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), modelsUrl, start)
-            429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), modelsUrl, start)
-            in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), modelsUrl, start)
+            401, 403 -> fail(AiErrorCategory.AUTH, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
+            429 -> fail(AiErrorCategory.RATE_LIMIT, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
+            in 500..599 -> fail(AiErrorCategory.SERVER, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
             404, 405, 501 -> chatFallback(base, apiKey, model, start, endpoint)
-            else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), modelsUrl, start)
+            else -> fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
         }
     }
 
@@ -167,11 +172,11 @@ class AiConnectionTester(
         val modelsRes = send("GET", modelsUrl, apiKey, null, endpoint)
         return when (modelsRes.statusCode()) {
             200 -> modelsOk(modelsRes, model, start, modelsUrl)
-            401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), modelsUrl, start)
-            429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), modelsUrl, start)
-            in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), modelsUrl, start)
+            401, 403 -> fail(AiErrorCategory.AUTH, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
+            429 -> fail(AiErrorCategory.RATE_LIMIT, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
+            in 500..599 -> fail(AiErrorCategory.SERVER, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
             404, 405, 501 -> anthropicMessagesFallback(base, apiKey, model, start, endpoint)
-            else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), modelsUrl, start)
+            else -> fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
         }
     }
 
@@ -189,11 +194,11 @@ class AiConnectionTester(
         val modelsRes = send("GET", modelsUrl, "", null, endpoint)
         return when (modelsRes.statusCode()) {
             200 -> ollamaModelsOk(modelsRes, model, start, modelsUrl)
-            401, 403 -> fail(AiErrorCategory.AUTH, readable(modelsRes), modelsUrl, start)
-            429 -> fail(AiErrorCategory.RATE_LIMIT, readable(modelsRes), modelsUrl, start)
-            in 500..599 -> fail(AiErrorCategory.SERVER, readable(modelsRes), modelsUrl, start)
+            401, 403 -> fail(AiErrorCategory.AUTH, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
+            429 -> fail(AiErrorCategory.RATE_LIMIT, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
+            in 500..599 -> fail(AiErrorCategory.SERVER, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
             404, 405, 501 -> ollamaChatFallback(base, model, start, endpoint)
-            else -> fail(AiErrorCategory.BAD_PATH, readable(modelsRes), modelsUrl, start)
+            else -> fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(modelsRes)), endpoint = modelsUrl, start = start)
         }
     }
 
@@ -210,7 +215,10 @@ class AiConnectionTester(
         return AiConnectionTestResult(
             ok = true,
             category = AiErrorCategory.UNKNOWN, // ok=true carries the success signal
-            detail = "Endpoint reachable; ${ids.size} model(s) listed.",
+            detail = LocalizedText(
+                msgid = "Endpoint reachable; {{count}} model(s) listed.",
+                args = listOf("count" to "${ids.size}"),
+            ),
             latencyMs = elapsedMs(start),
             testedEndpoint = modelsUrl,
             modelCount = ids.size,
@@ -232,7 +240,10 @@ class AiConnectionTester(
         return AiConnectionTestResult(
             ok = true,
             category = AiErrorCategory.UNKNOWN,
-            detail = "Endpoint reachable; ${ids.size} model(s) listed.",
+            detail = LocalizedText(
+                msgid = "Endpoint reachable; {{count}} model(s) listed.",
+                args = listOf("count" to "${ids.size}"),
+            ),
             latencyMs = elapsedMs(start),
             testedEndpoint = modelsUrl,
             modelCount = ids.size,
@@ -255,25 +266,25 @@ class AiConnectionTester(
                 200 -> AiConnectionTestResult(
                     ok = true,
                     category = AiErrorCategory.UNKNOWN,
-                    detail = "No models listing; chat completions reachable.",
+                    detail = LocalizedText(msgid = "No models listing; chat completions reachable."),
                     latencyMs = elapsedMs(start),
                     testedEndpoint = chatUrl,
                 )
 
                 401, 403 ->
-                    fail(AiErrorCategory.AUTH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.AUTH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
 
                 404 -> if ("model" in res.body().lowercase()) {
-                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.MODEL_NOT_FOUND, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
                 } else {
-                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
                 }
 
                 in 500..599 ->
-                    fail(AiErrorCategory.SERVER, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.SERVER, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
 
                 else ->
-                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
             }
         } catch (e: CancellationException) {
             throw e
@@ -301,25 +312,25 @@ class AiConnectionTester(
                 200 -> AiConnectionTestResult(
                     ok = true,
                     category = AiErrorCategory.UNKNOWN,
-                    detail = "No models listing; messages endpoint reachable.",
+                    detail = LocalizedText(msgid = "No models listing; messages endpoint reachable."),
                     latencyMs = elapsedMs(start),
                     testedEndpoint = chatUrl,
                 )
 
                 401, 403 ->
-                    fail(AiErrorCategory.AUTH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.AUTH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
 
                 404 -> if ("model" in res.body().lowercase()) {
-                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.MODEL_NOT_FOUND, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
                 } else {
-                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
                 }
 
                 in 500..599 ->
-                    fail(AiErrorCategory.SERVER, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.SERVER, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
 
                 else ->
-                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
             }
         } catch (e: CancellationException) {
             throw e
@@ -343,25 +354,25 @@ class AiConnectionTester(
                 200 -> AiConnectionTestResult(
                     ok = true,
                     category = AiErrorCategory.UNKNOWN,
-                    detail = "No models listing; chat endpoint reachable.",
+                    detail = LocalizedText(msgid = "No models listing; chat endpoint reachable."),
                     latencyMs = elapsedMs(start),
                     testedEndpoint = chatUrl,
                 )
 
                 401, 403 ->
-                    fail(AiErrorCategory.AUTH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.AUTH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
 
                 404 -> if ("model" in res.body().lowercase()) {
-                    fail(AiErrorCategory.MODEL_NOT_FOUND, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.MODEL_NOT_FOUND, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
                 } else {
-                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
                 }
 
                 in 500..599 ->
-                    fail(AiErrorCategory.SERVER, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.SERVER, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
 
                 else ->
-                    fail(AiErrorCategory.BAD_PATH, readable(res), chatUrl, start)
+                    fail(AiErrorCategory.BAD_PATH, detail = LocalizedText(raw = readable(res)), endpoint = chatUrl, start = start)
             }
         } catch (e: CancellationException) {
             throw e
@@ -372,7 +383,7 @@ class AiConnectionTester(
 
     private fun fail(
         category: AiErrorCategory,
-        detail: String,
+        detail: LocalizedText = LocalizedText(),
         endpoint: String,
         start: Long,
     ): AiConnectionTestResult = AiConnectionTestResult(
@@ -390,7 +401,7 @@ class AiConnectionTester(
             is ConnectException -> AiErrorCategory.REFUSED
             else -> AiErrorCategory.UNKNOWN
         }
-        return fail(category, e.message ?: e.javaClass.simpleName, endpoint, start)
+        return fail(category, detail = LocalizedText(raw = e.message ?: e.javaClass.simpleName), endpoint = endpoint, start = start)
     }
 
     private fun send(

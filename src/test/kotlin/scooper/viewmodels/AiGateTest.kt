@@ -79,8 +79,8 @@ class AiGateTest {
         val readiness = gate(FakeConfigRepository()).readiness()
         assertFalse(readiness.configured, "blank settings must not read as configured")
         assertTrue(
-            readiness.hint?.isNotBlank() == true,
-            "an unconfigured gate must carry a user facing hint, got: ${readiness.hint}",
+            readiness.reason != null,
+            "an unconfigured gate must carry a structured reason, got: ${readiness.reason}",
         )
     }
 
@@ -92,8 +92,8 @@ class AiGateTest {
         val readiness = gate(repo).readiness()
         assertFalse(readiness.configured)
         assertTrue(
-            readiness.hint?.contains("API key is missing") == true,
-            "expected the api key hint, got: ${readiness.hint}",
+            readiness.reason?.msgid?.contains("API key is missing") == true,
+            "expected the api key reason, got: ${readiness.reason}",
         )
     }
 
@@ -105,8 +105,8 @@ class AiGateTest {
         val readiness = gate(repo).readiness()
         assertFalse(readiness.configured)
         assertTrue(
-            readiness.hint?.contains("Base URL is required") == true,
-            "expected the base url hint, got: ${readiness.hint}",
+            readiness.reason?.msgid?.contains("Base URL is required") == true,
+            "expected the base url reason, got: ${readiness.reason}",
         )
     }
 
@@ -122,7 +122,7 @@ class AiGateTest {
         )
         val readiness = gate(repo).readiness()
         assertTrue(readiness.configured, "a complete setting must read as configured")
-        assertNull(readiness.hint, "a configured gate must not carry a hint")
+        assertNull(readiness.reason, "a configured gate must not carry a reason")
     }
 
     @Test
@@ -130,8 +130,8 @@ class AiGateTest {
         val readiness = gate(FakeConfigRepository(UIConfig(aiProvider = "no-such-provider"))).readiness()
         assertFalse(readiness.configured)
         assertTrue(
-            readiness.hint?.isNotBlank() == true,
-            "an unknown provider must be reported as unready, got: ${readiness.hint}",
+            readiness.reason != null,
+            "an unknown provider must be reported as unready, got: ${readiness.reason}",
         )
     }
 

@@ -459,10 +459,12 @@ class AiConnectionTesterTest {
 
         assertFalse(result.ok)
         assertEquals(AiErrorCategory.CONFIG, result.category)
-        assertTrue(
-            result.detail.contains("Base URL is required for provider 'openai-compatible'"),
-            "unexpected detail: ${result.detail}",
+        assertEquals(
+            "Base URL is required for provider '{{provider}}'. Fill it in Settings > AI.",
+            result.detail.msgid,
+            "unexpected detail msgid: ${result.detail.msgid}",
         )
+        assertEquals("openai-compatible", result.detail.args.single().second)
     }
 
     @Test

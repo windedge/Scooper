@@ -33,13 +33,14 @@ internal data class SaveDialogRequest(
     val currentBucket: String,
 )
 
-/** Pre-filled save dialog state; [buckets] is the sorted option list. */
+/** Pre-filled save dialog state; [buckets] is the sorted option list, [refLock] the raw
+ *  @bucket/app default source whose hint line translates at render time (Settings.kt rule). */
 internal data class SaveDialogDefaults(
     val appName: String,
     val bucket: String,
     val buckets: List<String>,
     val isGitBucket: Boolean,
-    val refHint: String?,
+    val refLock: Pair<String, String>?,
     val commitToGit: Boolean,
 )
 
@@ -109,7 +110,7 @@ internal class SaveCoordinator(
                 bucket = "",
                 buckets = emptyList(),
                 isGitBucket = false,
-                refHint = null,
+                refLock = null,
                 commitToGit = false,
             )
         }
@@ -129,7 +130,7 @@ internal class SaveCoordinator(
             bucket = bucket,
             buckets = buckets,
             isGitBucket = isGit,
-            refHint = refLockHintText(refLock),
+            refLock = refLock,
             commitToGit = resolveDefaultCommitToGit(
                 isGitBucket = isGit,
                 lastPreference = memory.readCommitPreference() ?: true,

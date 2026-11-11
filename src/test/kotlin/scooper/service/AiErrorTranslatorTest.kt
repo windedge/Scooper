@@ -3,6 +3,7 @@ package scooper.service
 import com.scoopai.core.ScoopAiGenerationException
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -28,8 +29,8 @@ class AiErrorTranslatorTest {
 
         val p = AiErrorTranslator.translate(e)
 
-        assertEquals("Model capability issue", p.title)
-        assertTrue(p.detail.contains("function calling"))
+        assertEquals(AiErrorCategory.CAPABILITY, p.category)
+        assertNull(p.detail.raw, "the capability hint is a category template, not verbatim engine text")
         assertEquals(original, p.technicalDetails)
         assertEquals(
             listOf(
@@ -87,7 +88,7 @@ class AiErrorTranslatorTest {
 
         val p = AiErrorTranslator.translate(e)
 
-        assertEquals("Authentication failed", p.title)
+        assertEquals(AiErrorCategory.AUTH, p.category)
         assertTrue(p.technicalDetails!!.contains("401"))
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
@@ -96,7 +97,7 @@ class AiErrorTranslatorTest {
     fun `403 maps to AUTH with OPEN_SETTINGS`() {
         val p = AiErrorTranslator.translate(IllegalStateException("Status code: 403"))
 
-        assertEquals("Authentication failed", p.title)
+        assertEquals(AiErrorCategory.AUTH, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -104,7 +105,7 @@ class AiErrorTranslatorTest {
     fun `404 containing a model name maps to MODEL_NOT_FOUND with OPEN_SETTINGS`() {
         val p = AiErrorTranslator.translate(IllegalStateException("404 model 'deepseek-coder' not found"))
 
-        assertEquals("Model not found", p.title)
+        assertEquals(AiErrorCategory.MODEL_NOT_FOUND, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -114,9 +115,9 @@ class AiErrorTranslatorTest {
             "Status code: 400. Body: {\"error\":\"unknown provider for model gemini-3.5-flash-lite\"}"
         val p = AiErrorTranslator.translate(IllegalStateException(message))
 
-        assertEquals("Model not found", p.title)
+        assertEquals(AiErrorCategory.MODEL_NOT_FOUND, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
-        assertFalse(p.detail.contains("Error from client: OpenAICompatibleLLMClient: Error from client: OpenAILLMClient"))
+        assertNull(p.detail.raw)
     }
 
     @Test
@@ -124,7 +125,7 @@ class AiErrorTranslatorTest {
         val message = "Status code: 400. Body: {\"error\":{\"code\":\"model_not_found\",\"message\":\"Model foo not found\"}}"
         val p = AiErrorTranslator.translate(IllegalStateException(message))
 
-        assertEquals("Model not found", p.title)
+        assertEquals(AiErrorCategory.MODEL_NOT_FOUND, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -132,7 +133,7 @@ class AiErrorTranslatorTest {
     fun `plain 404 without a model name maps to BAD_PATH with OPEN_SETTINGS`() {
         val p = AiErrorTranslator.translate(IllegalStateException("404 Not Found"))
 
-        assertEquals("Resource not found (404)", p.title)
+        assertEquals(AiErrorCategory.BAD_PATH, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -140,7 +141,7 @@ class AiErrorTranslatorTest {
     fun `429 maps to RATE_LIMIT with resumable retry actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("429 Too Many Requests"))
 
-        assertEquals("Rate limit exceeded", p.title)
+        assertEquals(AiErrorCategory.RATE_LIMIT, p.category)
         assertEquals(
             listOf(
                 AiErrorAction.RETRY_FULL,
@@ -155,7 +156,7 @@ class AiErrorTranslatorTest {
     fun `502 maps to SERVER with resumable retry actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("502 Bad Gateway"))
 
-        assertEquals("Server error", p.title)
+        assertEquals(AiErrorCategory.SERVER, p.category)
         assertEquals(
             listOf(
                 AiErrorAction.RETRY_FULL,
@@ -174,7 +175,7 @@ class AiErrorTranslatorTest {
     fun `UnknownHost maps to NETWORK_DNS with OPEN_SETTINGS`() {
         val p = AiErrorTranslator.translate(IllegalStateException("java.net.UnknownHostException: api.example.com"))
 
-        assertEquals("Cannot resolve host", p.title)
+        assertEquals(AiErrorCategory.NETWORK_DNS, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -182,7 +183,7 @@ class AiErrorTranslatorTest {
     fun `timed out maps to TIMEOUT with resumable retry actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("Connect timeout: 30s elapsed"))
 
-        assertEquals("Request timed out", p.title)
+        assertEquals(AiErrorCategory.TIMEOUT, p.category)
         assertEquals(
             listOf(
                 AiErrorAction.RETRY_FULL,
@@ -197,7 +198,7 @@ class AiErrorTranslatorTest {
     fun `Connection refused maps to REFUSED with OPEN_SETTINGS`() {
         val p = AiErrorTranslator.translate(IllegalStateException("Connection refused: localhost/127.0.0.1:8000"))
 
-        assertEquals("Connection refused", p.title)
+        assertEquals(AiErrorCategory.REFUSED, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -211,7 +212,7 @@ class AiErrorTranslatorTest {
             IllegalStateException("Base URL is required for openai-compatible. Fill it in Settings.AI."),
         )
 
-        assertEquals("Configuration error", p.title)
+        assertEquals(AiErrorCategory.CONFIG, p.category)
         assertEquals(listOf(AiErrorAction.OPEN_SETTINGS), p.actions)
     }
 
@@ -223,7 +224,7 @@ class AiErrorTranslatorTest {
     fun `exception without a message maps to UNKNOWN without NPE`() {
         val p = AiErrorTranslator.translate(object : Exception() {})
 
-        assertEquals("Generation failed", p.title)
+        assertEquals(AiErrorCategory.UNKNOWN, p.category)
         assertEquals(
             listOf(
                 AiErrorAction.RETRY_FULL,
@@ -238,7 +239,7 @@ class AiErrorTranslatorTest {
     fun `unrecognized message maps to UNKNOWN with resumable actions`() {
         val p = AiErrorTranslator.translate(IllegalStateException("some random failure"))
 
-        assertEquals("Generation failed", p.title)
+        assertEquals(AiErrorCategory.UNKNOWN, p.category)
         assertEquals(
             listOf(
                 AiErrorAction.RETRY_FULL,
@@ -258,7 +259,7 @@ class AiErrorTranslatorTest {
 
         val p = AiErrorTranslator.translate(a)
 
-        assertEquals("Authentication failed", p.title)
+        assertEquals(AiErrorCategory.AUTH, p.category)
     }
 
     // ---------------------------------------------------------------

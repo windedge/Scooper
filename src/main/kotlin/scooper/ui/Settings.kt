@@ -29,6 +29,8 @@ import scooper.util.*
 import scooper.service.AiConnectionTestResult
 import scooper.ui.components.SectionCard
 import scooper.util.tr
+import scooper.util.trc
+import scooper.util.trn
 import scooper.ui.theme.*
 import scooper.util.form_builder.*
 import scooper.util.navigation.LocalBackStack
@@ -589,13 +591,13 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
         applyEnabled = hasChanged,
     ) {
         SettingsTitle(
-            "AI Settings",
-            "Configure the LLM used by Create to generate Scoop manifests.",
+            tr("AI Settings"),
+            tr("Configure the LLM used by Create to generate Scoop manifests."),
         )
 
         SectionCard {
             PrefRowStacked(
-                title = "Provider",
+                title = tr("Provider"),
                 subtitle = hints.providerSubtitle,
             ) {
                 val choices = providerState.choices
@@ -611,7 +613,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
             Divider(color = colors.divider)
             if (hints.showApiKey) {
                 AiTextFieldPrefStacked(
-                    title = "API Key",
+                    title = tr("API Key"),
                     subtitle = hints.apiKeySubtitle,
                     state = apiKeyState,
                     placeholder = "sk-...",
@@ -621,7 +623,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             if (hints.showBaseUrl) {
                 AiTextFieldPrefStacked(
-                    title = "Base URL",
+                    title = tr("Base URL"),
                     subtitle = hints.baseUrlSubtitle,
                     state = baseUrlState,
                     placeholder = hints.baseUrlPlaceholder,
@@ -629,7 +631,7 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                 Divider(color = colors.divider)
             }
             PrefRowStacked(
-                title = "Model",
+                title = tr("Model"),
                 subtitle = hints.modelSubtitle,
             ) {
                 Column {
@@ -676,13 +678,13 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
                                 } else {
                                     Icon(
                                         Lucide.CircleCheck,
-                                        contentDescription = "Test connection",
+                                        contentDescription = tr("Test connection"),
                                         modifier = Modifier.size(14.dp),
                                         tint = colors.primary,
                                     )
                                 }
                                 Spacer(Modifier.width(6.dp))
-                                Text("Test", style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                                Text(trc("settings", "Test"), style = MaterialTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
                             }
                         },
                     )
@@ -699,16 +701,16 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
             }
             Divider(color = colors.divider)
             AiTextFieldPrefStacked(
-                title = "GitHub Token",
-                subtitle = "Optional. Raises GitHub API rate limits when researching releases.",
+                title = tr("GitHub Token"),
+                subtitle = tr("Optional. Raises GitHub API rate limits when researching releases."),
                 state = githubTokenState,
                 placeholder = "ghp_...",
                 isPassword = true,
             )
             Divider(color = colors.divider)
             PrefRow(
-                title = "Download packages without asking",
-                subtitle = "Skip the download confirmation prompt during generation.",
+                title = tr("Download packages without asking"),
+                subtitle = tr("Skip the download confirmation prompt during generation."),
                 modifier = Modifier.cursorHand(),
                 onClick = { aiAutoDownloadState.update(!aiAutoDownloadState.value) }
             ) {
@@ -724,14 +726,34 @@ fun AiSettings(settingsViewModel: SettingsViewModel = koinInject()) {
 }
 
 /** Format a connection-test result as a single, compact status line. */
+@Composable
 private fun formatTestResult(result: AiConnectionTestResult): String {
-    if (!result.ok) return "${result.category.name}: ${result.detail}"
-    val models = when {
-        result.modelCount == null -> "chat completions reachable"
-        result.configuredModelAvailable == true -> "${result.modelCount} models, current model available"
-        else -> "${result.modelCount} models, current model NOT in list"
+    if (!result.ok) {
+        // Structured copy re-translates here; raw engine/HTTP output passes through.
+        return "${result.category.name}: ${result.detail.render()}"
     }
-    return "OK - $models, ${result.latencyMs}ms, ${result.testedEndpoint}"
+    val count = result.modelCount ?: 0
+    val models = when {
+        result.modelCount == null -> tr("chat completions reachable")
+        result.configuredModelAvailable == true -> trn(
+            "{{count}} model, current model available",
+            "{{count}} models, current model available",
+            count,
+            "count" to "$count",
+        )
+        else -> trn(
+            "{{count}} model, current model NOT in list",
+            "{{count}} models, current model NOT in list",
+            count,
+            "count" to "$count",
+        )
+    }
+    return tr(
+        "OK - {{models}}, {{ms}}ms, {{endpoint}}",
+        "models" to models,
+        "ms" to "${result.latencyMs}",
+        "endpoint" to result.testedEndpoint,
+    )
 }
 
 @Composable

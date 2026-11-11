@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import scooper.repository.ConfigRepository
+import scooper.util.LocalizedText
 import scooper.util.logger
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
@@ -283,7 +284,9 @@ open class ScoopAiBridge(
                 } else rawSettings
                 val missing = settings.missingReason()
                 if (missing != null) {
-                    onFinished(Result.failure(IllegalStateException(missing)))
+                    // Config guards upstream render the structured reason; reaching here
+                    // is a programming error, so the raw copy is fine.
+                    onFinished(Result.failure(IllegalStateException(missing.render())))
                     return@launch
                 }
                 body(settings)
@@ -393,7 +396,7 @@ open class ScoopAiBridge(
                     AiConnectionTestResult(
                         ok = false,
                         category = AiErrorCategory.UNKNOWN,
-                        detail = e.message ?: "Unknown test failure",
+                        detail = LocalizedText(raw = e.message ?: "Unknown test failure"),
                         latencyMs = 0,
                         testedEndpoint = "",
                     ),
