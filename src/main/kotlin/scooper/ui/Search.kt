@@ -24,7 +24,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -71,12 +73,17 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
     var bucket by rememberSaveable { mutableStateOf("") }
     var sortBy by rememberSaveable { mutableStateOf("updated") }
     var sortOrder by rememberSaveable { mutableStateOf("desc") }
-    var queryText by rememberSaveable { mutableStateOf("") }
+    // TextFieldValue keeps the caret with the text: with a bare String the field
+    // re-derives its selection on every round trip and jumps while typing.
+    var queryState by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(state.filter.query, TextRange(state.filter.query.length)))
+    }
 
     // Strings.current as remember key: tr() results are re-evaluated when the
     // language changes so the sort dropdown labels stay current.
-    val sortOptions = remember(queryText, Strings.current) {
-        if (queryText.isNotBlank()) {
+    // Keyed on blankness only, the option list does not depend on the text.
+    val sortOptions = remember(queryState.text.isNotBlank(), Strings.current) {
+        if (queryState.text.isNotBlank()) {
             listOf(
                 "bestmatch" to tr("Best Match"),
                 "updated" to tr("Recently Updated"),
@@ -92,32 +99,44 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
         }
     }
 
-    LaunchedEffect(state.filter.selectedBucket, state.filter.sort, state.filter.sortOrder, state.filter.query, buckets.size) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    LaunchedEffect(state.filter.selectedBucket, state.filter.sort, state.filter.sortOrder, buckets.size) {
         bucket = state.filter.selectedBucket
         sortBy = state.filter.sort
         sortOrder = state.filter.sortOrder
-        queryText = state.filter.query
         selectedItem = buckets.indexOf(state.filter.selectedBucket)
     }
 
-    LaunchedEffect(queryText) {
-        snapshotFlow { queryText }
+    // Restore the applied query only while the field is unfocused; writing it back
+    // during typing truncated the text and reset the caret when applyFilters was slow.
+    LaunchedEffect(state.filter.query) {
+        val applied = state.filter.query
+        if (!isFocused && applied != queryState.text) {
+            queryState = TextFieldValue(applied, TextRange(applied.length))
+        }
+    }
+
+    // Single flow for the field's lifetime: recreating it per keystroke reset the
+    // debounce window and stacked slow applyFilters intents.
+    LaunchedEffect(Unit) {
+        snapshotFlow { queryState.text }
             .distinctUntilChanged()
             .debounce(400)
-            .collectLatest {
-                if (it.isBlank() && sortBy == "bestmatch") {
+            .collectLatest { latest ->
+                if (latest == state.filter.query) return@collectLatest
+                if (latest.isBlank() && sortBy == "bestmatch") {
                     sortBy = "updated"
                     sortOrder = "desc"
-                    appsViewModel.applyFilters(query = it, sort = "updated", sortOrder = "desc")
+                    appsViewModel.applyFilters(query = latest, sort = "updated", sortOrder = "desc")
                 } else {
-                    appsViewModel.applyFilters(query = it)
+                    appsViewModel.applyFilters(query = latest)
                 }
             }
     }
 
     // Search input with icon
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
     val borderColor = if (isFocused) colors.primary else colors.inputBorder
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val inputFocusRequester = remember { FocusRequester() }
@@ -155,7 +174,7 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
             )
             Spacer(Modifier.width(8.dp))
             Box(modifier = Modifier.weight(1f)) {
-                if (queryText.isEmpty()) {
+                if (queryState.text.isEmpty()) {
                     Text(
                         tr("Search packages... (supports OR, -exclude)"),
                         maxLines = 1,
@@ -167,13 +186,13 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                     )
                 }
                 BasicTextField(
-                    queryText,
-                    onValueChange = { queryText = it },
+                    value = queryState,
+                    onValueChange = { queryState = it },
                     modifier = Modifier.fillMaxWidth()
                         .focusRequester(inputFocusRequester)
                         .onPreviewKeyEvent {
                             if (it.key == Key.Enter) {
-                                appsViewModel.applyFilters(queryText, bucket = bucket)
+                                appsViewModel.applyFilters(queryState.text, bucket = bucket)
                                 return@onPreviewKeyEvent true
                             }
                             if (it.key == Key.Escape) {
@@ -189,10 +208,10 @@ fun SearchBar(show: Boolean = true, focusRequester: Int = 0, onResetFocusRequest
                     interactionSource = interactionSource,
                 )
             }
-            if (queryText.isNotEmpty()) {
+            if (queryState.text.isNotEmpty()) {
                 IconButton(
                     onClick = {
-                        queryText = ""
+                        queryState = TextFieldValue("")
                         inputFocusRequester.requestFocus()
                     },
                     modifier = Modifier.cursorHand().padding(horizontal = 2.dp),
