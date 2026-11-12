@@ -30,10 +30,12 @@ jobs:
         run: |
           python3 scripts/check_po.py
 
-      - name: "Fallback: msgfmt --check over all po files"
+      # {{x}} is a custom template, not Java MessageFormat; msgfmt's java-format
+      # validation false-positives on CJK translations, so only check structure.
+      - name: "Fallback: msgfmt structural checks"
         run: |
           set -e
           for po in src/main/resources/lang/*.po; do
-            echo "== msgfmt --check ${po} =="
-            msgfmt --check -o /dev/null "$po"
+            echo "== msgfmt --check-header --check-domain ${po} =="
+            msgfmt --check-header --check-domain -o /dev/null "$po"
           done

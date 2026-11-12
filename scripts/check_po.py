@@ -3,7 +3,9 @@
 
 Validates that every .po translation file consistently covers the msgids
 declared in messages.pot, that no translation string is left empty, and that
-there are no duplicate msgids (within pot or within a po file).
+there are no duplicate msgids (within pot or within a po file), and that every
+non-header translation carries exactly the same {{x}} placeholder set as its
+msgid (msgid_plural participates in the reference set for plural entries).
 
 English (en.po) is the source-language stub and is exempt from content checks.
 
@@ -106,6 +108,41 @@ def msgid_of(e):
     return e["msgid"]
 
 
+PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+
+def placeholders(text):
+    """Names of all {{x}} placeholders in a string."""
+    return frozenset(PLACEHOLDER_RE.findall(text))
+
+
+def check_placeholders(name, entries):
+    """Every non-header msgstr must carry exactly the placeholder set of its msgid/msgid_plural."""
+    errors = []
+    for e in entries:
+        if not e["msgid"]:
+            continue  # header entry
+        ref = placeholders(e["msgid"]) | (
+            placeholders(e["msgid_plural"]) if e["msgid_plural"] is not None else frozenset()
+        )
+        for idx, val in sorted(e["msgstr"]):
+            got = placeholders(val)
+            if got == ref:
+                continue
+            missing = sorted(ref - got)
+            extra = sorted(got - ref)
+            detail = []
+            if missing:
+                detail.append("missing " + ", ".join(f"{{{{{m}}}}}" for m in missing))
+            if extra:
+                detail.append("unexpected " + ", ".join(f"{{{{{x}}}}}" for x in extra))
+            errors.append(
+                f"{name}: placeholder mismatch for {e['msgid']!r} (form {idx}): "
+                + "; ".join(detail)
+            )
+    return errors
+
+
 def check_file(name, required, check_content):
     path = LANG_DIR / name
     if not path.exists():
@@ -154,18 +191,29 @@ def main():
     required = {msgid_of(e) for e in pot_entries if msgid_of(e)}
 
     for name in TRANSLATED_PO:
+        entries = parse_po(LANG_DIR / name)
         errors += check_file(name, required, check_content=True)
+        errors += check_placeholders(name, entries)
     for name in STUB_PO:
         errors += check_file(name, set(), check_content=False)
 
+    total_po = sum(1 for _ in LANG_DIR.glob("*.po"))
+    checked_po = total_po - len(STUB_PO)
+    files_with_mismatch = 0
     if errors:
+        files_with_mismatch = sum(1 for e in errors if ": placeholder mismatch for" in e)
         print("RESULT FAIL")
         for e in errors:
             print("  - " + e)
+        print(
+            f"RESULT FAIL: {files_with_mismatch} placeholder mismatch(es) across "
+            f"{checked_po} translated po files"
+        )
         sys.exit(1)
     print(
         f"RESULT PASS: pot has {len(required)} msgids, "
-        f"{len(TRANSLATED_PO)} translated po files consistent, no empty msgstr, no duplicates"
+        f"{checked_po} translated po files consistent, no empty msgstr, no duplicates, "
+        "placeholder parity ok"
     )
 
 
