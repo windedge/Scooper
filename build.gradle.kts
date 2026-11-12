@@ -14,7 +14,7 @@ plugins {
 }
 
 group = "Scooper"
-version = "1.2.5"
+version = "1.3.0"
 
 repositories {
     mavenLocal()

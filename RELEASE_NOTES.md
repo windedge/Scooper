@@ -1,5 +1,11 @@
 # Release Notes
 
+## v1.3.0
+
+### 🛠 Improvement
+
+- **Switch scoop-ai engine to Maven Central**: The scoop-ai engine artifacts moved from the local `com.scoopai` coordinates to Maven Central coordinates `io.github.windedge:scoop-ai-tools` 0.1.16.
+
 ## v1.2.5 (2026-08-20)
 
 ### ✨ New Feature
