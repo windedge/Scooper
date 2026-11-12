@@ -1942,7 +1942,7 @@ msgstr "Tab schließen"
 #, java-format
 msgid "{{count}} tool"
 msgid_plural "{{count}} tools"
-msgstr[0] "1 Tool"
+msgstr[0] "{{count}} Tool"
 msgstr[1] "{{count}} Tools"
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197

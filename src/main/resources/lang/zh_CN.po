@@ -1942,7 +1942,7 @@ msgstr "关闭标签页"
 #, java-format
 msgid "{{count}} tool"
 msgid_plural "{{count}} tools"
-msgstr[0] "1 个工具"
+msgstr[0] "{{count}} 个工具"
 msgstr[1] "{{count}} 个工具"
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197

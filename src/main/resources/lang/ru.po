@@ -1954,7 +1954,7 @@ msgstr "Закрыть вкладку"
 #, java-format
 msgid "{{count}} tool"
 msgid_plural "{{count}} tools"
-msgstr[0] "1 инструмент"
+msgstr[0] "{{count}} инструмент"
 msgstr[1] "{{count}} инструмента"
 msgstr[2] "{{count}} инструментов"
 

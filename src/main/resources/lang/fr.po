@@ -1942,7 +1942,7 @@ msgstr "Fermer l'onglet"
 #, java-format
 msgid "{{count}} tool"
 msgid_plural "{{count}} tools"
-msgstr[0] "1 outil"
+msgstr[0] "{{count}} outil"
 msgstr[1] "{{count}} outils"
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197

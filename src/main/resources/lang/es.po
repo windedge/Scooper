@@ -1942,7 +1942,7 @@ msgstr "Cerrar pestaña"
 #, java-format
 msgid "{{count}} tool"
 msgid_plural "{{count}} tools"
-msgstr[0] "1 herramienta"
+msgstr[0] "{{count}} herramienta"
 msgstr[1] "{{count}} herramientas"
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197
