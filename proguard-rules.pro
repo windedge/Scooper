@@ -61,6 +61,18 @@
 -keep class org.orbitmvi.** { *; }
 -keep class scooper.** { *; }
 
+# scoop-ai engine excludes ktor and koog serialization-jackson (openai-compatible
+# transport only); koog feature.remote and logback optional deps are never loaded.
+-dontwarn io.ktor.**
+-dontwarn ai.koog.serialization.jackson.**
+-dontwarn jakarta.servlet.**
+-dontwarn jakarta.mail.**
+-dontwarn org.codehaus.janino.**
+-dontwarn org.codehaus.commons.compiler.**
+-dontwarn org.tukaani.xz.**
+-dontwarn kotlinx.coroutines.slf4j.**
+-dontwarn com.formdev.flatlaf.**
+
 # Disable ProGuard optimization to avoid ClassFormatError:
 # Kotlin compiler generates duplicated LocalVariableTable entries for inline functions ($i$f$getDp),
 # and ProGuard's optimization step can produce invalid class files.
