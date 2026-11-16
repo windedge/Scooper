@@ -111,7 +111,22 @@ data class ChatMessage(
     /** True once this message's images have already been replayed to the engine in a
      *  later round; prevents re-sending the same images on every text-only follow-up. */
     val imagesReplayed: Boolean = false,
+    /** Structured marker for machine-written user bubbles (ask-user answers); null
+    for bubbles the user typed themselves. Consumers filter on this, not on text. */
+    val kind: MessageKind? = null,
 )
+
+/**
+ * What produced a user bubble. Answer/cancel bubbles carry UI-language rendered
+ * text, so consumers must branch on this marker instead of matching strings.
+ */
+enum class MessageKind {
+    /** A questionnaire answer, including download-confirm confirm/skip bubbles. */
+    ASK_USER_ANSWER,
+
+    /** The "Let AI decide" autonomous-proceed bubble from canceling a questionnaire. */
+    ASK_USER_CANCEL,
+}
 
 /** Structured error copy re-translated at render time (Settings.kt rule). */
 fun ChatMessage.displayText(): String = errorCategory?.let(::aiErrorTitle) ?: text
@@ -260,7 +275,8 @@ data class ManifestRevision(
     val source: RevisionSource,
     val instruction: String? = null,
     val manifestJson: String,
-    val diffSummary: List<String> = emptyList(),
+    /** In-memory only: typed diff entries rendered via [ManifestDiffEntry.display]. */
+    val diffSummary: List<ManifestDiffEntry> = emptyList(),
 )
 
 enum class DiffLineType {
@@ -904,7 +920,13 @@ class CreateViewModel(
         val downloadDetail = buildDownloadConfirmDetail(request, response)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = userBubbleText, note = downloadDetail, noteSingleLine = true),
+                messages = state.messages + ChatMessage(
+                    role = ChatRole.User,
+                    text = userBubbleText,
+                    note = downloadDetail,
+                    noteSingleLine = true,
+                    kind = MessageKind.ASK_USER_ANSWER,
+                ),
                 askUserRequest = null,
             )
         }
@@ -915,7 +937,7 @@ class CreateViewModel(
         val downloadDetail = buildDownloadConfirmDetail(state.askUserRequest, DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = tr("Let AI decide"), note = downloadDetail, noteSingleLine = true),
+                messages = state.messages + ChatMessage(role = ChatRole.User, text = tr("Let AI decide"), note = downloadDetail, noteSingleLine = true, kind = MessageKind.ASK_USER_CANCEL),
                 askUserRequest = null,
             )
         }

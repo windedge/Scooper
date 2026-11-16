@@ -60,6 +60,7 @@ import scooper.util.cursorHand
 import scooper.util.onHover
 import scooper.util.tr
 import scooper.viewmodels.DiffLineType
+import scooper.viewmodels.ManifestDiffEntry
 import scooper.viewmodels.ManifestRevision
 import scooper.viewmodels.ReviewActionChip
 import scooper.viewmodels.SaveResult
@@ -70,6 +71,7 @@ import scooper.viewmodels.DeploymentAction
 import scooper.viewmodels.deploymentLabel
 import scooper.viewmodels.DeploymentState
 import scooper.viewmodels.manifestHasShortcuts
+import scooper.viewmodels.display
 import scooper.viewmodels.openAppActionVisible
 import scooper.viewmodels.saveToBucketPrimary
 import scooper.viewmodels.isNameConflictOnly
@@ -284,15 +286,15 @@ internal fun ManifestPreviewCard(
                                 }
                             }
 
-                            if (currentRev?.diffSummary?.isNotEmpty() == true && currentRev.diffSummary != listOf("Initial manifest")) {
+                            if (currentRev?.diffSummary?.isNotEmpty() == true && currentRev.diffSummary != listOf<ManifestDiffEntry>(ManifestDiffEntry.Initial)) {
                                 currentRev.diffSummary.take(2).forEach { change ->
-                                    val chipColor = when {
-                                        change.startsWith("+") -> colors.updateDefault
-                                        change.startsWith("-") -> colors.dangerDefault
+                                    val chipColor = when (change) {
+                                        is ManifestDiffEntry.Added -> colors.updateDefault
+                                        is ManifestDiffEntry.Removed -> colors.dangerDefault
                                         else -> colors.warningDefault
                                     }
                                     Text(
-                                        change,
+                                        change.display(),
                                         style = typography.caption.copy(
                                             color = chipColor,
                                             fontSize = 12.sp,

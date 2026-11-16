@@ -22,7 +22,11 @@ class CreateViewModelExplanationTest {
 
     @Test
     fun `assist synthesis combines removed added and version change`() {
-        val diff = listOf("- bin", "+ shortcuts", "~ version: 1.0.0 → 1.1.0")
+        val diff = listOf(
+            ManifestDiffEntry.Removed("bin"),
+            ManifestDiffEntry.Added("shortcuts"),
+            ManifestDiffEntry.VersionChanged("1.0.0", "1.1.0"),
+        )
         assertEquals(
             "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready.",
             synthesizeAssistExplanation(diff),
@@ -33,7 +37,7 @@ class CreateViewModelExplanationTest {
     fun `assist synthesis with only a removal starts capitalized`() {
         assertEquals(
             "Removed notes. Validated and ready.",
-            synthesizeAssistExplanation(listOf("- notes")),
+            synthesizeAssistExplanation(listOf(ManifestDiffEntry.Removed("notes"))),
         )
     }
 
@@ -41,7 +45,7 @@ class CreateViewModelExplanationTest {
     fun `assist synthesis with only an addition starts capitalized`() {
         assertEquals(
             "Added shortcuts. Validated and ready.",
-            synthesizeAssistExplanation(listOf("+ shortcuts")),
+            synthesizeAssistExplanation(listOf(ManifestDiffEntry.Added("shortcuts"))),
         )
     }
 
@@ -49,13 +53,18 @@ class CreateViewModelExplanationTest {
     fun `assist synthesis covers plain modified keys`() {
         assertEquals(
             "Updated description. Validated and ready.",
-            synthesizeAssistExplanation(listOf("~ description")),
+            synthesizeAssistExplanation(listOf(ManifestDiffEntry.Modified("description"))),
         )
     }
 
     @Test
     fun `assist synthesis groups multiple keys per change kind`() {
-        val diff = listOf("- bin", "- notes", "+ shortcuts", "+ env_add_path")
+        val diff = listOf(
+            ManifestDiffEntry.Removed("bin"),
+            ManifestDiffEntry.Removed("notes"),
+            ManifestDiffEntry.Added("shortcuts"),
+            ManifestDiffEntry.Added("env_add_path"),
+        )
         assertEquals(
             "Removed bin, notes, added shortcuts, env_add_path. Validated and ready.",
             synthesizeAssistExplanation(diff),
@@ -74,7 +83,7 @@ class CreateViewModelExplanationTest {
     fun `assist synthesis with unparseable diff reports a generic update`() {
         assertEquals(
             "Updated the manifest. Validated and ready.",
-            synthesizeAssistExplanation(listOf("Manifest updated")),
+            synthesizeAssistExplanation(listOf(ManifestDiffEntry.Generic)),
         )
     }
 

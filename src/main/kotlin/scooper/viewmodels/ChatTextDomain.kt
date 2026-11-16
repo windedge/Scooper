@@ -58,11 +58,43 @@ internal fun classifyManifestFinish(manifest: String, exhausted: Boolean): Finis
     )
 }
 
-private val IGNORED_HISTORY_TEXTS = setOf(
-    "Download confirmed",
-    "Download skipped",
-    "Let AI decide",
-)
+/**
+ * One key-level change between two manifest revisions. Replaces the previous
+ * raw-string diff lines so consumers (chip colors, explanation synthesis, tr
+ * rendering in a later batch) dispatch on the type instead of parsing prefixes.
+ */
+sealed interface ManifestDiffEntry {
+    /** The previous manifest was blank: this is the first manifest of the session. */
+    data object Initial : ManifestDiffEntry
+
+    /** The diff could not be computed (unparseable JSON): a generic update line. */
+    data object Generic : ManifestDiffEntry
+
+    /** Key present only in the new manifest. */
+    data class Added(val key: String) : ManifestDiffEntry
+
+    /** Key present only in the old manifest. */
+    data class Removed(val key: String) : ManifestDiffEntry
+
+    /** Key present on both sides with a different value (non-version, or non-primitive). */
+    data class Modified(val key: String) : ManifestDiffEntry
+
+    /** The version key changed between two primitive values. */
+    data class VersionChanged(val from: String, val to: String) : ManifestDiffEntry
+}
+
+/**
+ * Renders the entry for diff chips and summaries (chip colors, explanation
+ * synthesis). Key names are manifest field names and stay English.
+ */
+fun ManifestDiffEntry.display(): String = when (this) {
+    is ManifestDiffEntry.Added -> "+ $key"
+    is ManifestDiffEntry.Removed -> "- $key"
+    is ManifestDiffEntry.Modified -> "~ $key"
+    is ManifestDiffEntry.VersionChanged -> "~ version: $from -> $to"
+    ManifestDiffEntry.Initial -> "Initial manifest"
+    ManifestDiffEntry.Generic -> "Manifest updated"
+}
 
 private const val HISTORY_MAX_ENTRIES = 12
 
@@ -115,10 +147,10 @@ internal fun resolveAssistImages(
 internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
     val relevant = messages.filter { msg ->
         when (msg.role) {
-            ChatRole.User ->
-                msg.text.isNotBlank() &&
-                    msg.text !in IGNORED_HISTORY_TEXTS &&
-                    !msg.text.startsWith("Question:")
+            // Ask-user answer/cancel bubbles are marked structurally at their single
+            // write point, so filtering works no matter which UI language rendered
+            // the bubble text (e.g. a localized "Let AI decide").
+            ChatRole.User -> msg.text.isNotBlank() && msg.kind == null
             // Error bubbles carry no conversation text (agentError leaves it blank) and are not context.
             ChatRole.Agent -> msg.text.isNotBlank() && msg.errorCategory == null
         }
@@ -169,9 +201,9 @@ internal fun resolveAssistInstruction(
     return ""
 }
 
-internal fun computeManifestDiff(oldJson: String, newJson: String): List<String> {
+internal fun computeManifestDiff(oldJson: String, newJson: String): List<ManifestDiffEntry> {
     if (oldJson.isBlank()) {
-        return if (newJson.isNotBlank()) listOf("Initial manifest") else emptyList()
+        return if (newJson.isNotBlank()) listOf(ManifestDiffEntry.Initial) else emptyList()
     }
     if (newJson.isBlank() || oldJson == newJson) {
         return emptyList()
@@ -189,10 +221,10 @@ internal fun computeManifestDiff(oldJson: String, newJson: String): List<String>
     }
 
     if (oldObj == null || newObj == null) {
-        return listOf("Manifest updated")
+        return listOf(ManifestDiffEntry.Generic)
     }
 
-    val diffs = mutableListOf<String>()
+    val diffs = mutableListOf<ManifestDiffEntry>()
     val allKeys = (oldObj.keys + newObj.keys).toSortedSet()
 
     for (key in allKeys) {
@@ -200,13 +232,13 @@ internal fun computeManifestDiff(oldJson: String, newJson: String): List<String>
         val newVal = newObj[key]
 
         when {
-            oldVal == null && newVal != null -> diffs.add("+ $key")
-            oldVal != null && newVal == null -> diffs.add("- $key")
+            oldVal == null && newVal != null -> diffs.add(ManifestDiffEntry.Added(key))
+            oldVal != null && newVal == null -> diffs.add(ManifestDiffEntry.Removed(key))
             oldVal != newVal -> {
                 if (key == "version" && oldVal is JsonPrimitive && newVal is JsonPrimitive) {
-                    diffs.add("~ version: ${oldVal.content} → ${newVal.content}")
+                    diffs.add(ManifestDiffEntry.VersionChanged(oldVal.content, newVal.content))
                 } else {
-                    diffs.add("~ $key")
+                    diffs.add(ManifestDiffEntry.Modified(key))
                 }
             }
         }
@@ -260,12 +292,12 @@ internal fun lastUserQuestion(messages: List<ChatMessage>): String? =
     messages.lastOrNull { it.role == ChatRole.User }?.text
 
 /**
- * Deterministic assist explanation (proposal 5.4): human-readable English built from
- * the key-level [computeManifestDiff] output, e.g.
- * "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready."
+ * Deterministic assist explanation (proposal 5.4): built from the key-level
+ * [computeManifestDiff] output, e.g.
+ * "Removed bin, added shortcuts, updated version (1.0.0 -> 1.1.0). Validated and ready."
  * Pure function; used when the engine explanation is missing.
  */
-internal fun synthesizeAssistExplanation(diff: List<String>): String {
+internal fun synthesizeAssistExplanation(diff: List<ManifestDiffEntry>): String {
     val removed = mutableListOf<String>()
     val added = mutableListOf<String>()
     val modified = mutableListOf<String>()
@@ -273,19 +305,15 @@ internal fun synthesizeAssistExplanation(diff: List<String>): String {
     var genericUpdate = false
 
     for (entry in diff) {
-        when {
-            entry.startsWith("- ") -> removed.add(entry.removePrefix("- "))
-            entry.startsWith("+ ") -> added.add(entry.removePrefix("+ "))
-            entry.startsWith("~ ") -> {
-                val key = entry.removePrefix("~ ")
-                if (key.startsWith("version:")) {
-                    versionChange = "updated version (${key.removePrefix("version:").trim()})"
-                } else {
-                    modified.add(key)
-                }
-            }
-            entry == "Manifest updated" -> genericUpdate = true
-            // "Initial manifest" and unknown entries carry no assist detail
+        when (entry) {
+            is ManifestDiffEntry.Removed -> removed.add(entry.key)
+            is ManifestDiffEntry.Added -> added.add(entry.key)
+            is ManifestDiffEntry.Modified -> modified.add(entry.key)
+            is ManifestDiffEntry.VersionChanged ->
+                versionChange = "updated version (${entry.from} -> ${entry.to})"
+            ManifestDiffEntry.Generic -> genericUpdate = true
+            // Initial carries no assist detail
+            ManifestDiffEntry.Initial -> Unit
         }
     }
 
