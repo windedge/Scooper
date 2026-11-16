@@ -49,7 +49,7 @@ internal fun planSend(
     if (busy) return SendDecision.Busy
     if (text.isBlank() && images.isEmpty()) return SendDecision.Ignored
     // Pure image send: a fixed instruction carries the screenshots into the session.
-    if (text.isBlank()) return SendDecision.Assist(CreateViewModel.PURE_IMAGE_INSTRUCTION, images)
+    if (text.isBlank()) return SendDecision.Assist(CreateViewModel.pureImageInstruction(), images)
     if (isAssistRequest(text)) {
         return SendDecision.Assist(resolveAssistInstruction(text, text), images)
     }

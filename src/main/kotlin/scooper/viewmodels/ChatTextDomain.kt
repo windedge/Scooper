@@ -7,6 +7,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import scooper.service.GithubUrlParser
+import scooper.util.tr
+import scooper.util.trn
 
 /**
  * Whether [text] is a valid Scoop manifest, using the same bar as the CLI
@@ -84,16 +86,17 @@ sealed interface ManifestDiffEntry {
 }
 
 /**
- * Renders the entry for diff chips and summaries (chip colors, explanation
- * synthesis). Key names are manifest field names and stay English.
+ * Renders the entry for diff chips and summaries (H2: tr() at render/call time;
+ * key names are manifest field names and stay English per design rule 3, so
+ * only the symbolic prefix templates and the two sentinel labels are msgids).
  */
 fun ManifestDiffEntry.display(): String = when (this) {
     is ManifestDiffEntry.Added -> "+ $key"
     is ManifestDiffEntry.Removed -> "- $key"
     is ManifestDiffEntry.Modified -> "~ $key"
-    is ManifestDiffEntry.VersionChanged -> "~ version: $from -> $to"
-    ManifestDiffEntry.Initial -> "Initial manifest"
-    ManifestDiffEntry.Generic -> "Manifest updated"
+    is ManifestDiffEntry.VersionChanged -> "~ " + tr("version: {{from}} → {{to}}", "from" to from, "to" to to)
+    ManifestDiffEntry.Initial -> tr("Initial manifest")
+    ManifestDiffEntry.Generic -> tr("Manifest updated")
 }
 
 private const val HISTORY_MAX_ENTRIES = 12
@@ -262,15 +265,15 @@ internal fun isAssistScenario(currentPhase: String?, revisions: List<ManifestRev
  * initial generation says "Generation". Pure function (toast + issues bubble text).
  */
 internal fun finishedWithIssuesNotice(isAssistScenario: Boolean): String =
-    if (isAssistScenario) "Assist finished with issues" else "Generation finished with issues"
+    if (isAssistScenario) tr("Assist finished with issues") else tr("Generation finished with issues")
 
 /**
  * Bubble text for a user assist that the engine answered directly (no manifest
- * change). Uses the engine explanation when present and non-blank, else a generic
- * English fallback. Pure function.
+ * change). Uses the engine explanation when present and non-blank, else the
+ * localized fallback (Rule 9: resolved via tr() at enqueue). Pure function.
  */
 internal fun answeredBubbleText(explanation: String?): String =
-    explanation?.trim()?.takeIf { it.isNotEmpty() } ?: "Sorry, I could not produce an answer."
+    explanation?.trim()?.takeIf { it.isNotEmpty() } ?: tr("Sorry, I could not produce an answer.")
 
 /**
  * Final agent bubble for a successful finish (answered / generated / no-assets).
@@ -294,8 +297,8 @@ internal fun lastUserQuestion(messages: List<ChatMessage>): String? =
 /**
  * Deterministic assist explanation (proposal 5.4): built from the key-level
  * [computeManifestDiff] output, e.g.
- * "Removed bin, added shortcuts, updated version (1.0.0 -> 1.1.0). Validated and ready."
- * Pure function; used when the engine explanation is missing.
+ * "Removed bin, added shortcuts, updated version (1.0.0 → 1.1.0). Validated and ready."
+ * All segments are tr() msgids resolved at enqueue (Rule 9 content snapshot).
  */
 internal fun synthesizeAssistExplanation(diff: List<ManifestDiffEntry>): String {
     val removed = mutableListOf<String>()
@@ -310,7 +313,7 @@ internal fun synthesizeAssistExplanation(diff: List<ManifestDiffEntry>): String 
             is ManifestDiffEntry.Added -> added.add(entry.key)
             is ManifestDiffEntry.Modified -> modified.add(entry.key)
             is ManifestDiffEntry.VersionChanged ->
-                versionChange = "updated version (${entry.from} -> ${entry.to})"
+                versionChange = tr("updated version ({{from}} → {{to}})", "from" to entry.from, "to" to entry.to)
             ManifestDiffEntry.Generic -> genericUpdate = true
             // Initial carries no assist detail
             ManifestDiffEntry.Initial -> Unit
@@ -318,17 +321,17 @@ internal fun synthesizeAssistExplanation(diff: List<ManifestDiffEntry>): String 
     }
 
     val phrases = buildList {
-        if (removed.isNotEmpty()) add("Removed " + removed.joinToString(", "))
-        if (added.isNotEmpty()) add("added " + added.joinToString(", "))
-        if (modified.isNotEmpty()) add("updated " + modified.joinToString(", "))
+        if (removed.isNotEmpty()) add(tr("Removed {{keys}}", "keys" to removed.joinToString(", ")))
+        if (added.isNotEmpty()) add(tr("added {{keys}}", "keys" to added.joinToString(", ")))
+        if (modified.isNotEmpty()) add(tr("updated {{keys}}", "keys" to modified.joinToString(", ")))
         if (versionChange != null) add(versionChange)
     }
     val body = when {
         phrases.isNotEmpty() -> phrases.joinToString(", ").replaceFirstChar { it.uppercaseChar() }
-        genericUpdate -> "Updated the manifest"
-        else -> "No manifest changes were required"
+        genericUpdate -> tr("Updated the manifest")
+        else -> tr("No manifest changes were required")
     }
-    return "$body. Validated and ready."
+    return "$body. " + tr("Validated and ready.")
 }
 
 /**
@@ -371,12 +374,12 @@ internal fun synthesizeGenerateExplanation(manifestJson: String, appName: String
     val version = stringField("version")
     val url = (stringField("url") ?: architectureFallbackUrl()).orEmpty().lowercase()
     val strategy = when {
-        url.contains(".zip") -> "portable zip"
-        url.contains(".7z") -> "portable 7z archive"
-        url.contains(".msix") -> "MSIX package"
-        url.contains(".msi") -> "MSI installer"
-        url.contains(".exe") -> "installer"
-        else -> "portable"
+        url.contains(".zip") -> tr("portable zip")
+        url.contains(".7z") -> tr("portable 7z archive")
+        url.contains(".msix") -> tr("MSIX package")
+        url.contains(".msi") -> tr("MSI installer")
+        url.contains(".exe") -> tr("installer")
+        else -> tr("portable")
     }
 
     val shortcuts = (obj?.get("shortcuts") as? JsonArray)?.size ?: 0
@@ -386,17 +389,22 @@ internal fun synthesizeGenerateExplanation(manifestJson: String, appName: String
         else -> 0
     }
 
-    val subject = buildString {
-        append("Generated manifest")
-        if (name != null) append(" for $name")
-        if (version != null) append(" $version")
-        append(" ($strategy)")
-    }
+    val subject = when {
+        name != null && version != null ->
+            tr("Generated manifest for {{name}} {{version}}", "name" to name, "version" to version)
+        name != null -> tr("Generated manifest for {{name}}", "name" to name)
+        version != null -> tr("Generated manifest {{version}}", "version" to version)
+        else -> tr("Generated manifest")
+    } + " ($strategy)"
     val features = mutableListOf<String>()
-    if (shortcuts > 0) features.add(if (shortcuts == 1) "1 shortcut" else "$shortcuts shortcuts")
-    if (persistCount > 0) features.add(if (persistCount == 1) "1 persist entry" else "$persistCount persist entries")
+    if (shortcuts > 0) {
+        features.add(trn("{{n}} shortcut", "{{n}} shortcuts", shortcuts, "n" to "$shortcuts"))
+    }
+    if (persistCount > 0) {
+        features.add(trn("{{n}} persist entry", "{{n}} persist entries", persistCount, "n" to "$persistCount"))
+    }
     val featureText = if (features.isEmpty()) "" else ". " + features.joinToString(", ")
-    return "$subject$featureText. Validated and ready."
+    return "$subject$featureText. " + tr("Validated and ready.")
 }
 
 /**

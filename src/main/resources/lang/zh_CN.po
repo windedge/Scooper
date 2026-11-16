@@ -1284,8 +1284,8 @@ msgstr "执行中..."
 msgid "Worked for {{time}}"
 msgstr "耗时 {{time}}"
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
-msgid "no tools"
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:336
+msgid "no tool calls"
 msgstr "无工具调用"
 
 #: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:581
@@ -1938,12 +1938,12 @@ msgstr "关闭"
 msgid "Close tab"
 msgstr "关闭标签页"
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:340
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
 #, java-format
-msgid "{{count}} tool"
-msgid_plural "{{count}} tools"
-msgstr[0] "{{count}} 个工具"
-msgstr[1] "{{count}} 个工具"
+msgid "{{count}} tool call"
+msgid_plural "{{count}} tool calls"
+msgstr[0] "{{count}} 次工具调用"
+msgstr[1] "{{count}} 次工具调用"
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197
 #, java-format
@@ -1989,3 +1989,222 @@ msgstr "未找到 Windows 资源"
 #: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:107
 msgid "New Chat"
 msgstr "新对话"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:86
+msgid "(no error detail)"
+msgstr "（无错误详情）"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:97
+#, java-format
+msgid "version: {{from}} → {{to}}"
+msgstr "版本：{{from}} → {{to}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:98
+msgid "Initial manifest"
+msgstr "初始 manifest"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
+msgid "Manifest updated"
+msgstr "manifest 已更新"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+msgid "Assist finished with issues"
+msgstr "辅助完成，但存在问题"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+msgid "Generation finished with issues"
+msgstr "生成完成，但存在问题"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:276
+msgid "Sorry, I could not produce an answer."
+msgstr "抱歉，无法生成回答。"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:316
+#, java-format
+msgid "updated version ({{from}} → {{to}})"
+msgstr "更新版本（{{from}} → {{to}}）"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:324
+#, java-format
+msgid "Removed {{keys}}"
+msgstr "已移除 {{keys}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:325
+#, java-format
+msgid "added {{keys}}"
+msgstr "已添加 {{keys}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:326
+#, java-format
+msgid "updated {{keys}}"
+msgstr "已更新 {{keys}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:331
+msgid "Updated the manifest"
+msgstr "已更新 manifest"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:332
+msgid "No manifest changes were required"
+msgstr "manifest 无需更改"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:334
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:407
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+msgid "Validated and ready."
+msgstr "已验证，可以使用。"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:377
+msgid "portable zip"
+msgstr "便携式 zip"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:378
+msgid "portable 7z archive"
+msgstr "便携式 7z 压缩包"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:379
+msgid "MSIX package"
+msgstr "MSIX 包"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:380
+msgid "MSI installer"
+msgstr "MSI 安装程序"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:381
+msgid "installer"
+msgstr "安装程序"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:382
+msgid "portable"
+msgstr "便携版"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:394
+#, java-format
+msgid "Generated manifest for {{name}} {{version}}"
+msgstr "已生成 {{name}} {{version}} 的 manifest"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:395
+#, java-format
+msgid "Generated manifest for {{name}}"
+msgstr "已生成 {{name}} 的 manifest"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:396
+#, java-format
+msgid "Generated manifest {{version}}"
+msgstr "已生成 manifest {{version}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:397
+msgid "Generated manifest"
+msgstr "已生成 manifest"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:401
+#, java-format
+msgid "{{n}} shortcut"
+msgstr "{{n}} 个快捷方式"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:404
+#, java-format
+msgid "{{n}} persist entry"
+msgstr "{{n}} 条持久化条目"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
+msgid "Generation cancelled by user."
+msgstr "用户已取消生成。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1567
+#, java-format
+msgid "Installed {{name}} directly, without saving it to a bucket."
+msgstr "已直接安装 {{name}}，未保存到 bucket。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1696
+msgid "Please inspect the attached screenshot(s) and update the manifest accordingly."
+msgstr "请查看附带的截图并相应更新 manifest。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1700
+msgid "Please enter a GitHub repository URL (github.com/owner/repo)."
+msgstr "请输入 GitHub 仓库 URL（github.com/owner/repo）。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2112
+msgid "No Windows assets found for this repository."
+msgstr "该仓库未找到 Windows 资源。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2141
+msgid "Manifest output is not valid JSON."
+msgstr "manifest 输出不是有效的 JSON。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2142
+msgid "Generation finished with unresolved issues."
+msgstr "生成完成，但存在未解决的问题。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2164
+#, java-format
+msgid "Done with notice: App name '{{name}}' conflicts with an existing local manifest. See card below."
+msgstr "完成但需注意：应用名 '{{name}}' 与现有本地 manifest 冲突。见下方卡片。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2168
+msgid "See card below for details."
+msgstr "详情见下方卡片。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2173
+#, java-format
+msgid "Manifest generated with name conflict: {{name}}"
+msgstr "已生成 manifest，存在名称冲突：{{name}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2175
+#, java-format
+msgid "Manifest generated: {{name}}"
+msgstr "已生成 manifest：{{name}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2206
+msgid "Generation cancelled."
+msgstr "生成已取消。"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2301
+#, java-format
+msgid "Revert to revision #{{n}}"
+msgstr "还原到修订版本 #{{n}}"
+
+#: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:22
+msgid "Download confirmed"
+msgstr "下载已确认"
+
+#: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:23
+msgid "Download skipped"
+msgstr "下载已跳过"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:377
+msgid "Fix JSON syntax"
+msgstr "修复 JSON 语法"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:378
+msgid "Fix name conflict"
+msgstr "解决名称冲突"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:379
+msgid "Fix persist paths"
+msgstr "修复持久化路径"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:380
+msgid "Fix license"
+msgstr "修复许可证"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:381
+msgid "Fix extract_dir"
+msgstr "修复 extract_dir"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:382
+msgid "Improve description"
+msgstr "改进描述"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:383
+msgid "Fix autoupdate/checkver"
+msgstr "修复 autoupdate/checkver"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1013
+#, java-format
+msgid "⚡ Apply fix: {{label}}"
+msgstr "⚡ 应用修复：{{label}}"
+
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+msgid "H2 probe msgid that no catalog contains"
+msgstr "任何目录都不包含的 H2 探测 msgid"

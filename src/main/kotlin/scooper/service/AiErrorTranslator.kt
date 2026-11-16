@@ -83,7 +83,7 @@ object AiErrorTranslator {
             .map(::cleanMessage)
             .filter { it.isNotBlank() }
             .distinct()
-        val rawDetail = if (cleanedMessages.isEmpty()) "(no error detail)" else cleanedMessages.joinToString("\n")
+        val rawDetail = if (cleanedMessages.isEmpty()) tr("(no error detail)") else cleanedMessages.joinToString("\n")
         // Lowercased for case-insensitive keyword matching; status codes stay intact.
         val text = (rawMessages + cleanedMessages).joinToString("\n").lowercase()
 

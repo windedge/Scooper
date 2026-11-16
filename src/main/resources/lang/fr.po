@@ -1284,9 +1284,9 @@ msgstr "Travail en cours..."
 msgid "Worked for {{time}}"
 msgstr "Terminé en {{time}}"
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
-msgid "no tools"
-msgstr "aucun outil"
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:336
+msgid "no tool calls"
+msgstr "aucun appel d'outil"
 
 #: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:581
 msgid "Reinstall"
@@ -1938,12 +1938,12 @@ msgstr "Fermer"
 msgid "Close tab"
 msgstr "Fermer l'onglet"
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:340
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
 #, java-format
-msgid "{{count}} tool"
-msgid_plural "{{count}} tools"
-msgstr[0] "{{count}} outil"
-msgstr[1] "{{count}} outils"
+msgid "{{count}} tool call"
+msgid_plural "{{count}} tool calls"
+msgstr[0] "{{count}} appel d'outil"
+msgstr[1] "{{count}} appels d'outils"
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197
 #, java-format
@@ -1989,3 +1989,224 @@ msgstr "Aucune ressource Windows trouvée"
 #: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:107
 msgid "New Chat"
 msgstr "Nouveau chat"
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:86
+msgid "(no error detail)"
+msgstr "(aucun détail d'erreur)"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:97
+#, java-format
+msgid "version: {{from}} → {{to}}"
+msgstr "version : {{from}} → {{to}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:98
+msgid "Initial manifest"
+msgstr "Manifest initial"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
+msgid "Manifest updated"
+msgstr "Manifest mis à jour"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+msgid "Assist finished with issues"
+msgstr "Assistance terminée avec des problèmes"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+msgid "Generation finished with issues"
+msgstr "Génération terminée avec des problèmes"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:276
+msgid "Sorry, I could not produce an answer."
+msgstr "Désolé, je n'ai pas pu produire de réponse."
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:316
+#, java-format
+msgid "updated version ({{from}} → {{to}})"
+msgstr "version mise à jour ({{from}} → {{to}})"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:324
+#, java-format
+msgid "Removed {{keys}}"
+msgstr "{{keys}} supprimés"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:325
+#, java-format
+msgid "added {{keys}}"
+msgstr "{{keys}} ajoutés"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:326
+#, java-format
+msgid "updated {{keys}}"
+msgstr "{{keys}} mis à jour"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:331
+msgid "Updated the manifest"
+msgstr "Manifest mis à jour"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:332
+msgid "No manifest changes were required"
+msgstr "Aucune modification du manifest n'a été nécessaire"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:334
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:407
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+msgid "Validated and ready."
+msgstr "Validé et prêt."
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:377
+msgid "portable zip"
+msgstr "zip portable"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:378
+msgid "portable 7z archive"
+msgstr "archive 7z portable"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:379
+msgid "MSIX package"
+msgstr "paquet MSIX"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:380
+msgid "MSI installer"
+msgstr "programme d'installation MSI"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:381
+msgid "installer"
+msgstr "programme d'installation"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:382
+msgid "portable"
+msgstr "portable"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:394
+#, java-format
+msgid "Generated manifest for {{name}} {{version}}"
+msgstr "Manifest généré pour {{name}} {{version}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:395
+#, java-format
+msgid "Generated manifest for {{name}}"
+msgstr "Manifest généré pour {{name}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:396
+#, java-format
+msgid "Generated manifest {{version}}"
+msgstr "Manifest généré {{version}}"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:397
+msgid "Generated manifest"
+msgstr "Manifest généré"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:401
+#, java-format
+msgid "{{n}} shortcut"
+msgstr "{{n}} raccourci"
+msgstr[1] "{{n}} raccourcis"
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:404
+#, java-format
+msgid "{{n}} persist entry"
+msgstr "{{n}} entrée de persistance"
+msgstr[1] "{{n}} entrées de persistance"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
+msgid "Generation cancelled by user."
+msgstr "Génération annulée par l'utilisateur."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1567
+#, java-format
+msgid "Installed {{name}} directly, without saving it to a bucket."
+msgstr "{{name}} installé directement, sans l'enregistrer dans un bucket."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1696
+msgid "Please inspect the attached screenshot(s) and update the manifest accordingly."
+msgstr "Veuillez examiner les captures d'écran jointes et mettre à jour le manifest en conséquence."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1700
+msgid "Please enter a GitHub repository URL (github.com/owner/repo)."
+msgstr "Veuillez saisir une URL de dépôt GitHub (github.com/owner/repo)."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2112
+msgid "No Windows assets found for this repository."
+msgstr "Aucune ressource Windows trouvée pour ce dépôt."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2141
+msgid "Manifest output is not valid JSON."
+msgstr "La sortie du manifest n'est pas un JSON valide."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2142
+msgid "Generation finished with unresolved issues."
+msgstr "Génération terminée avec des problèmes non résolus."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2164
+#, java-format
+msgid "Done with notice: App name '{{name}}' conflicts with an existing local manifest. See card below."
+msgstr "Terminé avec un avis : le nom de l'application '{{name}}' entre en conflit avec un manifest local existant. Voir la carte ci-dessous."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2168
+msgid "See card below for details."
+msgstr "Voir la carte ci-dessous pour les détails."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2173
+#, java-format
+msgid "Manifest generated with name conflict: {{name}}"
+msgstr "Manifest généré avec un conflit de nom : {{name}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2175
+#, java-format
+msgid "Manifest generated: {{name}}"
+msgstr "Manifest généré : {{name}}"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2206
+msgid "Generation cancelled."
+msgstr "Génération annulée."
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2301
+#, java-format
+msgid "Revert to revision #{{n}}"
+msgstr "Revenir à la révision #{{n}}"
+
+#: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:22
+msgid "Download confirmed"
+msgstr "Téléchargement confirmé"
+
+#: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:23
+msgid "Download skipped"
+msgstr "Téléchargement ignoré"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:377
+msgid "Fix JSON syntax"
+msgstr "Corriger la syntaxe JSON"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:378
+msgid "Fix name conflict"
+msgstr "Résoudre le conflit de nom"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:379
+msgid "Fix persist paths"
+msgstr "Corriger les chemins de persistance"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:380
+msgid "Fix license"
+msgstr "Corriger la licence"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:381
+msgid "Fix extract_dir"
+msgstr "Corriger extract_dir"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:382
+msgid "Improve description"
+msgstr "Améliorer la description"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:383
+msgid "Fix autoupdate/checkver"
+msgstr "Corriger autoupdate/checkver"
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1013
+#, java-format
+msgid "⚡ Apply fix: {{label}}"
+msgstr "⚡ Appliquer la correction : {{label}}"
+
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+msgid "H2 probe msgid that no catalog contains"
+msgstr "msgid de test H2 qu'aucun catalogue ne contient"

@@ -26,7 +26,7 @@ msgstr ""
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:461
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:642
 #: src\main\kotlin\scooper\ui\components\DetailComponents.kt:160
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:548
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:550
 msgid "Copy"
 msgstr ""
 
@@ -315,7 +315,7 @@ msgstr ""
 #: src\main\kotlin\scooper\ui\Navigation.kt:102
 #: src\main\kotlin\scooper\ui\Navigation.kt:104
 #: src\main\kotlin\scooper\ui\Route.kt:23
-#: src\main\kotlin\scooper\ui\Settings.kt:792
+#: src\main\kotlin\scooper\ui\Settings.kt:786
 #: src\main\kotlin\scooper\ui\components\SettingComponents.kt:33
 msgid "About"
 msgstr ""
@@ -347,65 +347,65 @@ msgid "Name"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\ScoopSearch.kt:223
-#: src\main\kotlin\scooper\ui\Search.kt:172
+#: src\main\kotlin\scooper\ui\Search.kt:171
 #: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:326
 #: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:334
 #: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:628
 msgid "Search"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:284
-#: src\main\kotlin\scooper\ui\Search.kt:291
+#: src\main\kotlin\scooper\ui\Search.kt:283
+#: src\main\kotlin\scooper\ui\Search.kt:290
 msgid "List View"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:297
-#: src\main\kotlin\scooper\ui\Search.kt:304
+#: src\main\kotlin\scooper\ui\Search.kt:296
+#: src\main\kotlin\scooper\ui\Search.kt:303
 msgid "Grid View"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:320
+#: src\main\kotlin\scooper\ui\Search.kt:319
 msgid "Waterfall Scroll"
 msgstr ""
 
 #: src\main\kotlin\scooper\data\Config.kt:54
-#: src\main\kotlin\scooper\ui\Search.kt:327
+#: src\main\kotlin\scooper\ui\Search.kt:326
 #: src\main\kotlin\scooper\ui\Settings.kt:271
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:126
 msgid "Waterfall"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:333
+#: src\main\kotlin\scooper\ui\Search.kt:332
 msgid "Paginated"
 msgstr ""
 
 #: src\main\kotlin\scooper\data\Config.kt:55
-#: src\main\kotlin\scooper\ui\Search.kt:340
+#: src\main\kotlin\scooper\ui\Search.kt:339
 #: src\main\kotlin\scooper\ui\Settings.kt:272
 #: src\main\kotlin\scooper\viewmodels\SettingsViewModel.kt:127
 msgid "Pagination"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:379
+#: src\main\kotlin\scooper\ui\Search.kt:378
 #: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:48
 msgid "All Installed"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:393
+#: src\main\kotlin\scooper\ui\Search.kt:392
 #: src\main\kotlin\scooper\ui\components\SegmentedControl.kt:54
 msgid "Updates"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:438
-#: src\main\kotlin\scooper\ui\Search.kt:483
+#: src\main\kotlin\scooper\ui\Search.kt:437
+#: src\main\kotlin\scooper\ui\Search.kt:482
 msgid "All Buckets"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:622
+#: src\main\kotlin\scooper\ui\Search.kt:621
 msgid "Ascending"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:622
+#: src\main\kotlin\scooper\ui\Search.kt:621
 msgid "Descending"
 msgstr ""
 
@@ -513,15 +513,15 @@ msgstr ""
 msgid "Adjust the application font size. Changes take effect immediately."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:792
+#: src\main\kotlin\scooper\ui\Settings.kt:786
 msgid "Information about this application."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:817
+#: src\main\kotlin\scooper\ui\Settings.kt:811
 msgid "GitHub"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:810
+#: src\main\kotlin\scooper\ui\Settings.kt:804
 #, java-format
 msgid "Version: {{version}}"
 msgstr ""
@@ -591,7 +591,7 @@ msgstr ""
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:332
 #: src\main\kotlin\scooper\ui\VersionPicker.kt:215
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:201
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:577
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:574
 msgid "Install"
 msgstr ""
 
@@ -618,7 +618,7 @@ msgid "Waiting"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:94
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:579
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:576
 msgid "Update"
 msgstr ""
 
@@ -626,7 +626,7 @@ msgstr ""
 #: src\main\kotlin\scooper\ui\AppDetailPanel.kt:393
 #: src\main\kotlin\scooper\ui\ScoopSearchDetailPanel.kt:657
 #: src\main\kotlin\scooper\ui\components\ActionButton.kt:130
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:589
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:591
 msgid "Open"
 msgstr ""
 
@@ -902,7 +902,7 @@ msgid_plural "{{n}} years ago"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:526
+#: src\main\kotlin\scooper\ui\Search.kt:525
 msgid "Sort By"
 msgstr ""
 
@@ -1184,7 +1184,7 @@ msgid "Navigate to Cleanup"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\Shortcuts.kt:43
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:818
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:817
 msgid "Open Settings"
 msgstr ""
 
@@ -1212,7 +1212,7 @@ msgctxt "navigation"
 msgid "Installed"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Search.kt:180
+#: src\main\kotlin\scooper\ui\Search.kt:179
 msgid "Search packages... (supports OR, -exclude)"
 msgstr ""
 
@@ -1237,49 +1237,45 @@ msgstr ""
 msgid "Show"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:458
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:481
 msgid "No manifest to fix"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:459
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:829
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:867
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:882
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:988
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:482
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:852
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:890
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:905
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1024
 msgid "Another operation is running"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1150
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1176
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1493
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1186
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1212
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1529
 #, java-format
 msgid "Installed {{name}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1527
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1563
 #, java-format
 msgid "Installed {{name}} without saving it to a bucket"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:324
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:322
 #, java-format
 msgid "Failed after {{time}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:328
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:326
 msgid "Working..."
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:331
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:329
 #, java-format
 msgid "Worked for {{time}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
-msgid "no tools"
-msgstr ""
-
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:581
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:578
 msgid "Reinstall"
 msgstr ""
 
@@ -1369,25 +1365,25 @@ msgstr ""
 msgid "Skip the download confirmation prompt during generation."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:743
+#: src\main\kotlin\scooper\ui\Settings.kt:737
 msgid "chat completions reachable"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:744
+#: src\main\kotlin\scooper\ui\Settings.kt:738
 #, java-format
 msgid "{{count}} model, current model available"
 msgid_plural "{{count}} models, current model available"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:750
+#: src\main\kotlin\scooper\ui\Settings.kt:744
 #, java-format
 msgid "{{count}} model, current model NOT in list"
 msgid_plural "{{count}} models, current model NOT in list"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src\main\kotlin\scooper\ui\Settings.kt:757
+#: src\main\kotlin\scooper\ui\Settings.kt:751
 #, java-format
 msgid "OK - {{models}}, {{ms}}ms, {{endpoint}}"
 msgstr ""
@@ -1447,7 +1443,7 @@ msgid "Select model"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\components\ExposedDropdownMenu.kt:814
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:822
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:821
 msgid "Retry"
 msgstr ""
 
@@ -1459,134 +1455,134 @@ msgstr ""
 msgid "Go to AI Settings"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:46
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:44
 msgid "LLM provider used to generate Scoop manifests."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:48
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:46
 msgid "Stored locally. Never written to logs or toast messages."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:50
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:48
 #, java-format
 msgid "Stored locally. Leave empty to fall back to the {{env}} environment variable."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:52
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:50
 msgid "Required for openai-compatible. The client appends /v1/chat/completions."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:59
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:65
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:57
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:63
 msgid "Search fetched models or type an id manually."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:261
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:234
 msgid "Model capability issue"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:284
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:253
 msgid "The model does not support function calling (tool_calls). Please switch to a tool-capable model (e.g. deepseek-chat, gpt-4o, claude) in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:262
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:235
 msgid "Model does not accept images"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:287
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:256
 msgid "The current model cannot process image input. Switch to a multimodal model (e.g. gpt-4o, claude, gemini) in Settings > AI, or send the request without images."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:263
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:236
 msgid "Authentication failed"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:290
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:259
 msgid "Your API key may be invalid or expired. Check it in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:264
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:237
 msgid "Model not found"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:291
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:260
 msgid "The configured model was not found on this provider. Check the model name in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:265
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:238
 msgid "Resource not found (404)"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:292
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:261
 msgid "The server returned 404. Check your base URL in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:266
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:239
 msgid "Bad request (400)"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:293
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:262
 msgid "The AI endpoint returned 400 Bad Request. Check your model and parameters in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:267
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:240
 msgid "Rate limit exceeded"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:294
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:263
 msgid "The provider rate-limited the request. Wait a moment and retry, or switch to another model."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:268
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:241
 msgid "Server error"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:295
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:264
 msgid "The provider returned a temporary server error. This is usually transient; retry later."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:269
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:242
 msgid "Cannot resolve host"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:296
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:265
 msgid "The AI endpoint host could not be resolved. Check your network connection and the base URL in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:270
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:243
 msgid "Request timed out"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:297
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:266
 msgid "The request timed out. Check your network connection and retry."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:271
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:244
 msgid "Connection refused"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:298
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:267
 msgid "The connection to the AI endpoint was refused. Check that the server is running and the base URL is correct in Settings > AI."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:272
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:245
 msgid "Configuration error"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:299
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:268
 msgid "Check your AI configuration in Settings > AI (base URL / model / provider)."
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:273
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:246
 msgid "Generation failed"
 msgstr ""
 
-#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:300
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:269
 msgid "An unexpected error occurred during generation."
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\create\CreateChat.kt:78
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:361
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:359
 msgid "Type something."
 msgstr ""
 
@@ -1604,7 +1600,7 @@ msgid "Q{{index}}"
 msgstr ""
 
 #: src\main\kotlin\scooper\ui\create\CreateChat.kt:213
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:417
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:415
 msgid "Submit"
 msgstr ""
 
@@ -1616,36 +1612,36 @@ msgstr ""
 msgid "Not selected (Auto)"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:426
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:424
 msgid "Write a custom answer or instruction"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:394
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:392
 msgid "Type your response here..."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:458
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:456
 msgid "No options provided. Type your answer in the composer below."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:751
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:756
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:750
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:755
 msgid "Details"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:756
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:755
 msgid "Hide details"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:819
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:818
 msgid "Restart"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:820
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:819
 msgid "Retry from analyze"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:821
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:820
 msgid "Retry from generate"
 msgstr ""
 
@@ -1689,106 +1685,106 @@ msgstr ""
 msgid "Toggle execution details"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:171
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:173
 msgid "Manifest Preview"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:185
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:187
 msgid "Updating"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:186
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:188
 msgid "Installing"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:187
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:189
 msgid "Notice"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:188
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:190
 msgid "Issues"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:189
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:191
 msgid "Ready"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:205
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:207
 #, java-format
 msgid "suggested: {{name}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:228
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:230
 msgid "Revisions:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:276
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:278
 msgid "View Code"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:276
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:278
 msgid "View Diff"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:446
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:448
 msgid "Notice: Name conflict detected:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:448
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:450
 msgid "Generation finished with issues:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:483
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:485
 msgid "Manifest is valid JSON; choose a different name when saving to a bucket."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:485
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:487
 msgid "Manifest is valid JSON; you may still test / install it."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:558
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:560
 msgid "Save to Bucket"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:597
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:599
 msgid "Revert to this version"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:673
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:675
 #, java-format
 msgid "Saved {{app}}.json to bucket \"{{bucket}}\" (overwritten)"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:679
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:681
 #, java-format
 msgid "Saved {{app}}.json to bucket \"{{bucket}}\""
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:713
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:715
 msgid "Indexed for Discover and committed to Git. The app is searchable now."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:715
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:717
 msgid "Indexed for Discover. The app is searchable now."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:717
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:719
 msgid "Committed to Git, but Discover indexing failed."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:719
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:721
 msgid "File saved, but Discover indexing failed. The app may not appear in search until reindex."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:751
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:753
 msgid "This bucket is a Git repository. Commit to keep the change in history:"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:767
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:769
 msgid "Open in Discover"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:774
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:776
 msgid "Done"
 msgstr ""
 
@@ -1861,51 +1857,51 @@ msgstr ""
 msgid "New Session"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:205
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:218
 #, java-format
 msgid "Updated existing manifest at {{bucket}}/{{app}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:872
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:895
 msgid "Nothing to retry"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:956
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:991
 msgid "Cancelled"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:960
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:995
 msgid "Manifest copied to clipboard"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1028
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1064
 msgid "Save the manifest to a bucket first"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1286
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1322
 msgid "No Scoop buckets found"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1386
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1422
 msgid "App name may only contain letters, digits, '.', '_' and '-'"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2276
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2317
 #, java-format
 msgid "Reverted to revision #{{n}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:395
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:393
 #, java-format
 msgid "{{input}} in · {{output}} out tokens"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\AiProviderForm.kt:64
+#: src\main\kotlin\scooper\ui\AiProviderForm.kt:62
 #, java-format
 msgid "Defaults to {{model}}."
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateChat.kt:670
+#: src\main\kotlin\scooper\ui\create\CreateChat.kt:669
 msgid "Sent image"
 msgstr ""
 
@@ -1921,62 +1917,289 @@ msgstr ""
 msgid "Image preview"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:703
+#: src\main\kotlin\scooper\ui\create\CreatePreview.kt:705
 msgid "Dismiss"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:148
+#: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:147
 msgid "Close tab"
 msgstr ""
-
-#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:340
-#, java-format
-msgid "{{count}} tool"
-msgid_plural "{{count}} tools"
-msgstr[0] ""
-msgstr[1] ""
 
 #: src\main\kotlin\scooper\ui\create\CreateScreen.kt:197
 #, java-format
 msgid "Pre-filled from @{{bucket}}/{{name}} reference"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:920
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:951
 msgid "Let AI decide"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:993
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1515
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1029
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1551
 msgid "No manifest to install"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1012
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1048
 msgid "Deployment state changed, review the button and retry"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1116
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1152
 #, java-format
 msgid "Cannot reinstall {{name}}: {{issue}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1266
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1302
 msgid "Cannot determine the installed app name; cannot open it"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1282
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1360
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1318
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1396
 msgid "No manifest to save"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1391
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1427
 msgid "Please select a valid bucket"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2077
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2083
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2117
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2123
 msgid "No Windows assets found"
 msgstr ""
 
-#: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:107
+#: src\main\kotlin\scooper\ui\create\CreateTabBar.kt:106
 msgid "New Chat"
 msgstr ""
+
+#: src\main\kotlin\scooper\service\AiErrorTranslator.kt:86
+msgid "(no error detail)"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:97
+#, java-format
+msgid "version: {{from}} → {{to}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:98
+msgid "Initial manifest"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
+msgid "Manifest updated"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+msgid "Assist finished with issues"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+msgid "Generation finished with issues"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:276
+msgid "Sorry, I could not produce an answer."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:316
+#, java-format
+msgid "updated version ({{from}} → {{to}})"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:324
+#, java-format
+msgid "Removed {{keys}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:325
+#, java-format
+msgid "added {{keys}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:326
+#, java-format
+msgid "updated {{keys}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:331
+msgid "Updated the manifest"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:332
+msgid "No manifest changes were required"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:334
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:407
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+msgid "Validated and ready."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:377
+msgid "portable zip"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:378
+msgid "portable 7z archive"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:379
+msgid "MSIX package"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:380
+msgid "MSI installer"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:381
+msgid "installer"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:382
+msgid "portable"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:394
+#, java-format
+msgid "Generated manifest for {{name}} {{version}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:395
+#, java-format
+msgid "Generated manifest for {{name}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:396
+#, java-format
+msgid "Generated manifest {{version}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:397
+msgid "Generated manifest"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:401
+#, java-format
+msgid "{{n}} shortcut"
+msgid_plural "{{n}} shortcuts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:404
+#, java-format
+msgid "{{n}} persist entry"
+msgid_plural "{{n}} persist entries"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
+msgid "Generation cancelled by user."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1567
+#, java-format
+msgid "Installed {{name}} directly, without saving it to a bucket."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1696
+msgid "Please inspect the attached screenshot(s) and update the manifest accordingly."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1700
+msgid "Please enter a GitHub repository URL (github.com/owner/repo)."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2112
+msgid "No Windows assets found for this repository."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2141
+msgid "Manifest output is not valid JSON."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2142
+msgid "Generation finished with unresolved issues."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2164
+#, java-format
+msgid "Done with notice: App name '{{name}}' conflicts with an existing local manifest. See card below."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2168
+msgid "See card below for details."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2173
+#, java-format
+msgid "Manifest generated with name conflict: {{name}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2175
+#, java-format
+msgid "Manifest generated: {{name}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2206
+msgid "Generation cancelled."
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2301
+#, java-format
+msgid "Revert to revision #{{n}}"
+msgstr ""
+
+#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
+msgid "H2 probe msgid that no catalog contains"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:22
+msgid "Download confirmed"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:23
+msgid "Download skipped"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:377
+msgid "Fix JSON syntax"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:378
+msgid "Fix name conflict"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:379
+msgid "Fix persist paths"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:380
+msgid "Fix license"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:381
+msgid "Fix extract_dir"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:382
+msgid "Improve description"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:383
+msgid "Fix autoupdate/checkver"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:1013
+#, java-format
+msgid "⚡ Apply fix: {{label}}"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:336
+msgid "no tool calls"
+msgstr ""
+
+#: src\main\kotlin\scooper\viewmodels\ExecutionModels.kt:338
+#, java-format
+msgid "{{count}} tool call"
+msgid_plural "{{count}} tool calls"
+msgstr[0] ""
+msgstr[1] ""

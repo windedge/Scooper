@@ -11,9 +11,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import scooper.repository.ConfigRepository
 import scooper.util.LocalizedText
+import scooper.util.localeTagToReplyLanguage
 import scooper.util.logger
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
@@ -47,6 +50,8 @@ open class ScoopAiBridge(
     private val connectionTester: AiConnectionTester = AiConnectionTester(),
     private val modelsFetcher: AiModelsFetcher = AiModelsFetcher(),
     settingsStore: AiSettingsStore? = null,
+    /** Test seam for [AI_RUN_TIMEOUT_MS]: tests inject a short budget instead of waiting 20 minutes. */
+    private val aiRunTimeoutMs: Long = AI_RUN_TIMEOUT_MS,
 ) : AutoCloseable {
     private val logger by logger()
     private val supervisorJob = SupervisorJob()
@@ -76,7 +81,9 @@ open class ScoopAiBridge(
     }
 
     fun toScoopAiConfig(settings: AiSettingsSnapshot = readSettings()): ScoopAiConfig {
-        return buildScoopAiConfig(settings)
+        // Read per run so a language switch applies to the next engine run
+        // without restarting the bridge.
+        return buildScoopAiConfig(settings, configRepository.getConfig().locale)
     }
 
     /**
@@ -264,6 +271,25 @@ open class ScoopAiBridge(
     }
 
     /**
+     * Whole-run backstop wrapped around the entire run body (resume rebuild
+     * plus the generator call) in [launchExclusiveRun]. [TimeoutCancellationException]
+     * (a CancellationException subtype) is converted into an [IllegalStateException]
+     * so the existing generic failure path reports it through onFinished instead
+     * of silently unwinding the run coroutine; every other CancellationException
+     * is a genuine cancel (user stop or slot replacement) and rethrows untouched.
+     * On expiry the whole job is cancelled, which propagates into the in-flight
+     * HTTP call of the engine.
+     */
+    private suspend fun runWithTimeout(body: suspend () -> Unit) {
+        try {
+            withTimeout(aiRunTimeoutMs) { body() }
+        } catch (e: TimeoutCancellationException) {
+            val minutes = aiRunTimeoutMs / 60_000
+            throw IllegalStateException("AI run timed out after $minutes minutes", e)
+        }
+    }
+
+    /**
      * Shared wrapper for the two engine entry points: cancels the previous
      * run, resolves settings (missing settings fail fast through [onFinished])
      * and wraps [body] in the common cancel/cleanup error handling. [errorLabel]
@@ -289,7 +315,9 @@ open class ScoopAiBridge(
                     onFinished(Result.failure(IllegalStateException(missing.render())))
                     return@launch
                 }
-                body(settings)
+                runWithTimeout {
+                    body(settings)
+                }
             } catch (e: CancellationException) {
                 onFinished(Result.failure(e))
                 throw e
@@ -448,7 +476,20 @@ open class ScoopAiBridge(
         const val DEFAULT_PROVIDER = AiSettingsStore.DEFAULT_PROVIDER
         val SUPPORTED_PROVIDERS: Set<String> = ProviderCatalog.supportedProviderIds.toSet()
 
-        internal fun buildScoopAiConfig(settings: AiSettingsSnapshot): ScoopAiConfig {
+        /**
+         * Host-side backstop for one engine run (generate or assist). The
+         * engine normally finishes well within this budget even with repair
+         * and retry rounds; hitting it means the engine or its network path is
+         * stuck (e.g. an HTTP black hole on engine versions without an SSE
+         * timeout, once observed as a 57-minute RESEARCH hang), so the host
+         * fails the run instead of waiting forever.
+         */
+        const val AI_RUN_TIMEOUT_MS = 20L * 60 * 1000
+
+        internal fun buildScoopAiConfig(
+            settings: AiSettingsSnapshot,
+            localeTag: String? = null,
+        ): ScoopAiConfig {
             return ScoopAiConfig(
                 provider = settings.provider,
                 apiKey = settings.apiKey,
@@ -464,6 +505,7 @@ open class ScoopAiBridge(
                 githubToken = settings.githubToken.ifBlank { null },
                 skipDownloadConfirm = settings.autoDownload,
                 nonInteractive = true,
+                replyLanguage = localeTagToReplyLanguage(localeTag),
             )
         }
 

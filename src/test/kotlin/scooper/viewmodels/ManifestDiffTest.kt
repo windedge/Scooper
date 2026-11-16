@@ -41,7 +41,7 @@ class ManifestDiffTest {
     @Test
     fun `display renders version changes with the tilde arrow form`() {
         assertEquals(
-            "~ version: 1.0.0 -> 1.1.0",
+            "~ version: 1.0.0 → 1.1.0",
             ManifestDiffEntry.VersionChanged("1.0.0", "1.1.0").display(),
         )
     }
@@ -131,7 +131,7 @@ class ManifestDiffTest {
             ManifestDiffEntry.VersionChanged("1.0.0", "1.1.0"),
         )
         assertEquals(
-            "Removed bin, added shortcuts, updated description, updated version (1.0.0 -> 1.1.0). Validated and ready.",
+            "Removed bin, added shortcuts, updated description, updated version (1.0.0 → 1.1.0). Validated and ready.",
             synthesizeAssistExplanation(diff),
         )
     }
@@ -183,7 +183,7 @@ class ManifestDiffTest {
             ManifestDiffEntry.VersionChanged("1.0.0", "1.1.0"),
         )
         assertEquals(
-            "Updated version (1.0.0 -> 1.1.0). Validated and ready.",
+            "Updated version (1.0.0 → 1.1.0). Validated and ready.",
             synthesizeAssistExplanation(diff),
         )
     }

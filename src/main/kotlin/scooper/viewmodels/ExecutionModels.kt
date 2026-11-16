@@ -300,7 +300,7 @@ internal fun isFailedExecutionStep(step: ExecutionStep, messageHasActions: Boole
 
 /**
  * Text of the openchamber-style summary line under a finalized agent bubble.
- * A finished run reads "✓ Worked for 3.4s · 5 tools"; a failed run reads
+ * A finished run reads "✓ Worked for 3.4s · 5 tool calls"; a failed run reads
  * "✗ Failed after ...". Both phrases are tr()-wrapped here; the callers compose
  * inside Composables, so the line follows locale switches. While the
  * run is in flight ([running]=true) the line mirrors the live tool activity
@@ -329,13 +329,13 @@ internal fun executionSummaryLineText(
     return "✓ ${tr("Worked for {{time}}", "time" to formatStepDuration(totalMs))} · ${toolCountText(steps)}"
 }
 
-/** Tool-count phrase of the summary line: "no tools" / "1 tool" / "5 tools". */
+/** Tool-call-count phrase of the summary line: "no tool calls" / "1 tool call" / "5 tool calls". */
 private fun toolCountText(steps: List<ExecutionStep>): String {
     val count = steps.sumOf { it.toolActivities.size }
     return when (count) {
-        0 -> tr("no tools")
+        0 -> tr("no tool calls")
         // trn already selects the singular/plural form; no branch per count.
-        else -> trn("{{count}} tool", "{{count}} tools", count, "count" to "$count")
+        else -> trn("{{count}} tool call", "{{count}} tool calls", count, "count" to "$count")
     }
 }
 

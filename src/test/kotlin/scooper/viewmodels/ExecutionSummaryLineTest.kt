@@ -25,27 +25,27 @@ class ExecutionSummaryLineTest {
     // ---------------------------------------------------------------
 
     @Test
-    fun `completed summary shows Worked for with duration and tool count`() {
+    fun `completed summary shows Worked for with duration and tool call count`() {
         val steps = listOf(
             ExecutionStep(phase = "research", title = "r", durationMs = 1000L, toolActivities = listOf("✔ a", "✔ b")),
             ExecutionStep(phase = "analyze", title = "a", durationMs = 400L, toolActivities = listOf("✔ c")),
             ExecutionStep(phase = "generate", title = "g", durationMs = 2000L, toolActivities = listOf("✔ d", "✔ e")),
         )
-        assertEquals("✓ Worked for 3.4s · 5 tools", executionSummaryLineText(steps))
+        assertEquals("✓ Worked for 3.4s · 5 tool calls", executionSummaryLineText(steps))
     }
 
     @Test
-    fun `summary with zero tools uses the no-tools wording`() {
+    fun `summary with zero tool calls uses the no-tool-calls wording`() {
         val steps = listOf(ExecutionStep(phase = "research", title = "r", durationMs = 850L))
-        assertEquals("✓ Worked for 850ms · no tools", executionSummaryLineText(steps))
+        assertEquals("✓ Worked for 850ms · no tool calls", executionSummaryLineText(steps))
     }
 
     @Test
-    fun `summary with a single tool uses the singular wording`() {
+    fun `summary with a single tool call uses the singular wording`() {
         val steps = listOf(
             ExecutionStep(phase = "research", title = "r", durationMs = 850L, toolActivities = listOf("✔ a")),
         )
-        assertEquals("✓ Worked for 850ms · 1 tool", executionSummaryLineText(steps))
+        assertEquals("✓ Worked for 850ms · 1 tool call", executionSummaryLineText(steps))
     }
 
     @Test
@@ -54,7 +54,7 @@ class ExecutionSummaryLineTest {
             ExecutionStep(phase = "research", title = "r", durationMs = 60_000L),
             ExecutionStep(phase = "generate", title = "g", durationMs = 23_000L, toolActivities = listOf("✔ a", "✔ b", "✔ c", "✔ d")),
         )
-        assertEquals("✓ Worked for 1m 23s · 4 tools", executionSummaryLineText(steps))
+        assertEquals("✓ Worked for 1m 23s · 4 tool calls", executionSummaryLineText(steps))
     }
 
     @Test
@@ -63,12 +63,12 @@ class ExecutionSummaryLineTest {
             ExecutionStep(phase = "research", title = "r", durationMs = 1000L),
             ExecutionStep(phase = "generate", title = "g", durationMs = 2400L, toolActivities = listOf("✖ boom")),
         )
-        assertEquals("✗ Failed after 3.4s · 1 tool", executionSummaryLineText(steps, failed = true))
+        assertEquals("✗ Failed after 3.4s · 1 tool call", executionSummaryLineText(steps, failed = true))
     }
 
     @Test
-    fun `empty steps render zero duration and no tools`() {
-        assertEquals("✓ Worked for 0ms · no tools", executionSummaryLineText(emptyList()))
+    fun `empty steps render zero duration and no tool calls`() {
+        assertEquals("✓ Worked for 0ms · no tool calls", executionSummaryLineText(emptyList()))
     }
 
     // ---------------------------------------------------------------
@@ -102,7 +102,7 @@ class ExecutionSummaryLineTest {
     @Test
     fun `completed summary never shows the running fallback wording`() {
         assertEquals(
-            "✓ Worked for 0ms · no tools",
+            "✓ Worked for 0ms · no tool calls",
             executionSummaryLineText(emptyList(), running = false, currentActivity = null),
         )
     }

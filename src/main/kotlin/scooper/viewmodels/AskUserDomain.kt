@@ -1,5 +1,7 @@
 package scooper.viewmodels
 
+import scooper.util.tr
+
 internal const val DEFAULT_AUTONOMOUS_PROCEED_ANSWER = "Please make your best judgment and proceed autonomously."
 
 /**
@@ -17,8 +19,8 @@ internal fun composerSendEnabled(
 internal fun resolveAskUserBubbleText(response: String, isDownloadPrompt: Boolean): String {
     if (!isDownloadPrompt) return response
     return when {
-        response.equals("yes", ignoreCase = true) || response.contains("proceed", ignoreCase = true) -> "Download confirmed"
-        response.equals("no", ignoreCase = true) || response.contains("cancel", ignoreCase = true) || response.contains("skip", ignoreCase = true) -> "Download skipped"
+        response.equals("yes", ignoreCase = true) || response.contains("proceed", ignoreCase = true) -> tr("Download confirmed")
+        response.equals("no", ignoreCase = true) || response.contains("cancel", ignoreCase = true) || response.contains("skip", ignoreCase = true) -> tr("Download skipped")
         else -> response
     }
 }

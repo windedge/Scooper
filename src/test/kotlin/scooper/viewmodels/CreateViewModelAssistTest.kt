@@ -224,7 +224,8 @@ class CreateViewModelAssistTest {
     fun `computeManifestDiff returns Initial manifest when previous is blank`() {
         val newJson = """{"version":"1.0.0","description":"test"}"""
         val diff = computeManifestDiff("", newJson)
-        assertEquals(listOf("Initial manifest"), diff)
+        assertEquals(listOf<ManifestDiffEntry>(ManifestDiffEntry.Initial), diff)
+        assertEquals("Initial manifest", diff.single().display())
     }
 
     @Test

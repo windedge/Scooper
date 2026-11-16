@@ -26,7 +26,7 @@ import scooper.taskqueue.TaskQueue
 import java.io.File
 import scooper.service.AiErrorAction
 import scooper.viewmodels.CreateViewModel.Companion.MAX_PENDING_IMAGES
-import scooper.viewmodels.CreateViewModel.Companion.PURE_IMAGE_INSTRUCTION
+import scooper.viewmodels.CreateViewModel.Companion.pureImageInstruction
 
 /**
  * Unit tests for [PendingImage] state management: attach cap, remove, send integration,
@@ -118,7 +118,7 @@ class CreateViewModelPendingImageTest {
         assertTrue(state.pendingImages.isEmpty(), "pendingImages must be cleared after send")
         val userMessages = state.messages.filter { it.role == ChatRole.User }
         assertEquals(1, userMessages.size, "exactly one user bubble expected, got: " + state.messages)
-        assertEquals(PURE_IMAGE_INSTRUCTION, userMessages.single().text)
+        assertEquals(pureImageInstruction(), userMessages.single().text)
         assertEquals(listOf("a", "b"), userMessages.single().images.map { it.id })
         vm.close()
     }
@@ -136,7 +136,7 @@ class CreateViewModelPendingImageTest {
         assertTrue(state.pendingImages.isEmpty(), "images must be consumed by the assist round")
         val userMessages = state.messages.filter { it.role == ChatRole.User }
         assertEquals(1, userMessages.size, "exactly one user bubble expected, got: " + state.messages)
-        assertEquals(PURE_IMAGE_INSTRUCTION, userMessages.single().text)
+        assertEquals(pureImageInstruction(), userMessages.single().text)
         assertEquals(listOf("a"), userMessages.single().images.map { it.id })
         vm.close()
     }

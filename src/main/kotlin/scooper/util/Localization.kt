@@ -36,6 +36,40 @@ val supportedLocales = listOf(
 )
 
 /**
+ * English language names for the reply language hint sent to the scoop-ai
+ * engine, keyed by locale tag. Keyed by tag (not by JVM Locale) so the
+ * mapping is independent of the runtime default locale. zh resolves only
+ * through its explicit variants; the bare "zh" tag is deliberately ambiguous
+ * and maps to null.
+ */
+private val replyLanguageByTag = mapOf(
+    "en" to "English",
+    "de" to "German",
+    "es" to "Spanish",
+    "fr" to "French",
+    "sl" to "Slovenian",
+    "ru" to "Russian",
+    "ja" to "Japanese",
+    "zh-CN" to "Simplified Chinese",
+    "zh-TW" to "Traditional Chinese",
+)
+
+/**
+ * Map a locale tag (e.g. the persisted UI locale "zh-CN" or "de-AT") to the
+ * English reply language name for the engine prompt. Exact tag first, then
+ * the language-only part as fallback, so unknown region variants such as
+ * "de-AT" degrade to their base language. Returns null for blank input or
+ * unsupported/ambiguous tags. Never reads the JVM default locale.
+ */
+fun localeTagToReplyLanguage(tag: String?): String? {
+    val normalized = tag?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    replyLanguageByTag[normalized]?.let { return it }
+    val languageOnly = normalized.substringBefore('-').substringBefore('_')
+    if (languageOnly == "zh") return null
+    return replyLanguageByTag[languageOnly]
+}
+
+/**
  * Detect the best matching locale from the system default.
  * Handles zh-Hans-CN vs zh-CN compatibility and falls back to English.
  */

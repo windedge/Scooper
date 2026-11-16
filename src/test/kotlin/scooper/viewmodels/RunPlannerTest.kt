@@ -100,7 +100,7 @@ class RunPlannerTest {
             busy = false,
             images = attached,
         ) as SendDecision.Assist
-        assertEquals(CreateViewModel.PURE_IMAGE_INSTRUCTION, decision.instruction)
+        assertEquals(CreateViewModel.pureImageInstruction(), decision.instruction)
         assertEquals(attached, decision.images)
     }
 

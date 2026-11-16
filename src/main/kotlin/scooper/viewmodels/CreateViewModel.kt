@@ -112,7 +112,7 @@ data class ChatMessage(
      *  later round; prevents re-sending the same images on every text-only follow-up. */
     val imagesReplayed: Boolean = false,
     /** Structured marker for machine-written user bubbles (ask-user answers); null
-    for bubbles the user typed themselves. Consumers filter on this, not on text. */
+     for bubbles the user typed themselves. Consumers filter on this, not on text. */
     val kind: MessageKind? = null,
 )
 
@@ -362,12 +362,28 @@ fun computeDetailedLineDiff(oldText: String, newText: String): List<DiffLine> {
     return result.reversed()
 }
 
+/**
+ * Review fix suggestion. The id is the stable key; the visible label is a
+ * msgid looked up through [labelText] at render time so a locale switch
+ * retranslates existing chips, and the assist prompt stays English (the
+ * engine's reply-language rules localize the reply, not the instruction).
+ */
 data class ReviewActionChip(
     val id: String = java.util.UUID.randomUUID().toString(),
-    val label: String,
     val prompt: String,
     val isPrimary: Boolean = false,
-)
+) {
+    fun labelText(): String = when (id) {
+        "fix_json" -> tr("Fix JSON syntax")
+        "fix_name_conflict" -> tr("Fix name conflict")
+        "fix_persist" -> tr("Fix persist paths")
+        "fix_license" -> tr("Fix license")
+        "fix_extract_dir" -> tr("Fix extract_dir")
+        "fix_description" -> tr("Improve description")
+        "fix_autoupdate" -> tr("Fix autoupdate/checkver")
+        else -> id
+    }
+}
 
 fun extractReviewActionChips(
     issues: List<String>,
@@ -380,7 +396,6 @@ fun extractReviewActionChips(
         chips.add(
             ReviewActionChip(
                 id = "fix_json",
-                label = "Fix JSON syntax",
                 prompt = "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON.",
                 isPrimary = chips.isEmpty(),
             )
@@ -395,7 +410,6 @@ fun extractReviewActionChips(
                     chips.add(
                         ReviewActionChip(
                             id = "fix_name_conflict",
-                            label = "Fix name conflict",
                             prompt = "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name.",
                         )
                     )
@@ -406,7 +420,6 @@ fun extractReviewActionChips(
                     chips.add(
                         ReviewActionChip(
                             id = "fix_persist",
-                            label = "Fix persist paths",
                             prompt = "Ensure all persist paths are relative to \$dir without ~, absolute paths, or environment variables. Remove any invalid persist paths.",
                         )
                     )
@@ -417,7 +430,6 @@ fun extractReviewActionChips(
                     chips.add(
                         ReviewActionChip(
                             id = "fix_license",
-                            label = "Fix license",
                             prompt = "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT).",
                         )
                     )
@@ -428,7 +440,6 @@ fun extractReviewActionChips(
                     chips.add(
                         ReviewActionChip(
                             id = "fix_extract_dir",
-                            label = "Fix extract_dir",
                             prompt = "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install.",
                         )
                     )
@@ -439,7 +450,6 @@ fun extractReviewActionChips(
                     chips.add(
                         ReviewActionChip(
                             id = "fix_description",
-                            label = "Improve description",
                             prompt = "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff).",
                         )
                     )
@@ -450,7 +460,6 @@ fun extractReviewActionChips(
                     chips.add(
                         ReviewActionChip(
                             id = "fix_autoupdate",
-                            label = "Fix autoupdate/checkver",
                             prompt = "Fix autoupdate and checkver configuration to ensure correct \$version placeholders and reliable regex matching.",
                         )
                     )
@@ -937,7 +946,13 @@ class CreateViewModel(
         val downloadDetail = buildDownloadConfirmDetail(state.askUserRequest, DEFAULT_AUTONOMOUS_PROCEED_ANSWER)
         reduce {
             state.copy(
-                messages = state.messages + ChatMessage(role = ChatRole.User, text = tr("Let AI decide"), note = downloadDetail, noteSingleLine = true, kind = MessageKind.ASK_USER_CANCEL),
+                messages = state.messages + ChatMessage(
+                    role = ChatRole.User,
+                    text = tr("Let AI decide"),
+                    note = downloadDetail,
+                    noteSingleLine = true,
+                    kind = MessageKind.ASK_USER_CANCEL,
+                ),
                 askUserRequest = null,
             )
         }
@@ -966,7 +981,7 @@ class CreateViewModel(
             // bubble is harmless, a stuck busy flag is not.
             state.copy(askUserRequest = null, running = false, testing = false, installing = false)
                 .finishGeneration(
-                    messages = state.messages + agentMessage("Generation cancelled by user."),
+                    messages = state.messages + agentMessage(tr("Generation cancelled by user.")),
                     error = null,
                 )
         }
@@ -994,7 +1009,8 @@ class CreateViewModel(
         }
         startAssistInternal(
             instruction = chip.prompt,
-            displayUserText = "⚡ Apply fix: ${chip.label}",
+            // Bubble text is a content snapshot: tr at enqueue (Rule 9 exception).
+            displayUserText = tr("⚡ Apply fix: {{label}}", "label" to chip.labelText()),
             source = RevisionSource.ASSIST,
         )
     }
@@ -1548,7 +1564,7 @@ class CreateViewModel(
         )
         if (outcome.isSuccess) {
             reduce {
-                state.copy(messages = state.messages + agentMessage("Installed $name directly, without saving it to a bucket."))
+                state.copy(messages = state.messages + agentMessage(tr("Installed {{name}} directly, without saving it to a bucket.", "name" to name)))
             }
         }
         return outcome.replyJson
@@ -1673,11 +1689,15 @@ class CreateViewModel(
         /** Maximum number of images that can be attached to a single message. */
         const val MAX_PENDING_IMAGES = 3
 
-        /** Fixed instruction used when sending images without any text. */
-        const val PURE_IMAGE_INSTRUCTION = "Please inspect the attached screenshot(s) and update the manifest accordingly."
+        /** Fixed instruction used when sending images without any text. Resolved
+         *  through tr() at call time (Rule 9: the instruction is frozen into the
+         *  user bubble at enqueue). */
+        fun pureImageInstruction(): String =
+            tr("Please inspect the attached screenshot(s) and update the manifest accordingly.")
 
         /** Toast/state hint when a generate start carries no usable GitHub url. */
-        internal const val INVALID_URL_HINT = "Please enter a GitHub repository URL (github.com/owner/repo)."
+        fun invalidUrlHint(): String =
+            tr("Please enter a GitHub repository URL (github.com/owner/repo).")
 
         /** Success reply JSON for a direct install (mode local). */
         internal fun directInstallSuccessReply(name: String): String =
@@ -1744,8 +1764,8 @@ class CreateViewModel(
             images = images,
         )
         if (plan == null) {
-            reduce { state.copy(error = INVALID_URL_HINT) }
-            postToast(AppSideEffect.Toast(INVALID_URL_HINT, ToastType.ERROR))
+            reduce { state.copy(error = invalidUrlHint()) }
+            postToast(AppSideEffect.Toast(invalidUrlHint(), ToastType.ERROR))
             return
         }
 
@@ -2089,7 +2109,7 @@ class CreateViewModel(
                     // The engine synthesizes the noAssets explanation; fall back to the
                     // generic notice when it is missing. Abnormal ending: auto-expand.
                     val noAssetsText = manifestResult.explanation?.trim()?.takeIf { it.isNotEmpty() }
-                        ?: "No Windows assets found for this repository."
+                        ?: tr("No Windows assets found for this repository.")
                     finishWithDeploymentRefresh {
                         reduce {
                             state.finishGeneration(
@@ -2118,8 +2138,8 @@ class CreateViewModel(
                 val issues = if (finishedWithIssues) {
                     when {
                         manifestResult.issues.isNotEmpty() -> manifestResult.issues
-                        invalidJson -> listOf("Manifest output is not valid JSON.")
-                        else -> listOf("Generation finished with unresolved issues.")
+                        invalidJson -> listOf(tr("Manifest output is not valid JSON."))
+                        else -> listOf(tr("Generation finished with unresolved issues."))
                     }
                 } else {
                     emptyList()
@@ -2141,15 +2161,18 @@ class CreateViewModel(
                     explanation = manifestResult.explanation,
                     isConflictOnly = isConflictOnly,
                     finishedWithIssues = finishedWithIssues,
-                    conflictText = "Done with notice: App name '$name' conflicts with an existing local manifest. See card below.",
-                    issuesText = finishedWithIssuesNotice(isAssist) + ". See card below for details.",
+                    conflictText = tr(
+                        "Done with notice: App name '{{name}}' conflicts with an existing local manifest. See card below.",
+                        "name" to name,
+                    ),
+                    issuesText = finishedWithIssuesNotice(isAssist) + ". " + tr("See card below for details."),
                     fallbackText = synthesized,
                 )
 
                 val toastText = when {
-                    isConflictOnly -> "Manifest generated with name conflict: $name"
+                    isConflictOnly -> tr("Manifest generated with name conflict: {{name}}", "name" to name)
                     finishedWithIssues -> finishedWithIssuesNotice(isAssist)
-                    else -> "Manifest generated: $name"
+                    else -> tr("Manifest generated: {{name}}", "name" to name)
                 }
                 val toastType = when {
                     isConflictOnly -> ToastType.INFO
@@ -2180,7 +2203,7 @@ class CreateViewModel(
                     if (state.running) {
                         reduce {
                             state.finishGeneration(
-                                messages = state.messages + agentMessage("Generation cancelled."),
+                                messages = state.messages + agentMessage(tr("Generation cancelled.")),
                             )
                         }
                     }
@@ -2275,7 +2298,7 @@ class CreateViewModel(
         val revertRevision = ManifestRevision(
             revisionNumber = state.revisions.size + 1,
             source = RevisionSource.REVERT,
-            instruction = "Revert to revision #${target.revisionNumber}",
+            instruction = tr("Revert to revision #{{n}}", "n" to target.revisionNumber.toString()),
             manifestJson = target.manifestJson,
             diffSummary = diff,
         )

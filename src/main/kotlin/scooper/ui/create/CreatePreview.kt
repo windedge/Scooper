@@ -523,7 +523,7 @@ internal fun ManifestPreviewCard(
                                         },
                                 ) {
                                     Text(
-                                        chip.label,
+                                        chip.labelText(),
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                         style = typography.caption.copy(
                                             color = chipContentColor,

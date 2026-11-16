@@ -199,6 +199,23 @@ class ScoopAiBridgeConfigMappingTest {
         assertNull(config.baseUrl)
     }
 
+    // -------------------------------------------------------------
+    // localeTag flows through buildScoopAiConfig into the engine's
+    // replyLanguage hint; absent or unsupported tags stay null.
+    // -------------------------------------------------------------
+
+    @Test
+    fun `buildScoopAiConfig maps a locale tag to the reply language`() {
+        val config = ScoopAiBridge.buildScoopAiConfig(snapshot(autoDownload = false), "zh-CN")
+        assertEquals("Simplified Chinese", config.replyLanguage)
+    }
+
+    @Test
+    fun `buildScoopAiConfig without a locale tag leaves replyLanguage null`() {
+        val config = ScoopAiBridge.buildScoopAiConfig(snapshot(autoDownload = false))
+        assertNull(config.replyLanguage)
+    }
+
     @Test
     fun `buildScoopAiConfig keeps the base url for openai-compatible`() {
         val config = ScoopAiBridge.buildScoopAiConfig(
