@@ -19,7 +19,10 @@ tests. Every rule has an instance you can find in this repo.
   typing dots, dedupe the live line).
 - Popup width follows its semantic anchor, not the full screen: derive panel width from the anchor or the longest
   entry, cap it with coerce, and let long entries ellipsize instead of widening. Example: the `popupPanelWidth` /
-  `dropdownPanelWidth` in `ExposedDropdownMenu.kt`.
+  `dropdownPanelWidth` in `ExposedDropdownMenu.kt`. The model dropdown popups (Create and Settings) share
+  `MODEL_DROPDOWN_MIN_WIDTH_DP` / `MODEL_DROPDOWN_MAX_WIDTH_DP` (320/480) instead of deriving from anchor or longest
+  entry; the Settings trigger is pinned to `MODEL_TRIGGER_FIXED_WIDTH_DP` (360). Plain `ExposedDropdownMenu` usages
+  still derive their width from anchor or longest entry.
 
 ## State & seam discipline
 
