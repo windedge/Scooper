@@ -260,7 +260,6 @@ data class ManifestRevision(
     val revisionNumber: Int,
     val timestamp: Long = System.currentTimeMillis(),
     val source: RevisionSource,
-    val instruction: String? = null,
     val manifestJson: String,
     /** In-memory only: typed diff entries rendered via [ManifestDiffEntry.display]. */
     val diffSummary: List<ManifestDiffEntry> = emptyList(),
@@ -352,12 +351,13 @@ fun computeDetailedLineDiff(oldText: String, newText: String): List<DiffLine> {
 /**
  * Stable identity of a review fix chip. The label msgid is resolved through
  * [ReviewActionChip.labelText] at render time so a locale switch retranslates
- * existing chips. The assist prompt stays English: the engine localizes the
- * reply, not the instruction.
+ * existing chips. The assist prompt is stored as a msgid too and localized
+ * through [ReviewActionChip.prompt] when the chip is clicked, so the engine
+ * instruction follows the UI language.
  */
 enum class ReviewAction(
     val labelMsgid: String,
-    val prompt: String,
+    val promptMsgid: String,
 ) {
     FIX_JSON(
         "Fix JSON syntax",
@@ -394,6 +394,9 @@ data class ReviewActionChip(
     val isPrimary: Boolean = false,
 ) {
     fun labelText(): String = tr(action.labelMsgid)
+
+    /** Engine instruction for this chip, localized at click time. */
+    fun prompt(): String = tr(action.promptMsgid)
 }
 
 fun extractReviewActionChips(
@@ -457,11 +460,40 @@ internal fun applyActionChipBlockToast(
     manifestJson: String,
     running: Boolean,
     testing: Boolean,
-): Pair<String, ToastType>? = when {
-    manifestJson.isBlank() -> tr("No manifest to fix") to ToastType.ERROR
-    running || testing -> tr("Another operation is running") to ToastType.INFO
+): Pair<LocalizedText, ToastType>? = when {
+    manifestJson.isBlank() -> LocalizedText(msgid = "No manifest to fix") to ToastType.ERROR
+    running || testing -> LocalizedText(msgid = "Another operation is running") to ToastType.INFO
     else -> null
 }
+
+/** Image-cap toast construction, shared with the localization test pin. */
+internal fun imageCapToast(dropped: Int): AppSideEffect.Toast = AppSideEffect.Toast(
+    LocalizedText(
+        msgid = "At most {{max}} images allowed, {{dropped}} dropped",
+        args = listOf("max" to CreateViewModel.MAX_PENDING_IMAGES.toString(), "dropped" to dropped.toString()),
+    ),
+    ToastType.INFO,
+)
+
+/** Direct-install cannot resolve an app name. */
+internal fun directInstallNameFailureToast(): AppSideEffect.Toast = AppSideEffect.Toast(
+    LocalizedText(msgid = "Cannot determine the app name; save it to a bucket or enter an URL first"),
+    ToastType.ERROR,
+)
+
+internal fun saveSuccessToast(appName: String, bucket: String): AppSideEffect.Toast = AppSideEffect.Toast(
+    LocalizedText(
+        msgid = "Saved {{app}}.json to bucket \"{{bucket}}\"",
+        args = listOf("app" to appName, "bucket" to bucket),
+    ),
+    ToastType.SUCCESS,
+)
+
+internal fun noAssetsErrorText(): LocalizedText = LocalizedText(msgid = "No Windows assets found")
+
+/** Freeze a dynamic readiness reason into display-only raw copy. */
+internal fun frozenReadinessReason(reason: LocalizedText): LocalizedText =
+    LocalizedText(raw = reason.render())
 
 data class CreateState(
     val messages: List<ChatMessage> = emptyList(),
@@ -474,7 +506,9 @@ data class CreateState(
     val currentPhase: String? = null,
     val manifestJson: String = "",
     val suggestedAppName: String? = null,
-    val error: String? = null,
+    /** Structured error line under the composer; rendered via tr() at composition
+     *  time. Dynamic sentences (engine failure detail) arrive pre-resolved as raw. */
+    val error: LocalizedText? = null,
     val aiConfigured: Boolean = true,
     /** Structured unconfigured-banner copy; translated at render time. */
     val configHint: LocalizedText? = null,
@@ -753,7 +787,7 @@ class CreateViewModel(
             reduce { state.copy(fetchingModels = false) }
             if (notifyFailure) {
                 val message = e.message?.takeIf { it.isNotBlank() } ?: "Could not fetch the model list"
-                postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(message), ToastType.ERROR))
+                postToast(AppSideEffect.Toast(LocalizedText(raw = AiErrorTranslator.maskSecrets(message)), ToastType.ERROR))
             }
             return@intent
         }
@@ -785,12 +819,7 @@ class CreateViewModel(
             val capped = combined.take(MAX_PENDING_IMAGES)
             val dropped = combined.size - capped.size
             reduce { state.copy(pendingImages = capped) }
-            postToast(
-                AppSideEffect.Toast(
-                    "At most $MAX_PENDING_IMAGES images allowed, $dropped dropped",
-                    ToastType.INFO,
-                ),
-            )
+            postToast(imageCapToast(dropped))
         } else if (newImages.isNotEmpty()) {
             reduce { state.copy(pendingImages = combined) }
         }
@@ -829,7 +858,7 @@ class CreateViewModel(
             }
 
             SendDecision.Busy -> {
-                postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
+                postToast(AppSideEffect.Toast(LocalizedText(msgid = "Another operation is running"), ToastType.INFO))
                 return@intent
             }
 
@@ -867,12 +896,12 @@ class CreateViewModel(
             AiErrorAction.RETRY_FROM_GENERATE,
             -> {
                 if (state.running) {
-                    postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
+                    postToast(AppSideEffect.Toast(LocalizedText(msgid = "Another operation is running"), ToastType.INFO))
                     return@intent
                 }
                 val url = state.lastUrl.ifBlank { state.inputUrl }
                 if (url.isBlank()) {
-                    postToast(AppSideEffect.Toast(tr("Nothing to retry"), ToastType.ERROR))
+                    postToast(AppSideEffect.Toast(LocalizedText(msgid = "Nothing to retry"), ToastType.ERROR))
                     return@intent
                 }
                 // Resume only when the checkpoint covers the requested stage (RETRY_FULL
@@ -882,7 +911,7 @@ class CreateViewModel(
             }
             AiErrorAction.RETRY_ANSWER -> {
                 if (state.running) {
-                    postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
+                    postToast(AppSideEffect.Toast(LocalizedText(msgid = "Another operation is running"), ToastType.INFO))
                     return@intent
                 }
                 // Resend the latest question (startAssistInternal no-ops on blank text).
@@ -968,11 +997,11 @@ class CreateViewModel(
         // A cancelled round may have installed or saved before the cancel, and it
         // drops the run's plan inputs, so re-derive the deployment from disk.
         refreshDeploymentStateInIntent()
-        postToast(AppSideEffect.Toast(tr("Cancelled"), ToastType.INFO))
+        postToast(AppSideEffect.Toast(LocalizedText(msgid = "Cancelled"), ToastType.INFO))
     }
 
     fun onCopyDone() = intent {
-        postToast(AppSideEffect.Toast(tr("Manifest copied to clipboard"), ToastType.SUCCESS))
+        postToast(AppSideEffect.Toast(LocalizedText(msgid = "Manifest copied to clipboard"), ToastType.SUCCESS))
     }
 
     fun onDismissSaveResult() = intent {
@@ -988,7 +1017,7 @@ class CreateViewModel(
             return@intent
         }
         startAssistInternal(
-            instruction = chip.action.prompt,
+            instruction = chip.prompt(),
             // Bubble text is a content snapshot: tr at enqueue (Rule 9 exception).
             displayUserText = tr("⚡ Apply fix: {{label}}", "label" to chip.labelText()),
             source = RevisionSource.ASSIST,
@@ -1001,12 +1030,12 @@ class CreateViewModel(
      *  uninstall-then-install, or open only. */
     fun onInstallSaved() = intent {
         if (state.running || state.testing || state.installing) {
-            postToast(AppSideEffect.Toast(tr("Another operation is running"), ToastType.INFO))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "Another operation is running"), ToastType.INFO))
             return@intent
         }
         val manifestJson = state.activeManifestJson
         if (manifestJson.isBlank()) {
-            postToast(AppSideEffect.Toast(tr("No manifest to install"), ToastType.INFO))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "No manifest to install"), ToastType.INFO))
             return@intent
         }
         // The plan the user saw when clicking. A never-derived state (NoManifest)
@@ -1025,7 +1054,7 @@ class CreateViewModel(
                     // installed, uninstalled or saved): never run the stale plan.
                     postToast(
                         AppSideEffect.Toast(
-                            tr("Deployment state changed, review the button and retry"),
+                            LocalizedText(msgid = "Deployment state changed, review the button and retry"),
                             ToastType.WARNING,
                         ),
                     )
@@ -1041,7 +1070,7 @@ class CreateViewModel(
                             installFromBucketCore(saveResult.appName, saveResult.bucket, force = false)
                         } else {
                             // Never a silent no-op: without a bucket the plan cannot run.
-                            postToast(AppSideEffect.Toast(tr("Save the manifest to a bucket first"), ToastType.ERROR))
+                            postToast(AppSideEffect.Toast(LocalizedText(msgid = "Save the manifest to a bucket first"), ToastType.ERROR))
                         }
                     DeploymentAction.UpdateForce -> {
                         // The installed copy records where it came from, so a cleared
@@ -1053,7 +1082,9 @@ class CreateViewModel(
                         if (bucket == null || name == null) {
                             postToast(
                                 AppSideEffect.Toast(
-                                    "Cannot update: no bucket is known for this app",
+                                    LocalizedText(
+                                        msgid = "Cannot update: no bucket is known for this app",
+                                    ),
                                     ToastType.ERROR,
                                 ),
                             )
@@ -1129,7 +1160,7 @@ class CreateViewModel(
     ) {
         val issue = withContext(Dispatchers.IO) { bucketManifestIssue(deploymentMonitor.bucketManifestText(bucket, name)) }
         if (issue != null) {
-            postToast(AppSideEffect.Toast(tr("Cannot reinstall {{name}}: {{issue}}", "name" to name, "issue" to issue), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "Cannot reinstall {{name}}: {{issue}}", args = listOf("name" to name, "issue" to issue)), ToastType.ERROR))
             return
         }
         val snapshot = withContext(Dispatchers.IO) { scoopClient.installedSnapshot() }
@@ -1162,12 +1193,12 @@ class CreateViewModel(
         }
         refreshDeploymentStateInIntent()
         when {
-            skipped != null -> postToast(AppSideEffect.Toast(skipped, ToastType.WARNING))
-            result.isSuccess -> postToast(AppSideEffect.Toast(tr("Installed {{name}}", "name" to name), ToastType.SUCCESS))
+            skipped != null -> postToast(AppSideEffect.Toast(LocalizedText(raw = skipped), ToastType.WARNING))
+            result.isSuccess -> postToast(AppSideEffect.Toast(LocalizedText(msgid = "Installed {{name}}", args = listOf("name" to name)), ToastType.SUCCESS))
             else -> {
                 val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                     ?: "exit code ${result.exitCode}"
-                postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+                postToast(AppSideEffect.Toast(LocalizedText(raw = AiErrorTranslator.maskSecrets(detail)), ToastType.ERROR))
             }
         }
     }
@@ -1181,15 +1212,10 @@ class CreateViewModel(
     ) {
         val name = resolveDirectInstallAppName(state.saveResult, state.directInstallName, state.suggestedAppName, state.lastUrl)
         if (name == null || !APP_NAME_REGEX.matches(name)) {
-            postToast(
-                AppSideEffect.Toast(
-                    "Cannot determine the app name; save it to a bucket or enter an URL first",
-                    ToastType.ERROR,
-                ),
-            )
+            postToast(directInstallNameFailureToast())
             return
         }
-        directInstallCore(manifestJson, name, successToast = tr("Installed {{name}}", "name" to name))
+        directInstallCore(manifestJson, name, successToast = LocalizedText(msgid = "Installed {{name}}", args = listOf("name" to name)))
     }
 
 
@@ -1279,7 +1305,7 @@ class CreateViewModel(
         if (name == null || !APP_NAME_REGEX.matches(name)) {
             postToast(
                 AppSideEffect.Toast(
-                    tr("Cannot determine the installed app name; cannot open it"),
+                    LocalizedText(msgid = "Cannot determine the installed app name; cannot open it"),
                     ToastType.ERROR,
                 ),
             )
@@ -1289,17 +1315,17 @@ class CreateViewModel(
         if (!result.isSuccess) {
             val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                 ?: "exit code ${result.exitCode}"
-            postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets(detail), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(raw = AiErrorTranslator.maskSecrets(detail)), ToastType.ERROR))
         }
     }
 
     fun onSave() = intent {
         if (state.manifestJson.isBlank()) {
-            postToast(AppSideEffect.Toast(tr("No manifest to save"), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "No manifest to save"), ToastType.ERROR))
             return@intent
         }
         if (saveCoordinator.bucketOptions().isEmpty()) {
-            postToast(AppSideEffect.Toast(tr("No Scoop buckets found"), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "No Scoop buckets found"), ToastType.ERROR))
             return@intent
         }
         // Reference lock, bucket memory and the git checkbox default all live in
@@ -1373,7 +1399,7 @@ class CreateViewModel(
     ) {
         val manifestJson = state.manifestJson
         if (manifestJson.isBlank()) {
-            postToast(AppSideEffect.Toast(tr("No manifest to save"), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "No manifest to save"), ToastType.ERROR))
             reduce {
                 state.copy(
                     saveDialogOpen = false,
@@ -1399,18 +1425,18 @@ class CreateViewModel(
         when (outcome) {
             SaveOutcome.InvalidName -> postToast(
                 AppSideEffect.Toast(
-                    tr("App name may only contain letters, digits, '.', '_' and '-'"),
+                    LocalizedText(msgid = "App name may only contain letters, digits, '.', '_' and '-'"),
                     ToastType.ERROR,
                 ),
             )
 
-            SaveOutcome.InvalidBucket -> postToast(AppSideEffect.Toast(tr("Please select a valid bucket"), ToastType.ERROR))
+            SaveOutcome.InvalidBucket -> postToast(AppSideEffect.Toast(LocalizedText(msgid = "Please select a valid bucket"), ToastType.ERROR))
 
             is SaveOutcome.NeedsOverwrite -> reduce { state.copy(overwriteConfirmOpen = true) }
 
             is SaveOutcome.Failed -> {
                 logger.error("Save to bucket failed: ${outcome.masked}")
-                postToast(AppSideEffect.Toast(outcome.masked, ToastType.ERROR))
+                postToast(AppSideEffect.Toast(LocalizedText(raw = outcome.masked), ToastType.ERROR))
             }
 
             is SaveOutcome.Saved -> {
@@ -1425,12 +1451,7 @@ class CreateViewModel(
                 }
                 // The saved file is what the deploy button will compare against.
                 refreshDeploymentStateInIntent()
-                postToast(
-                    AppSideEffect.Toast(
-                        "Saved ${outcome.appName}.json to bucket/${outcome.bucket}",
-                        ToastType.SUCCESS,
-                    ),
-                )
+                postToast(saveSuccessToast(outcome.appName, outcome.bucket))
             }
         }
     }
@@ -1503,12 +1524,12 @@ class CreateViewModel(
             when {
                 // Scoop can exit 0 after doing nothing (held app, running process).
                 effect.skippedMessage != null ->
-                    postToast(AppSideEffect.Toast(effect.skippedMessage, ToastType.WARNING))
+                    postToast(AppSideEffect.Toast(LocalizedText(raw = effect.skippedMessage), ToastType.WARNING))
                 effect.newlyInstalled -> {
                     refreshInstalledAppRecord(bucket, name)
-                    postToast(AppSideEffect.Toast(tr("Installed {{name}}", "name" to name), ToastType.SUCCESS))
+                    postToast(AppSideEffect.Toast(LocalizedText(msgid = "Installed {{name}}", args = listOf("name" to name)), ToastType.SUCCESS))
                 }
-                effect.maskedError != null -> postToast(AppSideEffect.Toast(effect.maskedError, ToastType.ERROR))
+                effect.maskedError != null -> postToast(AppSideEffect.Toast(LocalizedText(raw = effect.maskedError), ToastType.ERROR))
             }
             effect.resultJson
         }
@@ -1528,19 +1549,22 @@ class CreateViewModel(
         val manifestJson = state.activeManifestJson
         if (manifestJson.isBlank()) {
             val reply = directInstallFailureReply(name, "no manifest to install")
-            postToast(AppSideEffect.Toast(tr("No manifest to install"), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(msgid = "No manifest to install"), ToastType.ERROR))
             return reply
         }
         if (!APP_NAME_REGEX.matches(name)) {
             val reply = directInstallFailureReply(name, "invalid app name: $name")
-            postToast(AppSideEffect.Toast(AiErrorTranslator.maskSecrets("Invalid app name: $name"), ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(raw = AiErrorTranslator.maskSecrets("Invalid app name: $name")), ToastType.ERROR))
             return reply
         }
 
         val outcome = directInstallCore(
             manifestJson = manifestJson,
             name = name,
-            successToast = tr("Installed {{name}} without saving it to a bucket", "name" to name),
+            successToast = LocalizedText(
+                msgid = "Installed {{name}} without saving it to a bucket",
+                args = listOf("name" to name),
+            ),
         )
         if (outcome.isSuccess) {
             reduce {
@@ -1566,7 +1590,7 @@ class CreateViewModel(
     private suspend fun org.orbitmvi.orbit.syntax.Syntax<CreateState, AppSideEffect>.directInstallCore(
         manifestJson: String,
         name: String,
-        successToast: String,
+        successToast: LocalizedText,
     ): DirectInstallOutcome {
         val directDir = File(System.getenv("LOCALAPPDATA") ?: System.getProperty("java.io.tmpdir"), "scooper/direct-install")
         val manifestFile = directDir.resolve("$name.json")
@@ -1576,7 +1600,7 @@ class CreateViewModel(
         } catch (e: IOException) {
             logger.warn("Direct install: failed to write temp manifest for $name: ${e.message}")
             val masked = AiErrorTranslator.maskSecrets("Failed to write manifest file: ${e.message}")
-            postToast(AppSideEffect.Toast(masked, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(raw = masked), ToastType.ERROR))
             return DirectInstallOutcome(directInstallReply(success = false, name = name, error = masked))
         }
 
@@ -1600,7 +1624,7 @@ class CreateViewModel(
                 if (skipped != null) {
                     // Exit 0 without installing anything: warn instead of claiming success.
                     refreshDeploymentStateInIntent()
-                    postToast(AppSideEffect.Toast(skipped, ToastType.WARNING))
+                    postToast(AppSideEffect.Toast(LocalizedText(raw = skipped), ToastType.WARNING))
                     return DirectInstallOutcome(directInstallReply(success = true, name = name, error = null))
                 }
                 reduce {
@@ -1618,7 +1642,7 @@ class CreateViewModel(
             val detail = result.errorMessage?.takeIf { it.isNotBlank() }
                 ?: "exit code ${result.exitCode}"
             val masked = AiErrorTranslator.maskSecrets(detail)
-            postToast(AppSideEffect.Toast(masked, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(raw = masked), ToastType.ERROR))
             return DirectInstallOutcome(directInstallReply(success = false, name = name, error = masked))
         } catch (e: Exception) {
             // A crashing install (process launch failure, etc.) must become a
@@ -1627,7 +1651,7 @@ class CreateViewModel(
             if (e is CancellationException) throw e
             logger.warn("Direct install of $name crashed: ${e.message}")
             val masked = AiErrorTranslator.maskSecrets("Install failed: ${e.message}")
-            postToast(AppSideEffect.Toast(masked, ToastType.ERROR))
+            postToast(AppSideEffect.Toast(LocalizedText(raw = masked), ToastType.ERROR))
             return DirectInstallOutcome(directInstallFailureReply(name, masked))
         } finally {
             try {
@@ -1676,8 +1700,8 @@ class CreateViewModel(
             tr("Please inspect the attached screenshot(s) and update the manifest accordingly.")
 
         /** Toast/state hint when a generate start carries no usable GitHub url. */
-        fun invalidUrlHint(): String =
-            tr("Please enter a GitHub repository URL (github.com/owner/repo).")
+        fun invalidUrlHint(): LocalizedText =
+            LocalizedText(msgid = "Please enter a GitHub repository URL (github.com/owner/repo).")
 
         /** Success reply JSON for a direct install (mode local). */
         internal fun directInstallSuccessReply(name: String): String =
@@ -1719,10 +1743,13 @@ class CreateViewModel(
             state.copy(
                 aiConfigured = false,
                 configHint = readiness.reason,
-                error = readiness.reason?.render(),
+                // Exception to the static-msgid rule: the reason can be a dynamic
+                // sentence (unsupported provider payload), so it is rendered once
+                // and frozen as raw copy; a locale switch keeps this snapshot.
+                error = readiness.reason?.let { frozenReadinessReason(it) },
             )
         }
-        postToast(AppSideEffect.Toast(readiness.reason?.render().orEmpty(), ToastType.ERROR))
+        postToast(AppSideEffect.Toast(readiness.reason ?: LocalizedText(), ToastType.ERROR))
         return false
     }
 
@@ -2094,13 +2121,13 @@ class CreateViewModel(
                         reduce {
                             state.finishGeneration(
                                 messages = state.messages + agentReplyMessage(noAssetsText, manifestResult.tokenUsage),
-                                error = tr("No Windows assets found"),
+                                error = noAssetsErrorText(),
                                 suggestedAppName = name,
                                 executionExpanded = true,
                             )
                         }
                     }
-                    postToast(AppSideEffect.Toast(tr("No Windows assets found"), ToastType.ERROR))
+                    postToast(AppSideEffect.Toast(noAssetsErrorText(), ToastType.ERROR))
                     return@fold
                 }
 
@@ -2149,11 +2176,14 @@ class CreateViewModel(
                     fallbackText = synthesized,
                 )
 
-                val toastText = when {
-                    isConflictOnly -> tr("Manifest generated with name conflict: {{name}}", "name" to name)
-                    finishedWithIssues -> finishedWithIssuesNotice(isAssist)
-                    else -> tr("Manifest generated: {{name}}", "name" to name)
-                }
+                val toastText = LocalizedText(
+                    msgid = when {
+                        isConflictOnly -> "Manifest generated with name conflict: {{name}}"
+                        finishedWithIssues -> finishedWithIssuesNoticeMsgid(isAssist)
+                        else -> "Manifest generated: {{name}}"
+                    },
+                    args = listOf("name" to name),
+                )
                 val toastType = when {
                     isConflictOnly -> ToastType.INFO
                     finishedWithIssues -> ToastType.ERROR
@@ -2207,13 +2237,13 @@ class CreateViewModel(
                     reduce {
                         state.finishGeneration(
                             messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
-                            error = safe,
+                            error = LocalizedText(raw = safe),
                             resumableStages = resumableStages,
                             executionExpanded = true,
                         )
                     }
                 }
-                postToast(AppSideEffect.Toast(safe, ToastType.ERROR))
+                postToast(AppSideEffect.Toast(LocalizedText(raw = safe), ToastType.ERROR))
             },
         )
     }
@@ -2293,12 +2323,12 @@ class CreateViewModel(
                 manifestSaved = false,
             )
         }
-        postToast(AppSideEffect.Toast(tr("Reverted to revision #{{n}}", "n" to target.revisionNumber.toString()), ToastType.INFO))
+        postToast(AppSideEffect.Toast(LocalizedText(msgid = "Reverted to revision #{{n}}", args = listOf("n" to target.revisionNumber.toString())), ToastType.INFO))
     }
 
     private fun CreateState.finishGeneration(
         messages: List<ChatMessage>,
-        error: String? = this.error,
+        error: LocalizedText? = this.error,
         manifestJson: String = this.manifestJson,
         suggestedAppName: String? = this.suggestedAppName,
         resumableStages: Set<AiErrorAction> = this.resumableStages,
@@ -2320,11 +2350,9 @@ class CreateViewModel(
                 this.currentPhase == "assist" || this.currentPhase == "repair" -> RevisionSource.ASSIST
                 else -> RevisionSource.INITIAL_GENERATE
             }
-            val lastUserInstruction = this.messages.lastOrNull { it.role == ChatRole.User }?.text
             this.revisions + ManifestRevision(
                 revisionNumber = this.revisions.size + 1,
                 source = source,
-                instruction = if (source == RevisionSource.ASSIST) lastUserInstruction else null,
                 manifestJson = manifestJson,
                 diffSummary = diff,
             )

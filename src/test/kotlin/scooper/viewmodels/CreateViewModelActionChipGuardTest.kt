@@ -2,6 +2,7 @@ package scooper.viewmodels
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import scooper.util.LocalizedText
 import org.junit.jupiter.api.Test
 
 /**
@@ -23,11 +24,11 @@ class CreateViewModelActionChipGuardTest {
     @Test
     fun `blank manifest reports no manifest to fix`() {
         assertEquals(
-            "No manifest to fix" to ToastType.ERROR,
+            LocalizedText(msgid = "No manifest to fix") to ToastType.ERROR,
             applyActionChipBlockToast(manifestJson = "", running = false, testing = false),
         )
         assertEquals(
-            "No manifest to fix" to ToastType.ERROR,
+            LocalizedText(msgid = "No manifest to fix") to ToastType.ERROR,
             applyActionChipBlockToast(manifestJson = "   ", running = false, testing = false),
         )
     }
@@ -35,7 +36,7 @@ class CreateViewModelActionChipGuardTest {
     @Test
     fun `running blocks the chip`() {
         assertEquals(
-            "Another operation is running" to ToastType.INFO,
+            LocalizedText(msgid = "Another operation is running") to ToastType.INFO,
             applyActionChipBlockToast(manifestJson = "{}", running = true, testing = false),
         )
     }
@@ -43,7 +44,7 @@ class CreateViewModelActionChipGuardTest {
     @Test
     fun `testing blocks the chip`() {
         assertEquals(
-            "Another operation is running" to ToastType.INFO,
+            LocalizedText(msgid = "Another operation is running") to ToastType.INFO,
             applyActionChipBlockToast(manifestJson = "{}", running = false, testing = true),
         )
     }

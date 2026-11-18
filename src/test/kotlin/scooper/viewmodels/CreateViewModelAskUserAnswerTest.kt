@@ -150,7 +150,7 @@ class CreateViewModelAskUserAnswerTest {
             }
 
             assertTrue(
-                toasts.none { it.text.contains("Another operation is running") },
+                toasts.none { it.text.render().contains("Another operation is running") },
                 "blank input while a questionnaire waits must stay silent, got: $toasts",
             )
             assertNotNull(

@@ -173,7 +173,7 @@ class CreateViewModelChipGuardToastTest {
 
             assertEquals(
                 listOf("Another operation is running"),
-                toasts.map { t -> t.text },
+                toasts.map { t -> t.text.render() },
                 "running must toast exactly once",
             )
             assertEquals(0, bridge.assistStarts, "assist must not start while running")
@@ -200,7 +200,7 @@ class CreateViewModelChipGuardToastTest {
 
             assertEquals(
                 listOf("Another operation is running"),
-                toasts.map { t -> t.text },
+                toasts.map { t -> t.text.render() },
                 "testing must toast exactly once",
             )
             assertEquals(0, bridge.assistStarts, "assist must not start while testing")
@@ -231,7 +231,7 @@ class CreateViewModelChipGuardToastTest {
 
             assertEquals(
                 listOf("Another operation is running"),
-                toasts.map { t -> t.text },
+                toasts.map { t -> t.text.render() },
                 "retry while running must toast exactly once",
             )
             assertEquals(0, bridge.generateStarts, "retry must not start a generation while running")
@@ -257,7 +257,7 @@ class CreateViewModelChipGuardToastTest {
 
             assertEquals(
                 listOf("No manifest to fix"),
-                toasts.map { t -> t.text },
+                toasts.map { t -> t.text.render() },
                 "blank manifest must toast exactly once",
             )
             assertEquals(0, bridge.assistStarts, "assist must not start without a manifest")

@@ -1996,8 +1996,8 @@ msgstr "(keine Fehlerdetails)"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:97
 #, java-format
-msgid "version: {{from}} → {{to}}"
-msgstr "Version: {{from}} → {{to}}"
+msgid "version: {{range}}"
+msgstr "Version: {{range}}"
 
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
@@ -2018,8 +2018,8 @@ msgstr "Entschuldigung, ich konnte keine Antwort erstellen."
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:316
 #, java-format
-msgid "updated version ({{from}} → {{to}})"
-msgstr "Version aktualisiert ({{from}} → {{to}})"
+msgid "updated version ({{range}})"
+msgstr "Version aktualisiert ({{range}})"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:324
 #, java-format
@@ -2200,6 +2200,33 @@ msgstr "autoupdate/checkver korrigieren"
 msgid "⚡ Apply fix: {{label}}"
 msgstr "⚡ Fix anwenden: {{label}}"
 
-#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
-msgid "H2 probe msgid that no catalog contains"
-msgstr "H2-Test-msgid, die kein Katalog enthält"
+msgid "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON."
+msgstr "Das Manifest enthält ungültige JSON-Syntax. Bitte korrigieren Sie die JSON-Formatierung und stellen Sie sicher, dass es gültiges JSON ist."
+
+msgid "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name."
+msgstr "Es gibt einen Namenskonflikt mit einem vorhandenen Paket. Bitte wählen Sie einen neuen, eindeutigen Paketnamen mit dem Projekt- oder Herausgebernamen als Präfix."
+
+msgid "Ensure all persist paths are relative to $dir without ~, absolute paths, or environment variables. Remove any invalid persist paths."
+msgstr "Stellen Sie sicher, dass alle Persist-Pfade relativ zu $dir sind, ohne ~, absolute Pfade oder Umgebungsvariablen. Entfernen Sie alle ungültigen Persist-Pfade."
+
+msgid "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT)."
+msgstr "Korrigieren Sie das Lizenzfeld so, dass eine gültige, explizite SPDX-Lizenzkennung verwendet wird (z. B. GPL-3.0-only oder MIT)."
+
+msgid "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install."
+msgstr "Korrigieren Sie extract_dir so, dass nur das übergeordnete Versionsverzeichnis entfernt wird, oder entfernen Sie extract_dir, falls pre_install dies übernimmt."
+
+msgid "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff)."
+msgstr "Machen Sie die Beschreibung zu einer prägnanten Definition in einem Satz, was die Anwendung tut (unter 100 Zeichen, ohne Marketing-Floskeln)."
+
+msgid "Fix autoupdate and checkver configuration to ensure correct $version placeholders and reliable regex matching."
+msgstr "Korrigieren Sie die autoupdate- und checkver-Konfiguration, damit die $version-Platzhalter korrekt sind und die regulären Ausdrücke zuverlässig matchen."
+
+#, java-format
+msgid "At most {{max}} images allowed, {{dropped}} dropped"
+msgstr "Maximal {{max}} Bilder erlaubt, {{dropped}} verworfen"
+
+msgid "Cannot determine the app name; save it to a bucket or enter an URL first"
+msgstr "App-Name konnte nicht ermittelt werden; zuerst in einem Bucket speichern oder URL eingeben"
+
+msgid "AI settings saved"
+msgstr "KI-Einstellungen gespeichert"

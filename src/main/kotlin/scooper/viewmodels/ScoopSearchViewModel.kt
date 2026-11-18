@@ -22,6 +22,7 @@ import scooper.service.ScoopService
 import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.logger
+import scooper.util.LocalizedText
 import scooper.util.tr
 import scooper.viewmodels.AppSideEffect
 import scooper.viewmodels.ToastType
@@ -145,7 +146,10 @@ class ScoopSearchViewModel(
             taskQueue.addTask(Task.AddBucket(bucketName) { blockingIntent {
                 val resultCode = scoopService.addBucket(bucketName, app.Metadata.Repository)
                 if (resultCode != 0) {
-                    postSideEffect(AppSideEffect.Toast(tr("Failed to add {{name}}.", "name" to bucketName), ToastType.ERROR))
+                    postSideEffect(AppSideEffect.Toast(
+                        LocalizedText(msgid = "Failed to add {{name}}.", args = listOf("name" to bucketName)),
+                        ToastType.ERROR,
+                    ))
                     reduce { state.copy(installingApps = state.installingApps - appKey) }
                 }
             }})

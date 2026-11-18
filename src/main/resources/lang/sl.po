@@ -2021,8 +2021,8 @@ msgstr "(brez podrobnosti napake)"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:97
 #, java-format
-msgid "version: {{from}} → {{to}}"
-msgstr "različica: {{from}} → {{to}}"
+msgid "version: {{range}}"
+msgstr "različica: {{range}}"
 
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
@@ -2043,8 +2043,8 @@ msgstr "Žal nisem mogel pripraviti odgovora."
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:316
 #, java-format
-msgid "updated version ({{from}} → {{to}})"
-msgstr "posodobljena različica ({{from}} → {{to}})"
+msgid "updated version ({{range}})"
+msgstr "posodobljena različica ({{range}})"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:324
 #, java-format
@@ -2229,6 +2229,33 @@ msgstr "Popravi autoupdate/checkver"
 msgid "⚡ Apply fix: {{label}}"
 msgstr "⚡ Uporabi popravek: {{label}}"
 
-#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
-msgid "H2 probe msgid that no catalog contains"
-msgstr "Preskusni msgid H2, ki ga noben katalog ne vsebuje"
+msgid "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON."
+msgstr "Manifest vsebuje neveljavno sintakso JSON. Popravite oblikovanje JSON in poskrbite, da bo JSON veljaven."
+
+msgid "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name."
+msgstr "Prihaja do spora imena z obstoječim paketom. Izberite novo, enolično ime paketa s predpono projekta ali založnika."
+
+msgid "Ensure all persist paths are relative to $dir without ~, absolute paths, or environment variables. Remove any invalid persist paths."
+msgstr "Poskrbite, da bodo vse poti persist relativne glede na $dir, brez ~, absolutnih poti ali okoljskih spremenljivk. Odstranite neveljavne poti persist."
+
+msgid "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT)."
+msgstr "Popravite polje license tako, da uporablja veljaven, izrazit identifikator licence SPDX (npr. GPL-3.0-only ali MIT)."
+
+msgid "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install."
+msgstr "Popravite extract_dir, da odstrani samo najvišji imenik različice, ali ga odstranite, če to opravi pre_install."
+
+msgid "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff)."
+msgstr "Napišite opis kot jedrnato enostavčno definicijo, kaj aplikacija počne (pod 100 znaki, brez marketinskih fraz)."
+
+msgid "Fix autoupdate and checkver configuration to ensure correct $version placeholders and reliable regex matching."
+msgstr "Popravite konfiguracijo autoupdate in checkver, da bodo vstavitve $version pravilne in da se regularni izrazi zanesljivo ujemajo."
+
+#, java-format
+msgid "At most {{max}} images allowed, {{dropped}} dropped"
+msgstr "Največ {{max}} slik je dovoljeno, {{dropped}} zavrženih"
+
+msgid "Cannot determine the app name; save it to a bucket or enter an URL first"
+msgstr "Imena aplikacije ni mogoče določiti; najprej jo shranite v bucket ali vnesite URL"
+
+msgid "AI settings saved"
+msgstr "Nastavitve AI so shranjene"

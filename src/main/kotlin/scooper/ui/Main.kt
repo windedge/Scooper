@@ -242,7 +242,7 @@ fun main() {
                     createTabController.sideEffectFlow,
                 ).collect { sideEffect ->
                     when (sideEffect) {
-                        is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text, sideEffect.type)
+                        is AppSideEffect.Toast -> snackbarHostState.showSnackbar(sideEffect.text.render(), sideEffect.type)
                         is AppSideEffect.Log -> statusText = sideEffect.text
                     }
                 }

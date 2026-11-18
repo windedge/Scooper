@@ -88,7 +88,7 @@ class CreateViewModelOpenAppTest {
         val errorToasts = toasts.filter { it.type == ToastType.ERROR }
         assertTrue(errorToasts.isNotEmpty(), "expected an ERROR toast, got: $toasts")
         assertTrue(
-            errorToasts.any { it.text.contains(missing) },
+            errorToasts.any { it.text.render().contains(missing) },
             "error toast must mention the app name, got: $toasts",
         )
         vm.close()

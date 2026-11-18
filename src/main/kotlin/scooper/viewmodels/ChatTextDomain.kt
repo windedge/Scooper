@@ -91,9 +91,12 @@ fun ManifestDiffEntry.display(): String = when (this) {
     is ManifestDiffEntry.Added -> "+ $key"
     is ManifestDiffEntry.Removed -> "- $key"
     is ManifestDiffEntry.Modified -> "~ $key"
-    is ManifestDiffEntry.VersionChanged -> "~ " + tr("version: {{from}} → {{to}}", "from" to from, "to" to to)
+    is ManifestDiffEntry.VersionChanged -> "~ " + tr("version: {{range}}", "range" to versionRange(from, to))
     ManifestDiffEntry.Generic -> tr("Manifest updated")
 }
+
+/** Shared "from -> to" formatting for the two version-range msgids. */
+internal fun versionRange(from: String, to: String): String = "$from → $to"
 
 private const val HISTORY_MAX_ENTRIES = 12
 
@@ -260,6 +263,10 @@ internal fun isAssistScenario(currentPhase: String?, revisions: List<ManifestRev
 internal fun finishedWithIssuesNotice(isAssistScenario: Boolean): String =
     if (isAssistScenario) tr("Assist finished with issues") else tr("Generation finished with issues")
 
+/** Msgid form of [finishedWithIssuesNotice] for structured LocalizedText copy. */
+internal fun finishedWithIssuesNoticeMsgid(isAssistScenario: Boolean): String =
+    if (isAssistScenario) "Assist finished with issues" else "Generation finished with issues"
+
 /**
  * Bubble text for a user assist that the engine answered directly (no manifest
  * change). Uses the engine explanation when present and non-blank, else the
@@ -306,7 +313,7 @@ internal fun synthesizeAssistExplanation(diff: List<ManifestDiffEntry>): String 
             is ManifestDiffEntry.Added -> added.add(entry.key)
             is ManifestDiffEntry.Modified -> modified.add(entry.key)
             is ManifestDiffEntry.VersionChanged ->
-                versionChange = tr("updated version ({{from}} → {{to}})", "from" to entry.from, "to" to entry.to)
+                versionChange = tr("updated version ({{range}})", "range" to versionRange(entry.from, entry.to))
             ManifestDiffEntry.Generic -> genericUpdate = true
         }
     }

@@ -99,11 +99,11 @@ class CreateViewModelAiDirectInstallTest {
                 assertTrue(state.installedForUse, "direct install success must mark installedForUse")
                 assertFalse(state.manifestSaved, "direct install must not touch the saved flag")
                 assertTrue(
-                    toasts.any { it.type == ToastType.SUCCESS && it.text.contains("testapp") },
+                    toasts.any { it.type == ToastType.SUCCESS && it.text.render().contains("testapp") },
                     "expected a SUCCESS toast naming the app, got: $toasts",
                 )
                 assertTrue(
-                    toasts.any { it.type == ToastType.SUCCESS && it.text.contains("without saving") },
+                    toasts.any { it.type == ToastType.SUCCESS && it.text.render().contains("without saving") },
                     "the success toast must tell the user nothing was saved to a bucket, got: $toasts",
                 )
             } finally {

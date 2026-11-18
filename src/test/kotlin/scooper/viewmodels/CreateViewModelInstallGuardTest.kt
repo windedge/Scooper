@@ -43,7 +43,7 @@ class CreateViewModelInstallGuardTest {
             val toasts = collectToasts(vm) { vm.onInstallSaved().join() }
 
             assertFalse(
-                toasts.any { it.text.contains("Save the manifest") },
+                toasts.any { it.text.render().contains("Save the manifest") },
                 "a reset save result must not block the install anymore, got: $toasts",
             )
             val after = vm.container.stateFlow.value

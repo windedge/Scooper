@@ -152,7 +152,7 @@ class CreateViewModelAiConfigTest {
             assertTrue(state.messages.isEmpty(), "an unready gate must not add a user bubble")
             assertFalse(state.aiConfigured, "the state must record the unready gate")
             assertTrue(
-                toasts.any { it.type == ToastType.ERROR && it.text.isNotBlank() },
+                toasts.any { it.type == ToastType.ERROR && it.text.render().isNotBlank() },
                 "the gate must surface a toast, got: $toasts",
             )
         } finally {

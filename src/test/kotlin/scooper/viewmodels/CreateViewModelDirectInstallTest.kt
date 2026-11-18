@@ -81,11 +81,11 @@ class CreateViewModelDirectInstallTest {
                 assertEquals(null, state.saveResult, "direct install must not fabricate a save result")
                 assertFalse(state.installing, "installing must reset after the intent")
                 assertTrue(
-                    toasts.any { it.type == ToastType.SUCCESS && it.text.contains("testapp") },
+                    toasts.any { it.type == ToastType.SUCCESS && it.text.render().contains("testapp") },
                     "expected a SUCCESS toast naming the app, got: $toasts",
                 )
                 assertFalse(
-                    toasts.any { it.text.contains("Save the manifest") },
+                    toasts.any { it.text.render().contains("Save the manifest") },
                     "the save-first block toast must not appear",
                 )
 
@@ -211,7 +211,7 @@ class CreateViewModelDirectInstallTest {
                 val state = vm.container.stateFlow.value
                 assertTrue(state.installedForUse, "deriveAppName fallback must produce a usable name")
                 assertTrue(
-                    toasts.any { it.type == ToastType.SUCCESS && it.text.contains("main") },
+                    toasts.any { it.type == ToastType.SUCCESS && it.text.render().contains("main") },
                     "expected a SUCCESS toast naming the derived app, got: $toasts",
                 )
             } finally {
@@ -251,7 +251,7 @@ class CreateViewModelDirectInstallTest {
                     }
                 }
                 assertTrue(
-                    toasts.any { it.type == ToastType.ERROR && it.text.contains(missing) },
+                    toasts.any { it.type == ToastType.ERROR && it.text.render().contains(missing) },
                     "Open after a direct install must attempt the recorded name and report the outcome, got: $toasts",
                 )
             } finally {

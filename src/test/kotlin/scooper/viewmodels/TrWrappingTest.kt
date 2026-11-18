@@ -7,15 +7,16 @@ import org.junit.jupiter.api.Test
 import scooper.service.AiErrorTranslator
 
 /**
- * H2抽查测试: enqueue-frozen bubble copy must go through tr() at enqueue time
- * (Rule 9 exception: history bubbles are content snapshots). Under the default
- * English locale tr() returns the msgid unchanged, so these tests assert the
- * msgid wording, i.e. the gettext catalog entry that the translation batch fills.
+ * H2 spot-check: enqueue-frozen bubble copy must go through tr() at enqueue
+ * time (Rule 9 exception: history bubbles are content snapshots). Under the
+ * default English locale tr() returns the msgid unchanged, so these tests
+ * assert the msgid wording, i.e. the gettext catalog entry that the
+ * translation batch fills.
  *
- * The "red" proof for this batch is structural: rg shows no bare-English
- * literal left in the covered functions (see docs), plus the const -> function
- * moves (PURE_IMAGE_INSTRUCTION / INVALID_URL_HINT) fail compilation until
- * every reference is migrated.
+ * Note: the tr() calls live in the production functions themselves, so the
+ * gettext Gradle plugin still extracts their msgids; the PURE_IMAGE_INSTRUCTION
+ * and INVALID_URL_HINT constants were already replaced by pureImageInstruction()
+ * and invalidUrlHint() functions in CreateViewModel.companion.
  */
 class TrWrappingTest {
 

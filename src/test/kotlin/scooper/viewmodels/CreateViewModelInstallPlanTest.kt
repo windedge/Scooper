@@ -104,7 +104,7 @@ class CreateViewModelInstallPlanTest {
 
         assertEquals(emptyList<String>(), commands(), "the pre-check must run before any scoop command")
         assertTrue(
-            toasts.any { it.type == ToastType.ERROR && it.text.contains("Cannot reinstall testapp") },
+            toasts.any { it.type == ToastType.ERROR && it.text.render().contains("Cannot reinstall testapp") },
             "the refusal must be reported, got: $toasts",
         )
         assertTrue(
@@ -134,7 +134,7 @@ class CreateViewModelInstallPlanTest {
 
         assertEquals(emptyList<String>(), commands(), "a stale plan must not touch scoop")
         assertTrue(
-            toasts.any { it.type == ToastType.WARNING && it.text.contains("Deployment state changed") },
+            toasts.any { it.type == ToastType.WARNING && it.text.render().contains("Deployment state changed") },
             "the stale plan must be reported, got: $toasts",
         )
         assertFalse(vm.container.stateFlow.value.installedForUse, "an aborted plan installs nothing")
@@ -155,7 +155,7 @@ class CreateViewModelInstallPlanTest {
         val state = vm.container.stateFlow.value
         assertFalse(state.installedForUse, "a held app is not installed for use by this click")
         assertTrue(
-            toasts.any { it.type == ToastType.WARNING && it.text.contains("held to version") },
+            toasts.any { it.type == ToastType.WARNING && it.text.render().contains("held to version") },
             "the skip must surface as a warning, got: $toasts",
         )
         assertFalse(

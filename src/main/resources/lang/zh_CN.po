@@ -1996,8 +1996,8 @@ msgstr "（无错误详情）"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:97
 #, java-format
-msgid "version: {{from}} → {{to}}"
-msgstr "版本：{{from}} → {{to}}"
+msgid "version: {{range}}"
+msgstr "版本：{{range}}"
 
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
@@ -2018,8 +2018,8 @@ msgstr "抱歉，无法生成回答。"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:316
 #, java-format
-msgid "updated version ({{from}} → {{to}})"
-msgstr "更新版本（{{from}} → {{to}}）"
+msgid "updated version ({{range}})"
+msgstr "更新版本（{{range}}）"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:324
 #, java-format
@@ -2198,6 +2198,33 @@ msgstr "修复 autoupdate/checkver"
 msgid "⚡ Apply fix: {{label}}"
 msgstr "⚡ 应用修复：{{label}}"
 
-#: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
-msgid "H2 probe msgid that no catalog contains"
-msgstr "任何目录都不包含的 H2 探测 msgid"
+msgid "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON."
+msgstr "清单包含无效的 JSON 语法。请修正 JSON 格式，确保其为有效的 JSON。"
+
+msgid "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name."
+msgstr "与现有包存在命名冲突。请以项目名或发布者名为前缀，选择一个新的唯一包名。"
+
+msgid "Ensure all persist paths are relative to $dir without ~, absolute paths, or environment variables. Remove any invalid persist paths."
+msgstr "确保所有 persist 路径相对 $dir，不要使用 ~、绝对路径或环境变量。请移除无效的 persist 路径。"
+
+msgid "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT)."
+msgstr "修正 license 字段，使用有效的显式 SPDX 许可证标识符（如 GPL-3.0-only 或 MIT）。"
+
+msgid "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install."
+msgstr "修正 extract_dir，使其只剥离顶层的版本目录；若已由 pre_install 处理则移除 extract_dir。"
+
+msgid "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff)."
+msgstr "将描述改写为应用功能的一句话简洁定义（100 字符以内，不含营销用语）。"
+
+msgid "Fix autoupdate and checkver configuration to ensure correct $version placeholders and reliable regex matching."
+msgstr "修正 autoupdate 和 checkver 配置，确保 $version 占位符正确且正则匹配可靠。"
+
+#, java-format
+msgid "At most {{max}} images allowed, {{dropped}} dropped"
+msgstr "最多只能添加 {{max}} 张图片，已忽略 {{dropped}} 张"
+
+msgid "Cannot determine the app name; save it to a bucket or enter an URL first"
+msgstr "无法确定应用名；请先保存到仓库或输入 URL"
+
+msgid "AI settings saved"
+msgstr "AI 设置已保存"

@@ -92,6 +92,7 @@ internal const val MODEL_DROPDOWN_MIN_WIDTH_DP = 320
 internal const val MODEL_DROPDOWN_MAX_WIDTH_DP = 480
 
 /** Fixed width for the Settings trigger, independent of the selected model name. */
+// 40 = input padding plus visual breathing room beyond the 320 floor.
 internal const val MODEL_TRIGGER_FIXED_WIDTH_DP = MODEL_DROPDOWN_MIN_WIDTH_DP + 40
 
 /**

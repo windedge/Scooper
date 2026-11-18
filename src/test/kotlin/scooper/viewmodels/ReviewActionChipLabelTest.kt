@@ -45,7 +45,7 @@ class ReviewActionChipLabelTest {
             ),
             chips.map { it.action },
         )
-        assertTrue(chips.all { it.action.prompt.isNotBlank() }, "each chip keeps its English assist prompt")
+        assertTrue(chips.all { it.action.promptMsgid.isNotBlank() }, "each chip keeps its assist prompt msgid")
     }
 
     @Test

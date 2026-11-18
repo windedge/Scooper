@@ -19,6 +19,7 @@ import scooper.service.AiConnectionTestResult
 import scooper.service.AiSettingsStore
 import scooper.service.ProviderCatalog
 import scooper.service.ScoopAiBridge
+import scooper.util.LocalizedText
 import scooper.util.ScoopConfigManager
 import scooper.util.form_builder.*
 
@@ -262,7 +263,7 @@ class SettingsViewModel(
         configRepository.setConfig(config)
         intent {
             reduce { state.copy(uiConfig = config) }
-            postSideEffect(AppSideEffect.Toast("AI settings saved", ToastType.SUCCESS))
+            postSideEffect(settingsSavedToast())
         }
     }
 
@@ -329,3 +330,7 @@ class SettingsViewModel(
         supervisorJob.cancel()
     }
 }
+
+/** Settings AI-save confirmation, shared with the localization test pin. */
+internal fun settingsSavedToast(): AppSideEffect.Toast =
+    AppSideEffect.Toast(LocalizedText(msgid = "AI settings saved"), ToastType.SUCCESS)

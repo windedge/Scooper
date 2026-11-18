@@ -36,6 +36,7 @@ import scooper.taskqueue.Task
 import scooper.taskqueue.TaskQueue
 import scooper.util.PAGE_SIZE
 import scooper.util.logger
+import scooper.util.LocalizedText
 import scooper.util.tr
 import scooper.util.VersionComparator
 import java.io.File
@@ -332,9 +333,9 @@ class AppsViewModel(
         taskQueue.addTask(Task.AddBucket(bucket) { blockingIntent {
             val resultCode = scoopService.addBucket(bucket, url)
             if (resultCode != 0) {
-                postSideEffect(AppSideEffect.Toast(tr("Failed to add {{name}}.", "name" to bucket), ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast(LocalizedText(msgid = "Failed to add {{name}}.", args = listOf("name" to bucket)), ToastType.ERROR))
             } else {
-                postSideEffect(AppSideEffect.Toast(tr("{{name}} has been added.", "name" to bucket), ToastType.SUCCESS))
+                postSideEffect(AppSideEffect.Toast(LocalizedText(msgid = "{{name}} has been added.", args = listOf("name" to bucket)), ToastType.SUCCESS))
                 getBuckets()
                 reloadApps()
             }
@@ -458,7 +459,13 @@ class AppsViewModel(
             }
 
             if (manifestText == null) {
-                postSideEffect(AppSideEffect.Toast(tr("Failed to get manifest for {{name}}@{{version}}.", "name" to app.name, "version" to version.version), ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast(
+                    LocalizedText(
+                        msgid = "Failed to get manifest for {{name}}@{{version}}.",
+                        args = listOf("name" to app.name, "version" to version.version),
+                    ),
+                    ToastType.ERROR,
+                ))
                 return@blockingIntent
             }
 
@@ -471,9 +478,21 @@ class AppsViewModel(
             tempFile.delete()
             tempDir.deleteRecursively()
             if (result.exitCode != 0) {
-                postSideEffect(AppSideEffect.Toast(tr("Failed to install {{name}}@{{version}}.", "name" to app.name, "version" to version.version), ToastType.ERROR))
+                postSideEffect(AppSideEffect.Toast(
+                    LocalizedText(
+                        msgid = "Failed to install {{name}}@{{version}}.",
+                        args = listOf("name" to app.name, "version" to version.version),
+                    ),
+                    ToastType.ERROR,
+                ))
             } else {
-                postSideEffect(AppSideEffect.Toast(tr("{{name}}@{{version}} has been installed.", "name" to app.name, "version" to version.version), ToastType.SUCCESS))
+                postSideEffect(AppSideEffect.Toast(
+                    LocalizedText(
+                        msgid = "{{name}}@{{version}} has been installed.",
+                        args = listOf("name" to app.name, "version" to version.version),
+                    ),
+                    ToastType.SUCCESS,
+                ))
                 appsRepository.updateApp(app.copy(status = AppStatus.INSTALLED, version = version.version))
                 applyFilters()
             }

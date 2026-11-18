@@ -235,7 +235,7 @@ class CreateViewModelPendingImageTest {
         }
 
         assertTrue(
-            toasts.any { it.type == ToastType.INFO && it.text.contains("Another operation is running") },
+            toasts.any { it.type == ToastType.INFO && it.text.render().contains("Another operation is running") },
             "an in-progress install must block sending with the busy toast, got: $toasts",
         )
         assertTrue(
