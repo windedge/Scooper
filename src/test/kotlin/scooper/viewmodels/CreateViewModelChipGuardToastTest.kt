@@ -167,7 +167,7 @@ class CreateViewModelChipGuardToastTest {
                     running = true,
                 )
             }
-            val chip = ReviewActionChip(id = "fix_description", prompt = "Improve the description of the manifest.")
+            val chip = ReviewActionChip(ReviewAction.FIX_DESCRIPTION)
 
             val toasts = collectToasts(vm) { vm.onApplyActionChip(chip).join() }
 
@@ -186,7 +186,7 @@ class CreateViewModelChipGuardToastTest {
     @Test
     fun `onApplyActionChip while testing toasts another operation and does not start assist`() = runBlocking {
         val bridge = RecordingBridge(FakeRepo())
-        val chip = ReviewActionChip(id = "fix_description", prompt = "Improve the description of the manifest.")
+        val chip = ReviewActionChip(ReviewAction.FIX_DESCRIPTION)
         val vm = createVm(bridge)
         try {
             presetState(vm) {
@@ -248,7 +248,7 @@ class CreateViewModelChipGuardToastTest {
     @Test
     fun `onApplyActionChip with blank manifest toasts no manifest to fix`() = runBlocking {
         val bridge = RecordingBridge(FakeRepo())
-        val chip = ReviewActionChip(id = "fix_description", prompt = "Improve the description of the manifest.")
+        val chip = ReviewActionChip(ReviewAction.FIX_DESCRIPTION)
         val vm = createVm(bridge)
         try {
             presetState(vm) { it.copy(manifestJson = "", running = false, testing = false) }

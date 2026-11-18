@@ -18,55 +18,37 @@ import java.util.Locale as SystemLocale
 data class SupportedLocale(
     val locale: Locale,
     val displayName: String,
+    val replyLanguage: String,
 )
 
 /**
  * List of all supported locales. Add new languages here.
  */
 val supportedLocales = listOf(
-    SupportedLocale(Locale.ENGLISH, "English"),
-    SupportedLocale(Locale.GERMAN, "Deutsch"),
-    SupportedLocale(Locale("es"), "Español"),
-    SupportedLocale(Locale.FRENCH, "Français"),
-    SupportedLocale(Locale("sl"), "Slovenščina"),
-    SupportedLocale(Locale("ru"), "Русский"),
-    SupportedLocale(Locale.JAPANESE, "日本語"),
-    SupportedLocale(Locale.SIMPLIFIED_CHINESE, "简体中文"),
-    SupportedLocale(Locale.TRADITIONAL_CHINESE, "繁體中文"),
-)
-
-/**
- * English language names for the reply language hint sent to the scoop-ai
- * engine, keyed by locale tag. Keyed by tag (not by JVM Locale) so the
- * mapping is independent of the runtime default locale. zh resolves only
- * through its explicit variants; the bare "zh" tag is deliberately ambiguous
- * and maps to null.
- */
-private val replyLanguageByTag = mapOf(
-    "en" to "English",
-    "de" to "German",
-    "es" to "Spanish",
-    "fr" to "French",
-    "sl" to "Slovenian",
-    "ru" to "Russian",
-    "ja" to "Japanese",
-    "zh-CN" to "Simplified Chinese",
-    "zh-TW" to "Traditional Chinese",
+    SupportedLocale(Locale.ENGLISH, "English", "English"),
+    SupportedLocale(Locale.GERMAN, "Deutsch", "German"),
+    SupportedLocale(Locale("es"), "Español", "Spanish"),
+    SupportedLocale(Locale.FRENCH, "Français", "French"),
+    SupportedLocale(Locale("sl"), "Slovenščina", "Slovenian"),
+    SupportedLocale(Locale("ru"), "Русский", "Russian"),
+    SupportedLocale(Locale.JAPANESE, "日本語", "Japanese"),
+    SupportedLocale(Locale.SIMPLIFIED_CHINESE, "简体中文", "Simplified Chinese"),
+    SupportedLocale(Locale.TRADITIONAL_CHINESE, "繁體中文", "Traditional Chinese"),
 )
 
 /**
  * Map a locale tag (e.g. the persisted UI locale "zh-CN" or "de-AT") to the
  * English reply language name for the engine prompt. Exact tag first, then
  * the language-only part as fallback, so unknown region variants such as
- * "de-AT" degrade to their base language. Returns null for blank input or
- * unsupported/ambiguous tags. Never reads the JVM default locale.
+ * "de-AT" degrade to their base language. Returns null for blank or
+ * unsupported tags. Never reads the JVM default locale.
  */
 fun localeTagToReplyLanguage(tag: String?): String? {
     val normalized = tag?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    replyLanguageByTag[normalized]?.let { return it }
+    supportedLocales.firstOrNull { it.locale.toLanguageTag() == normalized }
+        ?.let { return it.replyLanguage }
     val languageOnly = normalized.substringBefore('-').substringBefore('_')
-    if (languageOnly == "zh") return null
-    return replyLanguageByTag[languageOnly]
+    return supportedLocales.firstOrNull { it.locale.language == languageOnly }?.replyLanguage
 }
 
 /**
@@ -131,7 +113,7 @@ object Strings {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level convenience functions — gettext Gradle plugin extracts strings via
+// Top-level convenience functions - gettext Gradle plugin extracts strings via
 // keywords.set(listOf("tr", "trc:1c,2"))
 // ---------------------------------------------------------------------------
 
@@ -165,7 +147,7 @@ fun trn(msgid: String, msgidPlural: String, n: Int, vararg args: Pair<String, St
     Strings.current.trn(msgid, msgidPlural, n, *args)
 
 // ---------------------------------------------------------------------------
-// CompositionLocal — mostly useful for ProvideI18n wrapping the root.
+// CompositionLocal - mostly useful for ProvideI18n wrapping the root.
 // ---------------------------------------------------------------------------
 
 val LocalI18n = staticCompositionLocalOf { Strings.current }

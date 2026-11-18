@@ -488,7 +488,7 @@ open class ScoopAiBridge(
 
         internal fun buildScoopAiConfig(
             settings: AiSettingsSnapshot,
-            localeTag: String? = null,
+            localeTag: String?,
         ): ScoopAiConfig {
             return ScoopAiConfig(
                 provider = settings.provider,

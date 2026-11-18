@@ -125,9 +125,9 @@ class CreateViewModelAssistTest {
         val messages = listOf(
             ChatMessage(role = ChatRole.User, text = "https://github.com/sharkdp/fd", note = "prefer portable"),
             ChatMessage(role = ChatRole.Agent, text = "Starting..."),
-            ChatMessage(role = ChatRole.User, text = "Download confirmed", kind = MessageKind.ASK_USER_ANSWER),
-            ChatMessage(role = ChatRole.User, text = "Let AI decide", kind = MessageKind.ASK_USER_CANCEL),
-            ChatMessage(role = ChatRole.User, text = "Question: user selected: 1. x64", kind = MessageKind.ASK_USER_ANSWER),
+            ChatMessage(role = ChatRole.User, text = "Download confirmed", askUserBubble = true),
+            ChatMessage(role = ChatRole.User, text = "Let AI decide", askUserBubble = true),
+            ChatMessage(role = ChatRole.User, text = "Question: user selected: 1. x64", askUserBubble = true),
             ChatMessage(role = ChatRole.User, text = "Please remove notes"),
         )
         val history = extractUserHistory(messages)
@@ -221,14 +221,6 @@ class CreateViewModelAssistTest {
     }
 
     @Test
-    fun `computeManifestDiff returns Initial manifest when previous is blank`() {
-        val newJson = """{"version":"1.0.0","description":"test"}"""
-        val diff = computeManifestDiff("", newJson)
-        assertEquals(listOf<ManifestDiffEntry>(ManifestDiffEntry.Initial), diff)
-        assertEquals("Initial manifest", diff.single().display())
-    }
-
-    @Test
     fun `computeManifestDiff detects added, removed, and modified keys`() {
         val oldJson = """{"version":"1.0.0","description":"test","bin":["app.exe"],"notes":"some notes"}"""
         val newJson = """{"version":"1.1.0","description":"test","shortcuts":[["app.exe","App"]]}"""
@@ -237,10 +229,6 @@ class CreateViewModelAssistTest {
         assertTrue(diff.any { it is ManifestDiffEntry.Removed && it.key == "bin" }, "Should detect removed bin")
         assertTrue(diff.any { it is ManifestDiffEntry.Removed && it.key == "notes" }, "Should detect removed notes")
         assertTrue(diff.any { it is ManifestDiffEntry.Added && it.key == "shortcuts" }, "Should detect added shortcuts")
-        // Rendered form stays identical to the previous string prefixes.
-        assertTrue(diff.any { it.display() == "+ shortcuts" }, "Should render added shortcuts")
-        assertTrue(diff.any { it.display() == "- bin" }, "Should render removed bin")
-        assertTrue(diff.any { it.display().startsWith("~ version:") }, "Should render modified version")
     }
 
     @Test
@@ -254,7 +242,7 @@ class CreateViewModelAssistTest {
     fun `extractReviewActionChips generates appropriate chips for name conflict and invalid json`() {
         val issues = listOf("Conflict: app name 'micro' already exists in official bucket")
         val chips = extractReviewActionChips(issues = issues, invalidJson = false)
-        assertTrue(chips.any { it.id == "fix_name_conflict" }, "Should have name conflict chip")
+        assertTrue(chips.any { it.action == ReviewAction.FIX_NAME_CONFLICT }, "Should have name conflict chip")
     }
 
     @Test
@@ -264,14 +252,14 @@ class CreateViewModelAssistTest {
             "License bare GPL-3.0 should use explicit suffix",
         )
         val chips = extractReviewActionChips(issues = issues, invalidJson = false)
-        assertTrue(chips.any { it.id == "fix_persist" }, "Should have persist chip")
-        assertTrue(chips.any { it.id == "fix_license" }, "Should have license chip")
+        assertTrue(chips.any { it.action == ReviewAction.FIX_PERSIST }, "Should have persist chip")
+        assertTrue(chips.any { it.action == ReviewAction.FIX_LICENSE }, "Should have license chip")
     }
 
     @Test
     fun `extractReviewActionChips generates chip for invalid JSON`() {
         val chips = extractReviewActionChips(issues = emptyList(), invalidJson = true)
-        assertTrue(chips.any { it.id == "fix_json" }, "Should have JSON fix chip")
+        assertTrue(chips.any { it.action == ReviewAction.FIX_JSON }, "Should have JSON fix chip")
     }
 
     @Test

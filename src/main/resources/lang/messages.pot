@@ -1979,9 +1979,6 @@ msgstr ""
 msgid "version: {{from}} → {{to}}"
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:98
-msgid "Initial manifest"
-msgstr ""
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
 msgid "Manifest updated"
@@ -2143,10 +2140,6 @@ msgstr ""
 msgid "Generation cancelled."
 msgstr ""
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2301
-#, java-format
-msgid "Revert to revision #{{n}}"
-msgstr ""
 
 #: src\test\kotlin\scooper\viewmodels\TrWrappingTest.kt:143
 msgid "H2 probe msgid that no catalog contains"

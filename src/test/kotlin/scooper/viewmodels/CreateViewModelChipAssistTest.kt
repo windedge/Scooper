@@ -112,7 +112,7 @@ class CreateViewModelChipAssistTest {
             }
 
             val chips = vm.container.stateFlow.value.reviewActionChips
-            val chip = chips.firstOrNull { it.id == "fix_description" }
+            val chip = chips.firstOrNull { it.action == ReviewAction.FIX_DESCRIPTION }
             assertNotNull(chip, "a description issue must produce an Improve description chip")
 
             vm.onApplyActionChip(chip!!)
@@ -156,7 +156,7 @@ class CreateViewModelChipAssistTest {
             }
 
             val chip = vm.container.stateFlow.value.reviewActionChips
-                .firstOrNull { it.id == "fix_name_conflict" }
+                .firstOrNull { it.action == ReviewAction.FIX_NAME_CONFLICT }
             assertNotNull(chip, "a conflict issue must produce a Fix name conflict chip")
 
             vm.onApplyActionChip(chip!!)

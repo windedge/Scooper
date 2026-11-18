@@ -286,7 +286,7 @@ internal fun ManifestPreviewCard(
                                 }
                             }
 
-                            if (currentRev?.diffSummary?.isNotEmpty() == true && currentRev.diffSummary != listOf<ManifestDiffEntry>(ManifestDiffEntry.Initial)) {
+                            if (currentRev?.diffSummary?.isNotEmpty() == true) {
                                 currentRev.diffSummary.take(2).forEach { change ->
                                     val chipColor = when (change) {
                                         is ManifestDiffEntry.Added -> colors.updateDefault

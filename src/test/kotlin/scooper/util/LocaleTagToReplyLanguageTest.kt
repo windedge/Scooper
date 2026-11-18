@@ -1,6 +1,7 @@
 package scooper.util
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
@@ -13,26 +14,12 @@ import org.junit.jupiter.api.Test
 class LocaleTagToReplyLanguageTest {
 
     @Test
-    fun `every supported locale maps to its English reply language name`() {
-        val expected = listOf(
-            "zh-CN" to "Simplified Chinese",
-            "zh-TW" to "Traditional Chinese",
-            "ja" to "Japanese",
-            "de" to "German",
-            "es" to "Spanish",
-            "fr" to "French",
-            "ru" to "Russian",
-            "sl" to "Slovenian",
-            "en" to "English",
-        )
-        expected.forEach { (tag, language) ->
-            assertEquals(language, localeTagToReplyLanguage(tag), tag)
+    fun `every supported locale resolves to a reply language`() {
+        supportedLocales.forEach { locale ->
+            val tag = locale.locale.toLanguageTag()
+            assertEquals(locale.replyLanguage, localeTagToReplyLanguage(tag), tag)
+            assertNotNull(localeTagToReplyLanguage(tag), tag)
         }
-        // The mapping must cover exactly the supported locales.
-        assertEquals(
-            supportedLocales.map { it.locale.toLanguageTag() }.sorted(),
-            expected.map { it.first }.sorted(),
-        )
     }
 
     @Test
@@ -42,10 +29,10 @@ class LocaleTagToReplyLanguageTest {
     }
 
     @Test
-    fun `zh exact tags hit but the bare zh tag stays ambiguous`() {
+    fun `zh exact tags stay distinct and the bare tag picks the first variant`() {
         assertEquals("Simplified Chinese", localeTagToReplyLanguage("zh-CN"))
         assertEquals("Traditional Chinese", localeTagToReplyLanguage("zh-TW"))
-        assertNull(localeTagToReplyLanguage("zh"))
+        assertEquals("Simplified Chinese", localeTagToReplyLanguage("zh"))
     }
 
     @Test

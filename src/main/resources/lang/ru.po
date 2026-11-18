@@ -2012,9 +2012,6 @@ msgstr "(нет сведений об ошибке)"
 msgid "version: {{from}} → {{to}}"
 msgstr "версия: {{from}} → {{to}}"
 
-#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:98
-msgid "Initial manifest"
-msgstr "Начальный manifest"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
 msgid "Manifest updated"
@@ -2176,10 +2173,6 @@ msgstr "manifest сгенерирован: {{name}}"
 msgid "Generation cancelled."
 msgstr "Генерация отменена."
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2301
-#, java-format
-msgid "Revert to revision #{{n}}"
-msgstr "Вернуться к ревизии #{{n}}"
 
 #: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:22
 msgid "Download confirmed"

@@ -22,7 +22,7 @@ import java.io.File
 
 /**
  * TDD tests for batch H1 (C4): every questionnaire answer / cancel path writes a
- * structured [MessageKind] marker on the user bubble, so history filtering works
+ * structured askUserBubble marker on the user bubble, so history filtering works
  * without matching on bubble text. The cancel path bubble text is UI-language
  * dependent (currently `tr("Let AI decide")`), so the marker is the only reliable
  * signal.
@@ -46,7 +46,7 @@ class CreateViewModelAskUserMarkerTest {
             assertNull(state.askUserRequest, "the questionnaire card must fold")
             val bubble = state.messages.lastOrNull { it.role == ChatRole.User }
             assertNotNull(bubble, "the answer must appear as a user bubble")
-            assertEquals(MessageKind.ASK_USER_ANSWER, bubble?.kind, "the answer bubble must carry the answer marker")
+            assertEquals(true, bubble?.askUserBubble, "the answer bubble must carry the answer marker")
             assertEquals("Layered", bubble?.text)
         } finally {
             vm.close()
@@ -67,7 +67,7 @@ class CreateViewModelAskUserMarkerTest {
             assertNull(state.askUserRequest, "the questionnaire card must fold on cancel")
             val bubble = state.messages.lastOrNull { it.role == ChatRole.User }
             assertNotNull(bubble, "the cancel path must append a user bubble")
-            assertEquals(MessageKind.ASK_USER_CANCEL, bubble?.kind, "the cancel bubble must carry the cancel marker")
+            assertEquals(true, bubble?.askUserBubble, "the cancel bubble must carry the cancel marker")
             assertEquals("Let AI decide", bubble?.text)
         } finally {
             vm.close()
@@ -87,11 +87,16 @@ class CreateViewModelAskUserMarkerTest {
             val state = vm.container.stateFlow.value
             val bubble = state.messages.lastOrNull { it.role == ChatRole.User }
             assertNotNull(bubble, "the answer must appear as a user bubble")
-            assertEquals(MessageKind.ASK_USER_ANSWER, bubble?.kind, "download confirm answers carry the marker too")
+            assertEquals(true, bubble?.askUserBubble, "download confirm answers carry the marker too")
             assertEquals("Download confirmed", bubble?.text)
         } finally {
             vm.close()
         }
+    }
+
+    @Test
+    fun `plain user bubbles default to no ask-user marker`() {
+        assertEquals(false, ChatMessage(role = ChatRole.User, text = "hello").askUserBubble)
     }
 
     /** Presets a mid-generation state with a pending questionnaire card. */

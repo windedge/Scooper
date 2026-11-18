@@ -111,22 +111,9 @@ data class ChatMessage(
     /** True once this message's images have already been replayed to the engine in a
      *  later round; prevents re-sending the same images on every text-only follow-up. */
     val imagesReplayed: Boolean = false,
-    /** Structured marker for machine-written user bubbles (ask-user answers); null
-     for bubbles the user typed themselves. Consumers filter on this, not on text. */
-    val kind: MessageKind? = null,
+    /** Machine-written ask-user answer/cancel bubble; the UI-language text is not a reliable marker. */
+    val askUserBubble: Boolean = false,
 )
-
-/**
- * What produced a user bubble. Answer/cancel bubbles carry UI-language rendered
- * text, so consumers must branch on this marker instead of matching strings.
- */
-enum class MessageKind {
-    /** A questionnaire answer, including download-confirm confirm/skip bubbles. */
-    ASK_USER_ANSWER,
-
-    /** The "Let AI decide" autonomous-proceed bubble from canceling a questionnaire. */
-    ASK_USER_CANCEL,
-}
 
 /** Structured error copy re-translated at render time (Settings.kt rule). */
 fun ChatMessage.displayText(): String = errorCategory?.let(::aiErrorTitle) ?: text
@@ -363,26 +350,50 @@ fun computeDetailedLineDiff(oldText: String, newText: String): List<DiffLine> {
 }
 
 /**
- * Review fix suggestion. The id is the stable key; the visible label is a
- * msgid looked up through [labelText] at render time so a locale switch
- * retranslates existing chips, and the assist prompt stays English (the
- * engine's reply-language rules localize the reply, not the instruction).
+ * Stable identity of a review fix chip. The label msgid is resolved through
+ * [ReviewActionChip.labelText] at render time so a locale switch retranslates
+ * existing chips. The assist prompt stays English: the engine localizes the
+ * reply, not the instruction.
  */
-data class ReviewActionChip(
-    val id: String = java.util.UUID.randomUUID().toString(),
+enum class ReviewAction(
+    val labelMsgid: String,
     val prompt: String,
+) {
+    FIX_JSON(
+        "Fix JSON syntax",
+        "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON.",
+    ),
+    FIX_NAME_CONFLICT(
+        "Fix name conflict",
+        "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name.",
+    ),
+    FIX_PERSIST(
+        "Fix persist paths",
+        "Ensure all persist paths are relative to \$dir without ~, absolute paths, or environment variables. Remove any invalid persist paths.",
+    ),
+    FIX_LICENSE(
+        "Fix license",
+        "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT).",
+    ),
+    FIX_EXTRACT_DIR(
+        "Fix extract_dir",
+        "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install.",
+    ),
+    FIX_DESCRIPTION(
+        "Improve description",
+        "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff).",
+    ),
+    FIX_AUTOUPDATE(
+        "Fix autoupdate/checkver",
+        "Fix autoupdate and checkver configuration to ensure correct \$version placeholders and reliable regex matching.",
+    ),
+}
+
+data class ReviewActionChip(
+    val action: ReviewAction,
     val isPrimary: Boolean = false,
 ) {
-    fun labelText(): String = when (id) {
-        "fix_json" -> tr("Fix JSON syntax")
-        "fix_name_conflict" -> tr("Fix name conflict")
-        "fix_persist" -> tr("Fix persist paths")
-        "fix_license" -> tr("Fix license")
-        "fix_extract_dir" -> tr("Fix extract_dir")
-        "fix_description" -> tr("Improve description")
-        "fix_autoupdate" -> tr("Fix autoupdate/checkver")
-        else -> id
-    }
+    fun labelText(): String = tr(action.labelMsgid)
 }
 
 fun extractReviewActionChips(
@@ -395,8 +406,7 @@ fun extractReviewActionChips(
     if (invalidJson) {
         chips.add(
             ReviewActionChip(
-                id = "fix_json",
-                prompt = "The manifest contains invalid JSON syntax. Please correct the JSON formatting and ensure it is valid JSON.",
+                action = ReviewAction.FIX_JSON,
                 isPrimary = chips.isEmpty(),
             )
         )
@@ -406,63 +416,33 @@ fun extractReviewActionChips(
         val lower = issue.lowercase()
         when {
             lower.contains("conflict") || lower.contains("already exists") || lower.contains("name conflict") -> {
-                if (chips.none { it.id == "fix_name_conflict" }) {
-                    chips.add(
-                        ReviewActionChip(
-                            id = "fix_name_conflict",
-                            prompt = "There is a naming conflict with an existing package. Please choose a new, unique package name by prefixing with the project or publisher name.",
-                        )
-                    )
+                if (chips.none { it.action == ReviewAction.FIX_NAME_CONFLICT }) {
+                    chips.add(ReviewActionChip(action = ReviewAction.FIX_NAME_CONFLICT))
                 }
             }
             lower.contains("persist") -> {
-                if (chips.none { it.id == "fix_persist" }) {
-                    chips.add(
-                        ReviewActionChip(
-                            id = "fix_persist",
-                            prompt = "Ensure all persist paths are relative to \$dir without ~, absolute paths, or environment variables. Remove any invalid persist paths.",
-                        )
-                    )
+                if (chips.none { it.action == ReviewAction.FIX_PERSIST }) {
+                    chips.add(ReviewActionChip(action = ReviewAction.FIX_PERSIST))
                 }
             }
             lower.contains("license") || lower.contains("spdx") -> {
-                if (chips.none { it.id == "fix_license" }) {
-                    chips.add(
-                        ReviewActionChip(
-                            id = "fix_license",
-                            prompt = "Fix the license field to use a valid, explicit SPDX license identifier (e.g. GPL-3.0-only or MIT).",
-                        )
-                    )
+                if (chips.none { it.action == ReviewAction.FIX_LICENSE }) {
+                    chips.add(ReviewActionChip(action = ReviewAction.FIX_LICENSE))
                 }
             }
             lower.contains("extract_dir") -> {
-                if (chips.none { it.id == "fix_extract_dir" }) {
-                    chips.add(
-                        ReviewActionChip(
-                            id = "fix_extract_dir",
-                            prompt = "Fix extract_dir to only strip the top-level version directory, or remove extract_dir if handled by pre_install.",
-                        )
-                    )
+                if (chips.none { it.action == ReviewAction.FIX_EXTRACT_DIR }) {
+                    chips.add(ReviewActionChip(action = ReviewAction.FIX_EXTRACT_DIR))
                 }
             }
             lower.contains("description") -> {
-                if (chips.none { it.id == "fix_description" }) {
-                    chips.add(
-                        ReviewActionChip(
-                            id = "fix_description",
-                            prompt = "Make the description a concise, single-sentence definition of what the application does (under 100 characters, no marketing fluff).",
-                        )
-                    )
+                if (chips.none { it.action == ReviewAction.FIX_DESCRIPTION }) {
+                    chips.add(ReviewActionChip(action = ReviewAction.FIX_DESCRIPTION))
                 }
             }
             lower.contains("autoupdate") || lower.contains("checkver") -> {
-                if (chips.none { it.id == "fix_autoupdate" }) {
-                    chips.add(
-                        ReviewActionChip(
-                            id = "fix_autoupdate",
-                            prompt = "Fix autoupdate and checkver configuration to ensure correct \$version placeholders and reliable regex matching.",
-                        )
-                    )
+                if (chips.none { it.action == ReviewAction.FIX_AUTOUPDATE }) {
+                    chips.add(ReviewActionChip(action = ReviewAction.FIX_AUTOUPDATE))
                 }
             }
         }
@@ -934,7 +914,7 @@ class CreateViewModel(
                     text = userBubbleText,
                     note = downloadDetail,
                     noteSingleLine = true,
-                    kind = MessageKind.ASK_USER_ANSWER,
+                    askUserBubble = true,
                 ),
                 askUserRequest = null,
             )
@@ -951,7 +931,7 @@ class CreateViewModel(
                     text = tr("Let AI decide"),
                     note = downloadDetail,
                     noteSingleLine = true,
-                    kind = MessageKind.ASK_USER_CANCEL,
+                    askUserBubble = true,
                 ),
                 askUserRequest = null,
             )
@@ -1008,7 +988,7 @@ class CreateViewModel(
             return@intent
         }
         startAssistInternal(
-            instruction = chip.prompt,
+            instruction = chip.action.prompt,
             // Bubble text is a content snapshot: tr at enqueue (Rule 9 exception).
             displayUserText = tr("⚡ Apply fix: {{label}}", "label" to chip.labelText()),
             source = RevisionSource.ASSIST,
@@ -2298,7 +2278,6 @@ class CreateViewModel(
         val revertRevision = ManifestRevision(
             revisionNumber = state.revisions.size + 1,
             source = RevisionSource.REVERT,
-            instruction = tr("Revert to revision #{{n}}", "n" to target.revisionNumber.toString()),
             manifestJson = target.manifestJson,
             diffSummary = diff,
         )

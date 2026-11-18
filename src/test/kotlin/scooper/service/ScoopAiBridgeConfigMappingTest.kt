@@ -34,7 +34,7 @@ class ScoopAiBridgeConfigMappingTest {
 
     @Test
     fun `autoDownload true maps to skipDownloadConfirm true`() {
-        val config = ScoopAiBridge.buildScoopAiConfig(snapshot(autoDownload = true))
+        val config = ScoopAiBridge.buildScoopAiConfig(snapshot(autoDownload = true), null)
         assertTrue(config.skipDownloadConfirm)
     }
 
@@ -48,7 +48,7 @@ class ScoopAiBridgeConfigMappingTest {
             githubToken = "",
         )
         assertFalse(defaults.autoDownload)
-        val config = ScoopAiBridge.buildScoopAiConfig(defaults)
+        val config = ScoopAiBridge.buildScoopAiConfig(defaults, null)
         assertFalse(config.skipDownloadConfirm)
     }
 
@@ -195,6 +195,7 @@ class ScoopAiBridgeConfigMappingTest {
     fun `buildScoopAiConfig drops a stale base url for providers with a default endpoint`() {
         val config = ScoopAiBridge.buildScoopAiConfig(
             providerSnapshot(provider = "deepseek", baseUrl = "http://localhost:8317"),
+            null,
         )
         assertNull(config.baseUrl)
     }
@@ -212,7 +213,7 @@ class ScoopAiBridgeConfigMappingTest {
 
     @Test
     fun `buildScoopAiConfig without a locale tag leaves replyLanguage null`() {
-        val config = ScoopAiBridge.buildScoopAiConfig(snapshot(autoDownload = false))
+        val config = ScoopAiBridge.buildScoopAiConfig(snapshot(autoDownload = false), null)
         assertNull(config.replyLanguage)
     }
 
@@ -220,6 +221,7 @@ class ScoopAiBridgeConfigMappingTest {
     fun `buildScoopAiConfig keeps the base url for openai-compatible`() {
         val config = ScoopAiBridge.buildScoopAiConfig(
             providerSnapshot(provider = "openai-compatible", baseUrl = "http://localhost:8317"),
+            null,
         )
         assertEquals("http://localhost:8317", config.baseUrl)
     }

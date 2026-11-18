@@ -66,9 +66,6 @@ internal fun classifyManifestFinish(manifest: String, exhausted: Boolean): Finis
  * rendering in a later batch) dispatch on the type instead of parsing prefixes.
  */
 sealed interface ManifestDiffEntry {
-    /** The previous manifest was blank: this is the first manifest of the session. */
-    data object Initial : ManifestDiffEntry
-
     /** The diff could not be computed (unparseable JSON): a generic update line. */
     data object Generic : ManifestDiffEntry
 
@@ -88,14 +85,13 @@ sealed interface ManifestDiffEntry {
 /**
  * Renders the entry for diff chips and summaries (H2: tr() at render/call time;
  * key names are manifest field names and stay English per design rule 3, so
- * only the symbolic prefix templates and the two sentinel labels are msgids).
+ * only the symbolic prefix templates and the generic sentinel label are msgids).
  */
 fun ManifestDiffEntry.display(): String = when (this) {
     is ManifestDiffEntry.Added -> "+ $key"
     is ManifestDiffEntry.Removed -> "- $key"
     is ManifestDiffEntry.Modified -> "~ $key"
     is ManifestDiffEntry.VersionChanged -> "~ " + tr("version: {{from}} → {{to}}", "from" to from, "to" to to)
-    ManifestDiffEntry.Initial -> tr("Initial manifest")
     ManifestDiffEntry.Generic -> tr("Manifest updated")
 }
 
@@ -153,7 +149,7 @@ internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
             // Ask-user answer/cancel bubbles are marked structurally at their single
             // write point, so filtering works no matter which UI language rendered
             // the bubble text (e.g. a localized "Let AI decide").
-            ChatRole.User -> msg.text.isNotBlank() && msg.kind == null
+            ChatRole.User -> msg.text.isNotBlank() && !msg.askUserBubble
             // Error bubbles carry no conversation text (agentError leaves it blank) and are not context.
             ChatRole.Agent -> msg.text.isNotBlank() && msg.errorCategory == null
         }
@@ -205,10 +201,7 @@ internal fun resolveAssistInstruction(
 }
 
 internal fun computeManifestDiff(oldJson: String, newJson: String): List<ManifestDiffEntry> {
-    if (oldJson.isBlank()) {
-        return if (newJson.isNotBlank()) listOf(ManifestDiffEntry.Initial) else emptyList()
-    }
-    if (newJson.isBlank() || oldJson == newJson) {
+    if (oldJson.isBlank() || newJson.isBlank() || oldJson == newJson) {
         return emptyList()
     }
 
@@ -315,8 +308,6 @@ internal fun synthesizeAssistExplanation(diff: List<ManifestDiffEntry>): String 
             is ManifestDiffEntry.VersionChanged ->
                 versionChange = tr("updated version ({{from}} → {{to}})", "from" to entry.from, "to" to entry.to)
             ManifestDiffEntry.Generic -> genericUpdate = true
-            // Initial carries no assist detail
-            ManifestDiffEntry.Initial -> Unit
         }
     }
 

@@ -2024,9 +2024,6 @@ msgstr "(brez podrobnosti napake)"
 msgid "version: {{from}} → {{to}}"
 msgstr "različica: {{from}} → {{to}}"
 
-#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:98
-msgid "Initial manifest"
-msgstr "Začetni manifest"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:99
 msgid "Manifest updated"
@@ -2190,10 +2187,6 @@ msgstr "Manifest generiran: {{name}}"
 msgid "Generation cancelled."
 msgstr "Generiranje preklicano."
 
-#: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:2301
-#, java-format
-msgid "Revert to revision #{{n}}"
-msgstr "Povrni na revizijo #{{n}}"
 
 #: src\main\kotlin\scooper\viewmodels\AskUserDomain.kt:22
 msgid "Download confirmed"

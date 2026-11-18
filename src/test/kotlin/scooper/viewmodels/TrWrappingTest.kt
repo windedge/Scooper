@@ -39,8 +39,7 @@ class TrWrappingTest {
     }
 
     @Test
-    fun `display sentinel labels are tr msgids`() {
-        assertEquals("Initial manifest", ManifestDiffEntry.Initial.display())
+    fun `display generic sentinel label is a tr msgid`() {
         assertEquals("Manifest updated", ManifestDiffEntry.Generic.display())
     }
 
