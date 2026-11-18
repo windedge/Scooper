@@ -33,7 +33,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.SubcomposeLayout
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -88,10 +87,16 @@ internal fun initialMenuHighlightIndex(selected: String, entries: List<String>):
 internal fun clampMenuIndex(index: Int, size: Int): Int =
     if (size <= 0) MENU_HIGHLIGHT_UNSET else index.coerceIn(0, size - 1)
 
+/** Shared by Create and Settings so long model names have room. */
+internal const val MODEL_DROPDOWN_MIN_WIDTH_DP = 320
+internal const val MODEL_DROPDOWN_MAX_WIDTH_DP = 480
+
+/** Fixed width for the Settings trigger, independent of the selected model name. */
+internal const val MODEL_TRIGGER_FIXED_WIDTH_DP = MODEL_DROPDOWN_MIN_WIDTH_DP + 40
+
 /**
- * Panel width for the popup: use minWidth when positive (a tracked anchor
- * width or a fixed floor), fall back to fallbackWidth otherwise, and never
- * exceed maxWidth. Long entries ellipsize instead of stretching the panel.
+ * Panel width for the popup: use minWidth when positive, fall back to
+ * fallbackWidth otherwise, and never exceed maxWidth.
  */
 internal fun popupPanelWidth(minWidth: Dp, fallbackWidth: Dp, maxWidth: Dp): Dp =
     (if (minWidth <= 0.dp) fallbackWidth else minWidth).coerceAtMost(maxWidth)
@@ -581,8 +586,7 @@ fun SearchableDropdownMenuPopup(
         )
     }
 
-    // Panel width uses minWidth (a tracked anchor or a fixed floor); long
-    // model names ellipsize instead of stretching the panel.
+    // Panel width uses minWidth as a fixed floor, then clamps to maxWidth.
     val calculatedWidth = popupPanelWidth(minWidth, 220.dp, maxWidth)
 
     Popup(
@@ -1032,16 +1036,15 @@ fun SearchableModelDropdown(
         else -> colors.inputBorder
     }
 
-    // The trigger sizes to its content instead of stretching over the whole
-    // settings row, so the trailing Test button stays right next to it.
-    Column(modifier = modifier.widthIn(min = 320.dp)) {
+    // A fixed trigger width keeps the trailing Test button aligned across rows.
+    Column(modifier = modifier.width(MODEL_TRIGGER_FIXED_WIDTH_DP.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Box(
                 modifier = Modifier
-                    .widthIn(min = 320.dp, max = 480.dp)
+                    .width(MODEL_TRIGGER_FIXED_WIDTH_DP.dp)
                     .height(36.dp)
                     .border(1.dp, borderColor, RoundedCornerShape(8.dp))
                     .clip(RoundedCornerShape(8.dp))
@@ -1109,10 +1112,8 @@ fun SearchableModelDropdown(
                     loading = loading,
                     onFetch = onFetchModels,
                     error = error,
-                    // The settings trigger is a fixed compact field, so an
-                    // anchor-tracked panel would be visually too wide.
-                    minWidth = 320.dp,
-                    maxWidth = 360.dp,
+                    minWidth = MODEL_DROPDOWN_MIN_WIDTH_DP.dp,
+                    maxWidth = MODEL_DROPDOWN_MAX_WIDTH_DP.dp,
                     offset = DpOffset(0.dp, 4.dp),
                 )
             }
@@ -1145,11 +1146,9 @@ fun CompactModelSelector(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colors
-    val localDensity = LocalDensity.current
     var expanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isHovered by remember { mutableStateOf(false) }
-    var anchorWidth by remember { mutableStateOf(0.dp) }
 
     val displayLabel = if (selectedModel.isNotBlank()) selectedModel else tr("Select model")
 
@@ -1165,7 +1164,6 @@ fun CompactModelSelector(
             color = if (isHovered && enabled) colors.primarySubtle.copy(alpha = 0.35f) else colors.inputBackground,
             modifier = Modifier
                 .height(34.dp)
-                .onSizeChanged { anchorWidth = with(localDensity) { it.width.toDp() } }
                 .cursorHand()
                 .onHover { isHovered = it }
                 .clickable(enabled = enabled) {
@@ -1219,8 +1217,8 @@ fun CompactModelSelector(
             onSearchQueryChange = { searchQuery = it },
             loading = loading,
             onFetch = onFetchModels,
-            minWidth = anchorWidth,
-            maxWidth = 480.dp,
+            minWidth = MODEL_DROPDOWN_MIN_WIDTH_DP.dp,
+            maxWidth = MODEL_DROPDOWN_MAX_WIDTH_DP.dp,
             offset = DpOffset(0.dp, 4.dp),
         )
     }

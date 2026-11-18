@@ -5,10 +5,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
 /**
- * Panel width rule for the model dropdown popup: use the caller-provided
- * minWidth (a tracked anchor width or a fixed floor), fall back while it is
- * unknown, clamp to maxWidth. Long entries ellipsize instead of stretching
- * the panel.
+ * Panel width rule for the model dropdown popup: use the shared minWidth as
+ * a floor, fall back while it is unknown, clamp to the shared maxWidth.
  */
 class PopupPanelWidthTest {
 
@@ -24,8 +22,36 @@ class PopupPanelWidthTest {
     }
 
     @Test
-    fun `settings page uses its fixed compact floor`() {
-        assertEquals(320.dp, popupPanelWidth(320.dp, 220.dp, 360.dp))
+    fun `model dropdowns use the shared width bounds`() {
+        assertEquals(320.dp, MODEL_DROPDOWN_MIN_WIDTH_DP.dp)
+        assertEquals(480.dp, MODEL_DROPDOWN_MAX_WIDTH_DP.dp)
+        assertEquals(
+            320.dp,
+            popupPanelWidth(
+                MODEL_DROPDOWN_MIN_WIDTH_DP.dp,
+                220.dp,
+                MODEL_DROPDOWN_MAX_WIDTH_DP.dp,
+            ),
+        )
+        assertEquals(
+            400.dp,
+            popupPanelWidth(400.dp, 220.dp, MODEL_DROPDOWN_MAX_WIDTH_DP.dp),
+        )
+        assertEquals(
+            480.dp,
+            popupPanelWidth(900.dp, 220.dp, MODEL_DROPDOWN_MAX_WIDTH_DP.dp),
+        )
+    }
+
+    @Test
+    fun `settings trigger has a fixed width independent of selection`() {
+        // Trigger width is applied through Compose modifiers, so only the shared
+        // constant can be asserted directly here.
+        assertEquals(360.dp, MODEL_TRIGGER_FIXED_WIDTH_DP.dp)
+        assertEquals(
+            (MODEL_DROPDOWN_MIN_WIDTH_DP + 40).dp,
+            MODEL_TRIGGER_FIXED_WIDTH_DP.dp,
+        )
     }
 
     // ---------------------------------------------------------------
