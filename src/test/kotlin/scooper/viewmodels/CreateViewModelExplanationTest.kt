@@ -2,8 +2,12 @@ package scooper.viewmodels
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import scooper.util.Strings
+import scooper.util.tr
+import java.util.Locale
 
 /**
  * TDD tests for the deterministic explanation synthesis and the finished-bubble text
@@ -283,6 +287,70 @@ class CreateViewModelExplanationTest {
         )
         assertTrue(text.startsWith(issuesText), "issues notice must stay the main text")
         assertTrue(text.contains("\n\nValidation still flags the checkver regex."))
+    }
+
+    // ---------------------------------------------------------------
+    // engine combined explanation: "<gen>\n\nFix applied: <repair>"
+    // (engine getCombinedExplanation). The English repair prefix must be
+    // split out and localized via tr() at compose time.
+    // ---------------------------------------------------------------
+
+    @Test
+    fun `normal finish localizes the engine repair prefix`() {
+        val text = composeFinishedBubbleText(
+            explanation = "Generated manifest for app 1.0.\n\nFix applied: Updated the checkver regex.",
+            isConflictOnly = false,
+            finishedWithIssues = false,
+            conflictText = conflictText,
+            issuesText = issuesText,
+            fallbackText = fallbackText,
+        )
+        assertEquals(
+            "Generated manifest for app 1.0.\n\n" + tr("Fix applied:") + " Updated the checkver regex.",
+            text,
+        )
+    }
+
+    @Test
+    fun `normal finish repair prefix is translated under zh_CN`() {
+        val english = Strings.current
+        try {
+            Strings.update(Locale.SIMPLIFIED_CHINESE)
+            val localizedPrefix = tr("Fix applied:")
+            assertNotEquals(
+                "Fix applied:",
+                localizedPrefix,
+                "zh_CN catalog must translate the repair prefix msgid",
+            )
+            val text = composeFinishedBubbleText(
+                explanation = "Generated manifest for app 1.0.\n\nFix applied: Updated the checkver regex.",
+                isConflictOnly = false,
+                finishedWithIssues = false,
+                conflictText = conflictText,
+                issuesText = issuesText,
+                fallbackText = fallbackText,
+            )
+            assertEquals(
+                "Generated manifest for app 1.0.\n\n" + localizedPrefix + " Updated the checkver regex.",
+                text,
+            )
+        } finally {
+            Strings.update(Locale.ENGLISH)
+            assertEquals(english.locale.toLanguageTag(), Strings.current.locale.toLanguageTag())
+        }
+    }
+
+    @Test
+    fun `normal finish keeps an explanation without the repair separator intact`() {
+        val text = composeFinishedBubbleText(
+            explanation = "Generated manifest for app 1.0.",
+            isConflictOnly = false,
+            finishedWithIssues = false,
+            conflictText = conflictText,
+            issuesText = issuesText,
+            fallbackText = fallbackText,
+        )
+        assertEquals("Generated manifest for app 1.0.", text)
     }
 
     @Test

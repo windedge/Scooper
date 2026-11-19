@@ -2106,6 +2106,10 @@ msgid "{{n}} persist entry"
 msgstr "{{n}} entrada de persistencia"
 msgstr[1] "{{n}} entradas de persistencia"
 
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
+msgid "Fix applied:"
+msgstr "Corrección aplicada:"
+
 #: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
 msgid "Generation cancelled by user."
 msgstr "Generación cancelada por el usuario."

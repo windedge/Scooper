@@ -406,11 +406,20 @@ internal fun synthesizeGenerateExplanation(manifestJson: String, appName: String
 }
 
 /**
+ * The engine combines the generate and repair explanations into a single string
+ * with this separator (ScoopManifestStrategy.getCombinedExplanation). Split on
+ * it and localize the English repair prefix via tr().
+ */
+private const val REPAIR_SEPARATOR = "\n\nFix applied: "
+
+/**
  * Compose the finished-bubble text following the proposal 5.3 priority:
  * conflict/issues classification keeps the main text (the explanation, when present,
  * is appended as a trailing paragraph); a normal finish uses the engine explanation,
  * else [fallbackText] (the deterministic synthesis). A blank explanation counts as
- * missing. Pure function.
+ * missing. When the engine explanation carries the repair suffix (see
+ * [REPAIR_SEPARATOR]) the English "Fix applied: " prefix is split out and localized
+ * through tr() at compose time. Pure function.
  */
 internal fun composeFinishedBubbleText(
     explanation: String?,
@@ -422,11 +431,23 @@ internal fun composeFinishedBubbleText(
 ): String {
     val trimmed = explanation?.trim()?.takeIf { it.isNotEmpty() }
     return when {
-        isConflictOnly -> appendExplanationParagraph(conflictText, trimmed)
-        finishedWithIssues -> appendExplanationParagraph(issuesText, trimmed)
-        else -> trimmed ?: fallbackText
+        isConflictOnly -> appendExplanationParagraph(conflictText, trimmed?.let(::localizedExplanation))
+        finishedWithIssues -> appendExplanationParagraph(issuesText, trimmed?.let(::localizedExplanation))
+        else -> trimmed?.let(::localizedExplanation) ?: fallbackText
     }
 }
+
+/**
+ * Localize the engine repair prefix in a combined explanation. Explanations
+ * without the separator pass through unchanged.
+ */
+private fun localizedExplanation(explanation: String): String =
+    when (val idx = explanation.indexOf(REPAIR_SEPARATOR)) {
+        -1 -> explanation
+        else ->
+            explanation.substring(0, idx) + "\n\n" + tr("Fix applied:") + " " +
+                explanation.substring(idx + REPAIR_SEPARATOR.length)
+    }
 
 private fun appendExplanationParagraph(base: String, explanation: String?): String =
     if (explanation == null) base else "$base\n\n$explanation"

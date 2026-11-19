@@ -2135,6 +2135,10 @@ msgstr[1] "vnosa persist: {{n}}"
 msgstr[2] "vnosi persist: {{n}}"
 msgstr[3] "vnosov persist: {{n}}"
 
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
+msgid "Fix applied:"
+msgstr "Popravek uporabljen:"
+
 #: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
 msgid "Generation cancelled by user."
 msgstr "Generiranje preklical uporabnik."

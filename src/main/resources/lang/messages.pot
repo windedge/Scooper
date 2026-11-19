@@ -2088,6 +2088,10 @@ msgid_plural "{{n}} persist entries"
 msgstr[0] ""
 msgstr[1] ""
 
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
+msgid "Fix applied:"
+msgstr ""
+
 #: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
 msgid "Generation cancelled by user."
 msgstr ""

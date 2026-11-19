@@ -2121,6 +2121,10 @@ msgstr "запись persist: {{n}}"
 msgstr[1] "записи persist: {{n}}"
 msgstr[2] "записей persist: {{n}}"
 
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
+msgid "Fix applied:"
+msgstr "Исправление применено:"
+
 #: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
 msgid "Generation cancelled by user."
 msgstr "Генерация отменена пользователем."

@@ -2104,6 +2104,10 @@ msgstr "{{n}} 个快捷方式"
 msgid "{{n}} persist entry"
 msgstr "{{n}} 条持久化条目"
 
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
+msgid "Fix applied:"
+msgstr "已应用修复："
+
 #: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
 msgid "Generation cancelled by user."
 msgstr "用户已取消生成。"

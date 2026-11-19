@@ -2092,6 +2092,10 @@ msgstr "{{n}} 個のショートカット"
 msgid "{{n}} persist entry"
 msgstr "{{n}} 件の persist エントリ"
 
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
+msgid "Fix applied:"
+msgstr "修正を適用しました："
+
 #: src\main\kotlin\scooper\viewmodels\CreateViewModel.kt:984
 msgid "Generation cancelled by user."
 msgstr "ユーザーが生成をキャンセルしました。"
