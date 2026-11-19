@@ -2102,13 +2102,11 @@ msgstr "Manifest généré"
 #, java-format
 msgid "{{n}} shortcut"
 msgstr "{{n}} raccourci"
-msgstr[1] "{{n}} raccourcis"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:404
 #, java-format
 msgid "{{n}} persist entry"
 msgstr "{{n}} entrée de persistance"
-msgstr[1] "{{n}} entrées de persistance"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
 msgid "Fix applied:"

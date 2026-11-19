@@ -2127,17 +2127,11 @@ msgstr "Manifest generiran"
 #, java-format
 msgid "{{n}} shortcut"
 msgstr "{{n}} bližnjica"
-msgstr[1] "{{n}} bližnjici"
-msgstr[2] "{{n}} bližnjice"
-msgstr[3] "{{n}} bližnjic"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:404
 #, java-format
 msgid "{{n}} persist entry"
 msgstr "vnos persist: {{n}}"
-msgstr[1] "vnosa persist: {{n}}"
-msgstr[2] "vnosi persist: {{n}}"
-msgstr[3] "vnosov persist: {{n}}"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
 msgid "Fix applied:"

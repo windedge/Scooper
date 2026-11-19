@@ -5,7 +5,8 @@ Validates that every .po translation file consistently covers the msgids
 declared in messages.pot, that no translation string is left empty, and that
 there are no duplicate msgids (within pot or within a po file), and that every
 non-header translation carries exactly the same {{x}} placeholder set as its
-msgid (msgid_plural participates in the reference set for plural entries).
+msgid (msgid_plural participates in the reference set for plural entries), and that
+msgstr[i] (i>0) only appears in entries that declare msgid_plural.
 
 English (en.po) is the source-language stub and is exempt from content checks.
 
@@ -66,6 +67,7 @@ def parse_po(path):
         kw = m.group(1)
         index = m.group(2)
         first = m.group(3).strip()
+        line_no = i + 1
 
         # Collect this field's quoted value (may span several lines).
         value = ""
@@ -94,7 +96,9 @@ def parse_po(path):
         elif kw == "msgid_plural":
             cur["msgid_plural"] = value
         elif kw.startswith("msgstr"):
-            cur["msgstr"].append((int(index) if index is not None else 0, value))
+            idx = int(index) if index is not None else 0
+            cur["msgstr"].append((idx, value))
+            cur.setdefault("msgstr_lines", {})[idx] = line_no
 
     flush()
     return entries
@@ -158,6 +162,15 @@ def check_file(name, required, check_content):
         if c > 1:
             errors.append(f"{name}: duplicate msgid {k!r}")
 
+    for e in entries:
+        if e["msgid_plural"] is None:
+            for idx, line in sorted(e.get("msgstr_lines", {}).items()):
+                if idx > 0:
+                    errors.append(
+                        f"{name}:{line}: msgstr[{idx}] without msgid_plural "
+                        f"for {e['msgid']!r}"
+                    )
+
     keys = {msgid_of(e) for e in entries if msgid_of(e)}
     for k in sorted(required - keys):
         errors.append(f"{name}: missing msgid {k!r} (in pot but not po)")
@@ -213,7 +226,7 @@ def main():
     print(
         f"RESULT PASS: pot has {len(required)} msgids, "
         f"{checked_po} translated po files consistent, no empty msgstr, no duplicates, "
-        "placeholder parity ok"
+        "no orphan plural forms, placeholder parity ok"
     )
 
 

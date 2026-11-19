@@ -2115,15 +2115,11 @@ msgstr "manifest сгенерирован"
 #, java-format
 msgid "{{n}} shortcut"
 msgstr "{{n}} ярлык"
-msgstr[1] "{{n}} ярлыка"
-msgstr[2] "{{n}} ярлыков"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:404
 #, java-format
 msgid "{{n}} persist entry"
 msgstr "запись persist: {{n}}"
-msgstr[1] "записи persist: {{n}}"
-msgstr[2] "записей persist: {{n}}"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:448
 msgid "Fix applied:"
