@@ -18,10 +18,12 @@ version = "1.3.0"
 
 repositories {
     mavenLocal()
+    maven("https://jitpack.io") {
+        content { includeGroup("com.github.windedge.scoop-ai") }
+    }
     google()
     mavenCentral()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
-    maven("https://jitpack.io")
 }
 
 dependencies {
@@ -51,6 +53,7 @@ dependencies {
     implementation(libs.commonmark.ext.gfm.strikethrough)
 //    implementation(libs.compose.dnd)
 
+    implementation(libs.scoop.ai.core)
     implementation(libs.scoop.ai.tools)
     implementation(libs.flatlaf)
     implementation(libs.gettext)
