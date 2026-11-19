@@ -2009,6 +2009,10 @@ msgid "Assist finished with issues"
 msgstr "辅助完成，但存在问题"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:154
+msgid "Continue the previous attempt from where it stopped."
+msgstr "从上次中断的地方继续。"
+
 msgid "Generation finished with issues"
 msgstr "生成完成，但存在问题"
 

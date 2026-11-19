@@ -2009,6 +2009,10 @@ msgid "Assist finished with issues"
 msgstr "Assistance terminée avec des problèmes"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:154
+msgid "Continue the previous attempt from where it stopped."
+msgstr "Reprends la tentative précédente là où elle s'est arrêtée."
+
 msgid "Generation finished with issues"
 msgstr "Génération terminée avec des problèmes"
 

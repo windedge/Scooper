@@ -1997,6 +1997,10 @@ msgid "Assist finished with issues"
 msgstr "アシストは問題ありで完了"
 
 #: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:268
+#: src\main\kotlin\scooper\viewmodels\ChatTextDomain.kt:154
+msgid "Continue the previous attempt from where it stopped."
+msgstr "前回の試行が中断した箇所から続けてください。"
+
 msgid "Generation finished with issues"
 msgstr "生成は問題ありで完了"
 

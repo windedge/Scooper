@@ -146,6 +146,13 @@ internal fun resolveAssistImages(
         .orEmpty()
 }
 
+/**
+ * Msgid of the synthesized instruction sent to the engine when the user retries
+ * a failed assist round: continue from where it stopped instead of replaying the
+ * original request (which stays in the engine history via extractUserHistory).
+ */
+internal const val CONTINUE_INSTRUCTION_MSGID = "Continue the previous attempt from where it stopped."
+
 internal fun extractUserHistory(messages: List<ChatMessage>): List<String> {
     val relevant = messages.filter { msg ->
         when (msg.role) {
@@ -286,13 +293,6 @@ internal fun agentReplyMessage(text: String, tokenUsage: TokenUsage?): ChatMessa
         text = text,
         tokenUsage = tokenUsage?.takeIf { it.totalTokens > 0 },
     )
-
-/**
- * Text of the newest user bubble in [messages], or null when none exists. Used by
- * the RETRY_ANSWER error action to resend a failed question. Pure function.
- */
-internal fun lastUserQuestion(messages: List<ChatMessage>): String? =
-    messages.lastOrNull { it.role == ChatRole.User }?.text
 
 /**
  * Deterministic assist explanation (proposal 5.4): built from the key-level

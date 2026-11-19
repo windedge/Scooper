@@ -634,6 +634,8 @@ class CreateViewModel(
     private val supervisorJob = SupervisorJob()
     private val coroutineScope = CoroutineScope(Dispatchers.IO + supervisorJob)
     private var assistAttemptCount = 0
+    /** True while the current run is a retry-continue round (no user bubble). */
+    private var retryContinueRound = false
     private var askUserDeferred: CompletableDeferred<String>? = null
 
     /**
@@ -914,8 +916,14 @@ class CreateViewModel(
                     postToast(AppSideEffect.Toast(LocalizedText(msgid = "Another operation is running"), ToastType.INFO))
                     return@intent
                 }
-                // Resend the latest question (startAssistInternal no-ops on blank text).
-                lastUserQuestion(state.messages)?.let { startAssistInternal(it) }
+                // Continue semantics: the failed round already delivered the original
+                // request, so the engine gets a synthesized continue instruction and
+                // no new user bubble is appended (history keeps the request as-is).
+                startAssistInternal(
+                    tr(CONTINUE_INSTRUCTION_MSGID),
+                    images = emptyList(),
+                    skipUserBubble = true,
+                )
             }
         }
     }
@@ -1889,10 +1897,14 @@ class CreateViewModel(
         displayUserText: String? = null,
         source: RevisionSource = RevisionSource.ASSIST,
         images: List<PendingImage> = emptyList(),
+        skipUserBubble: Boolean = false,
     ) {
         // A blank instruction is a defensive no-op, never a toast (onAction can
         // reach this path with no user question left).
         if (instruction.isBlank()) return
+        // Consumed at failure time: the retry-continue round keeps the stale error
+        // bubble in place instead of appending a second one.
+        retryContinueRound = skipUserBubble
         // An empty manifest is a pure conversation session: the engine answers
         // text-only and never touches state.manifestJson until a URL generates.
         val currentManifest = state.manifestJson
@@ -1917,9 +1929,9 @@ class CreateViewModel(
 
         reduce {
             state.copy(
-                // Only the freshly attached images go on the new bubble: a replayed
-                // thumbnail must not render as if the user uploaded it again.
-                messages = state.messages +
+                // Retry rounds continue from where the failed run stopped: no new
+                // bubble, the history keeps the original request exactly once.
+                messages = if (skipUserBubble) state.messages else state.messages +
                     ChatMessage(role = ChatRole.User, text = plan.userPrompt, images = images),
                 running = true,
                 currentPhase = "assist",
@@ -2236,7 +2248,7 @@ class CreateViewModel(
                 finishWithDeploymentRefresh {
                     reduce {
                         state.finishGeneration(
-                            messages = state.messages + agentError(presentation.copy(actions = filteredActions)),
+                            messages = if (retryContinueRound) state.messages else state.messages + agentError(presentation.copy(actions = filteredActions)),
                             error = LocalizedText(raw = safe),
                             resumableStages = resumableStages,
                             executionExpanded = true,
@@ -2340,7 +2352,11 @@ class CreateViewModel(
         // Late-event race defense (proposal 5.1): drain residual buffered activity
         // events BEFORE collapsing so the finalized step list is consistent.
         executionTimeline.drain()
-        val collapsedMessages = collapseActiveExecution(messages, activeExecution, executionExpanded, System.currentTimeMillis())
+        val collapsedMessages = if (retryContinueRound) {
+            // Consume the flag: a retry-continue round keeps every bubble as-is.
+            retryContinueRound = false
+            messages
+        } else collapseActiveExecution(messages, activeExecution, executionExpanded, System.currentTimeMillis())
 
         val previousManifest = this.revisions.lastOrNull()?.manifestJson.orEmpty()
         val updatedRevisions = if (manifestJson.isNotBlank() && (this.revisions.isEmpty() || previousManifest != manifestJson)) {
