@@ -662,6 +662,43 @@ class ScoopClient(
         return warmed
     }
 
+    /**
+     * Pre-warm the Scoop cache under the real app name after a save-to-bucket,
+     * so a later bare `scoop install <bucket>/<app>.json` or update reuses the
+     * entries the scoop-ai verify install already downloaded instead of
+     * re-downloading. Every manifest url is warmed (arch blocks included);
+     * urls without a matching cache source are skipped. Idempotent: an existing
+     * formal entry is left untouched.
+     *
+     * @return number of cache entries successfully pre-warmed
+     */
+    fun prewarmCacheForApp(
+        appName: String,
+        version: String,
+        manifestJsonText: String,
+        cacheDir: File = this.cacheDir,
+    ): Int {
+        val json = try {
+            manifestJson.parseToJsonElement(manifestJsonText).jsonObject
+        } catch (e: Exception) {
+            logger.warn("Failed to parse manifest for cache prewarm of $appName, error: ${e.message}")
+            return 0
+        }
+
+        val urls = collectManifestUrls(json)
+        if (urls.isEmpty()) {
+            logger.info("Manifest has no download URL, skip cache prewarm for $appName")
+            return 0
+        }
+
+        val app = App(name = appName, latestVersion = version)
+        var warmed = 0
+        for (url in urls) {
+            if (prewarmCacheEntry(app, version, url, cacheDir)) warmed++
+        }
+        return warmed
+    }
+
     // ==================== Internal Methods ====================
 
     /** Prewarm the formal cache entry so scoop's install/update skips the network

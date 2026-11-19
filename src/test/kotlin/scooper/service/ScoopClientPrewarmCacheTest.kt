@@ -238,6 +238,123 @@ class ScoopClientPrewarmCacheTest {
     }
 
     // ---------------------------------------------------------------
+    // prewarmCacheForApp: formal entries for the real app name after save
+    // ---------------------------------------------------------------
+
+    private fun writeArchUrlJson(version: String, vararg archUrls: Pair<String, String>): String {
+        val archJson = archUrls.joinToString(separator = ", ") { (arch, url) ->
+            """"$arch": { "url": "$url", "hash": "h-$arch" }"""
+        }
+        return """{"version": "$version", "architecture": { $archJson } }"""
+    }
+
+    @Test
+    fun `prewarmCacheForApp creates formal entry for real app from engine download file`() {
+        val cacheDir = tempDir.resolve("cache-app1").toFile().also { it.mkdirs() }
+        val url = "https://example.com/real-1.0.msi"
+        val source = File(cacheDir, ScoopCacheManager.downloadCacheName(url))
+        source.writeText("REAL-APP-DATA")
+
+        val manifestJson = """{"version": "1.0", "url": "$url", "hash": "0123456789abcdef"}"""
+        val count = client.prewarmCacheForApp("realapp", "1.0", manifestJson, cacheDir)
+
+        assertEquals(1, count)
+        val target = File(cacheDir, computeTargetName("realapp", "1.0", url))
+        assertTrue(target.exists(), "formal cache entry for the real app must exist")
+        assertEquals("REAL-APP-DATA", target.readText(), "content must match (link or copy)")
+        assertTrue(source.isFile, "source download-phase file must stay in place")
+    }
+
+    @Test
+    fun `prewarmCacheForApp reuses another app finalized entry with same url hash`() {
+        val cacheDir = tempDir.resolve("cache-app2").toFile().also { it.mkdirs() }
+        val url = "https://example.com/shared-2.0.zip#/inner.7z"
+        val hash = ScoopCacheManager.urlHash(url)
+        val ext = ScoopCacheManager.urlExtension(url)
+        File(cacheDir, "scoop-ai-verify#2.0#$hash$ext").writeText("VERIFY-DATA")
+
+        val manifestJson = """{"version": "2.0", "url": "$url", "hash": "0123456789abcdef"}"""
+        val count = client.prewarmCacheForApp("realtool", "2.0", manifestJson, cacheDir)
+
+        assertEquals(1, count)
+        val target = File(cacheDir, computeTargetName("realtool", "2.0", url))
+        assertTrue(target.exists())
+        assertEquals("VERIFY-DATA", target.readText())
+    }
+
+    @Test
+    fun `prewarmCacheForApp returns 0 and creates nothing when no cached source exists`() {
+        val cacheDir = tempDir.resolve("cache-app3").toFile().also { it.mkdirs() }
+        val url = "https://example.com/never-downloaded.exe"
+
+        val manifestJson = """{"version": "3.0", "url": "$url", "hash": "0123456789abcdef"}"""
+        val count = client.prewarmCacheForApp("missing", "3.0", manifestJson, cacheDir)
+
+        assertEquals(0, count)
+        val files = cacheDir.listFiles { f -> f.name.startsWith("missing#") } ?: emptyArray()
+        assertEquals(0, files.size, "no target file may appear without a source")
+    }
+
+    @Test
+    fun `prewarmCacheForApp skips aria2 partial control files`() {
+        val cacheDir = tempDir.resolve("cache-app4").toFile().also { it.mkdirs() }
+        val url = "https://example.com/interrupted-4.0.zip#/inner.7z"
+        val hash = ScoopCacheManager.urlHash(url)
+        val ext = ScoopCacheManager.urlExtension(url)
+        // only the interrupted aria2 control file matches; no completed entry
+        File(cacheDir, "otherapp#4.0#$hash$ext.aria2").writeText("ARIA2-PARTIAL")
+
+        val manifestJson = """{"version": "4.0", "url": "$url", "hash": "0123456789abcdef"}"""
+        val count = client.prewarmCacheForApp("realapp", "4.0", manifestJson, cacheDir)
+
+        assertEquals(0, count)
+        assertFalse(
+            File(cacheDir, computeTargetName("realapp", "4.0", url)).exists(),
+            "aria2 partial must not become a formal cache entry",
+        )
+    }
+
+    @Test
+    fun `prewarmCacheForApp is idempotent when the formal entry already exists`() {
+        val cacheDir = tempDir.resolve("cache-app5").toFile().also { it.mkdirs() }
+        val url = "https://example.com/already-warm-5.0.exe"
+        val source = File(cacheDir, ScoopCacheManager.downloadCacheName(url))
+        source.writeText("ENGINE-SOURCE")
+        val target = File(cacheDir, computeTargetName("warmapp", "5.0", url))
+        target.writeText("PRE-EXISTING-FORMAL")
+
+        val manifestJson = """{"version": "5.0", "url": "$url", "hash": "0123456789abcdef"}"""
+        val count = client.prewarmCacheForApp("warmapp", "5.0", manifestJson, cacheDir)
+
+        assertEquals(0, count, "existing formal entry must not be recounted")
+        assertEquals("PRE-EXISTING-FORMAL", target.readText(), "existing formal entry must not be overwritten")
+    }
+
+    @Test
+    fun `prewarmCacheForApp warms urls from every architecture block`() {
+        val cacheDir = tempDir.resolve("cache-app6").toFile().also { it.mkdirs() }
+        val url64 = "https://ex.com/app-64.exe"
+        val urlArm = "https://ex.com/app-arm64.exe"
+        File(cacheDir, ScoopCacheManager.downloadCacheName(url64)).writeText("WIN64")
+        File(cacheDir, ScoopCacheManager.downloadCacheName(urlArm)).writeText("ARM64")
+
+        val count = client.prewarmCacheForApp("archapp", "6.0", writeArchUrlJson("6.0", "64bit" to url64, "arm64" to urlArm), cacheDir)
+
+        assertEquals(2, count, "64bit and arm64 urls must both be warmed")
+        assertTrue(File(cacheDir, computeTargetName("archapp", "6.0", url64)).exists())
+        assertTrue(File(cacheDir, computeTargetName("archapp", "6.0", urlArm)).exists())
+    }
+
+    @Test
+    fun `prewarmCacheForApp returns 0 on malformed manifest json`() {
+        val cacheDir = tempDir.resolve("cache-app7").toFile().also { it.mkdirs() }
+
+        val count = client.prewarmCacheForApp("badapp", "7.0", "{ not valid json ", cacheDir)
+
+        assertEquals(0, count)
+    }
+
+    // ---------------------------------------------------------------
     // preDownloadIfNeeded prewarm integration (formal install path)
     // ---------------------------------------------------------------
 

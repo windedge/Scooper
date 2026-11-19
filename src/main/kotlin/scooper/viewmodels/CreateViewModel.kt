@@ -1489,8 +1489,37 @@ class CreateViewModel(
                 )
             }
             refreshDeploymentStateInIntent()
+            prewarmSavedAppCache(effect.suggestedAppName, state.manifestJson)
         }
         return effect.resultJson
+    }
+
+    /**
+     * After a successful save the real app name is fixed, so warm the scoop
+     * cache under that name: a later bare `scoop install <bucket>/<app>.json`
+     * or update then reuses the verify-install downloads. Fire-and-forget and
+     * best-effort: failures only log and never affect the save result.
+     */
+    private fun prewarmSavedAppCache(appName: String?, manifestJsonText: String) {
+        val name = appName?.trim().takeUnless { it.isNullOrEmpty() } ?: return
+        val version = manifestVersionOfText(manifestJsonText) ?: return
+        coroutineScope.launch {
+            val warmed = try {
+                scoopClient.prewarmCacheForApp(name, version, manifestJsonText)
+            } catch (e: Exception) {
+                logger.warn("Cache prewarm for $name failed: ${e.message}")
+                return@launch
+            }
+            if (warmed > 0) logger.info("Prewarmed $warmed cache file(s) for $name after save")
+        }
+    }
+
+    /** Version field of [manifestJsonText], or null when missing / blank / invalid. */
+    private fun manifestVersionOfText(manifestJsonText: String): String? = try {
+        (Json.parseToJsonElement(manifestJsonText) as? JsonObject)?.get("version")
+            ?.let { (it as? JsonPrimitive)?.content?.takeUnless { c -> c.isBlank() } }
+    } catch (_: Exception) {
+        null
     }
 
     /** AI install_app tool backend: run the real install and reply JSON to the model. */
