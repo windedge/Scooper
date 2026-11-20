@@ -73,6 +73,9 @@
 -dontwarn kotlinx.coroutines.slf4j.**
 -dontwarn com.formdev.flatlaf.**
 
+# GraalVM SDK annotations referenced by kotlin-logging's JVM target class, absent on HotSpot
+-dontwarn com.oracle.svm.core.annotate.**
+
 # Disable ProGuard optimization to avoid ClassFormatError:
 # Kotlin compiler generates duplicated LocalVariableTable entries for inline functions ($i$f$getDp),
 # and ProGuard's optimization step can produce invalid class files.
