@@ -4,22 +4,15 @@
 
 ### ✨ New Feature
 
-- **AI replies follow the UI language**: Generated results, live activity lines, tool-call intent lines and finish summaries now use the interface language. The host passes the reply language into the engine, where the research, analyze and generate prompts anchor all user-visible prose to it while manifest field values stay in English. (0704f71, fbbd7fd, 1d7f339, cd3d173, a33e724)
+- **AI manifest generation**: Paste a GitHub URL and the app researches, analyzes and generates a Scoop manifest for you, with screenshots supported. Chat with AI over multiple rounds to refine the result, watch each step live, get built-in review with clickable fixes, then test-install, save to a bucket and install for real, so broken manifests never reach your system.
+- **Flexible AI providers**: Configure openai, anthropic, deepseek, ollama, openrouter or any OpenAI-compatible endpoint, with model fetching, connection testing, and multi-tab sessions you can start from anywhere in the app.
 
 ### 🐛 Bug Fixes
 
-- **Mixed-language finish bubbles**: The generate, assist and repair phases now pin activities and tool-call intent to the reply language, so finish bubbles no longer mix English sentences into a Chinese reply. (3f9b6d7, 635209d, 06cf552, 7896a9b, bc97d38)
-- **Assist retry after a failure**: Retrying a failed assist run continues from the last interruption with a localized continue instruction instead of resending the last user message and adding a duplicate bubble to the history. (6b0cc38)
-- **Crash on a single-string `persist`**: A manifest with a string-valued `persist` field no longer aborts the run with `Element class kotlinx.serialization.json.JsonLiteral is not a JsonArray`; the engine treats it as a one-element list. (db6ba25)
-- **i18n CI gate**: Orphan plural forms that made `msgfmt` fail were removed, and template placeholders are now checked for parity in `check_po.py` instead of being flagged as Java format strings. (45f4053, a6232aa, 7e8e67c)
-- **ProGuard GraalVM annotation warnings**: Release builds no longer fail on unresolved GraalVM SDK annotations from kotlin-logging, alongside the existing `dontwarn` rules for optional engine dependencies. (9477f81, 472b828)
-
-### 🛠 Improvement
-
-- **Scoop cache prewarm after saving**: Once a manifest is saved under its real app name, verification downloads are hard-linked to the `app#version#hash` cache entry so installing it does not download the archive a second time. (cb71241)
-- **Model dropdown widths**: The Create model popup uses shared 320/480dp bounds and the Settings trigger is pinned to a fixed width, so long model names are no longer truncated and the test buttons stay aligned. (12dcb70)
-- **Self-contained AI questionnaires**: `ask_user` questions must include the concrete before/after plan in the prompt itself, so users never have to approve an "above plan" they cannot see. (06cf552)
-- **JitPack engine distribution**: The scoop-ai engine is now resolved from JitPack as `com.github.windedge.scoop-ai` (core and tools, v0.1.23) instead of the Maven Central coordinates. (a9a66f4, a33e724)
+- **Cross-bucket duplicate names**: Upgrades now target the bucket an app was actually installed from.
+- **Search caret during fast typing**: Quick typing no longer moves the caret or scrambles characters.
+- **Cancelled downloads**: A cancelled download now deletes its partial file, and stopping a task kills the whole scoop process tree.
+- **UI polish**: Card borders render correctly, and closing a maximized window no longer overwrites the saved window geometry.
 
 ## v1.2.5 (2026-08-20)
 
@@ -142,7 +135,7 @@
 - Redesign UI layout with sidebar navigation, refine dark mode support across all UI components
 - Add grid view and pagination mode (Waterfall / Page-based) for package list
 - Add global keyboard shortcuts: Ctrl+F (search), Ctrl+R (refresh), Ctrl+1-4 (sidebar navigation), etc.
-- Add font size scaling (0.8x–1.5x) with real-time preview in UI Settings
+- Add font size scaling (0.8x-1.5x) with real-time preview in UI Settings
 - Show download progress on refresh button during install/update
 - Add version history browser and ability to install specific versions
 - Add "Open" button for installed apps with shortcuts
