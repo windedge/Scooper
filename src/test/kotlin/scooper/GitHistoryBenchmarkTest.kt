@@ -10,6 +10,7 @@
  */
 package scooper
 
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import java.io.BufferedReader
 import java.io.File
@@ -23,11 +24,16 @@ import kotlin.system.measureTimeMillis
 
 class GitHistoryBenchmarkTest {
 
-    private val bucketDir = File("C:/Users/xujl/scoop/buckets/main")
+    private val bucketDir = System.getenv("SCOOPER_BENCH_BUCKET")?.let(::File)
+        ?: File(System.getenv("USERPROFILE") ?: System.getProperty("java.io.tmpdir"), "scoop/buckets/main")
     private val manifestDir = bucketDir.resolve("bucket")
 
     @Test
     fun `benchmark - git log --numstat (compact) vs full git log vs file attributes`() {
+        assumeTrue(
+            bucketDir.resolve(".git").isDirectory,
+            "benchmark needs a real scoop bucket git repo at ${bucketDir.absolutePath}",
+        )
         println("=== Scooper Git History Benchmark ===")
         println("Bucket: ${bucketDir.absolutePath}")
         println()

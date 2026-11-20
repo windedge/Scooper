@@ -4,14 +4,14 @@ import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import scooper.repository.db.Apps
 import scooper.repository.db.Buckets
-import scooper.service.ScoopClient
 import scooper.service.GitHistoryService
-import scooper.service.ScoopLogStream
-import scooper.taskqueue.TaskQueue
+import scooper.service.ScoopTempRoot
 import java.io.File
 
 
@@ -35,13 +35,16 @@ internal class AppsRepositoryTest {
     }
 
     @Test
-    fun loadApps() {
-        val appsRepository = AppsRepository(ScoopClient(ScoopLogStream(), TaskQueue()), GitHistoryService())
+    fun loadApps(@TempDir tempDir: File) {
+        val root = ScoopTempRoot(tempDir)
+        root.writeManifest("main", "ripgrep", "14.1.0")
+        root.writeManifest("main", "fd", "10.2.0")
+        val appsRepository = AppsRepository(root.client(), GitHistoryService())
         appsRepository.loadAll()
 
         transaction {
-            val appsCount = Apps.selectAll().count()
-            assert(appsCount > 0)
+            assertEquals(2L, Apps.selectAll().count())
+            assertEquals(setOf("fd", "ripgrep"), Apps.selectAll().map { it[Apps.name] }.toSet())
         }
 
     }
