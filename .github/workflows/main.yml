@@ -7,7 +7,7 @@ on:
     tags:
       - "v*"
     branches:
-      - main
+      - master
   pull_request:
 
 permissions:
@@ -48,11 +48,36 @@ jobs:
 
       - name: Build Msi
         run: ./gradlew packageReleaseMsi --no-daemon --stacktrace
+      - name: Extract release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+
+          tag = os.environ["RELEASE_TAG"]
+          version = tag[1:] if tag.startswith("v") else tag
+          with open("RELEASE_NOTES.md", encoding="utf-8") as f:
+              notes = f.read()
+          match = re.search(
+              r"^## v" + re.escape(version) + r".*?(?=^## |\Z)",
+              notes,
+              re.DOTALL | re.MULTILINE,
+          )
+          body = match.group(0).strip() if match else f"Release {tag}"
+          os.makedirs("build", exist_ok=True)
+          with open("build/release_notes.md", "w", encoding="utf-8", newline="\n") as f:
+              f.write(body + "\n")
+          PY
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
+          body_path: build/release_notes.md
           prerelease: false
           files: build/compose/binaries/main-release/msi/*.msi
