@@ -19,50 +19,40 @@ jobs:
     runs-on: windows-latest
     if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up JDK
-        uses: actions/setup-java@v3.10.0
+        uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Run tests
-        uses: gradle/gradle-build-action@v2.4.0
-        with:
-          arguments: "test --no-daemon"
+        run: ./gradlew test --no-daemon
 
   windows_build:
     name: Windows Release
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up JDK
-        uses: actions/setup-java@v3.10.0
+        uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
-            
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build Msi
-        uses: gradle/gradle-build-action@v2.4.0 
-        with:
-          arguments: "packageReleaseMsi --no-daemon --stacktrace"
-      # - name: Upload artifacts
-      #   uses: softprops/action-gh-release@v1
-      #   if: startsWith(github.ref, 'refs/tags/')
-      #   with:
-      #     files: |
-      #       build/compose/binaries/main/msi/*          
+        run: ./gradlew packageReleaseMsi --no-daemon --stacktrace
       - name: Release
-        uses: "marvinpinto/action-automatic-releases@latest"
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "${{ github.ref_name }}"
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           prerelease: false
-          files: |
-            build/compose/binaries/main-release/msi/*.msi
-            
-            
-#       - name: Grant execute permission for gradlew
-#         run: chmod +x gradlew
-#       - name: Create Windows Distribution
-#         run: ./gradlew packageMsi --info
+          files: build/compose/binaries/main-release/msi/*.msi
